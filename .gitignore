@@ -9,3 +9,4 @@ local.properties
 release.properties
 app/release/
 .superpowers/
+.kotlin/
