@@ -1,6 +1,7 @@
 package com.uniteduone.launcher
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -33,8 +34,9 @@ class SettingsTest {
     }
 
     @Test fun cardsPerRowSnapsToNearestTier() {
-        val v = parseSettings("""{"cardsPerRow": 7}""").cardsPerRow
-        assertTrue("expected 6 or 8, got $v", v == 6 || v == 8)
+        // 7 到 6 和 8 的距离相等(都是 1);minByOrNull 保留遇到的第一个最小值,
+        // 而 VALID_CARDS_PER_ROW 是 [5, 6, 8],所以这是个确定性行为,钉死成 6。
+        assertEquals(6, parseSettings("""{"cardsPerRow": 7}""").cardsPerRow)
         assertEquals(5, parseSettings("""{"cardsPerRow": 5}""").cardsPerRow)
         assertEquals(6, parseSettings("""{"cardsPerRow": 6}""").cardsPerRow)
         assertEquals(8, parseSettings("""{"cardsPerRow": 8}""").cardsPerRow)
@@ -94,5 +96,29 @@ class SettingsTest {
     @Test fun defaultSettingsRoundTrips() {
         val s = Settings()
         assertEquals(s, parseSettings(s.toJson()))
+    }
+
+    @Test fun wellFormedJsonObjectAcceptsExactlyOneTopLevelObject() {
+        assertTrue(isWellFormedJsonObject("""{"rowCount":5}"""))
+        assertTrue(isWellFormedJsonObject("{}"))
+        assertTrue(isWellFormedJsonObject(Settings().toJson()))
+        // 尾部空白无所谓——真正落盘的 toJson() 输出就带一个结尾换行。
+        assertTrue(isWellFormedJsonObject("""{"rowCount":5}""" + "\n"))
+    }
+
+    @Test fun wellFormedJsonObjectRejectsConcatenatedObjects() {
+        // 追加式损坏:两个本身都合法的对象首尾拼在一起——花括号配平、首尾字符也对,
+        // 但顶层对象闭合了不止一次,必须判损坏,否则 parseSettings 的最左匹配正则
+        // 会悄悄取到第一段(旧值),这份坏文件就永远续命下去了。
+        assertFalse(isWellFormedJsonObject("""{"rowCount":5}{"cardsPerRow":8}"""))
+        assertFalse(isWellFormedJsonObject("{}{}"))
+        assertFalse(isWellFormedJsonObject("{} {}"))
+    }
+
+    @Test fun wellFormedJsonObjectRejectsStructurallyBrokenText() {
+        assertFalse(isWellFormedJsonObject(""))
+        assertFalse(isWellFormedJsonObject("{not json"))
+        assertFalse(isWellFormedJsonObject("{}}"))
+        assertFalse(isWellFormedJsonObject("""{"a": "unterminated"""))
     }
 }

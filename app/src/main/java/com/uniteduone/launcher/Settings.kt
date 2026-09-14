@@ -121,18 +121,28 @@ fun Settings.toJson(): String {
 }
 
 /**
- * 粗略判断一段文本是不是"至少语法完整"的 JSON 对象(花括号/引号配平)。
+ * 粗略判断一段文本是不是"至少语法完整、且只有一个"的 JSON 对象(花括号/引号配平,
+ * 且顶层对象只闭合一次、闭合点必须是整段文本的末尾)。
  * 只给 [SettingsStore.read] 用来区分「文件语法就是坏的,该当成损坏处理」
  * 和「文件语法没问题、只是没写全某些字段(这是正常用法,不是损坏)」——
  * 后者应该走 [parseSettings] 的按字段默认回落,不该被当成坏文件改名。
+ *
+ * "顶层只闭合一次"这条专门堵一种很现实的追加式损坏:两段本身都合法的对象首尾拼在
+ * 一起,比如 `{"rowCount":5}{"cardsPerRow":8}`——花括号配平、首尾字符也对,若不额外
+ * 检查闭合位置就会被误判成"合法但partial"而放行,而 [parseSettings] 用的是最左匹配
+ * 的正则,同名字段会悄悄取到第一段(旧值),这份坏文件也就永远续命下去。
+ *
+ * `internal` 而非 `private`:方便 [SettingsTest] 直接对这个函数本身断言,
+ * 而不是绕一层间接验证。
  */
-private fun isWellFormedJsonObject(text: String): Boolean {
+internal fun isWellFormedJsonObject(text: String): Boolean {
     val t = text.trim()
     if (t.length < 2 || t.first() != '{' || t.last() != '}') return false
     var depth = 0
     var inString = false
     var escape = false
-    for (c in t) {
+    for (i in t.indices) {
+        val c = t[i]
         if (inString) {
             when {
                 escape -> escape = false
@@ -144,11 +154,17 @@ private fun isWellFormedJsonObject(text: String): Boolean {
         when (c) {
             '"' -> inString = true
             '{' -> depth++
-            '}' -> depth--
+            '}' -> {
+                depth--
+                if (depth < 0) return false
+                // 顶层对象刚闭合:后面除了空白不能再有任何东西,否则就是拼接的
+                // 第二个对象(或多余的垃圾字符),按损坏处理。
+                if (depth == 0) return t.substring(i + 1).isBlank()
+            }
         }
-        if (depth < 0) return false
     }
-    return !inString && depth == 0
+    // 循环走完都没等到顶层闭合(引号没配对,或花括号没配平)——不是合法的单个对象。
+    return false
 }
 
 /**
