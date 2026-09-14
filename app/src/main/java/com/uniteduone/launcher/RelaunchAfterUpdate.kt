@@ -20,8 +20,10 @@ class RelaunchAfterUpdate : BroadcastReceiver() {
         val defaultHome = context.packageManager
             .resolveActivity(home, PackageManager.MATCH_DEFAULT_ONLY)
             ?.activityInfo?.packageName
-        if (defaultHome != context.packageName) {
-            Log.i(TAG, "package replaced; default home is $defaultHome, not relaunching")
+        val isDefaultHome = defaultHome == context.packageName
+        val canOverlay = android.provider.Settings.canDrawOverlays(context)
+        if (!shouldRelaunchHome(isDefaultHome, canOverlay)) {
+            Log.i(TAG, "package replaced; skip relaunch: defaultHome=$defaultHome overlay=$canOverlay")
             return
         }
         // 只有隐式 HOME 意图会被建成 type=home 的桌面任务;点名自己的 Activity 会变成普通任务。
