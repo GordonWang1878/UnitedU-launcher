@@ -10,6 +10,23 @@ source scripts/env.sh && gradle --no-daemon assembleRelease
 
 工具链在 `~/Library/{Java,Gradle,Android}`,刻意不进全局 PATH。装法与版本见 `docs/WORKLOG.md`。
 
+## 模拟器(开发验证)
+
+AVD `unitedu-tv`:Android 14 TV(arm64-v8a),1920×1080/320dpi,HVF 加速。工具链已装 emulator + system-image(手装,同 SDK 绕法,见 `docs/WORKLOG.md`)。
+
+```bash
+source scripts/env.sh
+emulator -avd unitedu-tv -no-snapshot -no-audio -gpu swiftshader_indirect &   # 启动
+adb wait-for-device && adb shell 'while [ "$(getprop sys.boot_completed)" != 1 ]; do sleep 2; done'
+adb install -r app/build/outputs/apk/release/app-release.apk
+adb shell cmd package set-home-activity --user 0 com.uniteduone.launcher/.MainActivity
+adb shell input keyevent KEYCODE_HOME
+adb exec-out screencap -p > /tmp/home.png        # 截图
+adb emu kill                                     # 关闭
+```
+
+真机(Sony A95L,`192.168.1.50:5555`)只在 M8 验收用;开发全程走模拟器。
+
 ## 文档分流(每轮工作收尾前必查同步)
 
 - `docs/DESIGN-*.md`:设计定稿,改设计先改它
