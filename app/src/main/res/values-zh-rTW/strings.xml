@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">UnitedU</string>
+
+    <!-- menu_* : 齒輪選單與選單項 -->
+    <string name="menu_settings_title">設定</string>
+    <string name="menu_back_to_close">按返回鍵關閉</string>
+    <string name="menu_edit">編輯桌面</string>
+    <string name="menu_edit_desc">新增或移除應用程式、調整順序、換卡片圖</string>
+    <string name="menu_wallpaper">換桌布</string>
+    <string name="menu_wallpaper_desc">選一張圖片取代背景</string>
+    <string name="menu_screensaver">螢幕保護程式圖庫</string>
+    <string name="menu_screensaver_desc">檢視輪播的螢幕保護程式圖片</string>
+    <string name="menu_system_settings">系統設定</string>
+    <string name="menu_system_settings_desc">開啟電視的 Android 設定</string>
+    <string name="menu_set_default_home">設定預設桌面</string>
+    <string name="menu_set_default_home_desc">選擇按下 Home 鍵時啟動哪個桌面</string>
+
+    <!-- edit_* : 編輯桌面畫面 -->
+    <string name="edit_title">編輯桌面</string>
+    <string name="edit_hint">選取應用程式後按確定:調整順序、換圖、移出。每行最後的加號可以新增。按返回鍵離開。</string>
+    <string name="edit_toast_order_not_saved">順序沒能存下來,重新啟動後會變回原樣</string>
+    <string name="edit_move_left">往左移</string>
+    <string name="edit_move_left_desc">在這一行裡前移一位</string>
+    <string name="edit_move_right">往右移</string>
+    <string name="edit_move_right_desc">在這一行裡後移一位</string>
+    <string name="edit_change_image">換卡片圖</string>
+    <string name="edit_change_image_desc">選一張 16:9 的圖片取代</string>
+    <string name="edit_remove">從這一行移出</string>
+    <string name="edit_remove_desc">應用程式本身不會被解除安裝</string>
+    <string name="edit_not_installed">未安裝\n%1$s</string>
+    <string name="edit_add_app_title">新增應用程式</string>
+    <string name="edit_loading_apps">正在讀取應用程式清單…</string>
+    <string name="edit_no_more_apps">沒有可新增的應用程式了</string>
+
+    <!-- home_* : 首頁與預設桌面設定卡 -->
+    <string name="home_empty_apps_hint">沒有可顯示的應用程式\n右上角的齒輪已選取,按「確定」進入「編輯桌面」新增</string>
+    <string name="home_settings_title">預設桌面</string>
+    <string name="home_settings_current_label">目前</string>
+    <string name="home_settings_change_button">在系統設定中變更</string>
+    <string name="home_settings_note">Android 要求預設桌面須在系統設定裡切換。</string>
+    <string name="home_back_to_close">按返回鍵關閉</string>
+    <string name="home_settings_unknown">未知</string>
+
+    <!-- picker_* : 桌布/卡片圖/螢幕保護程式圖庫選擇器 -->
+    <string name="picker_wallpaper_title">選一張桌布</string>
+    <string name="picker_card_image_title">選一張卡片圖</string>
+    <string name="picker_no_images">還沒有圖片可選</string>
+    <string name="picker_adb_hint">請先用 adb push 把圖片放到\nfiles/library/ 目錄</string>
+    <string name="picker_back_to_close">按返回鍵關閉</string>
+    <string name="picker_back_to_cancel">按返回鍵取消</string>
+    <string name="picker_restore_original">恢復原圖</string>
+    <string name="picker_screensaver_pool_title">螢幕保護程式圖庫 · %1$d 張 · 按確定鍵預覽</string>
+    <string name="picker_screensaver_title">螢幕保護程式圖庫</string>
+    <string name="picker_no_screensavers">還沒有螢幕保護程式圖片</string>
+    <string name="picker_adb_hint_screensaver">用 adb push 新增圖片到\nfiles/library/screensavers/ 目錄</string>
+
+    <!-- toast_* : 一次性提示 -->
+    <string name="toast_cant_open_app">打不開「%1$s」,它可能已被解除安裝</string>
+    <string name="toast_storage_not_ready">外部儲存空間還沒準備好,稍後再試</string>
+    <string name="toast_open_failed">打不開:%1$s</string>
+    <string name="toast_wallpaper_changed">桌布已更換</string>
+    <string name="toast_invalid_image">這個檔案不是可用的圖片</string>
+    <string name="toast_card_image_changed">卡片圖已更換</string>
+    <string name="toast_icon_restored">已恢復原始圖示</string>
+    <string name="toast_opened_stock_launcher">已開啟原廠桌面;要永久切換請在系統設定裡變更主畫面應用程式</string>
+    <string name="toast_stock_launcher_not_found">找不到原廠桌面</string>
+</resources>

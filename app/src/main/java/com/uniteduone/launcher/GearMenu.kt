@@ -16,6 +16,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -56,7 +57,7 @@ fun GearMenu(items: List<MenuItem>, onDismiss: () -> Unit, nonce: Int = 0) {
                 .padding(vertical = 20.dp),
         ) {
             BasicText(
-                text = "设置",
+                text = stringResource(R.string.menu_settings_title),
                 style = TextStyle(
                     fontFamily = Theme.Sans,
                     fontWeight = FontWeight.Medium,
@@ -82,7 +83,7 @@ fun GearMenu(items: List<MenuItem>, onDismiss: () -> Unit, nonce: Int = 0) {
             Spacer(Modifier.height(12.dp))
 
             BasicText(
-                text = "按返回键关闭",
+                text = stringResource(R.string.menu_back_to_close),
                 style = TextStyle(
                     fontFamily = Theme.Sans,
                     color = Color(0xFF4A4A4A),

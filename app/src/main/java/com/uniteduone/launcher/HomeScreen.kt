@@ -34,6 +34,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -230,7 +231,7 @@ fun HomeScreen(
             // 给一句话告诉用户怎么自救(实测:此时齿轮菜单仍可用)。
             if (loaded != null && rows.isEmpty()) {
                 BasicText(
-                    text = "没有可显示的应用\n右上角的齿轮已选中,按「确定」进「编辑桌面」添加",
+                    text = stringResource(R.string.home_empty_apps_hint),
                     modifier = Modifier.padding(start = Theme.SidePadding),
                     style = TextStyle(
                         fontFamily = Theme.Sans,
@@ -425,7 +426,7 @@ private fun CategoryRow(
                     onClick = {
                         if (!Apps.launch(ctx, app.packageName)) {
                             android.widget.Toast.makeText(
-                                ctx, "打不开「${app.label}」,它可能已被卸载", android.widget.Toast.LENGTH_SHORT,
+                                ctx, ctx.getString(R.string.toast_cant_open_app, app.label), android.widget.Toast.LENGTH_SHORT,
                             ).show()
                         }
                     },

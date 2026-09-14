@@ -32,6 +32,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -206,7 +207,7 @@ fun EditScreen(
         scope.launch {
             val ok = withContext(Dispatchers.IO) { Layout.write(ctx, snapshot) }
             if (!ok) android.widget.Toast.makeText(
-                ctx, "顺序没能存下来,重启后会变回原样", android.widget.Toast.LENGTH_LONG,
+                ctx, ctx.getString(R.string.edit_toast_order_not_saved), android.widget.Toast.LENGTH_LONG,
             ).show()
         }
     }
@@ -241,12 +242,12 @@ fun EditScreen(
                 .padding(top = 40.dp, bottom = 40.dp)
         ) {
             BasicText(
-                text = "编辑桌面",
+                text = stringResource(R.string.edit_title),
                 modifier = Modifier.padding(start = Theme.SidePadding, bottom = 4.dp),
                 style = TextStyle(fontFamily = Theme.Sans, color = Theme.Champagne, fontSize = 20.sp),
             )
             BasicText(
-                text = "选中应用按确定:调顺序、换图、移出。每行末尾的加号可以添加。返回键退出。",
+                text = stringResource(R.string.edit_hint),
                 modifier = Modifier.padding(start = Theme.SidePadding, bottom = 18.dp),
                 style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF9A9A9A), fontSize = 12.sp),
             )
@@ -353,7 +354,7 @@ fun EditScreen(
             GearMenu(
                 items = buildList {
                     // 不适用的方向直接不列出,否则点了什么都不发生、也没有反馈
-                    if (pi > 0) add(MenuItem("往左移", "在这一行里前移一位") {
+                    if (pi > 0) add(MenuItem(stringResource(R.string.edit_move_left), stringResource(R.string.edit_move_left_desc)) {
                         if (pi > 0) {
                             rows = rows.mapIndexed { i, r ->
                                 if (i == ri) r.first to r.second.toMutableList().also {
@@ -364,7 +365,7 @@ fun EditScreen(
                         }
                         acting = null
                     })
-                    if (pi < rows[ri].second.lastIndex) add(MenuItem("往右移", "在这一行里后移一位") {
+                    if (pi < rows[ri].second.lastIndex) add(MenuItem(stringResource(R.string.edit_move_right), stringResource(R.string.edit_move_right_desc)) {
                         if (pi < rows[ri].second.size - 1) {
                             rows = rows.mapIndexed { i, r ->
                                 if (i == ri) r.first to r.second.toMutableList().also {
@@ -375,10 +376,10 @@ fun EditScreen(
                         }
                         acting = null
                     })
-                    add(MenuItem("换卡片图", "选一张 16:9 的图替换") {
+                    add(MenuItem(stringResource(R.string.edit_change_image), stringResource(R.string.edit_change_image_desc)) {
                         acting = null; retarget(ri, pi); onPickIcon(pkg)
                     })
-                    add(MenuItem("从这一行移出", "应用本身不会被卸载") {
+                    add(MenuItem(stringResource(R.string.edit_remove), stringResource(R.string.edit_remove_desc)) {
                         rows = rows.mapIndexed { i, r ->
                             if (i == ri) r.first to r.second.toMutableList().also { it.removeAt(pi) } else r
                         }
@@ -510,7 +511,7 @@ private fun MissingCard(
         contentAlignment = Alignment.Center,
     ) {
         BasicText(
-            text = "未安装\n$pkg",
+            text = stringResource(R.string.edit_not_installed, pkg),
             style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFFB08080), fontSize = 10.sp, textAlign = TextAlign.Center),
             modifier = Modifier.padding(6.dp),
         )
@@ -578,19 +579,19 @@ private fun AppPicker(
                 .heightIn(max = 420.dp),
         ) {
             BasicText(
-                "添加应用",
+                stringResource(R.string.edit_add_app_title),
                 modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
                 style = TextStyle(fontFamily = Theme.Sans, color = Theme.Champagne, fontSize = 16.sp),
             )
             if (candidates == null) {
                 BasicText(
-                    "正在读取应用列表…",
+                    stringResource(R.string.edit_loading_apps),
                     modifier = Modifier.padding(10.dp),
                     style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF9A9A9A), fontSize = 13.sp),
                 )
             } else if (candidates!!.isEmpty()) {
                 BasicText(
-                    "没有可添加的应用了",
+                    stringResource(R.string.edit_no_more_apps),
                     modifier = Modifier.padding(10.dp),
                     style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF9A9A9A), fontSize = 13.sp),
                 )

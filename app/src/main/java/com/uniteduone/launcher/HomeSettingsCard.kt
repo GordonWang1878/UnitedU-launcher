@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -76,7 +77,7 @@ fun HomeSettingsCard(
                 .padding(24.dp),
         ) {
             BasicText(
-                text = "默认桌面",
+                text = stringResource(R.string.home_settings_title),
                 style = TextStyle(
                     fontFamily = Theme.Sans,
                     fontWeight = FontWeight.Medium,
@@ -117,7 +118,7 @@ fun HomeSettingsCard(
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     BasicText(
-                        text = "当前",
+                        text = stringResource(R.string.home_settings_current_label),
                         style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF8A8A8A), fontSize = 11.sp),
                     )
                     BasicText(
@@ -157,7 +158,7 @@ fun HomeSettingsCard(
                 contentAlignment = Alignment.Center,
             ) {
                 BasicText(
-                    text = "在系统设置中更改",
+                    text = stringResource(R.string.home_settings_change_button),
                     style = TextStyle(
                         fontFamily = Theme.Sans,
                         fontWeight = FontWeight.Medium,
@@ -170,7 +171,7 @@ fun HomeSettingsCard(
             Spacer(Modifier.height(12.dp))
 
             BasicText(
-                text = "Android 要求默认桌面在系统设置里切换。",
+                text = stringResource(R.string.home_settings_note),
                 style = TextStyle(
                     fontFamily = Theme.Sans,
                     color = Color(0xFF7A7A7A),
@@ -182,7 +183,7 @@ fun HomeSettingsCard(
             Spacer(Modifier.height(10.dp))
 
             BasicText(
-                text = "按返回键关闭",
+                text = stringResource(R.string.home_back_to_close),
                 style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF4A4A4A), fontSize = 10.sp),
             )
         }

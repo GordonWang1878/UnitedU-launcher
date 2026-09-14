@@ -15,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.*
 import kotlinx.coroutines.delay
 
@@ -100,7 +101,7 @@ class MainActivity : ComponentActivity() {
             if (pt == PICK_WALLPAPER) {
                 WallpaperPicker(
                     directory = Paths.wallpaperLibrary(this@MainActivity),
-                    title = "选一张壁纸",
+                    title = stringResource(R.string.picker_wallpaper_title),
                     nonce = focusNonce,
                     onSelect = { file -> handlePick(file) },
                     onDismiss = { pickerTarget = null; focusNonce++ },
@@ -119,8 +120,9 @@ class MainActivity : ComponentActivity() {
                         PackageManager.MATCH_DEFAULT_ONLY,
                     )
                 }
+                val unknownAppLabel = stringResource(R.string.home_settings_unknown)
                 HomeSettingsCard(
-                    currentLabel = remember(info) { info?.loadLabel(pm)?.toString() ?: "未知" },
+                    currentLabel = remember(info) { info?.loadLabel(pm)?.toString() ?: unknownAppLabel },
                     currentPkg = remember(info) { info?.activityInfo?.packageName },
                     onOpenSystem = { switchHome() },
                     onDismiss = { pickerTarget = null; focusNonce++ },
@@ -251,31 +253,31 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun menuItems() = listOf(
-        MenuItem("编辑桌面", "增删应用、调整顺序、换卡片图") { editing = true },
-        MenuItem("换壁纸", "选一张图片替换背景") { pickWallpaper() },
-        MenuItem("屏保图库", "查看轮播屏保图片") { openScreensaverPool() },
-        MenuItem("系统设置", "打开电视的 Android 设置") { open(Intent(Settings.ACTION_SETTINGS)) },
-        MenuItem("设置默认桌面", "选择按 Home 键时启动哪个桌面") { openHomeSettings() },
+        MenuItem(getString(R.string.menu_edit), getString(R.string.menu_edit_desc)) { editing = true },
+        MenuItem(getString(R.string.menu_wallpaper), getString(R.string.menu_wallpaper_desc)) { pickWallpaper() },
+        MenuItem(getString(R.string.menu_screensaver), getString(R.string.menu_screensaver_desc)) { openScreensaverPool() },
+        MenuItem(getString(R.string.menu_system_settings), getString(R.string.menu_system_settings_desc)) { open(Intent(Settings.ACTION_SETTINGS)) },
+        MenuItem(getString(R.string.menu_set_default_home), getString(R.string.menu_set_default_home_desc)) { openHomeSettings() },
     )
 
     private fun pickIcon(pkg: String) {
-        if (Paths.baseOrNull(this) == null) { toast("外部存储还没准备好,稍后再试"); return }
+        if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
         pickerTarget = pkg
     }
 
     private fun open(intent: Intent) {
         runCatching { startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-            .onFailure { toast("打不开:${it.message}") }
+            .onFailure { toast(getString(R.string.toast_open_failed, it.message)) }
     }
 
     private fun pickWallpaper() {
-        if (Paths.baseOrNull(this) == null) { toast("外部存储还没准备好,稍后再试"); return }
+        if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
         closeMenu()
         pickerTarget = PICK_WALLPAPER
     }
 
     private fun openScreensaverPool() {
-        if (Paths.baseOrNull(this) == null) { toast("外部存储还没准备好,稍后再试"); return }
+        if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
         closeMenu()
         pickerTarget = VIEW_SCREENSAVER_POOL
     }
@@ -300,7 +302,7 @@ class MainActivity : ComponentActivity() {
                 Paths.wallpaperPng(this).delete()
             }.isSuccess
             tmp.delete()
-            toast(if (ok) "壁纸已更换" else "这个文件不是能用的图片")
+            toast(getString(if (ok) R.string.toast_wallpaper_changed else R.string.toast_invalid_image))
             if (ok) recreate()
         } else {
             val dest = Paths.iconFor(this, target)
@@ -313,7 +315,7 @@ class MainActivity : ComponentActivity() {
                 if (!tmp.renameTo(dest)) { dest.delete(); check(tmp.renameTo(dest)) }
             }.isSuccess
             tmp.delete()
-            toast(if (ok) "卡片图已更换" else "这个文件不是能用的图片")
+            toast(getString(if (ok) R.string.toast_card_image_changed else R.string.toast_invalid_image))
             if (ok) revision++
         }
     }
@@ -322,7 +324,7 @@ class MainActivity : ComponentActivity() {
         pickerTarget = null
         val custom = Paths.iconFor(this, pkg)
         if (custom.exists()) custom.delete()
-        toast("已恢复原始图标")
+        toast(getString(R.string.toast_icon_restored))
         revision++
         focusNonce++
     }
@@ -340,10 +342,10 @@ class MainActivity : ComponentActivity() {
         val fallback = pm.getLeanbackLaunchIntentForPackage("com.dangbei.TVHomeLauncher")
             ?: pm.getLaunchIntentForPackage("com.dangbei.TVHomeLauncher")
         if (fallback != null) {
-            toast("已打开原厂桌面;要永久切换请在系统设置里改主屏幕应用")
+            toast(getString(R.string.toast_opened_stock_launcher))
             open(fallback)
         } else {
-            toast("找不到原厂桌面")
+            toast(getString(R.string.toast_stock_launcher_not_found))
         }
     }
 

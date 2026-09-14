@@ -20,6 +20,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,7 +56,7 @@ private sealed class PickerItem {
 @Composable
 fun WallpaperPicker(
     directory: File,
-    title: String = "选一张壁纸",
+    title: String = stringResource(R.string.picker_wallpaper_title),
     nonce: Int = 0,
     onSelect: (File) -> Unit,
     onDismiss: () -> Unit,
@@ -119,11 +120,11 @@ fun IconPicker(
         contentAlignment = Alignment.Center,
     ) {
         if (items.isEmpty()) {
-            EmptyState("选一张卡片图", nonce, onDismiss)
+            EmptyState(stringResource(R.string.picker_card_image_title), nonce, onDismiss)
         } else {
             PickerGrid(
                 items = items,
-                title = "选一张卡片图",
+                title = stringResource(R.string.picker_card_image_title),
                 columns = 4,
                 thumbWidth = 130.dp,
                 thumbHeight = 73.dp,
@@ -156,16 +157,16 @@ private fun EmptyState(title: String, nonce: Int, onDismiss: () -> Unit) {
             style = TextStyle(fontFamily = Theme.Sans, color = Theme.Champagne, fontSize = 16.sp),
         )
         BasicText(
-            text = "还没有图片可选",
+            text = stringResource(R.string.picker_no_images),
             style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFFE8E8E8), fontSize = 14.sp, textAlign = TextAlign.Center),
         )
         BasicText(
-            text = "请先用 adb push 把图片放到\nfiles/library/ 目录",
+            text = stringResource(R.string.picker_adb_hint),
             style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF8A8A8A), fontSize = 12.sp, textAlign = TextAlign.Center),
         )
         Spacer(Modifier.height(4.dp))
         BasicText(
-            text = "按返回键关闭",
+            text = stringResource(R.string.picker_back_to_close),
             style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF666666), fontSize = 11.sp),
             modifier = Modifier
                 .focusRequester(fr)
@@ -275,7 +276,7 @@ private fun PickerGrid(
         }
 
         BasicText(
-            text = "按返回键取消",
+            text = stringResource(R.string.picker_back_to_cancel),
             style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF666666), fontSize = 11.sp),
             modifier = Modifier.padding(top = 4.dp),
         )
@@ -308,7 +309,7 @@ private fun ThumbCard(
     }
 
     val label = when (item) {
-        is PickerItem.Original -> "恢复原图"
+        is PickerItem.Original -> stringResource(R.string.picker_restore_original)
         is PickerItem.Library -> item.file.nameWithoutExtension
     }
 
@@ -389,7 +390,7 @@ fun ScreensaverPoolViewer(
         } else {
             PickerGrid(
                 items = files.map { PickerItem.Library(it) },
-                title = "屏保图库 · ${files.size} 张 · 按确定键预览",
+                title = stringResource(R.string.picker_screensaver_pool_title, files.size),
                 columns = 3,
                 thumbWidth = 170.dp,
                 thumbHeight = 96.dp,
@@ -428,20 +429,20 @@ private fun PoolEmptyState(nonce: Int, onDismiss: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         BasicText(
-            text = "屏保图库",
+            text = stringResource(R.string.picker_screensaver_title),
             style = TextStyle(fontFamily = Theme.Sans, color = Theme.Champagne, fontSize = 16.sp),
         )
         BasicText(
-            text = "还没有屏保图片",
+            text = stringResource(R.string.picker_no_screensavers),
             style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFFE8E8E8), fontSize = 14.sp, textAlign = TextAlign.Center),
         )
         BasicText(
-            text = "用 adb push 添加图片到\nfiles/library/screensavers/ 目录",
+            text = stringResource(R.string.picker_adb_hint_screensaver),
             style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF8A8A8A), fontSize = 12.sp, textAlign = TextAlign.Center),
         )
         Spacer(Modifier.height(4.dp))
         BasicText(
-            text = "按返回键关闭",
+            text = stringResource(R.string.picker_back_to_close),
             style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF666666), fontSize = 11.sp),
             modifier = Modifier
                 .focusRequester(fr)

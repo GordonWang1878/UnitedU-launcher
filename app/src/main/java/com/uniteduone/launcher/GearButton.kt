@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 
 /**
@@ -26,7 +27,7 @@ fun GearButton(onClick: () -> Unit, modifier: Modifier = Modifier, onFocusChange
 
     Image(
         imageVector = Icons.Filled.Settings,
-        contentDescription = "设置",
+        contentDescription = stringResource(R.string.menu_settings_title),
         colorFilter = ColorFilter.tint(if (focused) Theme.ChampagneGold else Theme.ChampagneGold.copy(alpha = 0.55f)),
         modifier = modifier
             .size(30.dp)   // 同理:60px 框 × 0.79 填充 ≈ 参考的 47.5px

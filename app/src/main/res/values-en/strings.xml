@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">UnitedU</string>
+
+    <!-- menu_* : gear menu and its items -->
+    <string name="menu_settings_title">Settings</string>
+    <string name="menu_back_to_close">Press Back to close</string>
+    <string name="menu_edit">Edit Home Screen</string>
+    <string name="menu_edit_desc">Add, remove, reorder apps, or change card art</string>
+    <string name="menu_wallpaper">Change Wallpaper</string>
+    <string name="menu_wallpaper_desc">Pick an image to replace the background</string>
+    <string name="menu_screensaver">Screensaver Gallery</string>
+    <string name="menu_screensaver_desc">View the screensaver slideshow images</string>
+    <string name="menu_system_settings">System Settings</string>
+    <string name="menu_system_settings_desc">Open the TV\'s Android settings</string>
+    <string name="menu_set_default_home">Set Default Home</string>
+    <string name="menu_set_default_home_desc">Choose which launcher opens on the Home button</string>
+
+    <!-- edit_* : edit home screen -->
+    <string name="edit_title">Edit Home Screen</string>
+    <string name="edit_hint">Select an app and press OK to reorder, change art, or remove it. The plus sign at the end of each row adds apps. Press Back to exit.</string>
+    <string name="edit_toast_order_not_saved">The order couldn\'t be saved and will reset after restart</string>
+    <string name="edit_move_left">Move Left</string>
+    <string name="edit_move_left_desc">Move one spot earlier in this row</string>
+    <string name="edit_move_right">Move Right</string>
+    <string name="edit_move_right_desc">Move one spot later in this row</string>
+    <string name="edit_change_image">Change Card Art</string>
+    <string name="edit_change_image_desc">Pick a 16:9 image to replace it</string>
+    <string name="edit_remove">Remove From Row</string>
+    <string name="edit_remove_desc">The app itself won\'t be uninstalled</string>
+    <string name="edit_not_installed">Not installed\n%1$s</string>
+    <string name="edit_add_app_title">Add App</string>
+    <string name="edit_loading_apps">Loading app list…</string>
+    <string name="edit_no_more_apps">No more apps to add</string>
+
+    <!-- home_* : home screen and default-home settings card -->
+    <string name="home_empty_apps_hint">No apps to show\nThe gear icon in the top right is selected — press OK to open “Edit Home Screen” and add some</string>
+    <string name="home_settings_title">Default Home</string>
+    <string name="home_settings_current_label">Current</string>
+    <string name="home_settings_change_button">Change in System Settings</string>
+    <string name="home_settings_note">Android requires switching the default home screen in System Settings.</string>
+    <string name="home_back_to_close">Press Back to close</string>
+    <string name="home_settings_unknown">Unknown</string>
+
+    <!-- picker_* : wallpaper / card-image / screensaver pickers -->
+    <string name="picker_wallpaper_title">Choose a Wallpaper</string>
+    <string name="picker_card_image_title">Choose a Card Image</string>
+    <string name="picker_no_images">No images available yet</string>
+    <string name="picker_adb_hint">Use adb push to copy images to\nfiles/library/ first</string>
+    <string name="picker_back_to_close">Press Back to close</string>
+    <string name="picker_back_to_cancel">Press Back to cancel</string>
+    <string name="picker_restore_original">Restore Original</string>
+    <string name="picker_screensaver_pool_title">Screensaver Gallery · %1$d images · Press OK to preview</string>
+    <string name="picker_screensaver_title">Screensaver Gallery</string>
+    <string name="picker_no_screensavers">No screensaver images yet</string>
+    <string name="picker_adb_hint_screensaver">Use adb push to add images to\nfiles/library/screensavers/</string>
+
+    <!-- toast_* : transient toast messages -->
+    <string name="toast_cant_open_app">Couldn\'t open “%1$s” — it may have been uninstalled</string>
+    <string name="toast_storage_not_ready">External storage isn\'t ready yet, try again shortly</string>
+    <string name="toast_open_failed">Couldn\'t open: %1$s</string>
+    <string name="toast_wallpaper_changed">Wallpaper changed</string>
+    <string name="toast_invalid_image">That file isn\'t a usable image</string>
+    <string name="toast_card_image_changed">Card image changed</string>
+    <string name="toast_icon_restored">Original icon restored</string>
+    <string name="toast_opened_stock_launcher">Opened the stock launcher; to switch permanently, change the default home app in System Settings</string>
+    <string name="toast_stock_launcher_not_found">Stock launcher not found</string>
+</resources>
