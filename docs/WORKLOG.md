@@ -68,3 +68,12 @@ M1 全部推送 github.com/GordonWang1878/UnitedU-launcher(main,8 commit)。
 - **Task A 完成**(commit cb2ed01,评审 Approved 零 issue):45 处散落 `Color(0x)`(31 不同值)收进 Theme.kt 26 个命名常量,逐调用点值正确无接错,既有 5 成员未动,color 值集完全一致(diff 空)。Theme.kt 外零 `Color(0x)`。
 - 本轮自主到此:Task B(设置持久化)留到与 Task C 一起定字段集;C–I 等决策门。
 - 顺手修:DESIGN §1 包名从「待定」改为已定值(终审 doc-hygiene 项)。
+
+## 2026-09-15 · M2 Task B 完成(设置持久化)+ 本轮自主封顶
+
+- **Task B 完成**(commit 69ef91b + 修复 4f542ca,评审1轮:Important 已修、re-review 无新破坏):`Settings`(10 字段)+ `IdleContent` 枚举 + 纯 `parseSettings`/`toJson` + `SettingsStore.read/write`(照 Layout 健壮性 + 原子写)。14 单测。手写零依赖扁平 JSON(org.json 在纯 JVM 单测不可用);修了「拼接对象 {..}{..} 损坏漏检」。
+- **决策门**:门 1(卡片档位=只定每行张数、按比例推导)、门 4(待机 M2 只做 UI+读写、行为留 M5)已答。**门 2(6 主题色 hex)、门 3(设置页布局与项顺序)仍待 Gordon 文字答**——C/F 等它们。
+- **本轮自主到此**:M2 只做了不依赖门 2/3、且不改首页观感的机械部分(A 颜色收拢、B 设置持久化)。Task C(设置页)、D(行数)、E(卡片档位)、F(主题色)、G(时钟)、H(输入源行)、I(待机设置)留给 Gordon 定方向后做——多数改首页 UX 或需设置页作宿主。
+
+### M2 已交付 commit(main)
+20f27c7 计划草稿 / cb2ed01 颜色收拢 / 335224d 包名doc / 69ef91b 设置模型 / 4f542ca 损坏检测修复。
