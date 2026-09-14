@@ -28,6 +28,8 @@ object Paths {
 
     fun layoutJson(ctx: Context) = File(base(ctx), "layout.json")
     fun layoutBad(ctx: Context) = File(base(ctx), "layout.json.bad")
+    fun settingsJson(ctx: Context) = File(base(ctx), "settings.json")
+    fun settingsBad(ctx: Context) = File(base(ctx), "settings.json.bad")
     fun wallpaper(ctx: Context) = File(base(ctx), "wallpaper.jpg")
     fun wallpaperPng(ctx: Context) = File(base(ctx), "wallpaper.png")
     fun screensaver(ctx: Context) = File(base(ctx), "screensaver.jpg")
