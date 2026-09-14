@@ -167,7 +167,7 @@ fun AppCard(
                 text = app.label,
                 style = TextStyle(
                     fontFamily = Theme.Sans,
-                    color = Color(0xFFDDDDDD), fontSize = 15.sp, textAlign = TextAlign.Center,
+                    color = Theme.CardFallbackText, fontSize = 15.sp, textAlign = TextAlign.Center,
                 ),
             )
         }

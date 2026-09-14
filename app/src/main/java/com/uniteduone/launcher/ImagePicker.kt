@@ -146,7 +146,7 @@ private fun EmptyState(title: String, nonce: Int, onDismiss: () -> Unit) {
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFF141414))
+            .background(Theme.DialogSurface)
             .padding(24.dp)
             .width(400.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -158,16 +158,16 @@ private fun EmptyState(title: String, nonce: Int, onDismiss: () -> Unit) {
         )
         BasicText(
             text = stringResource(R.string.picker_no_images),
-            style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFFE8E8E8), fontSize = 14.sp, textAlign = TextAlign.Center),
+            style = TextStyle(fontFamily = Theme.Sans, color = Theme.DialogBodyText, fontSize = 14.sp, textAlign = TextAlign.Center),
         )
         BasicText(
             text = stringResource(R.string.picker_adb_hint),
-            style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF8A8A8A), fontSize = 12.sp, textAlign = TextAlign.Center),
+            style = TextStyle(fontFamily = Theme.Sans, color = Theme.HintText, fontSize = 12.sp, textAlign = TextAlign.Center),
         )
         Spacer(Modifier.height(4.dp))
         BasicText(
             text = stringResource(R.string.picker_back_to_close),
-            style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF666666), fontSize = 11.sp),
+            style = TextStyle(fontFamily = Theme.Sans, color = Theme.PickerFooterText, fontSize = 11.sp),
             modifier = Modifier
                 .focusRequester(fr)
                 .onFocusChanged { if (it.isFocused) landed = true }
@@ -225,7 +225,7 @@ private fun PickerGrid(
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFF141414))
+            .background(Theme.DialogSurface)
             .padding(16.dp)
             .widthIn(max = 700.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -277,7 +277,7 @@ private fun PickerGrid(
 
         BasicText(
             text = stringResource(R.string.picker_back_to_cancel),
-            style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF666666), fontSize = 11.sp),
+            style = TextStyle(fontFamily = Theme.Sans, color = Theme.PickerFooterText, fontSize = 11.sp),
             modifier = Modifier.padding(top = 4.dp),
         )
     }
@@ -317,7 +317,7 @@ private fun ThumbCard(
         modifier = modifier
             .width(thumbWidth)
             .clip(RoundedCornerShape(8.dp))
-            .background(if (focused) Theme.Champagne.copy(alpha = 0.16f) else Color(0xFF222222))
+            .background(if (focused) Theme.Champagne.copy(alpha = 0.16f) else Theme.UnfocusedSurface)
             .padding(6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -336,10 +336,10 @@ private fun ThumbCard(
         } else {
             Box(
                 modifier = Modifier.fillMaxWidth().height(thumbHeight)
-                    .clip(RoundedCornerShape(4.dp)).background(Color(0xFF333333)),
+                    .clip(RoundedCornerShape(4.dp)).background(Theme.ThumbPlaceholderBackground),
                 contentAlignment = Alignment.Center,
             ) {
-                BasicText("...", style = TextStyle(color = Color(0xFF888888), fontSize = 12.sp))
+                BasicText("...", style = TextStyle(color = Theme.ThumbLoadingText, fontSize = 12.sp))
             }
         }
 
@@ -347,7 +347,7 @@ private fun ThumbCard(
             text = label,
             style = TextStyle(
                 fontFamily = Theme.Sans,
-                color = if (focused) Theme.Champagne else Color(0xFFAAAAAA),
+                color = if (focused) Theme.Champagne else Theme.ThumbLabelText,
                 fontSize = 10.sp,
                 textAlign = TextAlign.Center,
             ),
@@ -422,7 +422,7 @@ private fun PoolEmptyState(nonce: Int, onDismiss: () -> Unit) {
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFF141414))
+            .background(Theme.DialogSurface)
             .padding(24.dp)
             .width(400.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -434,16 +434,16 @@ private fun PoolEmptyState(nonce: Int, onDismiss: () -> Unit) {
         )
         BasicText(
             text = stringResource(R.string.picker_no_screensavers),
-            style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFFE8E8E8), fontSize = 14.sp, textAlign = TextAlign.Center),
+            style = TextStyle(fontFamily = Theme.Sans, color = Theme.DialogBodyText, fontSize = 14.sp, textAlign = TextAlign.Center),
         )
         BasicText(
             text = stringResource(R.string.picker_adb_hint_screensaver),
-            style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF8A8A8A), fontSize = 12.sp, textAlign = TextAlign.Center),
+            style = TextStyle(fontFamily = Theme.Sans, color = Theme.HintText, fontSize = 12.sp, textAlign = TextAlign.Center),
         )
         Spacer(Modifier.height(4.dp))
         BasicText(
             text = stringResource(R.string.picker_back_to_close),
-            style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF666666), fontSize = 11.sp),
+            style = TextStyle(fontFamily = Theme.Sans, color = Theme.PickerFooterText, fontSize = 11.sp),
             modifier = Modifier
                 .focusRequester(fr)
                 .onFocusChanged { if (it.isFocused) landed = true }

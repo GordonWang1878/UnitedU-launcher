@@ -72,7 +72,7 @@ fun HomeSettingsCard(
         Column(
             modifier = Modifier
                 .clip(RoundedCornerShape(14.dp))
-                .background(Color(0xFF141414))
+                .background(Theme.DialogSurface)
                 .width(360.dp)
                 .padding(24.dp),
         ) {
@@ -94,7 +94,7 @@ fun HomeSettingsCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFF1E1E1E))
+                    .background(Theme.InfoRowBackground)
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -103,7 +103,7 @@ fun HomeSettingsCard(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFF2A2A2A)),
+                        .background(Theme.IconPlaceholderBackground),
                     contentAlignment = Alignment.Center,
                 ) {
                     val b = icon
@@ -119,14 +119,14 @@ fun HomeSettingsCard(
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     BasicText(
                         text = stringResource(R.string.home_settings_current_label),
-                        style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF8A8A8A), fontSize = 11.sp),
+                        style = TextStyle(fontFamily = Theme.Sans, color = Theme.HintText, fontSize = 11.sp),
                     )
                     BasicText(
                         text = currentLabel,
                         style = TextStyle(
                             fontFamily = Theme.Sans,
                             fontWeight = FontWeight.Medium,
-                            color = Color(0xFFF5F5F5),
+                            color = Theme.EmphasisText,
                             fontSize = 15.sp,
                         ),
                     )
@@ -140,7 +140,7 @@ fun HomeSettingsCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
-                    .background(if (btnFocused) Theme.Champagne.copy(alpha = 0.16f) else Color(0xFF222222))
+                    .background(if (btnFocused) Theme.Champagne.copy(alpha = 0.16f) else Theme.UnfocusedSurface)
                     .then(
                         if (btnFocused) Modifier.border(
                             BorderStroke(1.dp, Theme.Champagne.copy(alpha = 0.7f)),
@@ -162,7 +162,7 @@ fun HomeSettingsCard(
                     style = TextStyle(
                         fontFamily = Theme.Sans,
                         fontWeight = FontWeight.Medium,
-                        color = if (btnFocused) Theme.Champagne else Color(0xFFCFCFCF),
+                        color = if (btnFocused) Theme.Champagne else Theme.ButtonText,
                         fontSize = 14.sp,
                     ),
                 )
@@ -174,7 +174,7 @@ fun HomeSettingsCard(
                 text = stringResource(R.string.home_settings_note),
                 style = TextStyle(
                     fontFamily = Theme.Sans,
-                    color = Color(0xFF7A7A7A),
+                    color = Theme.FootnoteText,
                     fontSize = 11.sp,
                     lineHeight = 16.sp,
                 ),
@@ -184,7 +184,7 @@ fun HomeSettingsCard(
 
             BasicText(
                 text = stringResource(R.string.home_back_to_close),
-                style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF4A4A4A), fontSize = 10.sp),
+                style = TextStyle(fontFamily = Theme.Sans, color = Theme.FooterHintText, fontSize = 10.sp),
             )
         }
     }

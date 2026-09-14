@@ -52,7 +52,7 @@ fun GearMenu(items: List<MenuItem>, onDismiss: () -> Unit, nonce: Int = 0) {
         Column(
             modifier = Modifier
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF141414))
+                .background(Theme.DialogSurface)
                 .width(320.dp)
                 .padding(vertical = 20.dp),
         ) {
@@ -86,7 +86,7 @@ fun GearMenu(items: List<MenuItem>, onDismiss: () -> Unit, nonce: Int = 0) {
                 text = stringResource(R.string.menu_back_to_close),
                 style = TextStyle(
                     fontFamily = Theme.Sans,
-                    color = Color(0xFF4A4A4A),
+                    color = Theme.FooterHintText,
                     fontSize = 10.sp,
                 ),
                 modifier = Modifier.padding(horizontal = 24.dp),
@@ -149,7 +149,7 @@ private fun MenuRow(
                 style = TextStyle(
                     fontFamily = Theme.Sans,
                     fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
-                    color = if (focused) Color(0xFFF5F5F5) else Color(0xFFB0B0B0),
+                    color = if (focused) Theme.EmphasisText else Theme.MenuItemText,
                     fontSize = 14.sp,
                 ),
             )
@@ -157,7 +157,7 @@ private fun MenuRow(
                 text = item.hint,
                 style = TextStyle(
                     fontFamily = Theme.Sans,
-                    color = if (focused) Color(0xFF999999) else Color(0xFF5A5A5A),
+                    color = if (focused) Theme.MenuHintTextFocused else Theme.MenuHintText,
                     fontSize = 11.sp,
                 ),
             )

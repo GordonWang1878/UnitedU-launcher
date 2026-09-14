@@ -40,6 +40,64 @@ object Theme {
 
     val RowTitle = Color(0xFFFFFFFF)
 
+    // ---- UI chrome palette (M2 Task A: consolidated, values unchanged) ----
+    // 以下常量是从 ImagePicker/EditScreen/HomeSettingsCard/GearMenu/AppCard 里
+    // 原样搬来的 Color(0x..) 字面量,按用途命名、纯搬家——没有改过任何一个值。
+    // 同一色值在多处作同一种用途时共用一个常量;视觉意图不同的即使撞色也分开命名。
+
+    /** 弹窗/浮层面板背景:图片选择器、编辑页「选应用」弹窗、齿轮菜单、默认桌面卡片共用。 */
+    val DialogSurface = Color(0xFF141414)
+    /** 编辑页整屏背景。 */
+    val EditScreenBackground = Color(0xFF0A0A0A)
+    /** 默认桌面卡片里「当前默认桌面」信息行背景。 */
+    val InfoRowBackground = Color(0xFF1E1E1E)
+    /** 未聚焦的交互面:图片选择器缩略图卡片、默认桌面卡片主按钮共用。 */
+    val UnfocusedSurface = Color(0xFF222222)
+    /** 编辑页「未安装」卡片(未聚焦)背景。 */
+    val MissingCardBackground = Color(0xFF241414)
+    /** 编辑页「加载中」占位卡片(未聚焦)背景。 */
+    val PendingCardBackground = Color(0xFF242426)
+    /** 默认桌面卡片里应用图标占位框背景。 */
+    val IconPlaceholderBackground = Color(0xFF2A2A2A)
+    /** 编辑页行尾「＋」加卡片(未聚焦)背景。 */
+    val AddCardBackground = Color(0xFF2A2A2C)
+    /** 图片选择器缩略图加载中的占位背景。 */
+    val ThumbPlaceholderBackground = Color(0xFF333333)
+    /** 编辑页「未安装」卡片(聚焦)背景。 */
+    val MissingCardFocusedBackground = Color(0xFF3A2020)
+    /** 编辑页「加载中」占位卡片(聚焦)背景。 */
+    val PendingCardFocusedBackground = Color(0xFF3A3A3C)
+    /** 弹窗底部「返回关闭」一类提示文字:齿轮菜单、默认桌面卡片共用。 */
+    val FooterHintText = Color(0xFF4A4A4A)
+    /** 齿轮菜单条目副标题(未聚焦)。 */
+    val MenuHintText = Color(0xFF5A5A5A)
+    /** 图片选择器底部「返回关闭/取消」提示文字。 */
+    val PickerFooterText = Color(0xFF666666)
+    /** 次要说明文字:编辑页应用包名、默认桌面卡片注释行共用。 */
+    val FootnoteText = Color(0xFF7A7A7A)
+    /** 图片选择器缩略图加载中的「...」占位文字。 */
+    val ThumbLoadingText = Color(0xFF888888)
+    /** 提示性文字:图片选择器 adb 提示、默认桌面卡片「当前」标签共用。 */
+    val HintText = Color(0xFF8A8A8A)
+    /** 齿轮菜单条目副标题(聚焦)。 */
+    val MenuHintTextFocused = Color(0xFF999999)
+    /** 编辑页次要文字:顶部提示、加载中占位卡片包名、选应用弹窗加载/空态提示共用。 */
+    val SecondaryText = Color(0xFF9A9A9A)
+    /** 图片选择器缩略图标签(未聚焦)。 */
+    val ThumbLabelText = Color(0xFFAAAAAA)
+    /** 编辑页「未安装」卡片提示文字。 */
+    val MissingCardText = Color(0xFFB08080)
+    /** 齿轮菜单条目标题(未聚焦)。 */
+    val MenuItemText = Color(0xFFB0B0B0)
+    /** 默认桌面卡片主按钮文字(未聚焦)。 */
+    val ButtonText = Color(0xFFCFCFCF)
+    /** 应用卡片没有图标位图时的回退文字标签。 */
+    val CardFallbackText = Color(0xFFDDDDDD)
+    /** 弹窗正文文字:图片选择器空态提示、选应用弹窗条目标题(未聚焦)共用。 */
+    val DialogBodyText = Color(0xFFE8E8E8)
+    /** 强调/高亮文字:齿轮菜单条目标题(聚焦)、默认桌面卡片当前标签共用。 */
+    val EmphasisText = Color(0xFFF5F5F5)
+
     // 注:曾按 Projectivy 资源表的 default_icon_bg(#333333)与 icons_scale(0.8)给方形图标
     // 加底色并缩放,复审用像素证明参考图里两者都没有生效——资源存在不代表用在这个位置。
     // 现在方形图标不画底、按卡片高铺满。

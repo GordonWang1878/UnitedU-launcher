@@ -229,7 +229,7 @@ fun EditScreen(
     Box(
         Modifier
             .fillMaxSize()
-            .background(Color(0xFF0A0A0A)),
+            .background(Theme.EditScreenBackground),
     ) {
         // 必须能滚:三行按首页的尺寸合计高于屏幕,不滚的话 Column 会把最后一行压扁
         // (实测 MUSIC 行的卡片被压成一条)。这里和首页不同,编辑界面本来就该能滚。
@@ -249,7 +249,7 @@ fun EditScreen(
             BasicText(
                 text = stringResource(R.string.edit_hint),
                 modifier = Modifier.padding(start = Theme.SidePadding, bottom = 18.dp),
-                style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF9A9A9A), fontSize = 12.sp),
+                style = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 12.sp),
             )
             rows.forEachIndexed { ri, (name, pkgs) ->
                 Column(
@@ -434,7 +434,7 @@ private fun AddCard(
             .size(Theme.CardWidth, Theme.CardHeight)
             .scale(addScale)
             .clip(RoundedCornerShape(Theme.CardCorner))
-            .background(if (focused) Theme.Champagne.copy(alpha = 0.30f) else Color(0xFF2A2A2C))
+            .background(if (focused) Theme.Champagne.copy(alpha = 0.30f) else Theme.AddCardBackground)
             .focusProperties {
                 right = FocusRequester.Cancel          // 行尾锁在这里,别跳到下一行
                 if (isRowStart) left = FocusRequester.Cancel   // 空行时它就是行首
@@ -465,7 +465,7 @@ private fun PendingCard(
         modifier = modifier
             .size(Theme.CardWidth, Theme.CardHeight)
             .clip(RoundedCornerShape(Theme.CardCorner))
-            .background(if (focused) Color(0xFF3A3A3C) else Color(0xFF242426))
+            .background(if (focused) Theme.PendingCardFocusedBackground else Theme.PendingCardBackground)
             .focusProperties {
                 if (isRowStart) left = FocusRequester.Cancel
                 if (isLastRow) down = FocusRequester.Cancel
@@ -477,7 +477,7 @@ private fun PendingCard(
     ) {
         BasicText(
             text = pkg.substringAfterLast('.'),
-            style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF9A9A9A), fontSize = 11.sp, textAlign = TextAlign.Center),
+            style = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 11.sp, textAlign = TextAlign.Center),
             modifier = Modifier.padding(6.dp),
         )
     }
@@ -499,7 +499,7 @@ private fun MissingCard(
         modifier = modifier
             .size(Theme.CardWidth, Theme.CardHeight)
             .clip(RoundedCornerShape(Theme.CardCorner))
-            .background(if (focused) Color(0xFF3A2020) else Color(0xFF241414))
+            .background(if (focused) Theme.MissingCardFocusedBackground else Theme.MissingCardBackground)
             // 行首/末行的边界同样要锁,理由见 AppCard:找不到候选时焦点会整棵树消失
             .focusProperties {
                 if (isRowStart) left = FocusRequester.Cancel
@@ -512,7 +512,7 @@ private fun MissingCard(
     ) {
         BasicText(
             text = stringResource(R.string.edit_not_installed, pkg),
-            style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFFB08080), fontSize = 10.sp, textAlign = TextAlign.Center),
+            style = TextStyle(fontFamily = Theme.Sans, color = Theme.MissingCardText, fontSize = 10.sp, textAlign = TextAlign.Center),
             modifier = Modifier.padding(6.dp),
         )
     }
@@ -573,7 +573,7 @@ private fun AppPicker(
         Column(
             Modifier
                 .clip(RoundedCornerShape(14.dp))
-                .background(Color(0xFF141414))
+                .background(Theme.DialogSurface)
                 .padding(14.dp)
                 .width(460.dp)
                 .heightIn(max = 420.dp),
@@ -587,13 +587,13 @@ private fun AppPicker(
                 BasicText(
                     stringResource(R.string.edit_loading_apps),
                     modifier = Modifier.padding(10.dp),
-                    style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF9A9A9A), fontSize = 13.sp),
+                    style = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 13.sp),
                 )
             } else if (candidates!!.isEmpty()) {
                 BasicText(
                     stringResource(R.string.edit_no_more_apps),
                     modifier = Modifier.padding(10.dp),
-                    style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF9A9A9A), fontSize = 13.sp),
+                    style = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 13.sp),
                 )
             }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -651,11 +651,11 @@ private fun PickerRow(
     ) {
         BasicText(
             text = app.label.ifBlank { app.packageName },
-            style = TextStyle(fontFamily = Theme.Sans, color = if (focused) Theme.Champagne else Color(0xFFE8E8E8), fontSize = 14.sp),
+            style = TextStyle(fontFamily = Theme.Sans, color = if (focused) Theme.Champagne else Theme.DialogBodyText, fontSize = 14.sp),
         )
         BasicText(
             text = app.packageName,
-            style = TextStyle(fontFamily = Theme.Sans, color = Color(0xFF7A7A7A), fontSize = 10.sp),
+            style = TextStyle(fontFamily = Theme.Sans, color = Theme.FootnoteText, fontSize = 10.sp),
         )
     }
 }
