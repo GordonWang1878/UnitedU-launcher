@@ -61,3 +61,10 @@ opus 全分支终审(b2bc734..4534256,8 commit):**可合并 = 是**,零 Critical
 - lint 债清理(13 错 + AutoboxingStateCreation×18 等 warning)。
 
 M1 全部推送 github.com/GordonWang1878/UnitedU-launcher(main,8 commit)。
+
+## 2026-09-15 · M2 起步(计划草稿 + Task A 颜色收拢)
+
+- **M2 计划草稿** `docs/superpowers/plans/2026-09-15-m2-theme-settings.md`:9 任务(A 颜色收拢 / B 设置持久化 / C 设置页骨架+焦点账本 / D 行数1-5 / E 卡片三档 / F 主题色预设+跟随主色 / G 时钟 / H 输入源行 / I 待机设置)。含 4 个「需 Gordon 决策」门:①卡片三档确切尺寸 ②6 个主题色预设 hex ③设置页布局与项顺序 ④待机在 M2 只做 UI 还是接行为。
+- **Task A 完成**(commit cb2ed01,评审 Approved 零 issue):45 处散落 `Color(0x)`(31 不同值)收进 Theme.kt 26 个命名常量,逐调用点值正确无接错,既有 5 成员未动,color 值集完全一致(diff 空)。Theme.kt 外零 `Color(0x)`。
+- 本轮自主到此:Task B(设置持久化)留到与 Task C 一起定字段集;C–I 等决策门。
+- 顺手修:DESIGN §1 包名从「待定」改为已定值(终审 doc-hygiene 项)。

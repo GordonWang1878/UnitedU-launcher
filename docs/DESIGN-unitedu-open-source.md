@@ -14,7 +14,7 @@
 | 第一版用户 | **国行无 GMS 电视**(索尼/小米/TCL 国行)。全球 Android TV / Google TV 留 v2 |
 | 一句话卖点 | **零广告、零推荐,只有你放上去的应用。**所有「要不要做 X」先拿这句话判 |
 | 联网 | 零联网。唯一例外:用户主动点「检查更新」时查一次更新清单(见 §8 更新通道) |
-| 包名 | 新包名(待定,不含个人名字)。与 TvHome 的 `com.gordonwang.tvhome` 互不覆盖,两者可同时装在 Gordon 的电视上;开发期间他的电视继续跑 TvHome |
+| 包名 | **`com.uniteduone.launcher`**(2026-09-15 Gordon 定,基于自有域名 uniteduone.com;发布后不可改)。与 TvHome 的 `com.gordonwang.tvhome` 互不覆盖,两者可同时装在 Gordon 的电视上;开发期间他的电视继续跑 TvHome |
 
 ## 2. 首页
 
