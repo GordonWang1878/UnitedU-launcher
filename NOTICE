@@ -1,0 +1,20 @@
+UnitedU
+Copyright 2026 UnitedU contributors
+
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+This product bundles the following third-party materials:
+
+- DM Sans font (app/src/main/res/font/dm_sans_*.ttf)
+  Copyright the DM Sans Project Authors (https://github.com/googlefonts/dm-fonts)
+  Licensed under the SIL Open Font License, Version 1.1 — https://openfontlicense.org
+
+- AndroidX and Jetpack Compose libraries, including Material Icons
+  (androidx.core, androidx.activity, androidx.compose.*, material-icons-core, material-icons-extended)
+  Copyright The Android Open Source Project
+  Licensed under the Apache License, Version 2.0
+
+This product's own assets carry no third-party rights:
+
+- app/src/main/res/mipmap-xhdpi/banner.png — original "United" wordmark created for this project
+- app/src/main/assets/default-wallpaper.jpg — generated procedurally from random noise (see scripts), not derived from any third-party image
