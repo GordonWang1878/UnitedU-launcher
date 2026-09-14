@@ -1,0 +1,374 @@
+package com.uniteduone.launcher
+
+import android.content.ComponentName
+import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.provider.Settings
+import android.view.SoundEffectConstants
+import android.widget.Toast
+import android.view.KeyEvent
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import androidx.compose.runtime.*
+import kotlinx.coroutines.delay
+
+/**
+ * 桌面主界面。这里只管三件事:待机计时、返回键不退出、齿轮菜单的入口。
+ * 视觉全在 HomeScreen / AppCard / Clock 里,规格见 docs/DESIGN-custom-launcher.md §4。
+ */
+private const val PICK_WALLPAPER = "__wallpaper__"
+private const val VIEW_SCREENSAVER_POOL = "__screensaver_pool__"
+private const val VIEW_HOME_SETTINGS = "__home_settings__"
+
+class MainActivity : ComponentActivity() {
+
+    private var lastInput by mutableStateOf(System.currentTimeMillis())
+    /** 焦点自救计数:界面报告「整棵树都没有焦点」时 +1,让它重新请求。 */
+    private var focusNonce by mutableStateOf(0)
+    private var menuOpen by mutableStateOf(false)
+    private var editing by mutableStateOf(false)
+    /** 换过图/改过布局后 +1,用来强制界面重新读取 */
+    private var revision by mutableStateOf(0)
+    /** 内置图片选择器:null=隐藏, [PICK_WALLPAPER]=选壁纸, 其他=选该包的卡片图。
+     *  X-plore 的 GET_CONTENT 不响应 D-pad(2026-09-11 真机确认),所以换壁纸/换图标
+     *  改为用内置选择器,图片通过 adb push 到 files/library/ 预先放好。 */
+    private var pickerTarget by mutableStateOf<String?>(null)
+    /** 待机(超时淡出)。**必须住在 Activity 里**,因为唤醒发生在 dispatchKeyEvent。 */
+    private var idle by mutableStateOf(false)
+    /** 菜单是从齿轮按钮打开的(true)还是从遥控器三条杠键打开的(false)。
+     *  关闭菜单时 HomeScreen 据此决定焦点恢复到齿轮还是原来的卡片。 */
+    private var menuFromGear = true
+    /**
+     * 唤醒那一下按键的 downTime:整下(down/repeat/up)都要吞掉,别让它落到界面上。
+     * 用 downTime 不用 keyCode:同一次按压的三种事件 downTime 相同,是唯一标识;
+     * 按 keyCode 匹配时,若那次的 UP 没落到本 Activity(被系统层截走、或期间切了前台),
+     * 这个值会一直留着,下次按同一个键会被**再吞一次**,症状是「刚醒来第一下没反应」。
+     */
+    private var wakeDownTime = -1L
+
+    /** 装了新应用或卸载了应用后,桌面和「添加应用」列表都要能跟上。 */
+    private val packageChanges = object : android.content.BroadcastReceiver() {
+        override fun onReceive(c: android.content.Context?, i: Intent?) { revision++ }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        window.colorMode = ActivityInfo.COLOR_MODE_HDR
+        registerReceiver(
+            packageChanges,
+            android.content.IntentFilter().apply {
+                addAction(Intent.ACTION_PACKAGE_ADDED)
+                addAction(Intent.ACTION_PACKAGE_REMOVED)
+                addAction(Intent.ACTION_PACKAGE_CHANGED)
+                addDataScheme("package")
+            },
+        )
+        installBackHandler()
+        setContent {
+            // 菜单项列表不必每次重组都新建,否则整棵树都不可跳过
+            val menu = remember { menuItems() }
+            val touched = lastInput
+            // **编辑界面和菜单开着时不进入待机。**淡出只做在首页那一层,而吞掉唤醒键是
+            // Activity 级的 —— 两头不占的结果是:编辑界面画面全亮(看着醒着),
+            // 第一下按键却被当唤醒吃掉,症状就是「按了没反应」。
+            // 长时间停在这两个界面由电视自己的系统屏保接管(实测存在 DreamActivity)。
+            LaunchedEffect(touched, editing, menuOpen) {
+                idle = false
+                if (editing || menuOpen) return@LaunchedEffect
+                delay(Theme.IdleAfterMs)
+                idle = true
+            }
+            // 不用 key(revision) 强制重建:那会连壁纸和焦点一起推倒,
+            // 后台应用自动更新时屏幕会黑一下、焦点被打回第一张卡。
+            // revision 只喂给读数据的 produceState,新数据到达前旧画面原样留着。
+            // 壁纸与黑底常驻在这一层:进出编辑界面只换上面那一层,
+            // 壁纸不会被重建,也就不会每次退出编辑都重新解码 + 黑闪一下。
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(androidx.compose.ui.graphics.Color.Black)
+            ) {
+            Wallpaper(this@MainActivity)
+            Screensaver(this@MainActivity, idle)
+            val pt = pickerTarget
+            if (pt == PICK_WALLPAPER) {
+                WallpaperPicker(
+                    directory = Paths.wallpaperLibrary(this@MainActivity),
+                    title = "选一张壁纸",
+                    nonce = focusNonce,
+                    onSelect = { file -> handlePick(file) },
+                    onDismiss = { pickerTarget = null; focusNonce++ },
+                )
+            } else if (pt == VIEW_SCREENSAVER_POOL) {
+                ScreensaverPoolViewer(
+                    directory = Paths.screensaverLibrary(this@MainActivity),
+                    nonce = focusNonce,
+                    onDismiss = { pickerTarget = null; focusNonce++ },
+                )
+            } else if (pt == VIEW_HOME_SETTINGS) {
+                val pm = packageManager
+                val info = remember(revision) {
+                    pm.resolveActivity(
+                        Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),
+                        PackageManager.MATCH_DEFAULT_ONLY,
+                    )
+                }
+                HomeSettingsCard(
+                    currentLabel = remember(info) { info?.loadLabel(pm)?.toString() ?: "未知" },
+                    currentPkg = remember(info) { info?.activityInfo?.packageName },
+                    onOpenSystem = { switchHome() },
+                    onDismiss = { pickerTarget = null; focusNonce++ },
+                    nonce = focusNonce,
+                )
+            } else if (pt != null) {
+                IconPicker(
+                    directory = Paths.cardLibrary(this@MainActivity),
+                    originalIcon = remember(pt) { Apps.originalIcon(this@MainActivity, pt) },
+                    nonce = focusNonce,
+                    onSelect = { file -> handlePick(file) },
+                    onRestoreOriginal = { restoreOriginalIcon(pt) },
+                    onDismiss = { pickerTarget = null; focusNonce++ },
+                )
+            } else if (editing) {
+                EditScreen(
+                    onPickIcon = ::pickIcon,
+                    onExit = ::leaveEdit,
+                    focusNonce = focusNonce,
+                    revision = revision,
+                )
+            } else {
+                HomeScreen(
+                    idle = idle,
+                    menuItems = menu,
+                    menuOpen = menuOpen,
+                    onMenuOpenChange = { if (it) { menuFromGear = true; menuOpen = true } else closeMenu() },
+                    focusNonce = focusNonce,
+                    revision = revision,
+                    menuFromGear = menuFromGear,
+                )
+            }
+            }
+        }
+    }
+
+    /**
+     * 任何按键都算「有人在用」,唤醒待机。
+     *
+     * 焦点丢失的兜底**不放在这里**:曾试过「按键时若无焦点就补请求」,但
+     * `decorView.findFocus()` 查的是 View 焦点(整棵 Compose 树住在一个可聚焦的 View 里,
+     * 恒非 null),是死代码;换成 Compose 侧上报后又因为根 Box 的 focusGroup 吞焦点而失效。
+     * 现在改为在**焦点确实会丢的那几个时刻**显式补请求:菜单关闭、退出编辑、从别的应用返回。
+     *
+     * 待机的唤醒也在这里:**不能**靠给卡片加 `canFocus = !idle` 来防止「醒来第一下直接启动
+     * 应用」——Compose 的 FocusTargetNode 在自己是 Active 且 canFocus 转 false 时会调
+     * `clearFocus(force=true)` 清掉整棵树的焦点,而 DPAD_CENTER 不参与框架的焦点恢复,
+     * 于是醒来后按确定永远没反应。改成在这里吞掉唤醒的那一整下按键:焦点全程没动过,
+     * 用户回到的正是他离开时那张卡。
+     */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        lastInput = System.currentTimeMillis()
+        if (idle) {
+            idle = false
+            wakeDownTime = event.downTime
+            return true
+        }
+        if (wakeDownTime != -1L && event.downTime == wakeDownTime) {
+            if (event.action == KeyEvent.ACTION_UP) wakeDownTime = -1L
+            return true
+        }
+        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0
+            && event.keyCode == KeyEvent.KEYCODE_MENU
+        ) {
+            if (pickerTarget != null) return true
+            if (editing) { leaveEdit(); return true }
+            window.decorView.playSoundEffect(SoundEffectConstants.NAVIGATION_DOWN)
+            if (menuOpen) closeMenu() else { menuFromGear = false; menuOpen = true }
+            return true
+        }
+        // 长按确认键不应重复点击:电视 UI 里没有连按同一按钮的场景,
+        // 重复事件只会让点击音一直响、可能反复启动同一个应用。
+        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount > 0 &&
+            (event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER || event.keyCode == KeyEvent.KEYCODE_ENTER)
+        ) {
+            return true
+        }
+        val result = super.dispatchKeyEvent(event)
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            val sfx = when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_UP -> SoundEffectConstants.NAVIGATION_UP
+                KeyEvent.KEYCODE_DPAD_DOWN -> SoundEffectConstants.NAVIGATION_DOWN
+                KeyEvent.KEYCODE_DPAD_LEFT -> SoundEffectConstants.NAVIGATION_LEFT
+                KeyEvent.KEYCODE_DPAD_RIGHT -> SoundEffectConstants.NAVIGATION_RIGHT
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER ->
+                    SoundEffectConstants.CLICK
+                else -> -1
+            }
+            if (sfx >= 0) window.decorView.playSoundEffect(sfx)
+        }
+        return result
+    }
+
+    /** HOME 键的语义是「回到桌面初始状态」,所以要把编辑界面和菜单都收掉。 */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        leaveEdit()
+        closeMenu()
+    }
+
+    /**
+     * 关菜单**只有这一条路**。菜单项随节点销毁时焦点会一并消失,所以必须补请求;
+     * 曾经 Compose 侧的回调补了、返回键这条路没补,按返回关掉菜单后整棵树没有焦点。
+     */
+    private fun closeMenu() {
+        if (!menuOpen) return
+        menuOpen = false
+        focusNonce++
+    }
+
+    private fun leaveEdit() {
+        if (editing) { editing = false; revision++ }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        lastInput = System.currentTimeMillis()
+        // 从别的应用回来时焦点是空的(实测停了 7 秒仍然没有任何节点持有,
+        // 第一下按键才建立、而且落在第一张卡)。所以这里必须补一次请求;
+        // 界面那边现在会把它送回**离开前那张卡**,不再是第一行第一张。
+        focusNonce++
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // 唤醒键的 UP 可能落不到本 Activity,离开时清掉,免得下次多吞一整下
+        wakeDownTime = -1L
+    }
+
+    private fun menuItems() = listOf(
+        MenuItem("编辑桌面", "增删应用、调整顺序、换卡片图") { editing = true },
+        MenuItem("换壁纸", "选一张图片替换背景") { pickWallpaper() },
+        MenuItem("屏保图库", "查看轮播屏保图片") { openScreensaverPool() },
+        MenuItem("系统设置", "打开电视的 Android 设置") { open(Intent(Settings.ACTION_SETTINGS)) },
+        MenuItem("设置默认桌面", "选择按 Home 键时启动哪个桌面") { openHomeSettings() },
+    )
+
+    private fun pickIcon(pkg: String) {
+        if (Paths.baseOrNull(this) == null) { toast("外部存储还没准备好,稍后再试"); return }
+        pickerTarget = pkg
+    }
+
+    private fun open(intent: Intent) {
+        runCatching { startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            .onFailure { toast("打不开:${it.message}") }
+    }
+
+    private fun pickWallpaper() {
+        if (Paths.baseOrNull(this) == null) { toast("外部存储还没准备好,稍后再试"); return }
+        closeMenu()
+        pickerTarget = PICK_WALLPAPER
+    }
+
+    private fun openScreensaverPool() {
+        if (Paths.baseOrNull(this) == null) { toast("外部存储还没准备好,稍后再试"); return }
+        closeMenu()
+        pickerTarget = VIEW_SCREENSAVER_POOL
+    }
+
+    private fun openHomeSettings() {
+        closeMenu()
+        pickerTarget = VIEW_HOME_SETTINGS
+    }
+
+    private fun handlePick(file: java.io.File) {
+        val target = pickerTarget ?: return
+        pickerTarget = null
+        if (target == PICK_WALLPAPER) {
+            val dest = Paths.wallpaper(this)
+            val tmp = java.io.File(dest.parentFile, "wallpaper.tmp")
+            val ok = runCatching {
+                file.inputStream().use { input ->
+                    tmp.outputStream().use { out -> input.copyTo(out); out.flush(); out.fd.sync() }
+                }
+                check(Apps.isDecodableImage(tmp.absolutePath))
+                if (!tmp.renameTo(dest)) { dest.delete(); check(tmp.renameTo(dest)) }
+                Paths.wallpaperPng(this).delete()
+            }.isSuccess
+            tmp.delete()
+            toast(if (ok) "壁纸已更换" else "这个文件不是能用的图片")
+            if (ok) recreate()
+        } else {
+            val dest = Paths.iconFor(this, target)
+            val tmp = java.io.File(dest.parentFile, "$target.tmp")
+            val ok = runCatching {
+                file.inputStream().use { input ->
+                    tmp.outputStream().use { out -> input.copyTo(out); out.flush(); out.fd.sync() }
+                }
+                check(Apps.isDecodableImage(tmp.absolutePath))
+                if (!tmp.renameTo(dest)) { dest.delete(); check(tmp.renameTo(dest)) }
+            }.isSuccess
+            tmp.delete()
+            toast(if (ok) "卡片图已更换" else "这个文件不是能用的图片")
+            if (ok) revision++
+        }
+    }
+
+    private fun restoreOriginalIcon(pkg: String) {
+        pickerTarget = null
+        val custom = Paths.iconFor(this, pkg)
+        if (custom.exists()) custom.delete()
+        toast("已恢复原始图标")
+        revision++
+        focusNonce++
+    }
+
+    /**
+     * 设置默认桌面。应用自己没有权限改 HOME 角色,所以走系统的「主屏幕应用」设置页;
+     * 那个页面不存在时,退而求其次直接启动原厂桌面。
+     */
+    private fun switchHome() {
+        val home = Intent("android.settings.HOME_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (home.resolveActivity(packageManager) != null &&
+            runCatching { startActivity(home) }.isSuccess
+        ) return
+        val pm = packageManager
+        val fallback = pm.getLeanbackLaunchIntentForPackage("com.dangbei.TVHomeLauncher")
+            ?: pm.getLaunchIntentForPackage("com.dangbei.TVHomeLauncher")
+        if (fallback != null) {
+            toast("已打开原厂桌面;要永久切换请在系统设置里改主屏幕应用")
+            open(fallback)
+        } else {
+            toast("找不到原厂桌面")
+        }
+    }
+
+    override fun onDestroy() {
+        runCatching { unregisterReceiver(packageChanges) }
+        super.onDestroy()
+    }
+
+    private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+
+    /**
+     * 桌面不该被返回键退出。
+     * 不用 override 已废弃的 `onBackPressed`:targetSdk 升到 36 后预测式返回默认开启,
+     * 那个 override 会**彻底不再被调用**,而默认行为是 finish 掉 Activity——
+     * 对 HOME 应用就是桌面直接消失。常开的 callback 两种模式下都有效。
+     */
+    private fun installBackHandler() {
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                when {
+                    menuOpen -> closeMenu()
+                    editing -> leaveEdit()
+                    // 桌面根状态:什么都不做,绝不 finish
+                }
+            }
+        })
+    }
+}
