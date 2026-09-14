@@ -1,7 +1,14 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+}
+
+val releaseProps = Properties().apply {
+    val f = file(System.getProperty("user.home") + "/.unitedu/release.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
 }
 
 android {
@@ -20,13 +27,18 @@ android {
     }
 
     signingConfigs {
-        // 用 debug keystore 签 release:与 debug 包同一把钥匙,`adb install -r` 能直接覆盖。
-        // 换一把新钥匙会因签名不符而必须先卸载,那会连 layout.json、壁纸、自定义图一起删掉。
-        create("sideload") {
-            storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+        create("release") {
+            val ks = file(System.getProperty("user.home") + "/.unitedu/release.jks")
+            if (ks.exists() && releaseProps.containsKey("storePassword")) {
+                storeFile = ks
+                storePassword = releaseProps.getProperty("storePassword")
+                keyAlias = releaseProps.getProperty("keyAlias", "unitedu")
+                keyPassword = releaseProps.getProperty("keyPassword")
+            } else {
+                logger.warn("UnitedU: ~/.unitedu/release.jks not found, signing release with debug keystore")
+                storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
+                storePassword = "android"; keyAlias = "androiddebugkey"; keyPassword = "android"
+            }
         }
     }
     buildTypes {
@@ -38,7 +50,7 @@ android {
             // 对 res/font 这类只在代码里按 R.font.* 引用的东西风险不成比例。
             isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("sideload")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
