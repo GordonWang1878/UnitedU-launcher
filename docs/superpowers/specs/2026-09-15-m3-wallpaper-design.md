@@ -98,7 +98,8 @@ Tint(accent):diag(a.r, a.g, a.b, 1)  —— 即「黑 → 主题色」的渐变�
 - 输入:`Apps.decodeScaled(path, 1920, 1080, ARGB_8888)` 后中心裁剪到恰好 1920×1080(缓存尺寸固定)。
 - 输出:同一个 IO 块里 **既返回 Bitmap 直接显示,也写缓存**:`(externalCacheDir ?: cacheDir)/wallpapers/<key>.jpg`(外置 cache 优先:adb 能看、卸载即清),JPEG q90,tmp → rename。
 - `key = sha1("$path|$mtime|$size|$themed|$accentHex|$blur|$dim|v1")`。下次同键直接解码缓存。
-- 清理:每次写入后只保留最新 4 个(按 lastModified)。
+- 清理:每次写入后只保留最新 **12** 个(按 lastModified;命中时刷新 mtime,即真正的 LRU)。**T5 评审纠正**:原定 4 个小于内置 6 张,轮播永远不命中;且按写入时间淘汰会把每次开机都读的那张挤掉。
+- 内存:中心裁剪 + 缩放(+ blur=0 时的矩阵)合成**一次 `Canvas.drawBitmap(src, srcRect, dstRect, paint)`**,只分配一张输出——原设计的 `createBitmap` 裁剪会让非 16:9 源图(手机照片)同时活着三张全分辨率位图(30–66 MB 瞬时)。
 - **参数全零 → 完全绕开管线**:不解码两次、不写缓存、保留 F16。
 - 跟随壁纸主色:`wallpaperThemeColors()` 改从 `resolveSource()` 的**原图**取 Palette(今日读死 `Paths.wallpaper`),再拿 accent 去染——不成环;主题化开着时 accent 变 → spec 变 → 重处理。
 
