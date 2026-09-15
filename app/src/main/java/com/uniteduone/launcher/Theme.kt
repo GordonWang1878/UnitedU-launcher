@@ -67,6 +67,8 @@ object Theme {
     val DialogSurface = Color(0xFF141414)
     /** 编辑页整屏背景。 */
     val EditScreenBackground = Color(0xFF0A0A0A)
+    /** 设置页聚焦在壁纸分组时的浮层底色:黑 35%,让壁纸透出来做实时预览。 */
+    val SettingsPreviewScrim = Color(0x59000000)
     /** 默认桌面卡片里「当前默认桌面」信息行背景。 */
     val InfoRowBackground = Color(0xFF1E1E1E)
     /** 未聚焦的交互面:图片选择器缩略图卡片、默认桌面卡片主按钮共用。 */
