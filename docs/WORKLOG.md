@@ -160,3 +160,25 @@ M6(Task 1–5)全部完成,子代理驱动 + 每任务评审通过,收官验收�
 - 已知技术债(均不影响当前功能,留手):缩略图内存缓存 key 只有 `name|mtime`、没带 `type`(三个 library 目录彼此独立,实际不会撞,但契约上不够严谨);`UploadServer.start()` 在主线程跑(实测最坏约 100 ms);超限上传先落临时文件再判断大小(30 MB 封顶,极端情况多一次磁盘写);`uniqueName` 在多台手机并发上传同名文件时有 TOCTOU 窗口;网页上传 `fetch` 失败(网络错误)不会重置文件 `<input>`;网页 tab 切换有竞态——异步 `await` 完成时读的是彼时的全局 `type` 而不是发起请求那一刻的 `type`;`ApkInstaller` 极少数情况下会先报 `STARTED`(`onNotice` 已经喊了「已交给系统安装器」)、随后因异常被判成 `INVALID`,电视端文案会短暂说错。
 - **合并顺序**:M6 基于 M3 落地之前的 main 切出(`library/wallpapers` 在本分支是空的,M3 的壁纸种子没有落进来,验收时确认过这是预期状态,不是回归)。M6 → main 的合并在 M3 之后做,已知冲突点在 `MainActivity.kt`(菜单项/待机守卫附近)、`strings.xml`(追加行)、`NOTICE`,由控制器处理,本任务不动。
 - **验收方法论踩坑一则**:`adb shell appops set <pkg> REQUEST_INSTALL_PACKAGES default` 在应用进程存活期间执行会被 Android 直接杀掉该进程(logcat:`ActivityManager: Killing … REQUEST_INSTALL_PACKAGES changed`——appop 收紧才会触发这条安全策略,放宽成 `allow` 不会)。Task 4 把这一步放在 `am start` 之前,没撞上;本任务重置权限的时点晚了,撞了一次,`am start` 重新拉起后 `library/*` 三个目录的文件原样还在(未丢数据),后续同类验收改用「先重置权限、再启动 app」的顺序可以绕开。
+
+## 2026-09-16 · M6 终审加固波次(CSRF + 前台限制 + 五个 Minor)
+
+commit `a0ae3ad`(分支 `m6-upload`)。全branch 复审判定「可合并」,但点名两项 Important 与几个便宜的 Minor,控制器裁定一次性落地。
+本质:M6 的写入面原先**只靠「谁连得上局域网」保护**——没有来源判定、没有前台判定、没有请求大小预判。
+
+### 交付
+- **H1 CSRF**:非 GET 路由要求 `X-Requested-With: UnitedU`,缺 → `403 {"ok":false,"reason":"origin"}`;网页三处非 GET `fetch` 带上它。`fetch` + `FormData` 属 CORS 简单请求,**手机上任何网页都能不经预检往电视 POST/DELETE**;自定义头把它顶成要预检。GET 不动(`/thumb`、`/file` 要能被 `<img>` 直接加载)。
+- **H2 前台限制**:`UploadServer` 拿 `isForeground()`,`serveApk` 在主线程那一回合里先查前台与 `isAlive`,不满足 → 新的 `Result.BACKGROUND`、不弹安装器、删暂存 APK、回 `{"ok":false,"reason":"background"}`(新增三语 `web_apk_background`);`ImportScreen.onNotice` 也只在前台才撑豁免窗。否则局域网上任何人每 <30 s 传一次 APK 就能让这个无密码服务在用户切走后无限期活着、还能糊安装弹窗——而关页保险正被那个窗压着。
+- **Minor**:`Content-Length` 预检(超限直接 413 + `Connection: close`,不读 body;403 同样没读 body,一并处理);未知来源 `startActivity` 包 `runCatching`(定制固件没这个设置页时仍返回 `NEEDS_PERMISSION`,不 500);开服前扫残留(`cacheDir/apk/upload.apk` + `tmpDir` 里超过 60 s 的文件);multipart key 枚举提纯成 `UploadPure.uploadKeys()` + 5 个单测;needs-permission 的豁免窗从 30 s 放宽到 **120 s**(设置页上开开关再返回,30 s 不够)。
+
+### 验收结果
+- `testReleaseUnitTest` **29/29 全绿**(24 → 29)、`assembleRelease` + `lintVitalRelease` 通过。
+- 模拟器 `emulator-5558`:H1 无头 403 / 带头 200、GET 不受影响;H2 前台 `ok:true` + 安装器起来 → 切到原生桌面后再传 → `background` 且**无任何弹窗**;**窗未被续**(设备侧 `/proc/net/tcp` 轮询 8090:t0+30 s 还在监听、t0+32 s 已停,若续窗应活到 ≈t0+36 s);H3 413 用时 12 ms;120 s 窗实测 t0+46 s 服务仍在;H5 的 60 s 老化清扫(13 分钟前的临时文件被删、刚写的留着);手机页面走自身 handler 的上传与删除均正常。
+- 详细报告与截图:`.superpowers/sdd/2026-09-15-m6-upload/final-fix-report.md`(+ `final-fix-shots/`)。
+
+### 注记
+- **口径订正(写进 spec §6)**:名字的 400 与 404 是两件事——清洗不过(空、`.`、`..`、点开头)→ 400;**清洗得出合法名字**的按那个名字去找,不在 → 404。所以 `../settings.json` 是 404(上一轮已查实,这轮把 spec 的措辞改成与实现一致)。
+- `ImportScreen` 的 ON_STOP 关页**依赖 Compose(≥1.5)在 Activity STOPPED 期间照常重组**(停的只有帧时钟),已在代码里注明:别因为「后台还能跑」看着可疑就把 `stop()` 从 `onDispose` 挪走。
+- `uploadKeys` 收下了 `filesX` 这类非数字后缀(旧代码会滤掉),按复审给的用例实现;无害——没有临时文件的 key 直接跳过,每个文件仍逐个过四道闸。
+- **又撞了一次 appops 杀进程**(上面 M6 收官的「验收方法论踩坑」那条):`appops set … deny` 收紧权限时系统会 `Killing … REQUEST_INSTALL_PACKAGES changed` 直接杀掉应用,服务凭空消失不是产品缺陷。顺序永远是**先设 appop、再开页面**。
+- `cacheDir/apk/upload.apk` 的清扫在 release 包上无法直接目击(不可 `run-as`、模拟器 `adb root` 被拒);它与 tmp 清扫在同一个 `runCatching` 里且在循环之前,tmp 被删即证明该行已执行。
