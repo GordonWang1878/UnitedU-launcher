@@ -53,6 +53,8 @@ fun AppCard(
     app: AppEntry,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** 当前卡片档位的尺寸(卡宽/高/圆角/光晕)。默认中档,保证未接线的调用点仍与今日一致。 */
+    metrics: CardMetrics = Theme.cardMetrics(6),
     onFocusChange: (Boolean) -> Unit = {},
     /** 行首/行末:到边界后左右键不再跳到别的行(Compose 默认会按几何位置找最近的可聚焦项,
      *  表现就是「按右键从第一行末尾跳进了第二行」,Projectivy 不会这样)。 */
@@ -82,21 +84,21 @@ fun AppCard(
         label = "scale",
     )
 
-    val shape = RoundedCornerShape(Theme.CardCorner)
+    val shape = RoundedCornerShape(metrics.cardCorner)
     Box(
         modifier = modifier
             // 聚焦的卡片必须浮到邻居上面:否则右邻居会盖住它的右圆角和整条右侧光晕,
             // 屏幕上表现为「右边被切平」(独立复审实测:少了 11.4px,切口正好落在邻居左边缘)。
             .zIndex(if (focused) 1f else 0f)
-            .size(Theme.CardWidth, Theme.CardHeight)
+            .size(metrics.cardWidth, metrics.cardHeight)
             .scale(scale)
             .drawBehind {
                 if (!focused) return@drawBehind
                 // 正弦呼吸:0→1→0
                 val phase = kotlin.math.sin((breath?.value ?: 0f) * 2f * Math.PI).toFloat()
                 val amount = (phase * 0.5f + 0.5f)
-                val radiusPx = Theme.GlowRadius.toPx() * (0.80f + 0.20f * amount)
-                val r = Theme.CardCorner.toPx()
+                val radiusPx = metrics.glowRadius.toPx() * (0.80f + 0.20f * amount)
+                val r = metrics.cardCorner.toPx()
                 drawIntoCanvas { canvas ->
                     fun shadowPaint(radius: Float, dx: Float, dy: Float, argb: Int) =
                         android.graphics.Paint().apply {
@@ -152,7 +154,7 @@ fun AppCard(
                 // 聚焦卡 331.9 而我们 334.8;而**高度只差 0.14px**——缩放会同时改两者,
                 // 只有填充方式不会,所以差的是裁切方式。
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.size(Theme.CardWidth, Theme.CardHeight),
+                modifier = Modifier.size(metrics.cardWidth, metrics.cardHeight),
             )
         } else if (bmp != null) {
             // 方形图标:居中留边,不拉伸也不裁切
@@ -160,7 +162,7 @@ fun AppCard(
                 bitmap = bmp.asImageBitmap(),
                 contentDescription = app.label,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.size(Theme.CardHeight),
+                modifier = Modifier.size(metrics.cardHeight),
             )
         } else {
             BasicText(

@@ -151,6 +151,7 @@ class MainActivity : ComponentActivity() {
                     onExit = ::leaveEdit,
                     focusNonce = focusNonce,
                     revision = revision,
+                    cardsPerRow = homeSettings.cardsPerRow,
                 )
             } else if (settings) {
                 SettingsScreen(
@@ -167,6 +168,7 @@ class MainActivity : ComponentActivity() {
                     revision = revision,
                     menuFromGear = menuFromGear,
                     showDate = homeSettings.showDate,
+                    cardsPerRow = homeSettings.cardsPerRow,
                 )
             }
             }

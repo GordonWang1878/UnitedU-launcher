@@ -5,7 +5,25 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+
+/**
+ * 一档卡片布局的全部尺寸(随「每行张数」变化的那些)。
+ * 中档(6/行)= [Theme] 里像素标定的原始常量原样;5/8 档由「可见跨度守恒」推导(见 [Theme.cardMetrics])。
+ * 不随档位变的量(FocusScale、SidePadding、RowVerticalPad、Shadow* 等)仍直接读 [Theme],不进这里。
+ */
+data class CardMetrics(
+    val cardWidth: Dp,
+    val cardHeight: Dp,
+    val cardCorner: Dp,
+    val cardSpacing: Dp,
+    val glowRadius: Dp,
+    /** 卡顶到下一行卡顶的间距,只用于「焦点行会不会掉出屏幕」的位移计算(见 HomeScreen 的 overflow)。 */
+    val rowPitch: Dp,
+    /** 第一行卡片顶到内容顶的距离,同样只用于 overflow 计算。 */
+    val firstCardTop: Dp,
+)
 
 /** 全部视觉常量集中在这里,对应 docs/DESIGN-custom-launcher.md §4 的规格表。 */
 object Theme {
@@ -143,6 +161,48 @@ object Theme {
     val RowPitch = 163.75.dp
     /** 焦点行底部至少离屏幕底这么远,不够就整体上移。 */
     val BottomKeepout = 28.dp
+
+    /**
+     * 每行张数 → 一档卡片尺寸。门 1(Gordon 定):**只定每行张数,其余按比例算,中档锚定**。
+     *
+     * - **中档 6(以及任何意外值)返回上面这批像素标定的原始常量原样** —— 零回归的锚点,
+     *   不要在这里「优化」标定值。
+     * - **5 / 8 档由「可见跨度守恒」推导**:当前 6 张卡的可见跨度
+     *   `S = 6*CardWidth + 5*CardSpacing`;换成 N 张时保持同一个 S、且 [CardSpacing] 不变,
+     *   于是 `cardWidth(N) = (S - (N-1)*CardSpacing) / N`。再用比例 `f = cardWidth(N)/CardWidth`
+     *   缩放随卡宽变的量:高、圆角、光晕。[FocusScale] 与 [CardSpacing] 跨档不变。
+     *   → 5 张更大、8 张更小、6 张不变。
+     * - **纵向**:行距 [RowPitch] 里只有卡高一项随档变(标题、间隙、留白、行间距都不变),
+     *   所以 `rowPitch(N) = RowPitch + (cardHeight(N) - CardHeight)`。
+     *   卡「顶」的位置不受卡高影响,故 [FirstCardTop] 跨档不变。
+     */
+    fun cardMetrics(cardsPerRow: Int): CardMetrics {
+        // 6 与任何意外值都走中档:原始常量原样,保证与本次改动前逐像素一致。
+        if (cardsPerRow != 5 && cardsPerRow != 8) {
+            return CardMetrics(
+                cardWidth = CardWidth,
+                cardHeight = CardHeight,
+                cardCorner = CardCorner,
+                cardSpacing = CardSpacing,
+                glowRadius = GlowRadius,
+                rowPitch = RowPitch,
+                firstCardTop = FirstCardTop,
+            )
+        }
+        val span = CardWidth * 6 + CardSpacing * 5           // 6 张时的可见跨度 S = 811.0dp
+        val cardWidth = (span - CardSpacing * (cardsPerRow - 1)) / cardsPerRow
+        val f = cardWidth / CardWidth                         // Dp/Dp = Float 比例因子
+        val cardHeight = CardHeight * f
+        return CardMetrics(
+            cardWidth = cardWidth,
+            cardHeight = cardHeight,
+            cardCorner = CardCorner * f,
+            cardSpacing = CardSpacing,                        // 跨档不变
+            glowRadius = GlowRadius * f,
+            rowPitch = RowPitch + (cardHeight - CardHeight),  // 只有卡高随档变
+            firstCardTop = FirstCardTop,                      // 卡顶位置与卡高无关
+        )
+    }
 
     /**
      * 聚焦卡片放大比例:v4 实测,同一张卡片未聚焦时高 143px、聚焦时 187px,187/143 ≈ 1.31。

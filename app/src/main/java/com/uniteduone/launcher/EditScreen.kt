@@ -48,8 +48,11 @@ fun EditScreen(
     onExit: () -> Unit,
     focusNonce: Int = 0,
     revision: Int = 0,
+    cardsPerRow: Int = 6,
 ) {
     val ctx = LocalContext.current
+    // 与首页同一套卡片档位尺寸,编辑页的卡片才会和首页一样大。见 Theme.cardMetrics。
+    val metrics = Theme.cardMetrics(cardsPerRow)
     var rows by remember { mutableStateOf(Layout.read(ctx).map { it.first to it.second.toMutableList() }) }
     var picking by remember { mutableStateOf<Int?>(null) }        // 正在给第几行加应用
     var acting by remember { mutableStateOf<Pair<Int, Int>?>(null) } // (行, 位置) 的操作菜单
@@ -265,11 +268,11 @@ fun EditScreen(
                     // 表现为「进编辑界面后按下键焦点就没了,之后按什么都没反应」。
                     // 横向位移自己算(把行尾的加号也算成一格)。
                     val fi = rowFocused.getOrElse(ri) { 0 }.coerceIn(0, pkgs.size)
-                    val right = Theme.SidePadding + Theme.CardWidth * (fi + 1) + Theme.CardSpacing * fi
+                    val right = Theme.SidePadding + metrics.cardWidth * (fi + 1) + metrics.cardSpacing * fi
                     val over = right + Theme.SidePadding - LocalConfiguration.current.screenWidthDp.dp
                     val dx by animateDpAsState(if (over > 0.dp) -over else 0.dp, label = "editRowX")
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(Theme.CardSpacing),
+                        horizontalArrangement = Arrangement.spacedBy(metrics.cardSpacing),
                         modifier = Modifier
                             // 同首页:父容器按屏幕宽给约束,Modifier.size 会被 constrain,
                             // 空间用完之后的条目被量成 0 宽且永远聚焦不到。
@@ -301,6 +304,7 @@ fun EditScreen(
                             if (app != null) {
                                 AppCard(
                                     app = app,
+                                    metrics = metrics,
                                     onClick = { acting = ri to pi },
                                     modifier = fm,
                                     onFocusChange = tell,
@@ -313,17 +317,18 @@ fun EditScreen(
                                 )
                             } else if (!allFresh) {
                                 // 数据还没跟上:中性占位,别说「未安装」
-                                PendingCard(pkg, fm, onFocusChange = tell,
+                                PendingCard(pkg, metrics, fm, onFocusChange = tell,
                                     isRowStart = pi == 0, isLastRow = ri == rows.lastIndex,
                                     isFirstRow = ri == 0)
                             } else {
                                 MissingCard(
-                                    pkg, fm, onFocusChange = tell,
+                                    pkg, metrics, fm, onFocusChange = tell,
                                     isRowStart = pi == 0, isLastRow = ri == rows.lastIndex, isFirstRow = ri == 0,
                                 ) { acting = ri to pi }
                             }
                         }
                         AddCard(
+                            metrics = metrics,
                             // 该行被清空时,rowFocus 没有卡片可挂,焦点会一个都落不下——
                             // 而这时唯一能自救的控件正是加号,所以让它接住。
                             modifier = if (pkgs.isEmpty() ||
@@ -417,6 +422,7 @@ fun EditScreen(
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 private fun AddCard(
+    metrics: CardMetrics,
     modifier: Modifier = Modifier,
     onFocusChange: (Boolean) -> Unit = {},
     isRowStart: Boolean = false,
@@ -431,9 +437,9 @@ private fun AddCard(
     )
     Box(
         modifier = modifier
-            .size(Theme.CardWidth, Theme.CardHeight)
+            .size(metrics.cardWidth, metrics.cardHeight)
             .scale(addScale)
-            .clip(RoundedCornerShape(Theme.CardCorner))
+            .clip(RoundedCornerShape(metrics.cardCorner))
             .background(if (focused) Theme.Champagne.copy(alpha = 0.30f) else Theme.AddCardBackground)
             .focusProperties {
                 right = FocusRequester.Cancel          // 行尾锁在这里,别跳到下一行
@@ -454,6 +460,7 @@ private fun AddCard(
 @Composable
 private fun PendingCard(
     pkg: String,
+    metrics: CardMetrics,
     modifier: Modifier = Modifier,
     onFocusChange: (Boolean) -> Unit = {},
     isRowStart: Boolean = false,
@@ -463,8 +470,8 @@ private fun PendingCard(
     var focused by remember { mutableStateOf(false) }
     Box(
         modifier = modifier
-            .size(Theme.CardWidth, Theme.CardHeight)
-            .clip(RoundedCornerShape(Theme.CardCorner))
+            .size(metrics.cardWidth, metrics.cardHeight)
+            .clip(RoundedCornerShape(metrics.cardCorner))
             .background(if (focused) Theme.PendingCardFocusedBackground else Theme.PendingCardBackground)
             .focusProperties {
                 if (isRowStart) left = FocusRequester.Cancel
@@ -487,6 +494,7 @@ private fun PendingCard(
 @Composable
 private fun MissingCard(
     pkg: String,
+    metrics: CardMetrics,
     modifier: Modifier = Modifier,
     onFocusChange: (Boolean) -> Unit = {},
     isRowStart: Boolean = false,
@@ -497,8 +505,8 @@ private fun MissingCard(
     var focused by remember { mutableStateOf(false) }
     Box(
         modifier = modifier
-            .size(Theme.CardWidth, Theme.CardHeight)
-            .clip(RoundedCornerShape(Theme.CardCorner))
+            .size(metrics.cardWidth, metrics.cardHeight)
+            .clip(RoundedCornerShape(metrics.cardCorner))
             .background(if (focused) Theme.MissingCardFocusedBackground else Theme.MissingCardBackground)
             // 行首/末行的边界同样要锁,理由见 AppCard:找不到候选时焦点会整棵树消失
             .focusProperties {

@@ -55,8 +55,11 @@ fun HomeScreen(
     revision: Int = 0,
     menuFromGear: Boolean = true,
     showDate: Boolean = true,
+    cardsPerRow: Int = 6,
 ) {
     val ctx = LocalContext.current
+    // 卡片档位尺寸:6=当前标定常量原样(零回归),5/8 按跨度守恒推导。见 Theme.cardMetrics。
+    val metrics = Theme.cardMetrics(cardsPerRow)
     // 枚举应用 + 解码全部横幅是重活,放到 IO 线程,别拖慢首帧
     // (冷启动实测 2.0–2.3s,Projectivy 是 1.45s)。
     // 用 null 区分「还在加载」和「真的空」,否则每次冷启动和每次退出编辑都会闪一句求救文案
@@ -119,8 +122,8 @@ fun HomeScreen(
     val screenH = LocalConfiguration.current.screenHeightDp.dp
     // 同理:整行被 filter 摘掉后 activeRow 会越界,内容会整块多上移一个 RowPitch
     val activeRowSafe = activeRow.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
-    val overflow = Theme.FirstCardTop + Theme.RowPitch * activeRowSafe +
-        Theme.CardHeight + Theme.BottomKeepout - screenH
+    val overflow = metrics.firstCardTop + metrics.rowPitch * activeRowSafe +
+        metrics.cardHeight + Theme.BottomKeepout - screenH
     val shift by animateDpAsState(
         targetValue = if (overflow > 0.dp) -overflow else 0.dp,
         label = "rowShift",
@@ -244,6 +247,7 @@ fun HomeScreen(
             rows.forEachIndexed { rowIndex, row ->
                 CategoryRow(
                     row = row,
+                    metrics = metrics,
                     firstCard = if (rowIndex == 0) firstCard else null,
                     active = rowIndex == activeRowSafe,
                     rowRequester = rowFocus.getOrNull(rowIndex),
@@ -358,6 +362,7 @@ fun Wallpaper(ctx: Context) {
 @Composable
 private fun CategoryRow(
     row: Row,
+    metrics: CardMetrics,
     firstCard: FocusRequester?,
     active: Boolean,
     rowRequester: FocusRequester?,
@@ -401,14 +406,14 @@ private fun CategoryRow(
         // 所以横向位移和上面纵向那段一样自己算:只有「不可滚动的 Row」不挡焦点。
         // 行可能变短(卸载了应用),索引留在旧值上会让整行多左移
         val focused = focusedIndex.coerceIn(0, row.apps.lastIndex.coerceAtLeast(0))
-        val focusRight = Theme.SidePadding + Theme.CardWidth * (focused + 1) + Theme.CardSpacing * focused
+        val focusRight = Theme.SidePadding + metrics.cardWidth * (focused + 1) + metrics.cardSpacing * focused
         val overRight = focusRight + Theme.SidePadding - LocalConfiguration.current.screenWidthDp.dp
         val xShift by animateDpAsState(
             targetValue = if (overRight > 0.dp) -overRight else 0.dp,
             label = "rowXShift",
         )
         Row(
-            horizontalArrangement = Arrangement.spacedBy(Theme.CardSpacing),
+            horizontalArrangement = Arrangement.spacedBy(metrics.cardSpacing),
             modifier = Modifier
                 // **必须 unbounded**:父 Column 是 fillMaxWidth,子 Row 拿到的 maxWidth 就是屏幕宽,
                 // 而 Modifier.size() 会被 constrain —— 空间用完之后的卡片直接被量成 0 宽,
@@ -424,6 +429,7 @@ private fun CategoryRow(
             row.apps.forEachIndexed { index, app ->
                 AppCard(
                     app = app,
+                    metrics = metrics,
                     onClick = {
                         if (!Apps.launch(ctx, app.packageName)) {
                             android.widget.Toast.makeText(
