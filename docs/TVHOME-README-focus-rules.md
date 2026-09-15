@@ -174,7 +174,7 @@ adb -s 192.168.1.50:5555 shell cmd package set-home-activity --user 0 com.dangbe
 | 菜单项 | 作用 |
 |---|---|
 | 编辑桌面 | 三行 + 每行末尾加号;选中卡片弹「往左移 / 往右移 / 换卡片图 / 从这一行移出」;加号打开应用选择器。改动即时写回 `layout.json`,退出后首页立即生效 |
-| 换壁纸 | 内置选择器,从 `library/wallpapers/` 选图复制到 `wallpaper.jpg` |
+| 换壁纸 | 内置选择器,从 `library/wallpapers/` 选一张,只把文件名写进 `settings.json` 的 `wallpaperFile`(M3 起不再复制、不再 recreate);轮播/主题化/模糊/压暗在「UnitedU 设置 → 壁纸」调 |
 | 屏保图库 | 缩略图网格预览 `library/screensavers/` 里的**全部**图片(2026-09-13 起不再封顶 9 张,网格纵向滚动,DOWN/UP 焦点带着滚,§6.53),按确定键全屏预览(HDR + Ken Burns,和真实屏保一致),← → 切换,返回退出;所有图片自动参与轮播(30 秒一张,2 秒交叉淡入),HDR gain map 保留 |
 | 系统设置 | 打开电视的 Android 设置 |
 | 设置默认桌面 | 先弹一张 United UI 风格的引导卡(`HomeSettingsCard`):显示当前默认桌面的图标+名称 + 「在系统设置中更改」按钮 + 说明。按钮跳系统主屏幕应用设置页(`android.settings.HOME_SETTINGS`,实测解析到 `com.android.permissioncontroller/.role.ui.DefaultAppActivity`)。**应用无权限直接改 HOME 角色,切换必须在系统页完成,这张卡只是把它包在一次明确点击之后**(§6.54) |
