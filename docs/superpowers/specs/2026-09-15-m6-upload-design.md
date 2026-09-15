@@ -64,6 +64,7 @@
   - 否则 `Intent(ACTION_VIEW).setDataAndType(FileProvider.getUriForFile(ctx, "$packageName.fileprovider", file), "application/vnd.android.package-archive").addFlags(FLAG_GRANT_READ_URI_PERMISSION or FLAG_ACTIVITY_NEW_TASK)` → 系统安装器接管;返回 `STARTED`,手机端 `{"ok":true,"package":…,"version":…}`。
 - 清单:`<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>`;`<provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.fileprovider" android:exported="false" android:grantUriPermissions="true">` + `res/xml/file_paths.xml`(`<cache-path name="apk" path="apk/"/>`)。
 - 装的是别的应用时 UnitedU 自身不受影响;装的是 UnitedU 自己的新版时,现有 `RelaunchAfterUpdate` 照旧接管。
+- **与 §3 的 ON_STOP 关页规则的交互(T2 复审发现)**:系统安装器 / 「允许安装未知应用」页都是全屏 Activity,会让 `MainActivity` 走 ON_STOP;若照 §3 一律关页,服务会被杀在安装流程中间。所以导入页持有 `suppressStopUntil: Long`(epoch ms):APK 路由在主线程回调里把它设为 `now + 30_000`,ON_STOP 观察者只在 `now > suppressStopUntil` 时才 `onExit()`。用时间戳不用布尔闩(铁律 7):窗口自然过期,不需要任何人清。
 
 ## 5. 入口、文案、声明
 
