@@ -77,3 +77,16 @@ M1 全部推送 github.com/GordonWang1878/UnitedU-launcher(main,8 commit)。
 
 ### M2 已交付 commit(main)
 20f27c7 计划草稿 / cb2ed01 颜色收拢 / 335224d 包名doc / 69ef91b 设置模型 / 4f542ca 损坏检测修复。
+
+## 2026-09-15 · M2 四决策门全定 + Google 工具评估
+
+**决策门(Gordon 定)**:
+- 主题色:**沉稳**(4 处强调低饱和;金保持 `#C0A73A`;香槟 `#D9C7A0`/蓝 `#6E8FB0`/紫 `#9280AA`/石墨 `#9AA0A6`/绿 `#7FA07A`)。
+- 设置页:**分组带标题**(布局/主题/时钟/待机)。
+- 卡片三档:只定每行张数 8/6/5,其余按屏宽比例推导,中档锚定。
+- 待机:M2 只做设置项 UI+读写,DreamService 行为留 M5。
+- **默认背景(追加)**:不设壁纸时用「固定中性暗背景」,主题色只染 4 处强调、不染背景 → 选任何预设整屏仍暗,深色用户友好。**M3 待办:把 M1 现有的金色 `default-wallpaper.jpg` 换成中性暗底。**
+- 主题色驱动的 4 处 = 齿轮 / 时钟 / 行标题 / 光晕(设计 §3),不含卡片图与背景。
+- 决策对比页 artifact:https://claude.ai/artifact/MdYivJkN8PRpqFF6LmcdDa
+
+**Google 开发者权益评估(Gordon 有 Google AI Pro)**:结论——对本项目基本不划算,不为用权益改工作流。理由:app 完全离线、零 AI、不上 Play、更新走腾讯 COS 非 Google Cloud。逐项:Cloud/GenAI credits 无落点;AI Studio 无关(零 AI);Dev Program Premium 的 Play/Firebase 实惠用不上;Gemini-in-Android-Studio 与 Claude Code 职责冗余;Antigravity 是替代 agent,中途换=净增复杂度,仅留作后备(Android 冷门难题时求第二意见)。**唯一按需推荐**:Android Studio 的 Layout Inspector / Compose 运行时检查——仅在 M2 焦点 bug 用 CLU+截图查不出时,临时装来定位,不进主流程。
