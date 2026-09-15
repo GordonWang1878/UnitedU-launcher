@@ -184,3 +184,61 @@ Task 8 全项集成验收:模拟器零回归像素对比 PASS,spec §6.3 七项�
 - **处理耗时**(swiftshader 模拟器,box blur 跑在 768×432):blur=0 ≈ 1.0 s、blur=50 ≈ 0.7 s、blur=10 ≈ 3.4 s(最坏情况——`boxBlur3` 的纯像素循环跑在三档里最大的 768 宽图上;真机预期远快)。
 - **缓存**:最多 12 张 JPEG,按 `lastModified` LRU(缓存命中会刷新 mtime),目录 `externalCacheDir/wallpapers/`。
 - **已知细节,非阻塞**(留意但不在本轮修):选择器类浮层(壁纸选择器 / 屏保图库 / 默认桌面卡)替换而非叠加 `HomeScreen`,选完后卡片焦点回到 (0,0)(T4 记录的既有行为,非 M3 引入,留 polish);`boxBlur3` 强制 alpha 不透明,blur=0 与 blur>0 的 PNG 透明度因此不同;`migrateLegacy` 会静默覆盖已存在的 `legacy-wallpaper.jpg`;`Wallpapers.select` 的头部解码 + settings 写入在主线程;轮播间隔改动要退出设置页才生效;`delay()` 按 uptime 计时,「每天」跨面板休眠会漂移;`wallpaperCacheKey` 用 `|` 分隔符拼参数;`scripts/gen-wallpapers.py` 缺可执行位(`chmod +x` 未做)。
+
+## 2026-09-15 · M6 收官(手机上传页 + 传 APK 安装 + NOTICE 纠错)
+
+M6(Task 1–5)全部完成,子代理驱动 + 每任务评审通过,收官验收在 emulator-5558 全项命中(`pm clear` 干净安装重跑)。
+
+### 交付(spec §0)
+应用内 HTTP 服务(NanoHTTPD:壁纸/卡片图/屏保三类的传/看/删 + 传 APK 安装)+ 网页(`assets/web/index.html`,四标签、缩略图网格、上传/删除/预览,服务端注入三语文案)+ 电视端二维码页(`ImportScreen`,ZXing 生成)+ 齿轮菜单入口(「导入图片」,插在「换壁纸」之前)+ `NOTICE` 条目。
+
+### 验收结果(spec §6)
+- 不崩不留黑:坏图不落盘(`x.gif` → `rejected reason=type`)PASS;`type=icons` → 400 PASS;删除不存在的文件 → 404 PASS(`../settings.json` 经 `sanitizeUploadName` 剥离成 `settings.json`,该名字在目标目录不存在,404 而非设计原稿设想的 400——Task 2 已查实这是清洗函数既有契约下的安全行为,非 bug,详见 task-2-report)。
+- 单测:`testReleaseUnitTest` 24 项全绿、0 failure(`SettingsTest` 14 / `UploadPureTest` 9 / `RelaunchPolicyTest` 1)。
+- 模拟器:三类目录各传 1 张 + 列表核对,wallpapers 额外走完整序列(同名去重 `a.jpg`/`a-1.jpg`、gif 拒收、`/thumb` 与 `/file` 200、delete、`adb shell ls` 与 API 列表一致)全部命中;二维码页截图(`docs/screenshots/m6-import.png`,URL/二维码/计数三项清晰可读)、网页截图(`docs/screenshots/m6-web.png`,四标签、缩略图、删除按钮渲染正确)、`GET /` 注入的 `const S = {...}` 三语字符串核对、`__STRINGS__` 占位符清零;APK 三段式(gif → invalid、未授权 → needs-permission + 系统「安装未知应用」页截图、放行后 → started + 系统安装器截图)全部命中,两次跳系统页返回后服务都还活着(30 s 豁免窗生效,详见下方注记)。
+- 真机:留 Gordon(spec §6 唯一需要肉眼的一步)。
+
+### 决策
+- Gordon:手机页不做远程「设为当前壁纸」(壁纸/卡片图仍只在电视端选择器选);传 APK 安装放进 M6,不等 M7。
+- 技术选型:HTTP 服务用 **NanoHTTPD 2.3.1**(许可证是 **BSD-3-Clause**——设计文档 §5/§8 原写 Apache-2.0 系笔误,本任务已订正,`NOTICE` 按 BSD-3 的三条件写全);二维码用 **ZXing core 3.5.3**(Apache-2.0);服务寿命绑定「导入图片」页本身——端口从 8090 起顺延到 8099,HOME/`ON_STOP` 触发即关闭,但传 APK 安装期间(系统安装器 / 「允许安装未知应用」页会让 `MainActivity` 走 `ON_STOP`)有 30 s 自发起安装豁免窗,用时间戳到期自动失效,不需要任何人手动清(不是一次性布尔闩)。
+
+### 延后项
+- 真机扫码验证(Gordon,spec §6 唯一肉眼步骤)。
+- 齿轮菜单四项归并 → M7(设计 §6)。
+- 检查更新 → M7,复用本任务的 `ApkInstaller`(`install`/`archiveInfo` 已是独立、无状态的可复用入口)。
+
+### 注记
+- 目录/端口:上传落盘临时目录 `externalCacheDir/upload/`(外置卷未挂载时回落 `cacheDir/upload/`);APK 落 `cacheDir/apk/upload.apk`(FileProvider 只开放这一个子目录,见 `res/xml/file_paths.xml`);服务端口固定从 8090 尝试到 8099。
+- **NanoHTTPD 同名多文件字段命名坑**:2.3.1 把重复的 `files` multipart 字段依次存成 tempfile key `files`(第 1 个)、`files1`(第 2 个)、`files2`(第 3 个)……**不是**计划书最初假设的 `files`/`files2`/`files3`(1-based 跳号少算一位);`parameters` 里每个 key 各自持有自己那一份原始文件名,不是全部塞进一个 `files` 列表。Task 2 用 3 文件、4 文件各实测一次后,改成按 key 直接枚举(`files` 加 `files<digits>`,数字排序)而不是假设连续序号,序号中间有洞也不会把整批截断。
+- 其余计划外发现:`AndroidManifest.xml` 最初漏了 `android.permission.INTERNET`(服务器完全绑不上端口,Task 2 补上,commit 286a32d);模拟器上系统「安装未知应用」设置页是半透明浮层,不会真正触发 `MainActivity` 的 `ON_STOP`,真正验证 30 s 豁免窗要靠不透明的系统安装器确认框(Task 4 报告已记录,本任务验收沿用同一手法验证)。
+- 已知技术债(均不影响当前功能,留手):缩略图内存缓存 key 只有 `name|mtime`、没带 `type`(三个 library 目录彼此独立,实际不会撞,但契约上不够严谨);`UploadServer.start()` 在主线程跑(实测最坏约 100 ms);超限上传先落临时文件再判断大小(30 MB 封顶,极端情况多一次磁盘写);`uniqueName` 在多台手机并发上传同名文件时有 TOCTOU 窗口;网页上传 `fetch` 失败(网络错误)不会重置文件 `<input>`;网页 tab 切换有竞态——异步 `await` 完成时读的是彼时的全局 `type` 而不是发起请求那一刻的 `type`;`ApkInstaller` 极少数情况下会先报 `STARTED`(`onNotice` 已经喊了「已交给系统安装器」)、随后因异常被判成 `INVALID`,电视端文案会短暂说错。
+- **合并顺序**:M6 基于 M3 落地之前的 main 切出(`library/wallpapers` 在本分支是空的,M3 的壁纸种子没有落进来,验收时确认过这是预期状态,不是回归)。M6 → main 的合并在 M3 之后做,已知冲突点在 `MainActivity.kt`(菜单项/待机守卫附近)、`strings.xml`(追加行)、`NOTICE`,由控制器处理,本任务不动。
+- **验收方法论踩坑一则**:`adb shell appops set <pkg> REQUEST_INSTALL_PACKAGES default` 在应用进程存活期间执行会被 Android 直接杀掉该进程(logcat:`ActivityManager: Killing … REQUEST_INSTALL_PACKAGES changed`——appop 收紧才会触发这条安全策略,放宽成 `allow` 不会)。Task 4 把这一步放在 `am start` 之前,没撞上;本任务重置权限的时点晚了,撞了一次,`am start` 重新拉起后 `library/*` 三个目录的文件原样还在(未丢数据),后续同类验收改用「先重置权限、再启动 app」的顺序可以绕开。
+
+## 2026-09-16 · M6 终审加固波次(CSRF + 前台限制 + 五个 Minor)
+
+commit `a0ae3ad`(分支 `m6-upload`)。全branch 复审判定「可合并」,但点名两项 Important 与几个便宜的 Minor,控制器裁定一次性落地。
+本质:M6 的写入面原先**只靠「谁连得上局域网」保护**——没有来源判定、没有前台判定、没有请求大小预判。
+
+### 交付
+- **H1 CSRF**:非 GET 路由要求 `X-Requested-With: UnitedU`,缺 → `403 {"ok":false,"reason":"origin"}`;网页三处非 GET `fetch` 带上它。`fetch` + `FormData` 属 CORS 简单请求,**手机上任何网页都能不经预检往电视 POST/DELETE**;自定义头把它顶成要预检。GET 不动(`/thumb`、`/file` 要能被 `<img>` 直接加载)。
+- **H2 前台限制**:`UploadServer` 拿 `isForeground()`,`serveApk` 在主线程那一回合里先查前台与 `isAlive`,不满足 → 新的 `Result.BACKGROUND`、不弹安装器、删暂存 APK、回 `{"ok":false,"reason":"background"}`(新增三语 `web_apk_background`);`ImportScreen.onNotice` 也只在前台才撑豁免窗。否则局域网上任何人每 <30 s 传一次 APK 就能让这个无密码服务在用户切走后无限期活着、还能糊安装弹窗——而关页保险正被那个窗压着。
+- **Minor**:`Content-Length` 预检(超限直接 413 + `Connection: close`,不读 body;403 同样没读 body,一并处理);未知来源 `startActivity` 包 `runCatching`(定制固件没这个设置页时仍返回 `NEEDS_PERMISSION`,不 500);开服前扫残留(`cacheDir/apk/upload.apk` + `tmpDir` 里超过 60 s 的文件);multipart key 枚举提纯成 `UploadPure.uploadKeys()` + 5 个单测;needs-permission 的豁免窗从 30 s 放宽到 **120 s**(设置页上开开关再返回,30 s 不够)。
+
+### 验收结果
+- `testReleaseUnitTest` **29/29 全绿**(24 → 29)、`assembleRelease` + `lintVitalRelease` 通过。
+- 模拟器 `emulator-5558`:H1 无头 403 / 带头 200、GET 不受影响;H2 前台 `ok:true` + 安装器起来 → 切到原生桌面后再传 → `background` 且**无任何弹窗**;**窗未被续**(设备侧 `/proc/net/tcp` 轮询 8090:t0+30 s 还在监听、t0+32 s 已停,若续窗应活到 ≈t0+36 s);H3 413 用时 12 ms;120 s 窗实测 t0+46 s 服务仍在;H5 的 60 s 老化清扫(13 分钟前的临时文件被删、刚写的留着);手机页面走自身 handler 的上传与删除均正常。
+- 详细报告与截图:`.superpowers/sdd/2026-09-15-m6-upload/final-fix-report.md`(+ `final-fix-shots/`)。
+
+### 注记
+- **口径订正(写进 spec §6)**:名字的 400 与 404 是两件事——清洗不过(空、`.`、`..`、点开头)→ 400;**清洗得出合法名字**的按那个名字去找,不在 → 404。所以 `../settings.json` 是 404(上一轮已查实,这轮把 spec 的措辞改成与实现一致)。
+- `ImportScreen` 的 ON_STOP 关页**依赖 Compose(≥1.5)在 Activity STOPPED 期间照常重组**(停的只有帧时钟),已在代码里注明:别因为「后台还能跑」看着可疑就把 `stop()` 从 `onDispose` 挪走。
+- `uploadKeys` 收下了 `filesX` 这类非数字后缀(旧代码会滤掉),按复审给的用例实现;无害——没有临时文件的 key 直接跳过,每个文件仍逐个过四道闸。
+- **又撞了一次 appops 杀进程**(上面 M6 收官的「验收方法论踩坑」那条):`appops set … deny` 收紧权限时系统会 `Killing … REQUEST_INSTALL_PACKAGES changed` 直接杀掉应用,服务凭空消失不是产品缺陷。顺序永远是**先设 appop、再开页面**。
+- `cacheDir/apk/upload.apk` 的清扫在 release 包上无法直接目击(不可 `run-as`、模拟器 `adb root` 被拒);它与 tmp 清扫在同一个 `runCatching` 里且在循环之前,tmp 被删即证明该行已执行。
+
+## 2026-09-16 · M3 + M6 合并进 main(本地,未推送)+ 接缝冒烟
+
+- 合并顺序 M3(`e1a6a4e`)→ M6(`61e5c73`);唯一冲突 `docs/WORKLOG.md`(两边各追加一节,保留两段)。合并树 `testReleaseUnitTest assembleRelease` 绿,48 单测。
+- 模拟器接缝冒烟 5/5 通过:首启铺入 6 张内置;上传页能列/删/传内置库,删掉的内置图重启不复活(`.seeded`);轮播每次重扫目录,上传的图进入轮播;删掉**当前**壁纸后回落到排序第一张,不黑屏不崩;设置页 12 行上下全程焦点不丢,导入页开关后首页焦点仍在。
+- 待 Gordon:推送;T9 真机调参;手机扫码真机验证;M5 电视 spike。

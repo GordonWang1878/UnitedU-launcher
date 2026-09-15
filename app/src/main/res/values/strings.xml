@@ -17,6 +17,42 @@
     <string name="menu_system_settings_desc">打开电视的 Android 设置</string>
     <string name="menu_set_default_home">设置默认桌面</string>
     <string name="menu_set_default_home_desc">选择按 Home 键时启动哪个桌面</string>
+    <string name="menu_import">导入图片</string>
+    <string name="menu_import_desc">手机扫码上传壁纸、卡片图、屏保</string>
+    <!-- import_* : 「导入图片」页(电视端) -->
+    <string name="import_title">用手机导入图片</string>
+    <string name="import_received">已收到 %1$d 个文件</string>
+    <string name="import_last">最近:%1$s</string>
+    <string name="import_hint_back">按返回键关闭并停止服务</string>
+    <string name="import_error_no_network">电视没有连接网络,连上 Wi-Fi 或网线后再试</string>
+    <string name="import_error_port">端口 8090–8099 都被占用,稍后再试</string>
+    <string name="import_apk_needs_permission">请在电视上允许「安装未知应用」,然后在手机上重试</string>
+    <string name="import_apk_started">已交给系统安装器</string>
+
+    <!-- web_* : 手机上传网页文案(服务端注入,JS 里 %s/%d 由网页自己替换) -->
+    <string name="web_title">用手机导入图片</string>
+    <string name="web_tab_wallpapers">壁纸</string>
+    <string name="web_tab_cards">卡片图</string>
+    <string name="web_tab_screensavers">屏保</string>
+    <string name="web_tab_apk">安装 APK</string>
+    <string name="web_upload">上传</string>
+    <string name="web_delete">删除</string>
+    <string name="web_confirm_delete" formatted="false">删除 %s?</string>
+    <string name="web_empty">还没有图片,点右上「上传」</string>
+    <string name="web_uploading" formatted="false">正在上传 %d 个文件…</string>
+    <string name="web_done">完成</string>
+    <string name="web_error">出错了,请重试</string>
+    <string name="web_rejected_type">只支持 jpg / png / webp</string>
+    <string name="web_rejected_size">超过 30 MB</string>
+    <string name="web_rejected_decode">图片解码失败</string>
+    <string name="web_rejected_name">文件名无效</string>
+    <string name="web_rejected_write">电视存储写入失败</string>
+    <string name="web_apk_hint">选择 APK 后,电视会弹出系统安装器;首次需要在电视上允许「安装未知应用」。</string>
+    <string name="web_apk_install">选择 APK 并安装到电视</string>
+    <string name="web_apk_needs_permission">请先在电视上允许安装未知应用,然后重试</string>
+    <string name="web_apk_invalid">不是有效的 APK 文件</string>
+    <string name="web_apk_size">APK 超过 100 MB</string>
+    <string name="web_apk_background">电视上的导入页不在前台,回到导入页后重试</string>
 
     <!-- edit_* : 编辑桌面界面 -->
     <string name="edit_title">编辑桌面</string>
