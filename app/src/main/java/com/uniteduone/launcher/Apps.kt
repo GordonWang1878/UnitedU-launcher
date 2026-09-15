@@ -141,6 +141,27 @@ object Apps {
         return runCatching { ctx.startActivity(intent) }.isSuccess
     }
 
+    /**
+     * 「新应用」个数:按两个启动分类枚举(与首页同一口径,不做全量补齐——那要上百次包查询),
+     * firstInstallTime 晚于 seenAt、不在桌面上、不是自己。IO 线程调用。
+     */
+    fun countNew(ctx: Context, seenAt: Long, onLayout: Set<String>): Int {
+        val pm = ctx.packageManager
+        val pkgs = LinkedHashSet<String>()
+        for (cat in listOf(Intent.CATEGORY_LEANBACK_LAUNCHER, Intent.CATEGORY_LAUNCHER)) {
+            val intent = Intent(Intent.ACTION_MAIN).addCategory(cat)
+            runCatching { pm.queryIntentActivities(intent, 0) }.getOrDefault(emptyList())
+                .forEach { pkgs += it.activityInfo.packageName }
+        }
+        return pkgs.count { pkg ->
+            pkg != ctx.packageName && isNewApp(
+                firstInstallTime = runCatching { pm.getPackageInfo(pkg, 0).firstInstallTime }.getOrDefault(0L),
+                seenAt = seenAt,
+                onLayout = pkg in onLayout,
+            )
+        }
+    }
+
     /** 卡片在屏幕上的像素尺寸(1920x1080 下 127x71dp @2x),位图不必比这更大。 */
     private const val CARD_W = 264
     private const val CARD_H = 148

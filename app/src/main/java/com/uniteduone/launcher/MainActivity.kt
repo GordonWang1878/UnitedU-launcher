@@ -81,6 +81,8 @@ class MainActivity : ComponentActivity() {
                 addDataScheme("package")
             },
         )
+        // 「新应用」基线:首启把 newAppsSeenAt 写成现在,之前装的都不算新(design §2)。
+        SettingsStore.update(this) { if (it.newAppsSeenAt == 0L) it.copy(newAppsSeenAt = System.currentTimeMillis()) else it }
         installBackHandler()
         setContent {
             // 菜单项列表不必每次重组都新建,否则整棵树都不可跳过
@@ -232,6 +234,7 @@ class MainActivity : ComponentActivity() {
                     cardsPerRow = homeSettings.cardsPerRow,
                     showTitles = homeSettings.showTitles,
                     showInputRow = homeSettings.showInputRow,
+                    newAppsSeenAt = homeSettings.newAppsSeenAt,
                     accent = themeColors.accent,
                     highlight = themeColors.highlight,
                 )

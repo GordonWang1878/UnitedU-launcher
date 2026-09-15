@@ -66,6 +66,8 @@ fun HomeScreen(
      *  默认今日常量,保证未接线的调用点逐位复现今日观感。 */
     accent: Color = Theme.ChampagneGold,
     highlight: Color = Theme.Champagne,
+    /** 上次打开「添加应用」列表的时刻(design §4);默认「什么都不算新」,未接线的调用点零回归。 */
+    newAppsSeenAt: Long = Long.MAX_VALUE,
 ) {
     val ctx = LocalContext.current
     // 卡片档位尺寸:6=当前标定常量原样(零回归),5/8 按跨度守恒推导。见 Theme.cardMetrics。
@@ -79,8 +81,8 @@ fun HomeScreen(
     // 这里本就会重跑;带上它是白纸黑字,不依赖「revision 一定跟着变」这条间接约束。
     // titles.json 与 rows 同一趟 IO 读出,配成一对:标题开关关着时 titles 仍会被读到但不渲染
     // (显示与否只由 showTitles 决定,不进 key——开关切换不必重读数据,只是换一种渲不渲染)。
-    val loaded by produceState<Pair<List<Row>, Map<String, String>>?>(
-        initialValue = null, ctx, revision, showInputRow,
+    val loaded by produceState<Triple<List<Row>, Map<String, String>, Int>?>(
+        initialValue = null, ctx, revision, showInputRow, newAppsSeenAt,
     ) {
         value = withContext(Dispatchers.IO) {
             val appRows = runCatching { buildRows(ctx) }.getOrDefault(emptyList())
@@ -91,7 +93,12 @@ fun HomeScreen(
             val inputRow = if (showInputRow) runCatching { buildInputRow(ctx) }.getOrNull() else null
             val rows = if (inputRow != null) listOf(inputRow) + appRows else appRows
             val titles = runCatching { Titles.read(ctx) }.getOrDefault(emptyMap())
-            rows to titles
+            // 「新应用」计数:与首页同一趟 IO 算(应用已经枚举过一次),onLayout 只看应用行
+            // ——输入源行的 packageName 存的是输入 id,不是真的包名。
+            val newCount = runCatching {
+                Apps.countNew(ctx, newAppsSeenAt, appRows.flatMap { r -> r.apps.map { it.packageName } }.toSet())
+            }.getOrDefault(0)
+            Triple(rows, titles, newCount)
         }
     }
     val rows = loaded?.first.orEmpty()
@@ -340,6 +347,19 @@ fun HomeScreen(
                 onFocusChange = { got -> report(-1, -1, got) },
             )
             Clock(showDate = showDate, highlight = highlight)
+        }
+
+        // 「有 N 个新应用」:左下角小字,待机时随内容一起淡出(design §2)
+        val newCount = loaded?.third ?: 0
+        if (newCount > 0) {
+            BasicText(
+                text = stringResource(R.string.home_new_apps, newCount),
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = Theme.SidePadding, bottom = Theme.BottomKeepout)
+                    .alpha(contentAlpha),
+                style = TextStyle(fontFamily = Theme.Sans, color = Theme.FooterHintText, fontSize = 12.sp),
+            )
         }
 
         if (menuOpen) {

@@ -70,9 +70,11 @@
     <string name="edit_add_app_title">新增應用程式</string>
     <string name="edit_loading_apps">正在讀取應用程式清單…</string>
     <string name="edit_no_more_apps">沒有可新增的應用程式了</string>
+    <string name="edit_badge_new">新</string>
 
     <!-- home_* : 首頁與預設桌面設定卡 -->
     <string name="home_empty_apps_hint">沒有可顯示的應用程式\n右上角的齒輪已選取,按「確定」進入「編輯桌面」新增</string>
+    <string name="home_new_apps">有 %1$d 個新應用程式</string>
     <string name="home_input_row_title">輸入源</string>
     <string name="home_settings_title">預設桌面</string>
     <string name="home_settings_current_label">目前</string>

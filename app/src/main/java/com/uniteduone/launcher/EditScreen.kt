@@ -543,6 +543,13 @@ private fun AppPicker(
     exclude: Set<String>,
     onPick: (String) -> Unit,
 ) {
+    // 打开列表那一刻的基线:本次列表按打开前的时间戳标「新」,同时把时间戳推到现在(先算后写)。
+    val seenAtBefore = remember { SettingsStore.read(ctx).newAppsSeenAt }
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            SettingsStore.update(ctx) { it.copy(newAppsSeenAt = System.currentTimeMillis()) }
+        }
+    }
     // 选择器只显示名字,不需要位图
     // null = 还在读。用 emptyList 当初值时,弹出的框第一眼就写着「没有可添加的应用了」,
     // 几百毫秒后才刷出列表 —— 看到这句话的人会直接按返回,认定功能坏了。
@@ -624,6 +631,8 @@ private fun AppPicker(
                         },
                         isFirst = i == 0,
                         isLast = i == candidates.orEmpty().lastIndex,
+                        // 候选本来就不在桌面上(loadCandidates 已经把 layout.json 里的包 exclude 掉了)。
+                        isNew = isNewApp(app.firstInstallTime, seenAtBefore, onLayout = false),
                         onClick = { onPick(app.packageName) },
                     )
                 }
@@ -640,6 +649,7 @@ private fun PickerRow(
     onFocusChange: (Boolean) -> Unit = {},
     isFirst: Boolean = false,
     isLast: Boolean = false,
+    isNew: Boolean = false,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -666,10 +676,17 @@ private fun PickerRow(
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
-        BasicText(
-            text = app.label.ifBlank { app.packageName },
-            style = TextStyle(fontFamily = Theme.Sans, color = if (focused) Theme.Champagne else Theme.DialogBodyText, fontSize = 14.sp),
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            BasicText(
+                text = app.label.ifBlank { app.packageName },
+                style = TextStyle(fontFamily = Theme.Sans, color = if (focused) Theme.Champagne else Theme.DialogBodyText, fontSize = 14.sp),
+            )
+            if (isNew) Box(
+                Modifier.clip(RoundedCornerShape(4.dp)).background(Theme.Champagne.copy(alpha = 0.22f)).padding(horizontal = 6.dp, vertical = 1.dp),
+            ) {
+                BasicText(text = stringResource(R.string.edit_badge_new), style = TextStyle(fontFamily = Theme.Sans, color = Theme.Champagne, fontSize = 10.sp))
+            }
+        }
         BasicText(
             text = app.packageName,
             style = TextStyle(fontFamily = Theme.Sans, color = Theme.FootnoteText, fontSize = 10.sp),

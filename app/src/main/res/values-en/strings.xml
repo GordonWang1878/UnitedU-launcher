@@ -70,9 +70,11 @@
     <string name="edit_add_app_title">Add App</string>
     <string name="edit_loading_apps">Loading app list…</string>
     <string name="edit_no_more_apps">No more apps to add</string>
+    <string name="edit_badge_new">NEW</string>
 
     <!-- home_* : home screen and default-home settings card -->
     <string name="home_empty_apps_hint">No apps to show\nThe gear icon in the top right is selected — press OK to open “Edit Home Screen” and add some</string>
+    <string name="home_new_apps">%1$d new app(s)</string>
     <string name="home_input_row_title">Inputs</string>
     <string name="home_settings_title">Default Home</string>
     <string name="home_settings_current_label">Current</string>
