@@ -27,6 +27,19 @@ data class Settings(
     val showDate: Boolean = true,
     val idleAfterMs: Long = 180_000L,
     val idleContent: IdleContent = IdleContent.CLOCK_ONLY,
+    // ---- M3 壁纸(spec §1)。默认全零/空/关 ⇒ 首页观感与 M2 逐位一致 ----
+    /** library/wallpapers/ 里的文件名;空 = 未指定(解析顺序见 Wallpapers.resolveSource)。 */
+    val wallpaperFile: String = "",
+    /** 轮播间隔 ms;0 = 关。合法值见 [VALID_WALLPAPER_ROTATE_MS]。 */
+    val wallpaperRotateMs: Long = 0L,
+    /** 上次轮换的 epoch ms;「每天」档靠它跨重启续等。 */
+    val wallpaperRotatedAt: Long = 0L,
+    /** 主题化壁纸(去色→染主题色);默认关,守住 M2「默认背景不随主题」。 */
+    val wallpaperThemed: Boolean = false,
+    /** 模糊 0–100,步 10。 */
+    val wallpaperBlur: Int = 0,
+    /** 压暗 0–100,步 10。 */
+    val wallpaperDim: Int = 0,
 )
 
 // `internal`(而非 `private`):这两张表是 cardsPerRow / idleAfterMs 的唯一合法取值集合,
@@ -34,6 +47,26 @@ data class Settings(
 // 一份表两处读,才不会有人手改一处、另一处悄悄漂移(2026-09-15 复审前两处各写了一份字面量)。
 internal val VALID_CARDS_PER_ROW = intArrayOf(5, 6, 8)
 internal val VALID_IDLE_AFTER_MS = longArrayOf(0L, 60_000L, 180_000L, 300_000L, 600_000L)
+internal val VALID_WALLPAPER_ROTATE_MS = longArrayOf(0L, 300_000L, 1_800_000L, 86_400_000L)
+
+private fun snapRotateMs(v: Long?): Long =
+    if (v != null && VALID_WALLPAPER_ROTATE_MS.contains(v)) v else 0L
+
+/** 0..100 夹取后四舍五入到 10 的倍数(滑块 11 档);解析不出数字 → 该字段的默认值(真机调参后默认可能非零)。 */
+private fun clampPercentStep10(v: Int?, default: Int): Int =
+    if (v == null) default else ((v.coerceIn(0, 100) + 5) / 10) * 10
+
+private fun clampEpoch(v: Long?): Long = (v ?: 0L).coerceAtLeast(0L)
+
+/**
+ * 壁纸文件名只能指向 library/wallpapers/ 里的一个条目:含路径分隔符或 `..` 的一律当没写。
+ * `internal`:Wallpapers.select 写入前也走同一道清洗。
+ */
+internal fun sanitizeWallpaperFileName(name: String?): String {
+    val n = name?.trim() ?: return ""
+    if (n.isEmpty() || n.contains('/') || n.contains('\\') || n.contains("..")) return ""
+    return n
+}
 
 private fun clampRowCount(v: Int?): Int = (v ?: 3).coerceIn(1, 5)
 
@@ -96,6 +129,12 @@ fun parseSettings(json: String): Settings {
             idleContent = extractString(json, "idleContent")
                 ?.let { name -> runCatching { IdleContent.valueOf(name) }.getOrNull() }
                 ?: d.idleContent,
+            wallpaperFile = sanitizeWallpaperFileName(extractString(json, "wallpaperFile")),
+            wallpaperRotateMs = snapRotateMs(extractLong(json, "wallpaperRotateMs")),
+            wallpaperRotatedAt = clampEpoch(extractLong(json, "wallpaperRotatedAt")),
+            wallpaperThemed = extractBoolean(json, "wallpaperThemed") ?: d.wallpaperThemed,
+            wallpaperBlur = clampPercentStep10(extractInt(json, "wallpaperBlur"), d.wallpaperBlur),
+            wallpaperDim = clampPercentStep10(extractInt(json, "wallpaperDim"), d.wallpaperDim),
         )
     } catch (e: Throwable) {
         // 理论上上面每一步都已经用 ?: 兜底、不会抛,这层 catch 只是和 Layout 保持同一套
@@ -118,7 +157,13 @@ fun Settings.toJson(): String {
         append("  \"clock24hFollowSystem\": $clock24hFollowSystem,\n")
         append("  \"showDate\": $showDate,\n")
         append("  \"idleAfterMs\": $idleAfterMs,\n")
-        append("  \"idleContent\": \"${idleContent.name}\"\n")
+        append("  \"idleContent\": \"${idleContent.name}\",\n")
+        append("  \"wallpaperFile\": \"${esc(wallpaperFile)}\",\n")
+        append("  \"wallpaperRotateMs\": $wallpaperRotateMs,\n")
+        append("  \"wallpaperRotatedAt\": $wallpaperRotatedAt,\n")
+        append("  \"wallpaperThemed\": $wallpaperThemed,\n")
+        append("  \"wallpaperBlur\": $wallpaperBlur,\n")
+        append("  \"wallpaperDim\": $wallpaperDim\n")
         append("}\n")
     }
 }
@@ -175,11 +220,24 @@ internal fun isWellFormedJsonObject(text: String): Boolean {
  * 外部存储没挂就用内存默认值不写盘;文件不存在就写默认值再返回;
  * 解析包在 `try/catch (e: Throwable)`(超大文件 OOM 是 Error 不是 Exception);
  * 语法损坏就把坏文件改名成 `.bad`、写回默认值、`Log.w` 留痕。
+ *
+ * **M3 起这是个多写者的store**:主线程的设置页 / 选图,IO 线程的轮播与
+ * prepare 的迁移/铺入,都会写同一个文件。所以写必须串行化——见 [lock] 与 [update]。
  */
 object SettingsStore {
     private const val TAG = "UnitedU"
 
-    fun read(ctx: Context): Settings {
+    /**
+     * 所有写盘串行化。**不加它会真的丢掉全部设置**:[write] 用同一个 `settings.json.tmp`,
+     * 且 rename 失败时的兜底是 `dst.delete()` 再 rename——两个写者交叠时,输的那个可能
+     * 正好删掉赢的那个刚放好的 settings.json,下次 [read] 读不到文件就重写一份默认值,
+     * 用户的全部设置归零。JVM 的 monitor 是可重入的,所以 [update] 里套 [read]、
+     * [read] 里再套 [write] 都不会自锁。
+     */
+    private val lock = Any()
+
+    // 与 write/update 同一把锁:否则读者可能落在「删旧文件 → 改名」的间隙里看到「没文件」而写回默认值,把写者的结果抹掉
+    fun read(ctx: Context): Settings = synchronized(lock) {
         if (Paths.baseOrNull(ctx) == null) {
             Log.w(TAG, "外部存储没挂上,这次用内存里的默认设置,不写盘")
             return Settings()
@@ -210,7 +268,7 @@ object SettingsStore {
      * @return 是否真的落盘了;调用方(后续任务里的设置页)需要知道失败,
      *   否则界面上改的值下次开机又变回去,用户只会觉得"设置没保存"。
      */
-    fun write(ctx: Context, s: Settings): Boolean {
+    private fun write(ctx: Context, s: Settings): Boolean = synchronized(lock) {
         val base = Paths.baseOrNull(ctx) ?: return false
         val tmp = File(base, "settings.json.tmp")
         return try {
@@ -227,5 +285,15 @@ object SettingsStore {
             Log.w(TAG, "settings.json 写不了: ${e.message}")
             false
         }
+    }
+
+    /**
+     * 读-改-写一次完成、持锁:设置页、轮播、迁移/铺入、选图这些写者全部走这里,
+     * 既不会互相踩 tmp,也没有「读到旧值再整对象回写」的丢更新窗口。
+     * @return 写成功时返回写下的 Settings;写失败(外置没挂等)返回 null。
+     */
+    fun update(ctx: Context, transform: (Settings) -> Settings): Settings? = synchronized(lock) {
+        val next = transform(read(ctx))
+        if (write(ctx, next)) next else null
     }
 }

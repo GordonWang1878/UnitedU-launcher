@@ -15,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.*
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +41,11 @@ class MainActivity : ComponentActivity() {
     private var settings by mutableStateOf(false)
     /** 换过图/改过布局后 +1,用来强制界面重新读取 */
     private var revision by mutableStateOf(0)
+    /**
+     * 只重读 settings.json、**不重建首页行**的计数器。壁纸选图 / 轮播 / 滑块实时预览走它:
+     * 这些事每 5 分钟就来一次,若走 revision 会连 layout.json 与全部卡片图一起重读一遍。
+     */
+    private var settingsRevision by mutableStateOf(0)
     /** 内置图片选择器:null=隐藏, [PICK_WALLPAPER]=选壁纸, 其他=选该包的卡片图。
      *  X-plore 的 GET_CONTENT 不响应 D-pad(2026-09-11 真机确认),所以换壁纸/换图标
      *  改为用内置选择器,图片通过 adb push 到 files/library/ 预先放好。 */
@@ -78,29 +84,40 @@ class MainActivity : ComponentActivity() {
         setContent {
             // 菜单项列表不必每次重组都新建,否则整棵树都不可跳过
             val menu = remember { menuItems() }
-            // 设置页关闭时 leaveSettings() 会让 revision++,这里跟着重读 settings.json,
-            // 首页拿到的就是最新设置——复用换布局图那颗计数器,不必再单独维护一份
-            // settingsRevision。注意:这里不能显式写 Settings 类型名,本文件已经
-            // `import android.provider.Settings`,裸写 Settings 会撞上那个系统类;
-            // 靠类型推断绕开,只取用到的字段(showDate)。
-            val homeSettings = remember(revision) { SettingsStore.read(this@MainActivity) }
+            // 设置页关闭时 leaveSettings() 会让 revision++,壁纸选图 / 轮播 / 滑块预览走的是
+            // 专用的 settingsRevision(见其字段 KDoc,只重读 settings、不重建首页行)——
+            // 两颗计数器都能让这里重读 settings.json,首页拿到的就是最新设置。注意:
+            // 这里不能显式写 Settings 类型名,本文件已经 `import android.provider.Settings`,
+            // 裸写 Settings 会撞上那个系统类;靠类型推断绕开,只取用到的字段(showDate)。
+            val homeSettings = remember(revision, settingsRevision) { SettingsStore.read(this@MainActivity) }
             // 主题色:选中预设的 accent(齿轮)+ highlight(时钟/光晕/行标题)。
             // followWallpaperColor 打开时,accent 改从当前壁纸主色提取、highlight 由它混白推得
             // (与非金预设同一算法);解不出色或没壁纸就回落到预设。壁纸解码放 IO 线程,
-            // key 带上 followWallpaperColor 与 revision:换壁纸(handlePick 走 recreate)、开关跟随、
-            // 回到设置页都会重跑。preset 路径是纯内存查表,直接同步解析。
+            // key 带上 followWallpaperColor、wallpaperFile 与 revision:换壁纸(handlePick 只
+            // settingsRevision++,不再 recreate)会让 homeSettings.wallpaperFile 变、这里跟着重跑;
+            // 开关跟随、回到设置页同样触发。preset 路径是纯内存查表,直接同步解析。
             val presetColors = remember(homeSettings.themePresetId) {
                 ThemePresets.byId(homeSettings.themePresetId).colors()
             }
             val wallpaperColors by produceState<ThemeColors?>(
-                null, homeSettings.followWallpaperColor, revision,
+                null, homeSettings.followWallpaperColor, homeSettings.wallpaperFile, revision,
             ) {
                 value = if (!homeSettings.followWallpaperColor) null
-                else withContext(Dispatchers.IO) { wallpaperThemeColors(this@MainActivity) }
+                else withContext(Dispatchers.IO) {
+                    wallpaperThemeColors(this@MainActivity, homeSettings.wallpaperFile)
+                }
             }
             val themeColors =
                 if (homeSettings.followWallpaperColor) wallpaperColors ?: presetColors
                 else presetColors
+            // 壁纸渲染输入:文件名 + 主题化参数;accent 只在主题化时参与(见 wallpaperSpecOf)。
+            // key 用 **presetColors 而不是 themeColors**:跟随壁纸主色时 spec 不带 accent
+            // (followColor = true,由 Wallpapers.load 自己取 Palette 再染),所以 spec 不能
+            // 依赖异步到达的 wallpaperColors——否则换一张图会先用旧主色渲一遍、取色落地后再渲一遍,
+            // 每次轮播两次全量渲染 + 一份永不命中的缓存。
+            val wallpaperSpec = remember(homeSettings, presetColors) {
+                wallpaperSpecOf(homeSettings, presetColors.accent.toArgb() and 0xFFFFFF)
+            }
             val touched = lastInput
             // **编辑界面和菜单开着时不进入待机。**淡出只做在首页那一层,而吞掉唤醒键是
             // Activity 级的 —— 两头不占的结果是:编辑界面画面全亮(看着醒着),
@@ -112,6 +129,19 @@ class MainActivity : ComponentActivity() {
                 delay(Theme.IdleAfterMs)
                 idle = true
             }
+            // 壁纸轮播。守卫读的两个量就是 key(铁律 6):rotate() 写盘后 settingsRevision++ 重读 settings,
+            // rotatedAt 变 → 本 effect 以新 key 重启、再等一个间隔;重启 app 后按剩余时间续等。
+            val rotateMs = homeSettings.wallpaperRotateMs
+            val rotatedAt = homeSettings.wallpaperRotatedAt
+            LaunchedEffect(rotateMs, rotatedAt, settings) {
+                // 设置页开着时不轮播:它持有整份 Settings 快照、每次改动整对象回写,后台轮播写进去的
+                // wallpaperFile/rotatedAt 会被下一次按键覆盖(壁纸来回翻)。leaveSettings() 会 revision++,
+                // 重读后 settings=false → 本 effect 重启,过期的那一拍在退出时补上。守卫读的量同时是 key(铁律 6)。
+                if (rotateMs == 0L || settings) return@LaunchedEffect
+                delay(rotationDelayMs(rotatedAt, rotateMs, System.currentTimeMillis()))
+                val wrote = withContext(Dispatchers.IO) { Wallpapers.rotate(this@MainActivity) }
+                if (wrote) settingsRevision++
+            }
             // 不用 key(revision) 强制重建:那会连壁纸和焦点一起推倒,
             // 后台应用自动更新时屏幕会黑一下、焦点被打回第一张卡。
             // revision 只喂给读数据的 produceState,新数据到达前旧画面原样留着。
@@ -122,7 +152,10 @@ class MainActivity : ComponentActivity() {
                     .fillMaxSize()
                     .background(androidx.compose.ui.graphics.Color.Black)
             ) {
-            Wallpaper(this@MainActivity)
+            // prepare() 在首启/升级那一趟会往 settings.json 写 wallpaperFile,而 homeSettings
+            // 是在此之前读的;不重读的话,从 M2 升上来、开着「跟随壁纸主色」的用户整个首次会话
+            // 都看不到壁纸主色(见 Wallpapers.prepare 的 KDoc)。
+            Wallpaper(this@MainActivity, wallpaperSpec, onSettingsChanged = { settingsRevision++ })
             Screensaver(this@MainActivity, idle)
             val pt = pickerTarget
             if (pt == PICK_WALLPAPER) {
@@ -176,6 +209,7 @@ class MainActivity : ComponentActivity() {
                 SettingsScreen(
                     onExit = ::leaveSettings,
                     focusNonce = focusNonce,
+                    onWallpaperParamsChanged = { settingsRevision++ },
                 )
             } else {
                 HomeScreen(
@@ -342,19 +376,10 @@ class MainActivity : ComponentActivity() {
         val target = pickerTarget ?: return
         pickerTarget = null
         if (target == PICK_WALLPAPER) {
-            val dest = Paths.wallpaper(this)
-            val tmp = java.io.File(dest.parentFile, "wallpaper.tmp")
-            val ok = runCatching {
-                file.inputStream().use { input ->
-                    tmp.outputStream().use { out -> input.copyTo(out); out.flush(); out.fd.sync() }
-                }
-                check(Apps.isDecodableImage(tmp.absolutePath))
-                if (!tmp.renameTo(dest)) { dest.delete(); check(tmp.renameTo(dest)) }
-                Paths.wallpaperPng(this).delete()
-            }.isSuccess
-            tmp.delete()
+            // 只记文件名,不复制、不 recreate(recreate 会把焦点打回第一张卡、屏幕黑一下)
+            val ok = Wallpapers.select(this, file)
             toast(getString(if (ok) R.string.toast_wallpaper_changed else R.string.toast_invalid_image))
-            if (ok) recreate()
+            if (ok) settingsRevision++
         } else {
             val dest = Paths.iconFor(this, target)
             val tmp = java.io.File(dest.parentFile, "$target.tmp")
@@ -428,25 +453,20 @@ class MainActivity : ComponentActivity() {
 }
 
 /**
- * followWallpaperColor 打开时,从当前壁纸主色推导四处强调色。**必须在 IO 线程调用**:
- * 会解码一张缩略图(320×180 量级,够 Palette 取色又不占内存)并跑 [androidx.palette.graphics.Palette]。
+ * followWallpaperColor 打开时,从当前壁纸主色推导**四处强调色**(齿轮 / 时钟 / 光晕 / 行标题)。
+ * **必须在 IO 线程调用**:取色会解一张缩略图并跑 Palette(实现见 [Wallpapers.paletteAccent])。
  *
- * 取色优先级:vibrant(有活力的主色)→ 落空再用 dominant(占面积最大的色)。
  * accent 用取到的色,highlight 由 [highlightFrom] 混白 55% 推得 —— 与非金预设 highlight 同一手法。
  * 任何一步落空(没壁纸、解不出、Palette 抽不到色)返回 null,调用方回落到选中预设,绝不崩、绝不留黑。
  *
- * 壁纸文件与解码方式跟 [Wallpaper] 一致(Paths.wallpaper / wallpaperPng + Apps.decodeScaled),
- * 但这里用默认 ARGB_8888 而非 RGBA_F16:Palette 不吃 F16。
+ * **这里只管强调色,不再决定壁纸怎么染**:壁纸那边的主色由 [Wallpapers.load] 在同一趟 IO 里
+ * 自己取(`spec.followColor`),两边取色函数同一个,结果一致;分开之后 spec 不再等这个异步值,
+ * 一张图只渲一次。
  */
-private fun wallpaperThemeColors(ctx: android.content.Context): ThemeColors? {
-    val f = listOf(Paths.wallpaper(ctx), Paths.wallpaperPng(ctx))
-        .firstOrNull { it.exists() } ?: return null
-    val bmp = runCatching { Apps.decodeScaled(f.absolutePath, 320, 180) }.getOrNull() ?: return null
-    val palette = runCatching { androidx.palette.graphics.Palette.from(bmp).generate() }.getOrNull()
-        ?: return null
-    val rgb = palette.getVibrantColor(0).takeIf { it != 0 }
-        ?: palette.getDominantColor(0).takeIf { it != 0 }
-        ?: return null
-    val accent = androidx.compose.ui.graphics.Color(rgb)
-    return ThemeColors(accent, highlightFrom(accent))
-}
+private fun wallpaperThemeColors(ctx: android.content.Context, wallpaperFile: String): ThemeColors? =
+    Wallpapers.resolveSource(ctx, wallpaperFile)
+        ?.let { Wallpapers.paletteAccent(ctx, it) }
+        ?.let { rgb ->
+            val accent = androidx.compose.ui.graphics.Color(rgb or 0xFF000000.toInt())
+            ThemeColors(accent, highlightFrom(accent))
+        }

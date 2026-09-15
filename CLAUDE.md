@@ -25,6 +25,8 @@ adb exec-out screencap -p > /tmp/home.png        # 截图
 adb emu kill                                     # 关闭
 ```
 
+改 settings.json 单个字段验证用:pull → 正则替换 → push → force-stop → HOME(见 M3 计划 Task 5 的 setjson.sh)。
+
 真机(Sony A95L,`192.168.1.50:5555`)只在 M8 验收用;开发全程走模拟器。
 
 ## 文档分流(每轮工作收尾前必查同步)

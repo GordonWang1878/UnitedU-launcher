@@ -1,7 +1,6 @@
 package com.uniteduone.launcher
 
 import android.content.Context
-import android.graphics.BitmapFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -342,43 +341,6 @@ fun HomeScreen(
     }
 }
 
-/**
- * 壁纸层。**住在 MainActivity 的 setContent 里,不在 HomeScreen 里**:
- * 进出编辑界面会把 HomeScreen 整棵拆掉重建,壁纸若跟着走就要每次重新从盘上解一张
- * 1920x1080,期间背景是纯黑——退出编辑时会黑闪一下。
- */
-@Composable
-fun Wallpaper(ctx: Context) {
-    val bmp by produceState<android.graphics.Bitmap?>(initialValue = null, ctx) {
-        value = withContext(Dispatchers.IO) {
-            ensureDefaultWallpaper(ctx)
-            val f = listOf(Paths.wallpaper(ctx), Paths.wallpaperPng(ctx)).firstOrNull { it.exists() }
-            // RGBA_F16 保留 Ultra HDR gain map,在 HDR 通路下能显示完整亮度范围;
-            // decodeScaled 内部会在 F16 解码失败时自动回落到 ARGB_8888
-            val decoded = f?.let {
-                runCatching {
-                    Apps.decodeScaled(it.absolutePath, 1920, 1080, android.graphics.Bitmap.Config.RGBA_F16)
-                }.getOrNull()
-            }
-            // 用户选的壁纸可能是坏的(只读文件头的校验放得过去)。这时文件**存在**,
-            // 于是 ensureDefaultWallpaper 每次都直接 return —— 结果是永久黑屏。
-            // 解不出来就当没有,回落到 APK 里内置的那张。
-            decoded ?: runCatching {
-                ctx.assets.open("default-wallpaper.jpg").use { input ->
-                    android.graphics.BitmapFactory.decodeStream(input)
-                }
-            }.getOrNull()
-        }
-    }
-    val b = bmp ?: return
-    Image(
-        bitmap = b.asImageBitmap(),
-        contentDescription = null,
-        contentScale = ContentScale.Crop,
-        modifier = Modifier.fillMaxSize(),
-    )
-}
-
 @Composable
 private fun CategoryRow(
     row: Row,
@@ -586,27 +548,6 @@ private fun migrateOldScreensaver(ctx: Context) {
             break
         }
     }
-}
-
-/**
- * 一张壁纸都没有时,把 APK 里内置的那张铺出去。
- * 不做这件事的话,全新安装、清除数据、或外置那份被删,桌面就是永久全黑且无法自救。
- */
-private fun ensureDefaultWallpaper(ctx: Context) {
-    val dst = Paths.wallpaper(ctx)
-    if (dst.exists() || Paths.wallpaperPng(ctx).exists()) return
-    if (Paths.baseOrNull(ctx) == null) return
-    // 和其它三处写入一样走 tmp → 校验 → rename:直接写的话,复制到一半被杀会留下
-    // 截断文件,而它一旦存在就永不重写 → 永久黑底,且这正是「全新安装」的恢复路径。
-    val tmp = java.io.File(dst.parentFile, "wallpaper.default.tmp")
-    runCatching {
-        ctx.assets.open("default-wallpaper.jpg").use { input ->
-            tmp.outputStream().use { out -> input.copyTo(out); out.flush(); out.fd.sync() }
-        }
-        check(Apps.isDecodableImage(tmp.absolutePath))
-        if (!tmp.renameTo(dst)) { dst.delete(); check(tmp.renameTo(dst)) }
-    }
-    tmp.delete()
 }
 
 /**

@@ -1,6 +1,6 @@
 # M3 设计:壁纸轮播 + 主题化管线 + 内置壁纸
 
-> **状态:设计定稿(2026-09-15 brainstorming 六节 Gordon 通过),未开工。**开工前按本文拆实施计划。
+> **状态:已实施(commit 8de1950 起),待 Task 9 真机调参回填。**
 > 上游:`docs/DESIGN-unitedu-open-source.md` §3(壁纸/主题)、§5(内置壁纸)、§11 M3 行;M2 决策「默认背景固定中性暗、主题色不染背景」。
 > 焦点铁律:`CLAUDE.md` 七条。
 
@@ -45,7 +45,7 @@
 - **迁移旧根目录壁纸**:`files/wallpaper.jpg|png` 存在 → 移入 `library/wallpapers/legacy-wallpaper.<ext>`,若 `wallpaperFile` 为空则写成它;根文件删除。此后 **adb 后门 = push 进 `library/wallpapers/` 再在选择器里选**,与现有文档一致。
 - **铺入内置壁纸**:标记文件 `library/wallpapers/.seeded` 不存在 → 把 6 张内置复制为 `unitedu-00-neutral.jpg` … `unitedu-05-green.jpg`(tmp → 校验可解码 → rename,照 `ensureDefaultWallpaper` 套路),写标记;若此时 `wallpaperFile` 为空,写成 `unitedu-00-neutral.jpg`。标记保证只铺一次:用户在 M6 上传页删掉内置图后不会复活(恢复默认是 M7 的事)。
 - 外置存储没挂(`Paths.baseOrNull == null`)→ 整段跳过,显示层直接回落 APK 内置。
-- prepare 写 settings 时 `MainActivity.homeSettings` 可能短暂过期(`wallpaperFile` 仍为空)——只影响轮播的「当前指针」与选择器高亮,下一次 `revision++` 即同步,无害。
+- `prepare(ctx): Boolean` 返回**是否真的写了 `wallpaperFile`**(迁移/铺入两条路都走 `SettingsStore.update`,只有把空值改成文件名才算写过)。写了就要立刻让 `MainActivity.homeSettings` 重读——见 §2.5 的 `onSettingsChanged`(终审 F3)。原先「短暂过期、无害」的判断是错的:从 M2 升上来且开着「跟随壁纸主色」的用户,整个首次会话都拿不到壁纸主色。
 
 ### 2.3 选择壁纸(选择器 `onSelect`)
 不再复制文件、**不再 `recreate()`**:写 `wallpaperFile = 文件名`、`wallpaperRotatedAt = now`(重置间隔),`settingsRevision++`。toast 文案不变。
@@ -56,24 +56,27 @@
 `MainActivity.setContent` 内:
 
 ```
-LaunchedEffect(homeSettings.wallpaperRotateMs, homeSettings.wallpaperRotatedAt) {
+LaunchedEffect(homeSettings.wallpaperRotateMs, homeSettings.wallpaperRotatedAt, settings) {
     val interval = homeSettings.wallpaperRotateMs
-    if (interval == 0L) return@LaunchedEffect          // 守卫 = key(铁律 6)
+    if (interval == 0L || settings) return@LaunchedEffect   // 守卫全部 = key(铁律 6)
     delay(rotationDelayMs(homeSettings.wallpaperRotatedAt, interval, now))
     val wrote = withContext(IO) { Wallpapers.rotate(this@MainActivity) }
     if (wrote) settingsRevision++   // 重读 settings → rotatedAt 变 → 本 effect 以新 key 重启、再等一个间隔
 }
 ```
 - `rotationDelayMs(rotatedAt, interval, now) = (rotatedAt + interval - now).coerceIn(0, interval)`:重启后按剩余时间续等;`rotatedAt` 在未来(时钟回拨)也最多等一个间隔。
-- `rotate(ctx)`:重读 settings → **重扫目录**(复用屏保「进入时重扫」逻辑)→ `nextWallpaper(names, current)`(按名排序,当前的下一张,循环;当前不在列表 → 第一张)→ 写 `wallpaperFile` + `wallpaperRotatedAt = now` → **返回「是否写盘成功」,不是「是否换了图」**。少于 2 张:只刷新 `rotatedAt`、不换图,但仍返回 true —— `settingsRevision++` 让 effect 拿到新 `rotatedAt` 重启;若按「换了图才通知」写,单张图库时 key 不变、effect 结束,轮播从此停转,直到别的事件碰巧重读 settings(铁律 6 的变体:effect 的续命信号必须由它自己的 key 承载)。写盘失败返回 false,effect 自然结束,下次重读 settings 再试。
+- `rotate(ctx)`:重读 settings → **重扫目录**(复用屏保「进入时重扫」逻辑)→ `nextWallpaper(names, current)`(按名排序,当前的下一张,循环;当前不在列表 → 第一张)→ 写 `wallpaperFile` + `wallpaperRotatedAt = now` → **返回「是否写盘成功」,不是「是否换了图」**。少于 2 张:只刷新 `rotatedAt`、不换图,但仍返回 true —— `settingsRevision++` 让 effect 拿到新 `rotatedAt` 重启;若按「换了图才通知」写,单张图库时 key 不变、effect 结束,轮播从此停转,直到别的事件碰巧重读 settings(铁律 6 的变体:effect 的续命信号必须由它自己的 key 承载)。写盘失败返回 false,effect 自然结束;**不会**因单纯重读 settings 而恢复(key 是值不是计数器,重读到相同值不重启),要等 `rotateMs`/`rotatedAt` 真变(选图、改间隔、重启)。写失败意味着外置存储没了、图库也没了,可接受(T6 评审纠正原文)。
+- **设置页开着时不轮播**(T6 评审补):`SettingsScreen` 持整份 Settings 快照、每次改动整对象回写,后台轮播写进去的字段会被下一次按键覆盖(壁纸来回翻)。effect 的 key 与守卫同时加 `settings`;`leaveSettings()` 的 `revision++` 让它重启、过期的一拍在退出时补上。根治(设置页写前重读、只改自己那个字段)在 T8 集成时做。
 - 5 分钟一次写几百字节的 `settings.json`(原子写),可接受。
 - 待机/屏保盖在壁纸上时轮播照常,只是看不见;不额外暂停。
 
 ### 2.5 显示层(`Wallpaper(ctx, spec)` 从 `HomeScreen.kt` 搬到 `Wallpapers.kt`)
-- `WallpaperSpec(file: String, themed: Boolean, accent: Int /*ARGB,themed=false 时恒 0*/, blur: Int, dim: Int)` 由 `homeSettings` + `themeColors` 组装;`accent` 只在 themed 时参与,避免换预设触发无谓重处理。
+- `WallpaperSpec(file, themed, accentRgb, followColor, blur, dim)` 由 `homeSettings` + **预设** accent 组装;`themed && follow` 时 `followColor = true`、`accentRgb = 0`(`load` 自己取 Palette,见下);`themed && !follow` 时 accent = 预设;`!themed` 时 accent 恒 0——所以换预设、开关跟随都不会触发无谓重处理。
 - `produceState(key = spec)`(`settingsRevision` 只用来重读 settings 组装出新的 spec,不直接当 key):IO 线程 `prepare` → `resolveSource` → 参数全零走原路径(`decodeScaled` RGBA_F16),否则走 §3 管线;都失败回落 APK 内置。`prepare` 刚写进的 `wallpaperFile` 若 spec 里还是空,`load` 补读一次 settings。
 - 换图用 `Crossfade`(`Theme.WallpaperCrossfadeMs = 1500`),新图未就绪前旧图原样留着(与 `revision` 不强制重建的既有原则一致)。
 - 仍住在 `MainActivity.setContent` 顶层,不随编辑页重建。
+- **跟随主色时 spec 不带 accent(`followColor = true`),`load` 自己取 Palette 再染;主色只影响四处强调**——spec 若带 accent 就要等异步取色,每换一张图会先用旧主色渲一遍、取色落地后再渲一遍(终审 F2)。spec 的 `remember` key 因此用 `presetColors` 而非 `themeColors`。
+- **`prepare` 写了 settings 会通过 `onSettingsChanged` 让 `settingsRevision++`**(终审 F3):`load` 返回 `Loaded(bitmap, settingsChanged)`,`Wallpaper` 回到主线程后调用它,`homeSettings` 当场重读——否则首启/从 M2 升级的这一次会话里 `wallpaperFile` 一直是旧的空值。
 
 ## 3. 处理管线与缓存(`Wallpapers.process`,IO 线程)
 
@@ -98,9 +101,10 @@ Tint(accent):diag(a.r, a.g, a.b, 1)  —— 即「黑 → 主题色」的渐变�
 - 输入:`Apps.decodeScaled(path, 1920, 1080, ARGB_8888)` 后中心裁剪到恰好 1920×1080(缓存尺寸固定)。
 - 输出:同一个 IO 块里 **既返回 Bitmap 直接显示,也写缓存**:`(externalCacheDir ?: cacheDir)/wallpapers/<key>.jpg`(外置 cache 优先:adb 能看、卸载即清),JPEG q90,tmp → rename。
 - `key = sha1("$path|$mtime|$size|$themed|$accentHex|$blur|$dim|v1")`。下次同键直接解码缓存。
-- 清理:每次写入后只保留最新 4 个(按 lastModified)。
+- 清理:每次写入后只保留最新 **12** 个(按 lastModified;命中时刷新 mtime,即真正的 LRU)。**T5 评审纠正**:原定 4 个小于内置 6 张,轮播永远不命中;且按写入时间淘汰会把每次开机都读的那张挤掉。
+- 内存:中心裁剪 + 缩放(+ blur=0 时的矩阵)合成**一次 `Canvas.drawBitmap(src, srcRect, dstRect, paint)`**,只分配一张输出——原设计的 `createBitmap` 裁剪会让非 16:9 源图(手机照片)同时活着三张全分辨率位图(30–66 MB 瞬时)。
 - **参数全零 → 完全绕开管线**:不解码两次、不写缓存、保留 F16。
-- 跟随壁纸主色:`wallpaperThemeColors()` 改从 `resolveSource()` 的**原图**取 Palette(今日读死 `Paths.wallpaper`),再拿 accent 去染——不成环;主题化开着时 accent 变 → spec 变 → 重处理。
+- 跟随壁纸主色:取色一律从 `resolveSource()` 的**原图**走 `Wallpapers.paletteAccent()`(今日读死 `Paths.wallpaper`)——不成环。**跟随主色时 spec 不带 accent(`followColor = true`),`load` 自己取 Palette 再染;主色只影响四处强调**(齿轮 / 时钟 / 光晕 / 行标题,由 `wallpaperThemeColors()` 走同一个取色函数)。终审 F2 纠正:原先让 spec 带上异步到达的 accent,结果每张图渲两遍、缓存永不命中;现在 `load` 把取到的主色填进 `spec.copy(accentRgb = …, followColor = false)` 再进 `processed`,缓存键照样带着实际主色。取不到色回落 `Theme.ChampagneGold`。
 
 ## 4. 设置页:「壁纸」分组 + SLIDER 控件 + 实时预览
 
@@ -143,7 +147,7 @@ Tint(accent):diag(a.r, a.g, a.b, 1)  —— 即「黑 → 主题色」的渐变�
 1. 全零参数:首页截图与 M2 收官截图**像素一致**(零回归)。
 2. 首次启动:`library/wallpapers/` 出现 6 张 `unitedu-*.jpg` + `.seeded`,`settings.json` 的 `wallpaperFile = unitedu-00-neutral.jpg`,首页为中性暗底。
 3. 旧根目录 `wallpaper.jpg` 迁移:push 一张到根 → 启动后出现在 library、根文件消失、首页显示它。
-4. 主题化开/关、模糊 50、压暗 50 各一张截图;`cacheDir/wallpapers/` 出现对应缓存且 ≤ 4 个。
+4. 主题化开/关、模糊 50、压暗 50 各一张截图;`cacheDir/wallpapers/` 出现对应缓存且 ≤ 12 个。
 5. 轮播:间隔设 5 分,`adb shell` 把 `wallpaperRotatedAt` 改成 0 → 回首页即换下一张(Crossfade),`rotatedAt` 更新;单张 library 不换图但 `rotatedAt` 刷新。
 6. 设置页:壁纸分组四行上下左右全程焦点不丢(铁律回归);聚焦滑块时壁纸透出、松手 300 ms 内首页壁纸跟着变。
 7. 跟随壁纸主色开 + 主题化开:换预设不改壁纸主色来源(取原图),齿轮色跟原图主色、壁纸被该色染。

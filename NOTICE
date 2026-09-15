@@ -17,4 +17,4 @@ This product bundles the following third-party materials:
 This product's own assets carry no third-party rights:
 
 - app/src/main/res/mipmap-xhdpi/banner.png — original "United" wordmark created for this project
-- app/src/main/assets/default-wallpaper.jpg — generated procedurally from random noise (see scripts), not derived from any third-party image
+- app/src/main/assets/wallpapers/*.jpg — six built-in wallpapers generated procedurally from seeded random noise by scripts/gen-wallpapers.py; not derived from any third-party image

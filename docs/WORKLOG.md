@@ -130,3 +130,57 @@ M2 全分支终审(opus)通过(可合并/零 Critical),终审后单次修复波 
 - Task H 延后小项 → M4:HDMI-CEC 父子去重、per-input 隐藏/改名(复用修改标题);Inputs.launch 冗余 enumerate 为 polish。
 
 **M2 里程碑达成**:主题收敛 + 设置页 + 卡片三档 + 主题色 + 时钟 + 输入源行,全部实机验证,推送 github.com/GordonWang1878/UnitedU-launcher。
+
+## 2026-09-15 · M3 开工(设计定稿 + 实施计划 + 并行执行)
+
+- **范围**:壁纸轮播(关/5 分/30 分/每天)+ 主题化管线(去色→染主题色→模糊→压暗,CPU 离线 + 缓存;minSdk 28 不能用 RenderEffect)+ 模糊/压暗滑块实时预览 + 内置 6 张程序生成壁纸 + 默认底换中性暗。spec `docs/superpowers/specs/2026-09-15-m3-wallpaper-design.md`(ba95464),计划 `docs/superpowers/plans/2026-09-15-m3-wallpaper.md`(3cd9ac8,9 任务)。
+- **决策(Gordon)**:内置壁纸=程序生成抽象图(非 CC0 照片);管线参数=我定默认、真机滑块调后回填;滑块=真滑块条 11 档;spec 六节与计划一次通过。
+- **执行方式(Gordon)**:两波并行 subagent(波 1:T1→2 ‖ T3;波 2:T4→5→6 ‖ T7),各自 worktree,我汇合评审;T1–3 机械任务只跑一轮合并评审。分支 `m3-wallpaper`。
+- **环境**:为波 2 两个 agent 各占一台模拟器(同包名互相覆盖安装),把 `unitedu-tv` 克隆为 `unitedu-tv-2`(`~/.android/avd/`,改 AvdId/路径,942 MB)。多台并行时 adb 命令必须带 `ANDROID_SERIAL`。M6 并行后又克隆了第三台 `unitedu-tv-3`(console 端口 5558);三台同开时 16 GB 内存约剩 43%、swap 1.2 GB,再多就不要开了。
+- **设计要点**:当前壁纸 = settings 字段指向 library 文件(不再复制 wallpaper.jpg、不再 recreate);新增 `settingsRevision` 计数器只重读 settings 不重建首页行(轮播每 5 分钟一次,走 `revision` 会连卡片图一起重读);`rotate()` 返回「写盘成功」而非「换了图」,否则单张图库时 effect key 不变、轮播停转(铁律 6 变体)。
+
+## 2026-09-15 · M3 运行期间并行起 M4/M5/M6(Gordon 定)
+
+- **并行原则**:按耦合面而非里程碑编号——M6(上传页)几乎全是新文件,整段并行;M5 先做真机 spike;M4 全在焦点代码上,只设计不实施,等 M3 合并。
+- **M6 spec + 计划**已落分支 `m6-upload`(worktree `.claude/worktrees/m6-upload`):NanoHTTPD 2.3.1(**BSD-3-Clause,设计 §5 写 Apache-2.0 有误,M6 收官时纠正**)+ ZXing core 3.5.3;端口 8090–8099;不做远程设壁纸(守 §9);传 APK 安装放 M6(`ApkInstaller` 供 M7 复用)。T1(纯函数)已完成待评审;T2 起需一台模拟器,排在 M3 波 2 之后。
+- **M4 spec**已落分支 `m4-card-menu`:范围拆 M4(长按菜单 + 卡片标题 + 新应用标记)/ M4b(行管理 + CEC 去重 + 输入源隐藏改名 + 原地移动);「移动位置」M4 只做兜底;标题放卡片下方;自定义标题存独立 `titles.json`。
+- **M5 spike**:最小 `DreamService` 测试 APK 已编(`.superpowers/spike-m5/unitedu-dream-spike.apk`,分支 `worktree-agent-a21dcfb91b5103162`),待 Gordon 电视配对后安装、看系统屏保列表是否列出 UnitedU。
+- **工程发现**:Agent 工具的 `isolation: worktree` 从 **main** 分支,不是当前分支——波 2 起改为控制器自己 `git worktree add` 从 `m3-wallpaper` 建;子 agent 的 Write 被沙箱限制在自己的 worktree 内,报告落在各自 worktree 的 `.superpowers/` 再由控制器拷回。模拟器 `unitedu-tv` 上 `KEYCODE_HOME` 归原厂 Google TV 桌面(RoleManager 持有 HOME,`set-home-activity` 压不过),验证一律 `am start -n com.uniteduone.launcher/.MainActivity`。
+- **T7 评审附带两条备案**(非本次引入):① `SettingRow.step()` 从组合快照读 `ctrl.selected`,同一帧内到达的多个左右键只算一步(`adb input keyevent A B C` 批量发送会少计;真人按键有帧间隔,未见影响),且每步同步写 `settings.json`——滑块长按快速连发时若写盘慢于按键间隔会吃掉按键,真机 pass 时留意;② 一次未复现的冷启动齿轮菜单首项高亮缺失(release 冷启动 JIT 下初始焦点循环 1 s 内未落地的形态,铁律 2 的已知落地延迟),记录备查。
+- **T4 修复轮发现(既有行为,非 M3 引入)**:壁纸选择器 / 屏保图库 / 默认桌面卡这几个 `pickerTarget` 浮层在 `MainActivity` 的 if/else 链里**替换**了 `HomeScreen`(不是叠在上面),首页的焦点记忆随之丢失——选完壁纸焦点回到第一行第一张,recreate 时代也一样。裁定不在 M3 范围,留作 polish:让这些浮层叠加而非替换,或关闭时按记忆的 (行, 列) 还原(与铁律 5 同一机制)。
+
+## 2026-09-15 · M3 收官(壁纸轮播 + 主题化管线 + 内置壁纸)
+
+Task 8 全项集成验收:模拟器零回归像素对比 PASS,spec §6.3 七项验收全过,文档同步完毕。分支 `m3-wallpaper`(commit 8de1950 起,T8 收官在 37c864c 之上)。
+
+### M3 交付(按 spec §0)
+- **壁纸轮播**:关/5 分/30 分/每天,`MainActivity` 常驻 `LaunchedEffect`(key = `wallpaperRotateMs`+`wallpaperRotatedAt`+设置页开关),重启后按剩余时间续等;设置页开着时暂停,退出补一拍(T6 评审)。
+- **主题化管线**:去色→染主题色→模糊→压暗合成一个 `ColorMatrix`,CPU 离线处理(minSdk 28 无 `RenderEffect`,不做实时 GPU),结果写文件缓存;模糊/压暗滑块 300ms 防抖实时预览,聚焦壁纸分组时设置页浮层降透明度、壁纸从两侧透出。
+- **内置 6 张生成壁纸**:`scripts/gen-wallpapers.py`(噪声→放大→高斯模糊→归一化→压暗曲线→染色),`00-neutral` 为默认底,首次启动铺入 `library/wallpapers/`(`.seeded` 标记只铺一次)。
+- **默认底替换**:M1 金色 `default-wallpaper.jpg` → 中性暗底,兑现 M2 决策「默认背景不随主题」。
+- **设置页壁纸分组**:轮播间隔(SEGMENTED)/ 主题化壁纸(TOGGLE)/ 模糊(SLIDER)/ 压暗(SLIDER)四行,插在「布局」与「主题」之间。
+
+### 验收结果(spec §6.3,`unitedu-tv` 模拟器)
+1. 全零参数零回归:**PASS**——clock bbox `(1386, 45, 1571, 143)`,m3 diff bbox `(1386, 45, 1571, 143)`,两者完全重合,时钟区域外逐像素一致。
+2. 首次启动铺入 6 张 + `.seeded` + `wallpaperFile=unitedu-00-neutral.jpg`:**PASS**(T4 已验;T8 用 fresh install 复核同样结果)。
+3. 旧根目录 `wallpaper.jpg` 迁移为 `legacy-wallpaper.jpg`:**PASS**(T4 已验;T8 的零回归测试本身走的就是 M2→M3 升级路径,复核 `migrateLegacy` 正确)。
+4. 主题化开/关、模糊 50、压暗 50 三张截图 + 缓存 ≤12 个:**PASS**(T5 已验)。
+5. 轮播:`rotatedAt` 清零后回首页换下一张、单张 library 不换图但刷新 `rotatedAt`:**PASS**(T6 已验)。
+6. 设置页壁纸分组四行焦点不丢 + 聚焦滑块 300ms 内首页联动:**PASS**(T7 已验)。
+7. 跟随壁纸主色开 + 主题化开,换预设不改壁纸主色来源:**PASS**(T8 本轮验——两张截图 gear 均值 RGB≈(14, 22, 29) 蓝调,`themePresetId` 从默认切到 `green` 前后 gear 颜色不变)。
+
+### 决策(Gordon,spec §0)
+1. 内置 6 张壁纸来源:**程序生成抽象图**(1 中性暗底 + 5 同系变体)——零版权、每张 ~50 KB、我全程可做、契合「沉稳」主题。
+2. 主题化管线参数:**我定默认,Gordon 真机用滑块调**,调完把满意值改成默认(电脑管线数值在 Hub、SSH 不通,滑块让默认值不再关键)。
+3. 模糊/压暗控件:**真滑块条**,左右键每步 10%,0–100% 共 11 档带进度条(忠于设计「两个滑块」;分段档位调不细)。
+
+### 延后项(带去向)
+- 真机调参回填(主题化默认观感)→ **Task 9**(spec §6.4,M3 唯一需要 Gordon 肉眼的步骤)。
+- 齿轮菜单四项归并 → **M7**。
+- 上传页删图 → **M6**。
+- 恢复默认 → **M7**。
+
+### 注记
+- **处理耗时**(swiftshader 模拟器,box blur 跑在 768×432):blur=0 ≈ 1.0 s、blur=50 ≈ 0.7 s、blur=10 ≈ 3.4 s(最坏情况——`boxBlur3` 的纯像素循环跑在三档里最大的 768 宽图上;真机预期远快)。
+- **缓存**:最多 12 张 JPEG,按 `lastModified` LRU(缓存命中会刷新 mtime),目录 `externalCacheDir/wallpapers/`。
+- **已知细节,非阻塞**(留意但不在本轮修):选择器类浮层(壁纸选择器 / 屏保图库 / 默认桌面卡)替换而非叠加 `HomeScreen`,选完后卡片焦点回到 (0,0)(T4 记录的既有行为,非 M3 引入,留 polish);`boxBlur3` 强制 alpha 不透明,blur=0 与 blur>0 的 PNG 透明度因此不同;`migrateLegacy` 会静默覆盖已存在的 `legacy-wallpaper.jpg`;`Wallpapers.select` 的头部解码 + settings 写入在主线程;轮播间隔改动要退出设置页才生效;`delay()` 按 uptime 计时,「每天」跨面板休眠会漂移;`wallpaperCacheKey` 用 `|` 分隔符拼参数;`scripts/gen-wallpapers.py` 缺可执行位(`chmod +x` 未做)。
