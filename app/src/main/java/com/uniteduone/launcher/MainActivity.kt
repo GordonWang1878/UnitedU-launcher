@@ -40,6 +40,11 @@ class MainActivity : ComponentActivity() {
     private var settings by mutableStateOf(false)
     /** 换过图/改过布局后 +1,用来强制界面重新读取 */
     private var revision by mutableStateOf(0)
+    /**
+     * 只重读 settings.json、**不重建首页行**的计数器。壁纸选图 / 轮播 / 滑块实时预览走它:
+     * 这些事每 5 分钟就来一次,若走 revision 会连 layout.json 与全部卡片图一起重读一遍。
+     */
+    private var settingsRevision by mutableStateOf(0)
     /** 内置图片选择器:null=隐藏, [PICK_WALLPAPER]=选壁纸, 其他=选该包的卡片图。
      *  X-plore 的 GET_CONTENT 不响应 D-pad(2026-09-11 真机确认),所以换壁纸/换图标
      *  改为用内置选择器,图片通过 adb push 到 files/library/ 预先放好。 */
@@ -83,7 +88,7 @@ class MainActivity : ComponentActivity() {
             // settingsRevision。注意:这里不能显式写 Settings 类型名,本文件已经
             // `import android.provider.Settings`,裸写 Settings 会撞上那个系统类;
             // 靠类型推断绕开,只取用到的字段(showDate)。
-            val homeSettings = remember(revision) { SettingsStore.read(this@MainActivity) }
+            val homeSettings = remember(revision, settingsRevision) { SettingsStore.read(this@MainActivity) }
             // 主题色:选中预设的 accent(齿轮)+ highlight(时钟/光晕/行标题)。
             // followWallpaperColor 打开时,accent 改从当前壁纸主色提取、highlight 由它混白推得
             // (与非金预设同一算法);解不出色或没壁纸就回落到预设。壁纸解码放 IO 线程,
@@ -176,6 +181,7 @@ class MainActivity : ComponentActivity() {
                 SettingsScreen(
                     onExit = ::leaveSettings,
                     focusNonce = focusNonce,
+                    onWallpaperParamsChanged = { settingsRevision++ },
                 )
             } else {
                 HomeScreen(

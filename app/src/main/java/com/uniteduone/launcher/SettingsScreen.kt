@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -62,7 +63,10 @@ private val BOTTOM_KEEPOUT = 22.dp
 
 private const val LOG_TAG = "UnitedU"
 
-private enum class CtrlKind { SEGMENTED, TOGGLE, SWATCH }
+// 壁纸分组的控件下标区间(与 order 里的 ControlElem 编号一致):聚焦在这几行时浮层变半透明做实时预览。
+private val WALLPAPER_CTRLS = 2..5
+
+private enum class CtrlKind { SEGMENTED, TOGGLE, SWATCH, SLIDER }
 
 /** 一个可聚焦控件行的描述:标签、类型、选项显示文案、当前选中项、以及「选中第 i 项」的动作。 */
 private class Ctrl(
@@ -81,7 +85,7 @@ private data class HeaderElem(val titleRes: Int) : Elem { override val height = 
 private data class ControlElem(val ctrlIndex: Int) : Elem { override val height = H_CTRL }
 
 /**
- * UnitedU 设置页:从齿轮菜单打开的全屏浮层,分组带标题(布局 / 主题 / 时钟 / 待机)。
+ * UnitedU 设置页:从齿轮菜单打开的全屏浮层,分组带标题(布局 / 壁纸 / 主题 / 时钟 / 待机)。
  * 读写走 [SettingsStore],改一下存一下(门 4:M2 只做 UI + 读写,让设置真正生效是 D–I)。
  *
  * 焦点账本照 [HomeScreen] 的看门狗:焦点是否落下只信控件自报 `isFocused`(铁律 2、4);
@@ -91,7 +95,7 @@ private data class ControlElem(val ctrlIndex: Int) : Elem { override val height 
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0) {
+fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0, onWallpaperParamsChanged: () -> Unit = {}) {
     val ctx = LocalContext.current
     var s by remember { mutableStateOf(SettingsStore.read(ctx)) }
 
@@ -108,7 +112,19 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0) {
         if (!ok) Log.w(LOG_TAG, "settings.json 写入失败,改动只留在内存里")
     }
 
-    // ---- 7 个可聚焦控件的描述,顺序即 ctrlIndex(0..6),看门狗/位移都按它索引 ----
+    // 主题化/模糊/压暗改动后 300ms 防抖通知首页重读(实时预览)。轮播间隔无可视效果,不通知。
+    // 用「上次通知过的值」比对,不用一次性布尔闩(铁律 7):首次组合两者相等不发;
+    // 改回原值也会再发一次(与上次通知值不同),预览不会卡在旧参数上。
+    val previewKey = Triple(s.wallpaperThemed, s.wallpaperBlur, s.wallpaperDim)
+    var lastNotified by remember { mutableStateOf(previewKey) }
+    LaunchedEffect(previewKey) {
+        if (previewKey == lastNotified) return@LaunchedEffect
+        kotlinx.coroutines.delay(300)
+        lastNotified = previewKey
+        onWallpaperParamsChanged()
+    }
+
+    // ---- 11 个可聚焦控件的描述,顺序即 ctrlIndex(0..10),看门狗/位移都按它索引 ----
     val onLabels = listOf(stringResource(R.string.settings_off), stringResource(R.string.settings_on))
     val cardSizeLabels = listOf(
         stringResource(R.string.settings_card_large),
@@ -127,6 +143,12 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0) {
         stringResource(R.string.settings_idle_black),
         stringResource(R.string.settings_idle_nofade),
     )
+    val rotateLabels = listOf(
+        stringResource(R.string.settings_off),
+        stringResource(R.string.settings_idle_minutes, 5),
+        stringResource(R.string.settings_idle_minutes, 30),
+        stringResource(R.string.settings_rotate_daily),
+    )
 
     val controls: List<Ctrl> = listOf(
         // 0 卡片大小 大/中/小 → 5/6/8
@@ -139,27 +161,47 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0) {
             options = onLabels, count = 2,
             selected = if (s.showInputRow) 1 else 0,
             onSelect = { i -> update(s.copy(showInputRow = i == 1)) }),
-        // 2 主题色 swatch
+        // 2 轮播间隔 关/5 分/30 分/每天(VALID_WALLPAPER_ROTATE_MS 顺序)
+        Ctrl(R.string.settings_wallpaper_rotate, CtrlKind.SEGMENTED,
+            options = rotateLabels, count = 4,
+            selected = VALID_WALLPAPER_ROTATE_MS.indexOf(s.wallpaperRotateMs).let { if (it < 0) 0 else it },
+            onSelect = { i -> update(s.copy(wallpaperRotateMs = VALID_WALLPAPER_ROTATE_MS[i])) }),
+        // 3 主题化壁纸
+        Ctrl(R.string.settings_wallpaper_themed, CtrlKind.TOGGLE,
+            options = onLabels, count = 2,
+            selected = if (s.wallpaperThemed) 1 else 0,
+            onSelect = { i -> update(s.copy(wallpaperThemed = i == 1)) }),
+        // 4 模糊 0–100 步 10(11 档滑块;selected = 档位下标)
+        Ctrl(R.string.settings_wallpaper_blur, CtrlKind.SLIDER,
+            options = emptyList(), count = 11,
+            selected = s.wallpaperBlur / 10,
+            onSelect = { i -> update(s.copy(wallpaperBlur = i * 10)) }),
+        // 5 压暗 0–100 步 10
+        Ctrl(R.string.settings_wallpaper_dim, CtrlKind.SLIDER,
+            options = emptyList(), count = 11,
+            selected = s.wallpaperDim / 10,
+            onSelect = { i -> update(s.copy(wallpaperDim = i * 10)) }),
+        // 6 主题色 swatch
         Ctrl(R.string.settings_theme_color, CtrlKind.SWATCH,
             options = emptyList(), count = ThemePresets.all.size,
             selected = ThemePresets.indexOf(s.themePresetId),
             onSelect = { i -> update(s.copy(themePresetId = ThemePresets.all[i].id)) }),
-        // 3 跟随壁纸主色
+        // 7 跟随壁纸主色
         Ctrl(R.string.settings_follow_wallpaper, CtrlKind.TOGGLE,
             options = onLabels, count = 2,
             selected = if (s.followWallpaperColor) 1 else 0,
             onSelect = { i -> update(s.copy(followWallpaperColor = i == 1)) }),
-        // 4 显示日期
+        // 8 显示日期
         Ctrl(R.string.settings_show_date, CtrlKind.TOGGLE,
             options = onLabels, count = 2,
             selected = if (s.showDate) 1 else 0,
             onSelect = { i -> update(s.copy(showDate = i == 1)) }),
-        // 5 待机时长 关/1/3/5/10 分
+        // 9 待机时长 关/1/3/5/10 分
         Ctrl(R.string.settings_idle_after, CtrlKind.SEGMENTED,
             options = idleAfterLabels, count = 5,
             selected = VALID_IDLE_AFTER_MS.indexOf(s.idleAfterMs).let { if (it < 0) 2 else it },
             onSelect = { i -> update(s.copy(idleAfterMs = VALID_IDLE_AFTER_MS[i])) }),
-        // 6 待机显示 时钟/全黑/不淡出
+        // 10 待机显示 时钟/全黑/不淡出
         Ctrl(R.string.settings_idle_content, CtrlKind.SEGMENTED,
             options = idleContentLabels, count = 3,
             selected = IdleContent.entries.indexOf(s.idleContent).coerceAtLeast(0),
@@ -174,12 +216,14 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0) {
             TitleElem,
             HeaderElem(R.string.settings_group_layout),
             ControlElem(0), ControlElem(1),
+            HeaderElem(R.string.settings_group_wallpaper),
+            ControlElem(2), ControlElem(3), ControlElem(4), ControlElem(5),
             HeaderElem(R.string.settings_group_theme),
-            ControlElem(2), ControlElem(3),
+            ControlElem(6), ControlElem(7),
             HeaderElem(R.string.settings_group_clock),
-            ControlElem(4),
+            ControlElem(8),
             HeaderElem(R.string.settings_group_standby),
-            ControlElem(5), ControlElem(6),
+            ControlElem(9), ControlElem(10),
         )
     }
     // 每个控件的顶部 Y(dp),从 order 折出来 —— 与渲染同源。
@@ -230,7 +274,7 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0) {
     // 常开回调后注册,浮层在时优先接管;关闭后 MainActivity 会 focusNonce++ 让首页重新拿回焦点。
     androidx.activity.compose.BackHandler { onExit() }
 
-    // 内容可能高于屏幕(7 控件 + 4 标题 + 标题栏 ≈ 498dp)。**绝不加滚动容器**,
+    // 内容可能高于屏幕(11 控件 + 5 标题 + 标题栏 ≈ 712dp,超过 540dp 的屏)。**绝不加滚动容器**,
     // 自己算纵向位移:焦点行底部快贴屏幕底时,整体上移刚好让它留在可视区(HomeScreen 同一招)。
     val screenH = LocalConfiguration.current.screenHeightDp.dp
     val fRow = focusedRow.coerceIn(0, ctrlCount - 1)
@@ -241,10 +285,17 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0) {
         label = "settingsShift",
     )
 
+    // 聚焦在壁纸分组时浮层降到 35% 黑,壁纸从内容列两侧与底下透出——否则滑块是盲调。
+    val previewing = focusedRow in WALLPAPER_CTRLS
+    val overlayColor by androidx.compose.animation.animateColorAsState(
+        targetValue = if (previewing) Theme.SettingsPreviewScrim else Theme.EditScreenBackground,
+        animationSpec = androidx.compose.animation.core.tween(250),
+        label = "settingsOverlay",
+    )
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Theme.EditScreenBackground),
+            .background(overlayColor),
     ) {
         Column(
             modifier = Modifier
@@ -396,6 +447,7 @@ private fun SettingRow(
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                 when (ctrl.kind) {
                     CtrlKind.SWATCH -> SwatchControl(selected = ctrl.selected, rowFocused = focused)
+                    CtrlKind.SLIDER -> SliderControl(selected = ctrl.selected, count = ctrl.count, rowFocused = focused)
                     else -> SegmentedControl(
                         options = ctrl.options, selected = ctrl.selected, rowFocused = focused,
                     )
@@ -464,5 +516,37 @@ private fun SwatchControl(selected: Int, rowFocused: Boolean) {
                 )
             }
         }
+    }
+}
+
+/** 滑块:11 档(0–100 步 10)。轨道 + 已填充段 + 百分比;行聚焦时填充段亮香槟,与分段控件选中态同色。 */
+@Composable
+private fun SliderControl(selected: Int, count: Int, rowFocused: Boolean) {
+    val fraction = if (count <= 1) 0f else selected.toFloat() / (count - 1)
+    val percent = Math.round(fraction * 100)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(
+            Modifier
+                .width(220.dp)
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(Theme.UnfocusedSurface),
+        ) {
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(fraction)
+                    .background(if (rowFocused) Theme.Champagne else Theme.Champagne.copy(alpha = 0.22f)),
+            )
+        }
+        BasicText(
+            text = "$percent%",
+            style = TextStyle(
+                fontFamily = Theme.Sans,
+                color = if (rowFocused) Theme.EmphasisText else Theme.SecondaryText,
+                fontSize = 13.sp,
+            ),
+            modifier = Modifier.width(44.dp),
+        )
     }
 }

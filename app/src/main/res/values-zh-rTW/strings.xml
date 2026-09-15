@@ -64,6 +64,12 @@
     <string name="settings_group_theme">主題</string>
     <string name="settings_group_clock">時鐘</string>
     <string name="settings_group_standby">待機</string>
+    <string name="settings_group_wallpaper">桌布</string>
+    <string name="settings_wallpaper_rotate">輪播間隔</string>
+    <string name="settings_rotate_daily">每天</string>
+    <string name="settings_wallpaper_themed">主題化桌布</string>
+    <string name="settings_wallpaper_blur">模糊</string>
+    <string name="settings_wallpaper_dim">壓暗</string>
     <string name="settings_card_size">卡片大小</string>
     <string name="settings_card_large">大</string>
     <string name="settings_card_medium">中</string>
