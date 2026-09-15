@@ -17,6 +17,15 @@
     <string name="menu_system_settings_desc">開啟電視的 Android 設定</string>
     <string name="menu_set_default_home">設定預設桌面</string>
     <string name="menu_set_default_home_desc">選擇按下 Home 鍵時啟動哪個桌面</string>
+    <string name="menu_import">匯入圖片</string>
+    <string name="menu_import_desc">手機掃碼上傳桌布、卡片圖、螢幕保護程式</string>
+    <!-- import_* : 「匯入圖片」頁(電視端) -->
+    <string name="import_title">用手機匯入圖片</string>
+    <string name="import_received">已收到 %1$d 個檔案</string>
+    <string name="import_last">最近:%1$s</string>
+    <string name="import_hint_back">按返回鍵關閉並停止服務</string>
+    <string name="import_error_no_network">電視尚未連上網路,連上 Wi-Fi 或網路線後再試</string>
+    <string name="import_error_port">連接埠 8090–8099 都被佔用,請稍後再試</string>
 
     <!-- edit_* : 編輯桌面畫面 -->
     <string name="edit_title">編輯桌面</string>

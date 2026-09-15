@@ -17,6 +17,15 @@
     <string name="menu_system_settings_desc">Open the TV\'s Android settings</string>
     <string name="menu_set_default_home">Set Default Home</string>
     <string name="menu_set_default_home_desc">Choose which launcher opens on the Home button</string>
+    <string name="menu_import">Import Images</string>
+    <string name="menu_import_desc">Scan a QR code to upload wallpapers, card images, screensavers</string>
+    <!-- import_* : Import Images page (TV side) -->
+    <string name="import_title">Import images from your phone</string>
+    <string name="import_received">%1$d file(s) received</string>
+    <string name="import_last">Latest: %1$s</string>
+    <string name="import_hint_back">Press Back to close and stop the service</string>
+    <string name="import_error_no_network">The TV is not connected to a network. Connect Wi-Fi or Ethernet and try again</string>
+    <string name="import_error_port">Ports 8090–8099 are all in use. Try again later</string>
 
     <!-- edit_* : edit home screen -->
     <string name="edit_title">Edit Home Screen</string>
