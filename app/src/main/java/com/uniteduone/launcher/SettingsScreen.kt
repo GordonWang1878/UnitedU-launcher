@@ -106,7 +106,10 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0, onWallpaperParamsCha
     // 同步跑,如果这边写盘还在后台协程里排队,首页读到的就是改之前的旧值。write 返回
     // false 是存储故障,只 Log、不崩(任务要求);下次开机会读回旧值,但当前会话内的
     // 改动仍在内存里的 s 生效。
-    fun update(newS: Settings) {
+    // 写前重读、只改自己那个字段:后台轮播(Task 6)也会写 settings.json,整对象回写会把它的
+    // wallpaperFile/rotatedAt 覆盖(壁纸来回翻)。s 仍是界面显示用的最新值。
+    fun update(transform: (Settings) -> Settings) {
+        val newS = transform(SettingsStore.read(ctx))
         s = newS
         val ok = SettingsStore.write(ctx, newS)
         if (!ok) Log.w(LOG_TAG, "settings.json 写入失败,改动只留在内存里")
@@ -155,57 +158,57 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0, onWallpaperParamsCha
         Ctrl(R.string.settings_card_size, CtrlKind.SEGMENTED,
             options = cardSizeLabels, count = 3,
             selected = VALID_CARDS_PER_ROW.indexOf(s.cardsPerRow).let { if (it < 0) 1 else it },
-            onSelect = { i -> update(s.copy(cardsPerRow = VALID_CARDS_PER_ROW[i])) }),
+            onSelect = { i -> update { it.copy(cardsPerRow = VALID_CARDS_PER_ROW[i]) } }),
         // 1 输入源行(design §2,默认关)。开着且真机枚举到硬件输入时,首页应用行上方多一行。
         Ctrl(R.string.settings_show_input_row, CtrlKind.TOGGLE,
             options = onLabels, count = 2,
             selected = if (s.showInputRow) 1 else 0,
-            onSelect = { i -> update(s.copy(showInputRow = i == 1)) }),
+            onSelect = { i -> update { it.copy(showInputRow = i == 1) } }),
         // 2 轮播间隔 关/5 分/30 分/每天(VALID_WALLPAPER_ROTATE_MS 顺序)
         Ctrl(R.string.settings_wallpaper_rotate, CtrlKind.SEGMENTED,
             options = rotateLabels, count = 4,
             selected = VALID_WALLPAPER_ROTATE_MS.indexOf(s.wallpaperRotateMs).let { if (it < 0) 0 else it },
-            onSelect = { i -> update(s.copy(wallpaperRotateMs = VALID_WALLPAPER_ROTATE_MS[i])) }),
+            onSelect = { i -> update { it.copy(wallpaperRotateMs = VALID_WALLPAPER_ROTATE_MS[i]) } }),
         // 3 主题化壁纸
         Ctrl(R.string.settings_wallpaper_themed, CtrlKind.TOGGLE,
             options = onLabels, count = 2,
             selected = if (s.wallpaperThemed) 1 else 0,
-            onSelect = { i -> update(s.copy(wallpaperThemed = i == 1)) }),
+            onSelect = { i -> update { it.copy(wallpaperThemed = i == 1) } }),
         // 4 模糊 0–100 步 10(11 档滑块;selected = 档位下标)
         Ctrl(R.string.settings_wallpaper_blur, CtrlKind.SLIDER,
             options = emptyList(), count = 11,
             selected = s.wallpaperBlur / 10,
-            onSelect = { i -> update(s.copy(wallpaperBlur = i * 10)) }),
+            onSelect = { i -> update { it.copy(wallpaperBlur = i * 10) } }),
         // 5 压暗 0–100 步 10
         Ctrl(R.string.settings_wallpaper_dim, CtrlKind.SLIDER,
             options = emptyList(), count = 11,
             selected = s.wallpaperDim / 10,
-            onSelect = { i -> update(s.copy(wallpaperDim = i * 10)) }),
+            onSelect = { i -> update { it.copy(wallpaperDim = i * 10) } }),
         // 6 主题色 swatch
         Ctrl(R.string.settings_theme_color, CtrlKind.SWATCH,
             options = emptyList(), count = ThemePresets.all.size,
             selected = ThemePresets.indexOf(s.themePresetId),
-            onSelect = { i -> update(s.copy(themePresetId = ThemePresets.all[i].id)) }),
+            onSelect = { i -> update { it.copy(themePresetId = ThemePresets.all[i].id) } }),
         // 7 跟随壁纸主色
         Ctrl(R.string.settings_follow_wallpaper, CtrlKind.TOGGLE,
             options = onLabels, count = 2,
             selected = if (s.followWallpaperColor) 1 else 0,
-            onSelect = { i -> update(s.copy(followWallpaperColor = i == 1)) }),
+            onSelect = { i -> update { it.copy(followWallpaperColor = i == 1) } }),
         // 8 显示日期
         Ctrl(R.string.settings_show_date, CtrlKind.TOGGLE,
             options = onLabels, count = 2,
             selected = if (s.showDate) 1 else 0,
-            onSelect = { i -> update(s.copy(showDate = i == 1)) }),
+            onSelect = { i -> update { it.copy(showDate = i == 1) } }),
         // 9 待机时长 关/1/3/5/10 分
         Ctrl(R.string.settings_idle_after, CtrlKind.SEGMENTED,
             options = idleAfterLabels, count = 5,
             selected = VALID_IDLE_AFTER_MS.indexOf(s.idleAfterMs).let { if (it < 0) 2 else it },
-            onSelect = { i -> update(s.copy(idleAfterMs = VALID_IDLE_AFTER_MS[i])) }),
+            onSelect = { i -> update { it.copy(idleAfterMs = VALID_IDLE_AFTER_MS[i]) } }),
         // 10 待机显示 时钟/全黑/不淡出
         Ctrl(R.string.settings_idle_content, CtrlKind.SEGMENTED,
             options = idleContentLabels, count = 3,
             selected = IdleContent.entries.indexOf(s.idleContent).coerceAtLeast(0),
-            onSelect = { i -> update(s.copy(idleContent = IdleContent.entries[i])) }),
+            onSelect = { i -> update { it.copy(idleContent = IdleContent.entries[i]) } }),
     )
     val ctrlCount = controls.size
 
