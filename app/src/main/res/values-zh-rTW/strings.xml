@@ -17,6 +17,20 @@
     <string name="menu_system_settings_desc">開啟電視的 Android 設定</string>
     <string name="menu_set_default_home">設定預設桌面</string>
     <string name="menu_set_default_home_desc">選擇按下 Home 鍵時啟動哪個桌面</string>
+    <!-- card_menu_* : 首頁長按卡片選單 -->
+    <string name="card_menu_open">開啟應用程式</string>
+    <string name="card_menu_open_desc">啟動這個應用程式</string>
+    <string name="card_menu_uninstall">解除安裝</string>
+    <string name="card_menu_uninstall_desc">走系統解除安裝確認;之後卡片自動消失</string>
+    <string name="card_menu_rename">修改標題</string>
+    <string name="card_menu_rename_desc">只改卡片上的名字,不改應用程式</string>
+    <string name="card_menu_icon">更改圖片</string>
+    <string name="card_menu_icon_desc">從圖庫選一張 16:9 的圖</string>
+    <string name="card_menu_move">移動位置</string>
+    <string name="card_menu_move_desc">進入編輯桌面並定位到這張卡</string>
+    <string name="card_menu_remove">從目前分類移除</string>
+    <string name="card_menu_remove_desc">應用程式本身不會被解除安裝</string>
+    <string name="toast_uninstall_failed">無法開啟系統解除安裝頁</string>
     <string name="menu_import">匯入圖片</string>
     <string name="menu_import_desc">手機掃碼上傳桌布、卡片圖、螢幕保護程式</string>
     <!-- import_* : 「匯入圖片」頁(電視端) -->

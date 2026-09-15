@@ -17,6 +17,20 @@
     <string name="menu_system_settings_desc">Open the TV\'s Android settings</string>
     <string name="menu_set_default_home">Set Default Home</string>
     <string name="menu_set_default_home_desc">Choose which launcher opens on the Home button</string>
+    <!-- card_menu_* : long-press card menu on the home screen -->
+    <string name="card_menu_open">Open App</string>
+    <string name="card_menu_open_desc">Launch this app</string>
+    <string name="card_menu_uninstall">Uninstall</string>
+    <string name="card_menu_uninstall_desc">System confirmation; the card disappears afterwards</string>
+    <string name="card_menu_rename">Rename Card</string>
+    <string name="card_menu_rename_desc">Changes only the card title, not the app</string>
+    <string name="card_menu_icon">Change Image</string>
+    <string name="card_menu_icon_desc">Pick a 16:9 image from the library</string>
+    <string name="card_menu_move">Move</string>
+    <string name="card_menu_move_desc">Open Edit Home Screen at this card</string>
+    <string name="card_menu_remove">Remove from This Row</string>
+    <string name="card_menu_remove_desc">The app itself is not uninstalled</string>
+    <string name="toast_uninstall_failed">Could not open the system uninstall page</string>
     <string name="menu_import">Import Images</string>
     <string name="menu_import_desc">Scan a QR code to upload wallpapers, card images, screensavers</string>
     <!-- import_* : Import Images page (TV side) -->

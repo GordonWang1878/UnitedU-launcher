@@ -60,6 +60,14 @@ object Layout {
         }
     }
 
+    /** 从第 rowIndex 行移除一个包(长按菜单「从当前分类移除」)。行不存在或包不在该行 → false,不写盘。 */
+    fun removeFromRow(ctx: Context, rowIndex: Int, pkg: String): Boolean {
+        val rows = read(ctx)
+        val row = rows.getOrNull(rowIndex) ?: return false
+        if (pkg !in row.second) return false
+        return write(ctx, rows.mapIndexed { i, r -> if (i == rowIndex) r.first to r.second.filter { it != pkg } else r })
+    }
+
     /**
      * 先写临时文件再改名:直接 writeText 会先截断,断电或进程被杀就留下半截文件。
      * @return 是否真的落盘了。**调用方必须告诉用户失败**——只 Log 的话,界面上顺序已经变了,

@@ -24,8 +24,12 @@ import androidx.compose.ui.unit.sp
 
 data class MenuItem(val label: String, val hint: String, val action: () -> Unit)
 
+/**
+ * 菜单浮层。齿轮菜单、编辑页条目菜单、首页长按卡片菜单共用这一份。
+ * @param title 标题;null = 沿用齿轮菜单的「设置」。长按菜单传该卡的显示名。
+ */
 @Composable
-fun GearMenu(items: List<MenuItem>, onDismiss: () -> Unit, nonce: Int = 0) {
+fun GearMenu(items: List<MenuItem>, onDismiss: () -> Unit, nonce: Int = 0, title: String? = null) {
     val rowFocus = remember(items.size) { List(items.size.coerceAtLeast(1)) { FocusRequester() } }
     var focusedIdx by remember { mutableStateOf(0) }
     var landed by remember { mutableStateOf(false) }
@@ -57,7 +61,7 @@ fun GearMenu(items: List<MenuItem>, onDismiss: () -> Unit, nonce: Int = 0) {
                 .padding(vertical = 20.dp),
         ) {
             BasicText(
-                text = stringResource(R.string.menu_settings_title),
+                text = title ?: stringResource(R.string.menu_settings_title),
                 style = TextStyle(
                     fontFamily = Theme.Sans,
                     fontWeight = FontWeight.Medium,

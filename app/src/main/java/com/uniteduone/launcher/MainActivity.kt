@@ -63,6 +63,16 @@ class MainActivity : ComponentActivity() {
      * 这个值会一直留着,下次按同一个键会被**再吞一次**,症状是「刚醒来第一下没反应」。
      */
     private var wakeDownTime = -1L
+    /** 首页当前聚焦的卡(HomeScreen 上报);长按确定键时据此弹菜单。 */
+    private var focusedCard by mutableStateOf<CardRef?>(null)
+    /** 长按菜单开着的那张卡;null = 没开。 */
+    private var cardMenu by mutableStateOf<CardRef?>(null)
+    /** 「修改标题」对话框(Task 5 接线)。 */
+    private var renameTarget by mutableStateOf<CardRef?>(null)
+    /** 「移动位置」兜底:进编辑页时定位到这张卡。 */
+    private var editTarget by mutableStateOf<Pair<Int, Int>?>(null)
+    /** 长按识别:记下那次按压的 downTime,同一次按压之后的事件(含 UP)全吞——clickable 在 UP 才触发,不会顺带启动应用。 */
+    private var longPressDownTime = -1L
 
     /** 装了新应用或卸载了应用后,桌面和「添加应用」列表都要能跟上。 */
     private val packageChanges = object : android.content.BroadcastReceiver() {
@@ -82,7 +92,11 @@ class MainActivity : ComponentActivity() {
             },
         )
         // 「新应用」基线:首启把 newAppsSeenAt 写成现在,之前装的都不算新(design §2)。
-        SettingsStore.update(this) { if (it.newAppsSeenAt == 0L) it.copy(newAppsSeenAt = System.currentTimeMillis()) else it }
+        // **先读再判、只在真要改时才 update**:SettingsStore.update 无论闭包返不返回同一个对象
+        // 都会走一遍写盘,挂在 onCreate 上就等于每次冷启动重写一次 settings.json。
+        if (SettingsStore.read(this).newAppsSeenAt == 0L) {
+            SettingsStore.update(this) { it.copy(newAppsSeenAt = System.currentTimeMillis()) }
+        }
         installBackHandler()
         setContent {
             // 菜单项列表不必每次重组都新建,否则整棵树都不可跳过
@@ -214,6 +228,7 @@ class MainActivity : ComponentActivity() {
                     revision = revision,
                     cardsPerRow = homeSettings.cardsPerRow,
                     showTitles = homeSettings.showTitles,
+                    initialTarget = editTarget,
                 )
             } else if (settings) {
                 SettingsScreen(
@@ -237,6 +252,11 @@ class MainActivity : ComponentActivity() {
                     newAppsSeenAt = homeSettings.newAppsSeenAt,
                     accent = themeColors.accent,
                     highlight = themeColors.highlight,
+                    onFocusedCard = { focusedCard = it },
+                    cardMenu = cardMenu,
+                    cardMenuItems = remember(cardMenu) { cardMenu?.let { cardMenuItems(it) } ?: emptyList() },
+                    onCardMenuDismiss = ::closeCardMenu,
+                    renameOpen = renameTarget != null,
                 )
             }
             }
@@ -278,6 +298,23 @@ class MainActivity : ComponentActivity() {
             if (menuOpen) closeMenu() else { menuFromGear = false; menuOpen = true }
             return true
         }
+        if (event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER || event.keyCode == KeyEvent.KEYCODE_ENTER) {
+            if (longPressDownTime != -1L && event.downTime == longPressDownTime) {
+                if (event.action == KeyEvent.ACTION_UP) longPressDownTime = -1L
+                return true
+            }
+            // 长按 = 同一次按压的第一个重复事件(约 0.4 s)。只在首页无任何浮层时识别。
+            val homeBare = !editing && !settings && !menuOpen && pickerTarget == null && cardMenu == null && renameTarget == null
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 1 && homeBare) {
+                val ref = focusedCard
+                if (ref != null && cardMenuActions(ref.kind).isNotEmpty()) {
+                    longPressDownTime = event.downTime
+                    window.decorView.playSoundEffect(SoundEffectConstants.CLICK)
+                    cardMenu = ref
+                    return true
+                }
+            }
+        }
         // 长按确认键不应重复点击:电视 UI 里没有连按同一按钮的场景,
         // 重复事件只会让点击音一直响、可能反复启动同一个应用。
         if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount > 0 &&
@@ -311,6 +348,7 @@ class MainActivity : ComponentActivity() {
         leaveEdit()
         leaveSettings()
         closeMenu()
+        closeCardMenu()
         if (pickerTarget == VIEW_IMPORT) { pickerTarget = null; focusNonce++ }
     }
 
@@ -325,7 +363,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun leaveEdit() {
-        if (editing) { editing = false; revision++ }
+        if (editing) { editing = false; revision++; editTarget = null }
     }
 
     /**
@@ -362,6 +400,41 @@ class MainActivity : ComponentActivity() {
         MenuItem(getString(R.string.menu_system_settings), getString(R.string.menu_system_settings_desc)) { open(Intent(Settings.ACTION_SETTINGS)) },
         MenuItem(getString(R.string.menu_set_default_home), getString(R.string.menu_set_default_home_desc)) { openHomeSettings() },
     )
+
+    /**
+     * 关长按菜单**只有这一条路**(与 closeMenu 同构)。菜单项随节点销毁时焦点会一并消失,
+     * 所以必须 focusNonce++ —— 首页的还原效果据此把焦点送回「记住的那一格」,也就是那张卡。
+     */
+    private fun closeCardMenu() { if (cardMenu != null) { cardMenu = null; focusNonce++ } }
+
+    /** 长按菜单项。顺序与文案见 design §2;RENAME 在 Task 5 接对话框,本任务先不列出。 */
+    private fun cardMenuItems(ref: CardRef): List<MenuItem> = cardMenuActions(ref.kind).mapNotNull { action ->
+        when (action) {
+            CardAction.OPEN -> MenuItem(getString(R.string.card_menu_open), getString(R.string.card_menu_open_desc)) {
+                closeCardMenu()
+                if (!Apps.launch(this, ref.pkg)) toast(getString(R.string.toast_cant_open_app, ref.label))
+            }
+            CardAction.UNINSTALL -> MenuItem(getString(R.string.card_menu_uninstall), getString(R.string.card_menu_uninstall_desc)) {
+                closeCardMenu()
+                val ok = runCatching {
+                    startActivity(Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:${ref.pkg}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }.isSuccess
+                if (!ok) toast(getString(R.string.toast_uninstall_failed))
+            }
+            CardAction.RENAME -> null   // Task 5:renameTarget = ref
+            CardAction.CHANGE_ICON -> MenuItem(getString(R.string.card_menu_icon), getString(R.string.card_menu_icon_desc)) {
+                closeCardMenu(); pickIcon(ref.pkg)
+            }
+            CardAction.MOVE -> MenuItem(getString(R.string.card_menu_move), getString(R.string.card_menu_move_desc)) {
+                closeCardMenu(); editTarget = ref.layoutRow to ref.colIndex; editing = true
+            }
+            CardAction.REMOVE -> MenuItem(getString(R.string.card_menu_remove), getString(R.string.card_menu_remove_desc)) {
+                closeCardMenu()
+                if (Layout.removeFromRow(this, ref.layoutRow, ref.pkg)) revision++
+                else toast(getString(R.string.edit_toast_order_not_saved))
+            }
+        }
+    }
 
     private fun pickIcon(pkg: String) {
         if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
@@ -467,6 +540,10 @@ class MainActivity : ComponentActivity() {
             override fun handleOnBackPressed() {
                 when {
                     menuOpen -> closeMenu()
+                    // 与 menuOpen 同理的兜底:GearMenu 自带的 BackHandler 组合时挂得更晚、正常会先接管,
+                    // 但这一层不能是空的 —— 万一那条路没接住,返回键就会落进「桌面根状态什么都不做」,
+                    // 菜单留在屏幕上而按键毫无反应。
+                    cardMenu != null -> closeCardMenu()
                     editing -> leaveEdit()
                     settings -> leaveSettings()
                     // 桌面根状态:什么都不做,绝不 finish

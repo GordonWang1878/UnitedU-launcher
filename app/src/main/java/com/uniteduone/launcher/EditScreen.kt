@@ -52,6 +52,8 @@ fun EditScreen(
     /** 卡片标题全局开关(design §2):编辑页与首页共用同一份 titles.json,标题同样显示——
      *  编辑时看得见名字更好认。 */
     showTitles: Boolean = false,
+    /** 首页长按菜单「移动位置」带进来的 (layout 行号, 列号);null = 正常进入,不定位。 */
+    initialTarget: Pair<Int, Int>? = null,
 ) {
     val ctx = LocalContext.current
     // 与首页同一套卡片档位尺寸,编辑页的卡片才会和首页一样大。见 Theme.cardMetrics。
@@ -132,6 +134,17 @@ fun EditScreen(
         focusRow = ri
         retargetRow = ri
         focusTarget[ri.coerceIn(0, focusTarget.lastIndex)] = col
+    }
+
+    // 「移动位置」兜底:从首页带着 (行, 列) 进来,数据到位后定位一次。用「已应用的目标」比对,
+    // 不用一次性布尔闩(铁律 7):同一个 initialTarget 只应用一次,换了新值自然再应用。
+    var appliedTarget by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    LaunchedEffect(initialTarget, all) {
+        val t = initialTarget ?: return@LaunchedEffect
+        if (all == null || appliedTarget == t) return@LaunchedEffect
+        appliedTarget = t
+        val ri = t.first.coerceIn(0, rows.lastIndex.coerceAtLeast(0))
+        retarget(ri, t.second.coerceIn(0, rows.getOrNull(ri)?.second?.size ?: 0))
     }
 
     // 与首页同一套:**从 ON_PAUSE 就冻结**、ON_RESUME 再显式恢复。
@@ -679,6 +692,9 @@ private fun PickerRow(
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             BasicText(
                 text = app.label.ifBlank { app.packageName },
+                // weight(fill = false):名字很长时先挤自己(换行),不把「新」标推出对话框右边缘;
+                // fill = false 保证短名字仍然紧挨着标,不会中间空一大段。
+                modifier = Modifier.weight(1f, fill = false),
                 style = TextStyle(fontFamily = Theme.Sans, color = if (focused) Theme.Champagne else Theme.DialogBodyText, fontSize = 14.sp),
             )
             if (isNew) Box(
