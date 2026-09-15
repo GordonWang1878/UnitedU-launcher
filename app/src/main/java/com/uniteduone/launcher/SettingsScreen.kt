@@ -108,7 +108,7 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0) {
         if (!ok) Log.w(LOG_TAG, "settings.json 写入失败,改动只留在内存里")
     }
 
-    // ---- 9 个可聚焦控件的描述,顺序即 ctrlIndex(0..8),看门狗/位移都按它索引 ----
+    // ---- 8 个可聚焦控件的描述,顺序即 ctrlIndex(0..7),看门狗/位移都按它索引 ----
     val onLabels = listOf(stringResource(R.string.settings_off), stringResource(R.string.settings_on))
     val cardSizeLabels = listOf(
         stringResource(R.string.settings_card_large),
@@ -129,47 +129,42 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0) {
     )
 
     val controls: List<Ctrl> = listOf(
-        // 0 行数 1..5
-        Ctrl(R.string.settings_rows, CtrlKind.SEGMENTED,
-            options = (1..5).map { it.toString() }, count = 5,
-            selected = (s.rowCount - 1).coerceIn(0, 4),
-            onSelect = { i -> update(s.copy(rowCount = (i + 1).coerceIn(1, 5))) }),
-        // 1 卡片大小 大/中/小 → 5/6/8
+        // 0 卡片大小 大/中/小 → 5/6/8
         Ctrl(R.string.settings_card_size, CtrlKind.SEGMENTED,
             options = cardSizeLabels, count = 3,
             selected = CARDS_PER_ROW_BY_SIZE.indexOf(s.cardsPerRow).let { if (it < 0) 1 else it },
             onSelect = { i -> update(s.copy(cardsPerRow = CARDS_PER_ROW_BY_SIZE[i])) }),
-        // 2 卡片标题
+        // 1 卡片标题
         Ctrl(R.string.settings_show_titles, CtrlKind.TOGGLE,
             options = onLabels, count = 2,
             selected = if (s.showTitles) 1 else 0,
             onSelect = { i -> update(s.copy(showTitles = i == 1)) }),
-        // 3 输入源行
+        // 2 输入源行
         Ctrl(R.string.settings_show_input_row, CtrlKind.TOGGLE,
             options = onLabels, count = 2,
             selected = if (s.showInputRow) 1 else 0,
             onSelect = { i -> update(s.copy(showInputRow = i == 1)) }),
-        // 4 主题色 swatch
+        // 3 主题色 swatch
         Ctrl(R.string.settings_theme_color, CtrlKind.SWATCH,
             options = emptyList(), count = ThemePresets.all.size,
             selected = ThemePresets.indexOf(s.themePresetId),
             onSelect = { i -> update(s.copy(themePresetId = ThemePresets.all[i].id)) }),
-        // 5 跟随壁纸主色
+        // 4 跟随壁纸主色
         Ctrl(R.string.settings_follow_wallpaper, CtrlKind.TOGGLE,
             options = onLabels, count = 2,
             selected = if (s.followWallpaperColor) 1 else 0,
             onSelect = { i -> update(s.copy(followWallpaperColor = i == 1)) }),
-        // 6 显示日期
+        // 5 显示日期
         Ctrl(R.string.settings_show_date, CtrlKind.TOGGLE,
             options = onLabels, count = 2,
             selected = if (s.showDate) 1 else 0,
             onSelect = { i -> update(s.copy(showDate = i == 1)) }),
-        // 7 待机时长 关/1/3/5/10 分
+        // 6 待机时长 关/1/3/5/10 分
         Ctrl(R.string.settings_idle_after, CtrlKind.SEGMENTED,
             options = idleAfterLabels, count = 5,
             selected = IDLE_AFTER_OPTIONS.indexOf(s.idleAfterMs).let { if (it < 0) 2 else it },
             onSelect = { i -> update(s.copy(idleAfterMs = IDLE_AFTER_OPTIONS[i])) }),
-        // 8 待机显示 时钟/全黑/不淡出
+        // 7 待机显示 时钟/全黑/不淡出
         Ctrl(R.string.settings_idle_content, CtrlKind.SEGMENTED,
             options = idleContentLabels, count = 3,
             selected = IdleContent.entries.indexOf(s.idleContent).coerceAtLeast(0),
@@ -183,13 +178,13 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0) {
         listOf(
             TitleElem,
             HeaderElem(R.string.settings_group_layout),
-            ControlElem(0), ControlElem(1), ControlElem(2), ControlElem(3),
+            ControlElem(0), ControlElem(1), ControlElem(2),
             HeaderElem(R.string.settings_group_theme),
-            ControlElem(4), ControlElem(5),
+            ControlElem(3), ControlElem(4),
             HeaderElem(R.string.settings_group_clock),
-            ControlElem(6),
+            ControlElem(5),
             HeaderElem(R.string.settings_group_standby),
-            ControlElem(7), ControlElem(8),
+            ControlElem(6), ControlElem(7),
         )
     }
     // 每个控件的顶部 Y(dp),从 order 折出来 —— 与渲染同源。
@@ -240,7 +235,7 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0) {
     // 常开回调后注册,浮层在时优先接管;关闭后 MainActivity 会 focusNonce++ 让首页重新拿回焦点。
     androidx.activity.compose.BackHandler { onExit() }
 
-    // 内容可能高于屏幕(9 控件 + 4 标题 + 标题栏 ≈ 590dp > 540dp)。**绝不加滚动容器**,
+    // 内容可能高于屏幕(8 控件 + 4 标题 + 标题栏 ≈ 544dp > 540dp)。**绝不加滚动容器**,
     // 自己算纵向位移:焦点行底部快贴屏幕底时,整体上移刚好让它留在可视区(HomeScreen 同一招)。
     val screenH = LocalConfiguration.current.screenHeightDp.dp
     val fRow = focusedRow.coerceIn(0, ctrlCount - 1)

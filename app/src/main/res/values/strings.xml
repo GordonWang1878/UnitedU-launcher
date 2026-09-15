@@ -63,7 +63,6 @@
     <string name="settings_group_theme">主题</string>
     <string name="settings_group_clock">时钟</string>
     <string name="settings_group_standby">待机</string>
-    <string name="settings_rows">行数</string>
     <string name="settings_card_size">卡片大小</string>
     <string name="settings_card_large">大</string>
     <string name="settings_card_medium">中</string>

@@ -63,7 +63,6 @@
     <string name="settings_group_theme">Theme</string>
     <string name="settings_group_clock">Clock</string>
     <string name="settings_group_standby">Standby</string>
-    <string name="settings_rows">Rows</string>
     <string name="settings_card_size">Card Size</string>
     <string name="settings_card_large">Large</string>
     <string name="settings_card_medium">Medium</string>
