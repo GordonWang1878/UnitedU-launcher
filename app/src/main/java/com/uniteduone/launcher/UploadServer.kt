@@ -68,12 +68,12 @@ class UploadServer(
         }
     }
 
-    /** 网页。Task 3 在这里注入三语字符串;本任务原样返回资源,资源缺失 404。 */
+    /** 网页。把 index.html 里的 __STRINGS__ 占位替换成按电视当前语言取的三语 JSON。 */
     private fun serveIndex(): Response {
         val html = runCatching {
             ctx.assets.open("web/index.html").use { it.readBytes().toString(Charsets.UTF_8) }
         }.getOrNull() ?: return text(Response.Status.NOT_FOUND, "index missing")
-        return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html)
+        return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html.replace("__STRINGS__", webStringsJson(ctx)))
     }
 
     private fun listImages(dir: File): List<File> =
@@ -229,4 +229,35 @@ private class CacheTempFileManager(private val dir: File) : NanoHTTPD.TempFileMa
         files.forEach { runCatching { it.delete() } }
         files.clear()
     }
+}
+
+/** 网页文案:按电视 app 当前语言取 web_* 资源,拼成 JSON 对象注入 index.html 的 __STRINGS__。key 与网页 JS 里 S.xxx 一一对应。 */
+fun webStringsJson(ctx: Context): String {
+    val keys = mapOf(
+        "title" to R.string.web_title,
+        "tab_wallpapers" to R.string.web_tab_wallpapers,
+        "tab_cards" to R.string.web_tab_cards,
+        "tab_screensavers" to R.string.web_tab_screensavers,
+        "tab_apk" to R.string.web_tab_apk,
+        "upload" to R.string.web_upload,
+        "delete" to R.string.web_delete,
+        "confirm_delete" to R.string.web_confirm_delete,
+        "empty" to R.string.web_empty,
+        "uploading" to R.string.web_uploading,
+        "done" to R.string.web_done,
+        "error" to R.string.web_error,
+        "rejected_type" to R.string.web_rejected_type,
+        "rejected_size" to R.string.web_rejected_size,
+        "rejected_decode" to R.string.web_rejected_decode,
+        "rejected_name" to R.string.web_rejected_name,
+        "rejected_write" to R.string.web_rejected_write,
+        "apk_hint" to R.string.web_apk_hint,
+        "apk_install" to R.string.web_apk_install,
+        "apk_needs-permission" to R.string.web_apk_needs_permission,
+        "apk_invalid" to R.string.web_apk_invalid,
+        "apk_size" to R.string.web_apk_size,
+        "apk_server" to R.string.web_error,
+        "apk_write" to R.string.web_rejected_write,
+    )
+    return keys.entries.joinToString(",", "{", "}") { (k, res) -> "${jsonStr(k)}:${jsonStr(ctx.getString(res))}" }
 }

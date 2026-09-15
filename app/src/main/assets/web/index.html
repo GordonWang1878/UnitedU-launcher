@@ -1,0 +1,107 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UnitedU</title>
+<style>
+:root{--bg:#0a0a0a;--fg:#eeeeee;--dim:#9a9a9a;--acc:#FFF5DC;--gold:#C0A73A;--card:#1e1e1e}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 -apple-system,system-ui,"PingFang SC","Noto Sans CJK SC",sans-serif}
+header{position:sticky;top:0;background:var(--bg);padding:12px 16px 0;border-bottom:1px solid #222}
+h1{font-size:18px;margin:0 0 10px;color:var(--acc);font-weight:600}
+nav{display:flex;gap:6px}
+nav button{flex:1;padding:10px 4px;border:0;border-radius:8px 8px 0 0;background:#151515;color:var(--dim);font-size:14px}
+nav button.on{background:var(--card);color:var(--acc);font-weight:600}
+main{padding:12px 16px 90px}
+.bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;color:var(--dim);font-size:13px}
+.btn{display:inline-block;background:var(--gold);color:#000;border:0;border-radius:8px;padding:10px 16px;font-weight:600;font-size:15px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.cell{background:var(--card);border-radius:10px;overflow:hidden}
+.cell img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#111}
+.cell .n{padding:6px 8px;font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell .del{width:100%;border:0;background:#2a2a2a;color:var(--fg);padding:8px;font-size:13px}
+.empty{color:var(--dim);text-align:center;padding:40px 0}
+#msg{position:fixed;left:16px;right:16px;bottom:16px;background:#222;color:var(--fg);padding:12px;border-radius:10px;display:none;font-size:14px;white-space:pre-line}
+#view{position:fixed;inset:0;background:#000;display:none;align-items:center;justify-content:center}
+#view img{max-width:100%;max-height:100%}
+#apkpane p{color:var(--dim)}
+input[type=file]{display:none}
+</style>
+</head>
+<body>
+<header><h1 id="title"></h1><nav id="tabs"></nav></header>
+<main>
+  <div id="imgpane">
+    <div class="bar"><span id="count"></span><label class="btn" for="pick" id="uplabel"></label><input id="pick" type="file" multiple accept="image/*"></div>
+    <div id="grid" class="grid"></div>
+    <div id="empty" class="empty"></div>
+  </div>
+  <div id="apkpane" style="display:none">
+    <p id="apkhint"></p>
+    <label class="btn" for="apkpick" id="apklabel"></label><input id="apkpick" type="file" accept=".apk,application/vnd.android.package-archive">
+    <p id="apkstatus"></p>
+  </div>
+</main>
+<div id="msg"></div>
+<div id="view"><img id="viewimg" alt=""></div>
+<script>
+const S = __STRINGS__;
+const TABS = [["wallpapers", S.tab_wallpapers], ["cards", S.tab_cards], ["screensavers", S.tab_screensavers], ["apk", S.tab_apk]];
+let type = "wallpapers";
+const $ = id => document.getElementById(id);
+const q = s => encodeURIComponent(s);
+function msg(t) { const m = $("msg"); m.textContent = t; m.style.display = "block"; clearTimeout(msg.t); msg.t = setTimeout(() => m.style.display = "none", 5000); }
+function renderTabs() {
+  $("tabs").innerHTML = "";
+  for (const [k, l] of TABS) { const b = document.createElement("button"); b.textContent = l; b.className = k === type ? "on" : ""; b.onclick = () => { type = k; renderTabs(); load(); }; $("tabs").appendChild(b); }
+}
+async function load() {
+  const isApk = type === "apk";
+  $("imgpane").style.display = isApk ? "none" : ""; $("apkpane").style.display = isApk ? "" : "none";
+  if (isApk) return;
+  let d;
+  try { d = await (await fetch(`/api/list?type=${type}`)).json(); } catch (e) { msg(S.error); return; }
+  const g = $("grid"); g.innerHTML = "";
+  $("count").textContent = d.files.length ? String(d.files.length) : "";
+  $("empty").textContent = d.files.length ? "" : S.empty;
+  for (const f of d.files) {
+    const c = document.createElement("div"); c.className = "cell";
+    const img = document.createElement("img"); img.loading = "lazy"; img.src = `/thumb?type=${type}&name=${q(f.name)}&v=${f.mtime}`;
+    img.onclick = () => { $("viewimg").src = `/file?type=${type}&name=${q(f.name)}`; $("view").style.display = "flex"; };
+    const n = document.createElement("div"); n.className = "n"; n.textContent = f.name;
+    const del = document.createElement("button"); del.className = "del"; del.textContent = S.delete;
+    del.onclick = async () => {
+      if (!confirm(S.confirm_delete.replace("%s", f.name))) return;
+      const r = await fetch(`/api/file?type=${type}&name=${q(f.name)}`, { method: "DELETE" });
+      msg(r.ok ? S.done : S.error); load();
+    };
+    c.append(img, n, del); g.appendChild(c);
+  }
+}
+$("pick").onchange = async e => {
+  const files = [...e.target.files]; if (!files.length) return;
+  const fd = new FormData(); for (const f of files) fd.append("files", f, f.name);
+  msg(S.uploading.replace("%d", files.length));
+  let d;
+  try { d = await (await fetch(`/api/upload?type=${type}`, { method: "POST", body: fd })).json(); } catch (err) { msg(S.error); return; }
+  let t = `${S.done} ${d.saved.length}/${files.length}`;
+  for (const x of d.rejected) t += `\n${x.name}: ${S["rejected_" + x.reason] || x.reason}`;
+  msg(t); e.target.value = ""; load();
+};
+$("apkpick").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  const fd = new FormData(); fd.append("apk", f, f.name);
+  $("apkstatus").textContent = S.uploading.replace("%d", 1);
+  let d;
+  try { d = await (await fetch("/api/apk", { method: "POST", body: fd })).json(); } catch (err) { d = { ok: false, reason: "server" }; }
+  $("apkstatus").textContent = d.ok ? `${S.done} ${d.package || ""} ${d.version || ""}` : (S["apk_" + d.reason] || S.error);
+  e.target.value = "";
+};
+$("view").onclick = () => $("view").style.display = "none";
+$("title").textContent = S.title; document.title = S.title;
+$("uplabel").textContent = S.upload; $("apklabel").textContent = S.apk_install; $("apkhint").textContent = S.apk_hint;
+renderTabs(); load();
+</script>
+</body>
+</html>

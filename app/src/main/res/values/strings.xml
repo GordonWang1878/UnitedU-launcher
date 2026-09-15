@@ -27,6 +27,30 @@
     <string name="import_error_no_network">电视没有连接网络,连上 Wi-Fi 或网线后再试</string>
     <string name="import_error_port">端口 8090–8099 都被占用,稍后再试</string>
 
+    <!-- web_* : 手机上传网页文案(服务端注入,JS 里 %s/%d 由网页自己替换) -->
+    <string name="web_title">用手机导入图片</string>
+    <string name="web_tab_wallpapers">壁纸</string>
+    <string name="web_tab_cards">卡片图</string>
+    <string name="web_tab_screensavers">屏保</string>
+    <string name="web_tab_apk">安装 APK</string>
+    <string name="web_upload">上传</string>
+    <string name="web_delete">删除</string>
+    <string name="web_confirm_delete" formatted="false">删除 %s?</string>
+    <string name="web_empty">还没有图片,点右上「上传」</string>
+    <string name="web_uploading" formatted="false">正在上传 %d 个文件…</string>
+    <string name="web_done">完成</string>
+    <string name="web_error">出错了,请重试</string>
+    <string name="web_rejected_type">只支持 jpg / png / webp</string>
+    <string name="web_rejected_size">超过 30 MB</string>
+    <string name="web_rejected_decode">图片解码失败</string>
+    <string name="web_rejected_name">文件名无效</string>
+    <string name="web_rejected_write">电视存储写入失败</string>
+    <string name="web_apk_hint">选择 APK 后,电视会弹出系统安装器;首次需要在电视上允许「安装未知应用」。</string>
+    <string name="web_apk_install">选择 APK 并安装到电视</string>
+    <string name="web_apk_needs_permission">请先在电视上允许安装未知应用,然后重试</string>
+    <string name="web_apk_invalid">不是有效的 APK 文件</string>
+    <string name="web_apk_size">APK 超过 100 MB</string>
+
     <!-- edit_* : 编辑桌面界面 -->
     <string name="edit_title">编辑桌面</string>
     <string name="edit_hint">选中应用按确定:调顺序、换图、移出。每行末尾的加号可以添加。返回键退出。</string>
