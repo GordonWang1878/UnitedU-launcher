@@ -119,3 +119,14 @@ M2 全分支终审(opus)通过(可合并/零 Critical),终审后单次修复波 
 
 ### 注记
 多个子代理 commit 的 co-author 用了「Claude Sonnet 5」而非「Claude Opus 4.8」(子代理系统配置强制,覆盖了任务指令)。纯 cosmetic,未 force-push 改写历史。
+
+## 2026-09-15 · M2 100% 完成(H 真机收尾)
+
+真机 pass 收掉输入源行(Task H),M2 全部任务完成。
+- **真机连接**:A95L 无线调试配对(非 5555;`printf '<码>\n'|adb pair` + mdns 找 connect 端口 + `adb connect`)。IP/端口每次变,见记忆 [tv-adb-wireless-debugging]。
+- **Task H(输入源行)真机四项全验**:① 枚举真实输入(HDMI 1-4 / Apple TV(CEC) / 电视 / eARC,TvInputManager loadLabel 友好名);② 渲染置顶输入行;③ 焦点(上下进出 app 行、左右穿行,活动/非活动变暗,全程不丢焦——输入行作为普通 Row 复用整套索引推导账本);④ 切换(选中 → 索尼 com.sony.dtv.tvlin 显示输入源,HDCP 挡截图=真实内容)。代码评审 Approved。
+- Task G 的「星期跟系统语言」真机确认(中文「周二」)。
+- **UnitedU 保留在 TV**(与 TvHome 共存、非默认桌面,留作真机测试)。TV 无线调试仍开(FYI:开发者选项可关)。
+- Task H 延后小项 → M4:HDMI-CEC 父子去重、per-input 隐藏/改名(复用修改标题);Inputs.launch 冗余 enumerate 为 polish。
+
+**M2 里程碑达成**:主题收敛 + 设置页 + 卡片三档 + 主题色 + 时钟 + 输入源行,全部实机验证,推送 github.com/GordonWang1878/UnitedU-launcher。
