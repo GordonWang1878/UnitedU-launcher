@@ -74,6 +74,7 @@
     <string name="settings_card_large">大</string>
     <string name="settings_card_medium">中</string>
     <string name="settings_card_small">小</string>
+    <string name="settings_show_titles">卡片標題</string>
     <string name="settings_show_input_row">輸入源行</string>
     <string name="settings_theme_color">主題色</string>
     <string name="settings_follow_wallpaper">跟隨桌布主色</string>

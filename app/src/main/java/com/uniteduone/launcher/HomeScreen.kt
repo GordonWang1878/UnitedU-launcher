@@ -56,6 +56,9 @@ fun HomeScreen(
     menuFromGear: Boolean = true,
     showDate: Boolean = true,
     cardsPerRow: Int = 6,
+    /** 卡片标题全局开关(design §2)。开着时卡片下方多一行标题,行高随之增加
+     *  (见 Theme.cardMetrics 的 titleHeight),纵向位移沿用同一套自算逻辑。 */
+    showTitles: Boolean = false,
     /** 输入源行开关(design §2,默认关)。开着且真机枚举到硬件输入时,在应用行**上方**
      *  多渲染一行输入源;它以普通行的身份加进纵向焦点账本,种类差异只影响点击行为与行图标。 */
     showInputRow: Boolean = false,
@@ -66,7 +69,7 @@ fun HomeScreen(
 ) {
     val ctx = LocalContext.current
     // 卡片档位尺寸:6=当前标定常量原样(零回归),5/8 按跨度守恒推导。见 Theme.cardMetrics。
-    val metrics = Theme.cardMetrics(cardsPerRow)
+    val metrics = Theme.cardMetrics(cardsPerRow, showTitles)
     // 枚举应用 + 解码全部横幅是重活,放到 IO 线程,别拖慢首帧
     // (冷启动实测 2.0–2.3s,Projectivy 是 1.45s)。
     // 用 null 区分「还在加载」和「真的空」,否则每次冷启动和每次退出编辑都会闪一句求救文案
@@ -74,7 +77,11 @@ fun HomeScreen(
     // 新数据到达前**旧画面原样留着**——不会像 key(revision) 那样先黑一下再重建。
     // showInputRow 也作 key:设置页改了这个开关后 leaveSettings() 会 revision++,
     // 这里本就会重跑;带上它是白纸黑字,不依赖「revision 一定跟着变」这条间接约束。
-    val loaded by produceState<List<Row>?>(initialValue = null, ctx, revision, showInputRow) {
+    // titles.json 与 rows 同一趟 IO 读出,配成一对:标题开关关着时 titles 仍会被读到但不渲染
+    // (显示与否只由 showTitles 决定,不进 key——开关切换不必重读数据,只是换一种渲不渲染)。
+    val loaded by produceState<Pair<List<Row>, Map<String, String>>?>(
+        initialValue = null, ctx, revision, showInputRow,
+    ) {
         value = withContext(Dispatchers.IO) {
             val appRows = runCatching { buildRows(ctx) }.getOrDefault(emptyList())
             // 输入源行放**最上面**:design §2 把「输入源」当独立顶层类目,置顶与之相符;
@@ -82,10 +89,13 @@ fun HomeScreen(
             // 枚举为空(非电视 / 没有硬件输入)时返回 null,这一行干脆不存在 —— 焦点账本
             // 只认非空行,不会挂空 requester(见 buildRows 结尾那条不变量)。
             val inputRow = if (showInputRow) runCatching { buildInputRow(ctx) }.getOrNull() else null
-            if (inputRow != null) listOf(inputRow) + appRows else appRows
+            val rows = if (inputRow != null) listOf(inputRow) + appRows else appRows
+            val titles = runCatching { Titles.read(ctx) }.getOrDefault(emptyMap())
+            rows to titles
         }
     }
-    val rows = loaded.orEmpty()
+    val rows = loaded?.first.orEmpty()
+    val titles = loaded?.second.orEmpty()
     // 开机后焦点要自己落到第一张卡片上,否则方向键第一下没有反应。
     val firstCard = remember { FocusRequester() }
     // 每行一个 requester,挂在「这一行的目标格」上 —— 用来把焦点**还原到离开前那张卡**。
@@ -266,6 +276,8 @@ fun HomeScreen(
                     row = row,
                     metrics = metrics,
                     highlight = highlight,
+                    showTitles = showTitles,
+                    titles = titles,
                     firstCard = if (rowIndex == 0) firstCard else null,
                     active = rowIndex == activeRowSafe,
                     rowRequester = rowFocus.getOrNull(rowIndex),
@@ -347,6 +359,9 @@ private fun CategoryRow(
     metrics: CardMetrics,
     /** highlight 主题色:行标题文字色 + 卡片呼吸光晕色。 */
     highlight: Color,
+    /** 卡片标题全局开关 + 自定义标题表(design §2);输入源行不受它影响,见下方 AppCard 调用。 */
+    showTitles: Boolean,
+    titles: Map<String, String>,
     firstCard: FocusRequester?,
     active: Boolean,
     rowRequester: FocusRequester?,
@@ -417,6 +432,9 @@ private fun CategoryRow(
                     app = app,
                     metrics = metrics,
                     glowColor = highlight,
+                    // 标题开关为全局(design §2.2):输入源行不显示,自定义标题也一样受它约束。
+                    title = if (showTitles && row.kind == RowKind.APPS) (titles[app.packageName] ?: app.label) else null,
+                    fallbackColor = app.fallbackColor?.let { Color(it) },
                     onClick = {
                         // 唯一按种类分流的地方:应用行启动包,输入源行切信号源
                         //(packageName 里存的是输入 id)。其余焦点/渲染全部与种类无关。

@@ -89,7 +89,10 @@ object Apps {
             runCatching { ri.loadLabel(pm)?.toString() }.getOrNull().orEmpty()
         } else ""
         if (withBitmaps != null && pkg !in withBitmaps) {
-            return AppEntry(pkg, label, card = null, isWide = false)
+            return AppEntry(
+                pkg, label, card = null, isWide = false,
+                firstInstallTime = runCatching { pm.getPackageInfo(pkg, 0).firstInstallTime }.getOrDefault(0L),
+            )
         }
         val custom = Paths.iconFor(ctx, pkg).takeIf { it.exists() }
             ?.let { runCatching { decodeScaled(it.absolutePath, CARD_W, CARD_H) }.getOrNull() }
@@ -100,11 +103,21 @@ object Apps {
             drawableOf(ri.activityInfo.loadBanner(pm) ?: ri.activityInfo.loadLogo(pm))
         }.getOrNull()?.takeIf { it.width.toFloat() / it.height.coerceAtLeast(1) in 1.4f..2.2f }
         val bmp = custom ?: banner ?: runCatching { drawableOf(ri.loadIcon(pm)) }.getOrNull()
+        val icon = if (custom == null && banner == null) bmp else null
+        // 无横幅回落:图标主色铺 16:9 底(design §2)。Palette 在 IO 线程跑(load 本来就在 IO)。
+        val fallbackColor = icon?.let { b ->
+            runCatching { androidx.palette.graphics.Palette.from(b).generate() }.getOrNull()?.let { p ->
+                p.getDominantColor(0).takeIf { it != 0 } ?: p.getVibrantColor(0).takeIf { it != 0 }
+            }
+        }
+        val firstInstall = runCatching { pm.getPackageInfo(pkg, 0).firstInstallTime }.getOrDefault(0L)
         return AppEntry(
             packageName = pkg,
             label = label,
             card = bmp,
             isWide = custom != null || banner != null,
+            fallbackColor = fallbackColor,
+            firstInstallTime = firstInstall,
         )
     }
 

@@ -49,10 +49,17 @@ fun EditScreen(
     focusNonce: Int = 0,
     revision: Int = 0,
     cardsPerRow: Int = 6,
+    /** 卡片标题全局开关(design §2):编辑页与首页共用同一份 titles.json,标题同样显示——
+     *  编辑时看得见名字更好认。 */
+    showTitles: Boolean = false,
 ) {
     val ctx = LocalContext.current
     // 与首页同一套卡片档位尺寸,编辑页的卡片才会和首页一样大。见 Theme.cardMetrics。
-    val metrics = Theme.cardMetrics(cardsPerRow)
+    val metrics = Theme.cardMetrics(cardsPerRow, showTitles)
+    // 自定义标题表,revision 变化(改过标题)时重读;与首页同一份数据源。
+    val titles by produceState(emptyMap<String, String>(), revision) {
+        value = withContext(Dispatchers.IO) { Titles.read(ctx) }
+    }
     var rows by remember { mutableStateOf(Layout.read(ctx).map { it.first to it.second.toMutableList() }) }
     var picking by remember { mutableStateOf<Int?>(null) }        // 正在给第几行加应用
     var acting by remember { mutableStateOf<Pair<Int, Int>?>(null) } // (行, 位置) 的操作菜单
@@ -305,6 +312,8 @@ fun EditScreen(
                                 AppCard(
                                     app = app,
                                     metrics = metrics,
+                                    title = if (showTitles) (titles[pkg] ?: app.label) else null,
+                                    fallbackColor = app.fallbackColor?.let { Color(it) },
                                     onClick = { acting = ri to pi },
                                     modifier = fm,
                                     onFocusChange = tell,

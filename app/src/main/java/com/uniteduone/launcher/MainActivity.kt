@@ -204,6 +204,7 @@ class MainActivity : ComponentActivity() {
                     focusNonce = focusNonce,
                     revision = revision,
                     cardsPerRow = homeSettings.cardsPerRow,
+                    showTitles = homeSettings.showTitles,
                 )
             } else if (settings) {
                 SettingsScreen(
@@ -222,6 +223,7 @@ class MainActivity : ComponentActivity() {
                     menuFromGear = menuFromGear,
                     showDate = homeSettings.showDate,
                     cardsPerRow = homeSettings.cardsPerRow,
+                    showTitles = homeSettings.showTitles,
                     showInputRow = homeSettings.showInputRow,
                     accent = themeColors.accent,
                     highlight = themeColors.highlight,

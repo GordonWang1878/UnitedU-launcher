@@ -9,6 +9,10 @@ data class AppEntry(
     val card: Bitmap?,
     /** true = 接近 16:9 的横幅,铺满卡片;false = 方形图标,居中留边(Projectivy 也是这么摆的)。 */
     val isWide: Boolean,
+    /** 无横幅回落卡的底色(图标主色,ARGB);有横幅/自定义图时 null。 */
+    val fallbackColor: Int? = null,
+    /** 装机时间(epoch ms),给「新应用」判据用;查不到为 0。 */
+    val firstInstallTime: Long = 0L,
 )
 
 /** 一行的种类:普通应用行,或电视输入源行(design §2)。

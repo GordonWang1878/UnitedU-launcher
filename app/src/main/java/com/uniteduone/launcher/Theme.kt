@@ -7,6 +7,7 @@ import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * 一档卡片布局的全部尺寸(随「每行张数」变化的那些)。
@@ -23,6 +24,8 @@ data class CardMetrics(
     val rowPitch: Dp,
     /** 第一行卡片顶到内容顶的距离,同样只用于 overflow 计算。 */
     val firstCardTop: Dp,
+    /** 标题行占的高度(开关关 = 0),已计入 rowPitch。 */
+    val titleHeight: Dp = 0.dp,
 )
 
 /** 全部视觉常量集中在这里,对应 docs/DESIGN-custom-launcher.md §4 的规格表。 */
@@ -142,6 +145,10 @@ object Theme {
     // 注意参考图里**正文比行图标高 3.33px**,而我们两者齐平,所以这里以正文为基准
     // (图标字形本来就不是同一个,拿它当基准会把正文推错位)。
     val RowTitleGap = 2.3.dp
+    /** 卡片标题(design §2,Gordon 定放卡片下方):卡底到文字的间距、一行文字的高度、字号。 */
+    val CardTitleGap = 6.dp
+    val CardTitleLine = 18.dp
+    val CardTitleSize = 13.sp
     val SidePadding = 84.5.dp   // 复审三轮实测参考左边缘 168.4/168.6px(85dp 给出 169.5px)
     val TopPadding = 195.3.dp   // 与 RowTitleGap/RowSpacing 联立解出:第一行卡顶落在 483.4px
     /** 行内上下留白:要放得下聚焦后放大 31% 的卡片,否则会被行高裁掉。 */
@@ -178,7 +185,9 @@ object Theme {
      *   所以 `rowPitch(N) = RowPitch + (cardHeight(N) - CardHeight)`。
      *   卡「顶」的位置不受卡高影响,故 [FirstCardTop] 跨档不变。
      */
-    fun cardMetrics(cardsPerRow: Int): CardMetrics {
+    fun cardMetrics(cardsPerRow: Int, showTitles: Boolean = false): CardMetrics {
+        // 标题开关加的行高,与档位无关,两条返回路径共用同一个值。
+        val titleHeight = if (showTitles) CardTitleGap + CardTitleLine else 0.dp
         // 6 与任何意外值都走中档:原始常量原样,保证与本次改动前逐像素一致。
         if (cardsPerRow != 5 && cardsPerRow != 8) {
             return CardMetrics(
@@ -187,8 +196,9 @@ object Theme {
                 cardCorner = CardCorner,
                 cardSpacing = CardSpacing,
                 glowRadius = GlowRadius,
-                rowPitch = RowPitch,
+                rowPitch = RowPitch + titleHeight,
                 firstCardTop = FirstCardTop,
+                titleHeight = titleHeight,
             )
         }
         val span = CardWidth * 6 + CardSpacing * 5           // 6 张时的可见跨度 S = 811.0dp
@@ -201,8 +211,9 @@ object Theme {
             cardCorner = CardCorner * f,
             cardSpacing = CardSpacing,                        // 跨档不变
             glowRadius = GlowRadius * f,
-            rowPitch = RowPitch + (cardHeight - CardHeight),  // 只有卡高随档变
+            rowPitch = RowPitch + (cardHeight - CardHeight) + titleHeight,  // 只有卡高随档变
             firstCardTop = FirstCardTop,                      // 卡顶位置与卡高无关
+            titleHeight = titleHeight,
         )
     }
 
