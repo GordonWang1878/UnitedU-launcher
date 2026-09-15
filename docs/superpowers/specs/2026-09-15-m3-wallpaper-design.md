@@ -65,7 +65,8 @@ LaunchedEffect(homeSettings.wallpaperRotateMs, homeSettings.wallpaperRotatedAt) 
 }
 ```
 - `rotationDelayMs(rotatedAt, interval, now) = (rotatedAt + interval - now).coerceIn(0, interval)`:重启后按剩余时间续等;`rotatedAt` 在未来(时钟回拨)也最多等一个间隔。
-- `rotate(ctx)`:重读 settings → **重扫目录**(复用屏保「进入时重扫」逻辑)→ `nextWallpaper(names, current)`(按名排序,当前的下一张,循环;当前不在列表 → 第一张)→ 写 `wallpaperFile` + `wallpaperRotatedAt = now` → **返回「是否写盘成功」,不是「是否换了图」**。少于 2 张:只刷新 `rotatedAt`、不换图,但仍返回 true —— `settingsRevision++` 让 effect 拿到新 `rotatedAt` 重启;若按「换了图才通知」写,单张图库时 key 不变、effect 结束,轮播从此停转,直到别的事件碰巧重读 settings(铁律 6 的变体:effect 的续命信号必须由它自己的 key 承载)。写盘失败返回 false,effect 自然结束,下次重读 settings 再试。
+- `rotate(ctx)`:重读 settings → **重扫目录**(复用屏保「进入时重扫」逻辑)→ `nextWallpaper(names, current)`(按名排序,当前的下一张,循环;当前不在列表 → 第一张)→ 写 `wallpaperFile` + `wallpaperRotatedAt = now` → **返回「是否写盘成功」,不是「是否换了图」**。少于 2 张:只刷新 `rotatedAt`、不换图,但仍返回 true —— `settingsRevision++` 让 effect 拿到新 `rotatedAt` 重启;若按「换了图才通知」写,单张图库时 key 不变、effect 结束,轮播从此停转,直到别的事件碰巧重读 settings(铁律 6 的变体:effect 的续命信号必须由它自己的 key 承载)。写盘失败返回 false,effect 自然结束;**不会**因单纯重读 settings 而恢复(key 是值不是计数器,重读到相同值不重启),要等 `rotateMs`/`rotatedAt` 真变(选图、改间隔、重启)。写失败意味着外置存储没了、图库也没了,可接受(T6 评审纠正原文)。
+- **设置页开着时不轮播**(T6 评审补):`SettingsScreen` 持整份 Settings 快照、每次改动整对象回写,后台轮播写进去的字段会被下一次按键覆盖(壁纸来回翻)。effect 的 key 与守卫同时加 `settings`;`leaveSettings()` 的 `revision++` 让它重启、过期的一拍在退出时补上。根治(设置页写前重读、只改自己那个字段)在 T8 集成时做。
 - 5 分钟一次写几百字节的 `settings.json`(原子写),可接受。
 - 待机/屏保盖在壁纸上时轮播照常,只是看不见;不额外暂停。
 
