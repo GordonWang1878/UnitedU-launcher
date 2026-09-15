@@ -364,7 +364,7 @@ fun Wallpaper(ctx: Context) {
             // 于是 ensureDefaultWallpaper 每次都直接 return —— 结果是永久黑屏。
             // 解不出来就当没有,回落到 APK 里内置的那张。
             decoded ?: runCatching {
-                ctx.assets.open("default-wallpaper.jpg").use { input ->
+                ctx.assets.open("wallpapers/00-neutral.jpg").use { input ->
                     android.graphics.BitmapFactory.decodeStream(input)
                 }
             }.getOrNull()
@@ -600,7 +600,7 @@ private fun ensureDefaultWallpaper(ctx: Context) {
     // 截断文件,而它一旦存在就永不重写 → 永久黑底,且这正是「全新安装」的恢复路径。
     val tmp = java.io.File(dst.parentFile, "wallpaper.default.tmp")
     runCatching {
-        ctx.assets.open("default-wallpaper.jpg").use { input ->
+        ctx.assets.open("wallpapers/00-neutral.jpg").use { input ->
             tmp.outputStream().use { out -> input.copyTo(out); out.flush(); out.fd.sync() }
         }
         check(Apps.isDecodableImage(tmp.absolutePath))
