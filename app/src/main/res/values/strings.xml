@@ -7,6 +7,8 @@
     <string name="menu_back_to_close">按返回键关闭</string>
     <string name="menu_edit">编辑桌面</string>
     <string name="menu_edit_desc">增删应用、调整顺序、换卡片图</string>
+    <string name="menu_settings">UnitedU 设置</string>
+    <string name="menu_settings_desc">行数、卡片、主题色、待机</string>
     <string name="menu_wallpaper">换壁纸</string>
     <string name="menu_wallpaper_desc">选一张图片替换背景</string>
     <string name="menu_screensaver">屏保图库</string>
@@ -54,6 +56,40 @@
     <string name="picker_screensaver_title">屏保图库</string>
     <string name="picker_no_screensavers">还没有屏保图片</string>
     <string name="picker_adb_hint_screensaver">用 adb push 添加图片到\nfiles/library/screensavers/ 目录</string>
+
+    <!-- settings_* : UnitedU 设置页(分组带标题) -->
+    <string name="settings_title">UnitedU 设置</string>
+    <string name="settings_group_layout">布局</string>
+    <string name="settings_group_theme">主题</string>
+    <string name="settings_group_clock">时钟</string>
+    <string name="settings_group_standby">待机</string>
+    <string name="settings_rows">行数</string>
+    <string name="settings_card_size">卡片大小</string>
+    <string name="settings_card_large">大</string>
+    <string name="settings_card_medium">中</string>
+    <string name="settings_card_small">小</string>
+    <string name="settings_show_titles">卡片标题</string>
+    <string name="settings_show_input_row">输入源行</string>
+    <string name="settings_theme_color">主题色</string>
+    <string name="settings_follow_wallpaper">跟随壁纸主色</string>
+    <string name="settings_show_date">显示日期</string>
+    <string name="settings_idle_after">待机时长</string>
+    <string name="settings_idle_off">关</string>
+    <string name="settings_idle_minutes">%1$d 分</string>
+    <string name="settings_idle_content">待机显示</string>
+    <string name="settings_idle_clock">时钟</string>
+    <string name="settings_idle_black">全黑</string>
+    <string name="settings_idle_nofade">不淡出</string>
+    <string name="settings_on">开</string>
+    <string name="settings_off">关</string>
+
+    <!-- preset_* : 主题色预设名(门 2「沉稳」一套) -->
+    <string name="preset_gold">金</string>
+    <string name="preset_champagne">香槟</string>
+    <string name="preset_blue">蓝</string>
+    <string name="preset_purple">紫</string>
+    <string name="preset_graphite">石墨</string>
+    <string name="preset_green">绿</string>
 
     <!-- toast_* : 一次性提示 -->
     <string name="toast_cant_open_app">打不开「%1$s」,它可能已被卸载</string>

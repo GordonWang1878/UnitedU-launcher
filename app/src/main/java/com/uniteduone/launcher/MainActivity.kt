@@ -34,6 +34,8 @@ class MainActivity : ComponentActivity() {
     private var focusNonce by mutableStateOf(0)
     private var menuOpen by mutableStateOf(false)
     private var editing by mutableStateOf(false)
+    /** UnitedU 设置页浮层是否打开(与 [editing] 同构:全屏替换首页那一层)。 */
+    private var settings by mutableStateOf(false)
     /** 换过图/改过布局后 +1,用来强制界面重新读取 */
     private var revision by mutableStateOf(0)
     /** 内置图片选择器:null=隐藏, [PICK_WALLPAPER]=选壁纸, 其他=选该包的卡片图。
@@ -79,9 +81,9 @@ class MainActivity : ComponentActivity() {
             // Activity 级的 —— 两头不占的结果是:编辑界面画面全亮(看着醒着),
             // 第一下按键却被当唤醒吃掉,症状就是「按了没反应」。
             // 长时间停在这两个界面由电视自己的系统屏保接管(实测存在 DreamActivity)。
-            LaunchedEffect(touched, editing, menuOpen) {
+            LaunchedEffect(touched, editing, menuOpen, settings) {
                 idle = false
-                if (editing || menuOpen) return@LaunchedEffect
+                if (editing || menuOpen || settings) return@LaunchedEffect
                 delay(Theme.IdleAfterMs)
                 idle = true
             }
@@ -144,6 +146,11 @@ class MainActivity : ComponentActivity() {
                     focusNonce = focusNonce,
                     revision = revision,
                 )
+            } else if (settings) {
+                SettingsScreen(
+                    onExit = ::leaveSettings,
+                    focusNonce = focusNonce,
+                )
             } else {
                 HomeScreen(
                     idle = idle,
@@ -189,6 +196,7 @@ class MainActivity : ComponentActivity() {
         ) {
             if (pickerTarget != null) return true
             if (editing) { leaveEdit(); return true }
+            if (settings) { leaveSettings(); return true }
             window.decorView.playSoundEffect(SoundEffectConstants.NAVIGATION_DOWN)
             if (menuOpen) closeMenu() else { menuFromGear = false; menuOpen = true }
             return true
@@ -220,6 +228,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         leaveEdit()
+        leaveSettings()
         closeMenu()
     }
 
@@ -235,6 +244,14 @@ class MainActivity : ComponentActivity() {
 
     private fun leaveEdit() {
         if (editing) { editing = false; revision++ }
+    }
+
+    /**
+     * 关设置页**只有这一条路**。关掉后 focusNonce++ 让首页重新拿回焦点(与各选择器 onDismiss 同理);
+     * 不 revision++:Task C 的设置还没让首页生效(D–I 才接),没必要触发首页重读数据。
+     */
+    private fun leaveSettings() {
+        if (settings) { settings = false; focusNonce++ }
     }
 
     override fun onResume() {
@@ -254,6 +271,7 @@ class MainActivity : ComponentActivity() {
 
     private fun menuItems() = listOf(
         MenuItem(getString(R.string.menu_edit), getString(R.string.menu_edit_desc)) { editing = true },
+        MenuItem(getString(R.string.menu_settings), getString(R.string.menu_settings_desc)) { settings = true },
         MenuItem(getString(R.string.menu_wallpaper), getString(R.string.menu_wallpaper_desc)) { pickWallpaper() },
         MenuItem(getString(R.string.menu_screensaver), getString(R.string.menu_screensaver_desc)) { openScreensaverPool() },
         MenuItem(getString(R.string.menu_system_settings), getString(R.string.menu_system_settings_desc)) { open(Intent(Settings.ACTION_SETTINGS)) },
@@ -368,6 +386,7 @@ class MainActivity : ComponentActivity() {
                 when {
                     menuOpen -> closeMenu()
                     editing -> leaveEdit()
+                    settings -> leaveSettings()
                     // 桌面根状态:什么都不做,绝不 finish
                 }
             }
