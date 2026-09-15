@@ -133,11 +133,11 @@ licenses 目录里手写了 `android-sdk-license` 的三个 hash,否则 AGP 认�
 
 ```
 /sdcard/Android/data/com.gordonwang.tvhome/files/
-├── wallpaper.jpg            # 壁纸,已在电脑上处理好,桌面只负责显示
 ├── layout.json              # 三行的成员与顺序,首次启动自动生成默认值
 ├── icons/<包名>.png         # 覆盖某个应用的卡片图,存在即生效
 └── library/
     ├── wallpapers/          # 壁纸池:内置 6 张首次启动铺入;当前壁纸与轮播设置在 settings.json
+    │                        # (M3 起根目录的 wallpaper.jpg 迁入这里的 legacy-wallpaper.jpg,根目录不再有)
     ├── screensavers/        # 屏保轮播池:所有图片参与轮播(30s 一张,交叉淡入+Ken Burns)
     └── cards/               # 内置选择器的卡片图候选池
 ```
