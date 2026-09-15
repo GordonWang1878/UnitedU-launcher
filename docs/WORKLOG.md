@@ -293,6 +293,7 @@ raw `getbbox()` 判 FAIL,但差在 clock bbox 外的 1168 个像素逐一核实*
 - **M4b(外观)**:输入源行不渲染标题,但纵向溢出公式对每一行都按 `titleHeight` 算——两个开关都开着、焦点落在输入源行下方时整列多上移一个 `titleHeight`(纯外观,M4b 重做输入源行时一并处理)。
 - **架构跟进(终审建议)**:把首页焦点记忆(`tgtRow/tgtIdx`)提升到 `setContent` 层 `remember` 的一个 holder 里,让每个**替换**首页的界面(四个选择器、编辑页、设置页、导入页)回来都能还原,从而退役 `initialTarget`/`seedTarget`/`onInitialTargetConsumed` 这套接线及它缓解的两条延后项(picker 类浮层回来落 (0,0);`initialTarget` 只覆盖「改图标」一条路)。今日实况:「移动位置 → 编辑页 → 返回」落回 (0,0),因为 `leaveEdit()` 会清种子。
 - **既有问题,非 M4 引入**:设置页能改 `Settings.idleAfterMs` / `idleContent`,但没有任何地方消费它们——`MainActivity` 仍是 `delay(Theme.IdleAfterMs)` 常量。M4 之外另立跟进。
+- **同根小项(A5 的编辑页兄弟,留手)**:`EditScreen` 的「新」角标以 `seenAtBefore = newAppsSeenAt` 为基准,基线写入失败(外置存储晚挂载)时它是 0,首次打开「添加应用」列表会把全部候选标「新」;`:573` 的写入成功后自愈。首页计数已在终审修复波加了 `== 0L → 0` 门控,列表侧未加。
 
 ### 注记
 - `titles.json` 与 `layout.json` 各自独立存储(同一应用在两行共用一个标题,零迁移成本)。
@@ -308,3 +309,17 @@ raw `getbbox()` 判 FAIL,但差在 clock bbox 外的 1168 个像素逐一核实*
 - **工具链事故一则**:T4 修复轮的一个 opus 实施代理在验证阶段撞上 `claude-opus-5` 的 API 403 中途死亡,改动留在 worktree 未提交;由一个 sonnet 代理从这份未提交的 diff 接手,核对后补完验证并提交。后续若当晚再撞 403,优先换 sonnet/fable 而非 opus。
 
 spec 状态行已改为「已实施(commit `8cc5134`),待真机验」(T6 时为 `65b70d5`,修复波次后更新)。
+
+## 2026-09-16 · M4 合并进 main(本地,未推送)+ 通宵委托收口
+
+- 合并 `m4-card-menu`(HEAD `5c96f3e`,merge-base 就是 main `19fe918`,无冲突)→ main `bb629d1`。合并树 `testReleaseUnitTest assembleRelease` 绿,58 单测。
+- 终审(fable,全分支)判「可合并,需修复」:3 项 Important(长按菜单在无焦点事件的重载后可能作用到错的卡片——`focusedCard` 改为按 `focusedCell` 推导而非缓存;改名对话框 BACK 收起 IME 后确定键失效——确定键现在保存;待机计时忽略卡片菜单/改名对话框——加入 key+guard)+ 7 项 Minor 一次修复波落地(`8cc5134` 代码、`5c96f3e` 文档),scoped 复审判「可合并」,残留 3 处文档行(计划零回归不变量 ×2、spec 单测函数名)与 1 条延后备案在本 commit 补齐。细节见 m4 分支 WORKLOG 的「M4 收官」节与 `.superpowers/sdd/2026-09-15-m4-card-menu/`。
+- 通宵委托(Gordon 2026-09-15 夜「未来 12 小时都交给你」)四项:M3 合并 ✅(`e1a6a4e`)、M6 合并 ✅(`61e5c73`)、M4 计划+实施+终审+合并 ✅(`bb629d1`)、WORKLOG 同步 + 醒来清单 ✅(本节)。全程零 push、零提问卡;所有裁定以 `Ruling:` 落在三份 ledger。
+- 分支/worktree 现状:根目录已切回 `main`(合并与构建在临时 worktree `.claude/worktrees/main` 做完后删除);`m3-wallpaper`/`m3-final`/`m3-engine`/`m3-settings`/`m6-upload`/`m4-card-menu` 全部已并入 main,可删;`worktree-agent-a21dcfb91b5103162` 持有 M5 spike(`.superpowers/spike-m5/unitedu-dream-spike.apk`),M5 验完再删。
+
+### 醒来看的清单(只列必须 Gordon 做的)
+1. **推送**:main 领先 origin 70 个 commit(M3+M6+M4),确认后由我 `git push origin main`。
+2. **M5 电视 spike**:电视开无线调试 → 配对码给我 → 我装 `.superpowers/spike-m5/unitedu-dream-spike.apk` → 你看系统「屏保」列表是否出现 UnitedU。
+3. **T9 真机调参**(M3):设置页「壁纸」组用滑块调模糊/压暗到满意,报我数值改成默认。
+4. **M6 手机扫码**:齿轮 → 导入图片 → 手机扫码 → 传一张壁纸/删一张,看电视端计数与首页壁纸。
+5. **M4 真机手感**:长按 0.4 s 是否合适;索尼输入法改名输中文;IME 收起后确定键保存;改名时 IME 的返回键要按几次;卸载走系统确认页是否正常。
