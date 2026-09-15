@@ -15,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.*
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +41,11 @@ class MainActivity : ComponentActivity() {
     private var settings by mutableStateOf(false)
     /** 换过图/改过布局后 +1,用来强制界面重新读取 */
     private var revision by mutableStateOf(0)
+    /**
+     * 只重读 settings.json、**不重建首页行**的计数器。壁纸选图 / 轮播 / 滑块实时预览走它:
+     * 这些事每 5 分钟就来一次,若走 revision 会连 layout.json 与全部卡片图一起重读一遍。
+     */
+    private var settingsRevision by mutableStateOf(0)
     /** 内置图片选择器:null=隐藏, [PICK_WALLPAPER]=选壁纸, 其他=选该包的卡片图。
      *  X-plore 的 GET_CONTENT 不响应 D-pad(2026-09-11 真机确认),所以换壁纸/换图标
      *  改为用内置选择器,图片通过 adb push 到 files/library/ 预先放好。 */
@@ -83,7 +89,7 @@ class MainActivity : ComponentActivity() {
             // settingsRevision。注意:这里不能显式写 Settings 类型名,本文件已经
             // `import android.provider.Settings`,裸写 Settings 会撞上那个系统类;
             // 靠类型推断绕开,只取用到的字段(showDate)。
-            val homeSettings = remember(revision) { SettingsStore.read(this@MainActivity) }
+            val homeSettings = remember(revision, settingsRevision) { SettingsStore.read(this@MainActivity) }
             // 主题色:选中预设的 accent(齿轮)+ highlight(时钟/光晕/行标题)。
             // followWallpaperColor 打开时,accent 改从当前壁纸主色提取、highlight 由它混白推得
             // (与非金预设同一算法);解不出色或没壁纸就回落到预设。壁纸解码放 IO 线程,
@@ -93,14 +99,20 @@ class MainActivity : ComponentActivity() {
                 ThemePresets.byId(homeSettings.themePresetId).colors()
             }
             val wallpaperColors by produceState<ThemeColors?>(
-                null, homeSettings.followWallpaperColor, revision,
+                null, homeSettings.followWallpaperColor, homeSettings.wallpaperFile, revision,
             ) {
                 value = if (!homeSettings.followWallpaperColor) null
-                else withContext(Dispatchers.IO) { wallpaperThemeColors(this@MainActivity) }
+                else withContext(Dispatchers.IO) {
+                    wallpaperThemeColors(this@MainActivity, homeSettings.wallpaperFile)
+                }
             }
             val themeColors =
                 if (homeSettings.followWallpaperColor) wallpaperColors ?: presetColors
                 else presetColors
+            // 壁纸渲染输入:文件名 + 主题化参数;accent 只在主题化时参与(见 wallpaperSpecOf)。
+            val wallpaperSpec = remember(homeSettings, themeColors) {
+                wallpaperSpecOf(homeSettings, themeColors.accent.toArgb() and 0xFFFFFF)
+            }
             val touched = lastInput
             // **编辑界面和菜单开着时不进入待机。**淡出只做在首页那一层,而吞掉唤醒键是
             // Activity 级的 —— 两头不占的结果是:编辑界面画面全亮(看着醒着),
@@ -122,7 +134,7 @@ class MainActivity : ComponentActivity() {
                     .fillMaxSize()
                     .background(androidx.compose.ui.graphics.Color.Black)
             ) {
-            Wallpaper(this@MainActivity)
+            Wallpaper(this@MainActivity, wallpaperSpec)
             Screensaver(this@MainActivity, idle)
             val pt = pickerTarget
             if (pt == PICK_WALLPAPER) {
@@ -342,19 +354,10 @@ class MainActivity : ComponentActivity() {
         val target = pickerTarget ?: return
         pickerTarget = null
         if (target == PICK_WALLPAPER) {
-            val dest = Paths.wallpaper(this)
-            val tmp = java.io.File(dest.parentFile, "wallpaper.tmp")
-            val ok = runCatching {
-                file.inputStream().use { input ->
-                    tmp.outputStream().use { out -> input.copyTo(out); out.flush(); out.fd.sync() }
-                }
-                check(Apps.isDecodableImage(tmp.absolutePath))
-                if (!tmp.renameTo(dest)) { dest.delete(); check(tmp.renameTo(dest)) }
-                Paths.wallpaperPng(this).delete()
-            }.isSuccess
-            tmp.delete()
+            // 只记文件名,不复制、不 recreate(recreate 会把焦点打回第一张卡、屏幕黑一下)
+            val ok = Wallpapers.select(this, file)
             toast(getString(if (ok) R.string.toast_wallpaper_changed else R.string.toast_invalid_image))
-            if (ok) recreate()
+            if (ok) settingsRevision++
         } else {
             val dest = Paths.iconFor(this, target)
             val tmp = java.io.File(dest.parentFile, "$target.tmp")
@@ -435,12 +438,11 @@ class MainActivity : ComponentActivity() {
  * accent 用取到的色,highlight 由 [highlightFrom] 混白 55% 推得 —— 与非金预设 highlight 同一手法。
  * 任何一步落空(没壁纸、解不出、Palette 抽不到色)返回 null,调用方回落到选中预设,绝不崩、绝不留黑。
  *
- * 壁纸文件与解码方式跟 [Wallpaper] 一致(Paths.wallpaper / wallpaperPng + Apps.decodeScaled),
+ * 壁纸文件与解码方式跟 [Wallpaper] 一致(Wallpapers.resolveSource(原图,不是处理后的缓存——否则主题化开着时会自己染自己) + Apps.decodeScaled),
  * 但这里用默认 ARGB_8888 而非 RGBA_F16:Palette 不吃 F16。
  */
-private fun wallpaperThemeColors(ctx: android.content.Context): ThemeColors? {
-    val f = listOf(Paths.wallpaper(ctx), Paths.wallpaperPng(ctx))
-        .firstOrNull { it.exists() } ?: return null
+private fun wallpaperThemeColors(ctx: android.content.Context, wallpaperFile: String): ThemeColors? {
+    val f = Wallpapers.resolveSource(ctx, wallpaperFile) ?: return null
     val bmp = runCatching { Apps.decodeScaled(f.absolutePath, 320, 180) }.getOrNull() ?: return null
     val palette = runCatching { androidx.palette.graphics.Palette.from(bmp).generate() }.getOrNull()
         ?: return null
