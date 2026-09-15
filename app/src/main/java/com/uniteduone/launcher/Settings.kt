@@ -236,7 +236,8 @@ object SettingsStore {
      */
     private val lock = Any()
 
-    fun read(ctx: Context): Settings {
+    // 与 write/update 同一把锁:否则读者可能落在「删旧文件 → 改名」的间隙里看到「没文件」而写回默认值,把写者的结果抹掉
+    fun read(ctx: Context): Settings = synchronized(lock) {
         if (Paths.baseOrNull(ctx) == null) {
             Log.w(TAG, "外部存储没挂上,这次用内存里的默认设置,不写盘")
             return Settings()
@@ -267,7 +268,7 @@ object SettingsStore {
      * @return 是否真的落盘了;调用方(后续任务里的设置页)需要知道失败,
      *   否则界面上改的值下次开机又变回去,用户只会觉得"设置没保存"。
      */
-    fun write(ctx: Context, s: Settings): Boolean = synchronized(lock) {
+    private fun write(ctx: Context, s: Settings): Boolean = synchronized(lock) {
         val base = Paths.baseOrNull(ctx) ?: return false
         val tmp = File(base, "settings.json.tmp")
         return try {

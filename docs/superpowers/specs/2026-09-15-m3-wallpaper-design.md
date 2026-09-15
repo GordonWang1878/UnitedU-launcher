@@ -71,7 +71,7 @@ LaunchedEffect(homeSettings.wallpaperRotateMs, homeSettings.wallpaperRotatedAt, 
 - 待机/屏保盖在壁纸上时轮播照常,只是看不见;不额外暂停。
 
 ### 2.5 显示层(`Wallpaper(ctx, spec)` 从 `HomeScreen.kt` 搬到 `Wallpapers.kt`)
-- `WallpaperSpec(file: String, themed: Boolean, accent: Int /*ARGB,themed=false 时恒 0*/, blur: Int, dim: Int)` 由 `homeSettings` + `themeColors` 组装;`accent` 只在 themed 时参与,避免换预设触发无谓重处理。
+- `WallpaperSpec(file, themed, accentRgb, followColor, blur, dim)` 由 `homeSettings` + **预设** accent 组装;`themed && follow` 时 `followColor = true`、`accentRgb = 0`(`load` 自己取 Palette,见下);`themed && !follow` 时 accent = 预设;`!themed` 时 accent 恒 0——所以换预设、开关跟随都不会触发无谓重处理。
 - `produceState(key = spec)`(`settingsRevision` 只用来重读 settings 组装出新的 spec,不直接当 key):IO 线程 `prepare` → `resolveSource` → 参数全零走原路径(`decodeScaled` RGBA_F16),否则走 §3 管线;都失败回落 APK 内置。`prepare` 刚写进的 `wallpaperFile` 若 spec 里还是空,`load` 补读一次 settings。
 - 换图用 `Crossfade`(`Theme.WallpaperCrossfadeMs = 1500`),新图未就绪前旧图原样留着(与 `revision` 不强制重建的既有原则一致)。
 - 仍住在 `MainActivity.setContent` 顶层,不随编辑页重建。
