@@ -111,8 +111,12 @@ class MainActivity : ComponentActivity() {
                 if (homeSettings.followWallpaperColor) wallpaperColors ?: presetColors
                 else presetColors
             // 壁纸渲染输入:文件名 + 主题化参数;accent 只在主题化时参与(见 wallpaperSpecOf)。
-            val wallpaperSpec = remember(homeSettings, themeColors) {
-                wallpaperSpecOf(homeSettings, themeColors.accent.toArgb() and 0xFFFFFF)
+            // key 用 **presetColors 而不是 themeColors**:跟随壁纸主色时 spec 不带 accent
+            // (followColor = true,由 Wallpapers.load 自己取 Palette 再染),所以 spec 不能
+            // 依赖异步到达的 wallpaperColors——否则换一张图会先用旧主色渲一遍、取色落地后再渲一遍,
+            // 每次轮播两次全量渲染 + 一份永不命中的缓存。
+            val wallpaperSpec = remember(homeSettings, presetColors) {
+                wallpaperSpecOf(homeSettings, presetColors.accent.toArgb() and 0xFFFFFF)
             }
             val touched = lastInput
             // **编辑界面和菜单开着时不进入待机。**淡出只做在首页那一层,而吞掉唤醒键是
@@ -148,7 +152,10 @@ class MainActivity : ComponentActivity() {
                     .fillMaxSize()
                     .background(androidx.compose.ui.graphics.Color.Black)
             ) {
-            Wallpaper(this@MainActivity, wallpaperSpec)
+            // prepare() 在首启/升级那一趟会往 settings.json 写 wallpaperFile,而 homeSettings
+            // 是在此之前读的;不重读的话,从 M2 升上来、开着「跟随壁纸主色」的用户整个首次会话
+            // 都看不到壁纸主色(见 Wallpapers.prepare 的 KDoc)。
+            Wallpaper(this@MainActivity, wallpaperSpec, onSettingsChanged = { settingsRevision++ })
             Screensaver(this@MainActivity, idle)
             val pt = pickerTarget
             if (pt == PICK_WALLPAPER) {
@@ -446,24 +453,20 @@ class MainActivity : ComponentActivity() {
 }
 
 /**
- * followWallpaperColor 打开时,从当前壁纸主色推导四处强调色。**必须在 IO 线程调用**:
- * 会解码一张缩略图(320×180 量级,够 Palette 取色又不占内存)并跑 [androidx.palette.graphics.Palette]。
+ * followWallpaperColor 打开时,从当前壁纸主色推导**四处强调色**(齿轮 / 时钟 / 光晕 / 行标题)。
+ * **必须在 IO 线程调用**:取色会解一张缩略图并跑 Palette(实现见 [Wallpapers.paletteAccent])。
  *
- * 取色优先级:vibrant(有活力的主色)→ 落空再用 dominant(占面积最大的色)。
  * accent 用取到的色,highlight 由 [highlightFrom] 混白 55% 推得 —— 与非金预设 highlight 同一手法。
  * 任何一步落空(没壁纸、解不出、Palette 抽不到色)返回 null,调用方回落到选中预设,绝不崩、绝不留黑。
  *
- * 壁纸文件与解码方式跟 [Wallpaper] 一致(Wallpapers.resolveSource(原图,不是处理后的缓存——否则主题化开着时会自己染自己) + Apps.decodeScaled),
- * 但这里用默认 ARGB_8888 而非 RGBA_F16:Palette 不吃 F16。
+ * **这里只管强调色,不再决定壁纸怎么染**:壁纸那边的主色由 [Wallpapers.load] 在同一趟 IO 里
+ * 自己取(`spec.followColor`),两边取色函数同一个,结果一致;分开之后 spec 不再等这个异步值,
+ * 一张图只渲一次。
  */
-private fun wallpaperThemeColors(ctx: android.content.Context, wallpaperFile: String): ThemeColors? {
-    val f = Wallpapers.resolveSource(ctx, wallpaperFile) ?: return null
-    val bmp = runCatching { Apps.decodeScaled(f.absolutePath, 320, 180) }.getOrNull() ?: return null
-    val palette = runCatching { androidx.palette.graphics.Palette.from(bmp).generate() }.getOrNull()
-        ?: return null
-    val rgb = palette.getVibrantColor(0).takeIf { it != 0 }
-        ?: palette.getDominantColor(0).takeIf { it != 0 }
-        ?: return null
-    val accent = androidx.compose.ui.graphics.Color(rgb)
-    return ThemeColors(accent, highlightFrom(accent))
-}
+private fun wallpaperThemeColors(ctx: android.content.Context, wallpaperFile: String): ThemeColors? =
+    Wallpapers.resolveSource(ctx, wallpaperFile)
+        ?.let { Wallpapers.paletteAccent(ctx, it) }
+        ?.let { rgb ->
+            val accent = androidx.compose.ui.graphics.Color(rgb or 0xFF000000.toInt())
+            ThemeColors(accent, highlightFrom(accent))
+        }

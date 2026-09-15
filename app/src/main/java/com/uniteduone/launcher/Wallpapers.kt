@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -49,11 +50,18 @@ object Wallpapers {
         return libraryImages(ctx).firstOrNull()
     }
 
-    /** 一次性准备:迁移旧根目录壁纸 + 铺入内置 6 张。IO 线程;外置没挂整段跳过。 */
-    fun prepare(ctx: Context) {
-        if (Paths.baseOrNull(ctx) == null) return
-        migrateLegacy(ctx)
-        seedBuiltins(ctx)
+    /**
+     * 一次性准备:迁移旧根目录壁纸 + 铺入内置 6 张。IO 线程;外置没挂整段跳过。
+     * @return **是否真的往 settings.json 写进了 wallpaperFile**。首次启动 / 从 M2 升级
+     *   这一步会写,而 `MainActivity.homeSettings` 是在此之前读的、已经过期——跟随壁纸主色
+     *   的用户整个首次会话都会看到预设色。调用方据此 `settingsRevision++` 让它重读。
+     *   幂等:标记文件 + rename,写过一次之后 `wallpaperFile` 非空,transform 不再改动,返回 false。
+     */
+    fun prepare(ctx: Context): Boolean {
+        if (Paths.baseOrNull(ctx) == null) return false
+        val migrated = migrateLegacy(ctx)
+        val seeded = seedBuiltins(ctx)
+        return migrated || seeded
     }
 
     /**
@@ -61,19 +69,30 @@ object Wallpapers {
      * 若设置里还没指定壁纸就指向它——升级后用户看到的仍是升级前那张。
      * 此后 adb 后门 = push 进 library/wallpapers/ 再在选择器里选(与文档一致)。
      */
-    private fun migrateLegacy(ctx: Context) {
-        val old = listOf(Paths.wallpaper(ctx), Paths.wallpaperPng(ctx)).firstOrNull { it.exists() } ?: return
+    private fun migrateLegacy(ctx: Context): Boolean {
+        val old = listOf(Paths.wallpaper(ctx), Paths.wallpaperPng(ctx)).firstOrNull { it.exists() } ?: return false
         val dest = File(Paths.wallpaperLibrary(ctx), "legacy-wallpaper.${old.extension.lowercase()}")
-        if (!old.renameTo(dest)) { Log.w(TAG, "旧壁纸迁移失败: ${old.name}"); return }
+        if (!old.renameTo(dest)) { Log.w(TAG, "旧壁纸迁移失败: ${old.name}"); return false }
         listOf(Paths.wallpaper(ctx), Paths.wallpaperPng(ctx)).forEach { it.delete() }
-        val s = SettingsStore.read(ctx)
-        if (s.wallpaperFile.isEmpty()) SettingsStore.write(ctx, s.copy(wallpaperFile = dest.name))
+        return pointAtIfUnset(ctx, dest)
     }
 
-    private fun seedBuiltins(ctx: Context) {
+    /**
+     * 「设置里还没指定壁纸就指向 [file]」——持锁的读-改-写(F1),不再「先读再整对象回写」。
+     * @return 是否真的把 `wallpaperFile` 从空改成了它(写失败、或本来就有值 → false)。
+     */
+    private fun pointAtIfUnset(ctx: Context, file: File): Boolean {
+        var changed = false
+        val res = SettingsStore.update(ctx) { s ->
+            if (s.wallpaperFile.isEmpty()) { changed = true; s.copy(wallpaperFile = file.name) } else s
+        }
+        return res != null && changed
+    }
+
+    private fun seedBuiltins(ctx: Context): Boolean {
         val dir = Paths.wallpaperLibrary(ctx)
         val marker = File(dir, SEED_MARKER)
-        if (marker.exists()) return
+        if (marker.exists()) return false
         for (name in BUILTIN_WALLPAPERS) {
             val dst = File(dir, "$BUILTIN_PREFIX$name.jpg")
             if (dst.exists()) continue
@@ -93,18 +112,16 @@ object Wallpapers {
         val seeded = BUILTIN_WALLPAPERS.all { File(dir, "$BUILTIN_PREFIX$it.jpg").isFile }
         if (seeded) runCatching { marker.createNewFile() }
         val defaultFile = File(dir, "$BUILTIN_PREFIX${BUILTIN_WALLPAPERS[0]}.jpg")
-        val s = SettingsStore.read(ctx)
-        if (s.wallpaperFile.isEmpty() && defaultFile.isFile) {
-            SettingsStore.write(ctx, s.copy(wallpaperFile = defaultFile.name))
-        }
+        return defaultFile.isFile && pointAtIfUnset(ctx, defaultFile)
     }
 
     /** 选择器选中:只记文件名 + 重置轮播计时。 */
     fun select(ctx: Context, file: File): Boolean {
         val name = sanitizeWallpaperFileName(file.name)
         if (name.isEmpty() || !Apps.isDecodableImage(file.absolutePath)) return false
-        val s = SettingsStore.read(ctx)
-        return SettingsStore.write(ctx, s.copy(wallpaperFile = name, wallpaperRotatedAt = System.currentTimeMillis()))
+        return SettingsStore.update(ctx) {
+            it.copy(wallpaperFile = name, wallpaperRotatedAt = System.currentTimeMillis())
+        } != null
     }
 
     /**
@@ -114,12 +131,16 @@ object Wallpapers {
      * effect 结束,轮播从此停转(铁律 6 的变体:effect 的续命信号必须由它自己的 key 承载)。
      */
     fun rotate(ctx: Context): Boolean {
-        val s = SettingsStore.read(ctx)
+        // 目录扫描放在 update 外面:它不需要持锁,而锁内该只有读-改-写本身。
         val names = libraryImages(ctx).map { it.name }
-        val next = nextWallpaper(names, s.wallpaperFile) ?: s.wallpaperFile
-        val ok = SettingsStore.write(ctx, s.copy(wallpaperFile = next, wallpaperRotatedAt = System.currentTimeMillis()))
-        if (ok && next != s.wallpaperFile) Log.i(TAG, "壁纸轮播 → $next")
-        return ok
+        var changedTo: String? = null
+        val res = SettingsStore.update(ctx) { s ->
+            val next = nextWallpaper(names, s.wallpaperFile) ?: s.wallpaperFile
+            if (next != s.wallpaperFile) changedTo = next
+            s.copy(wallpaperFile = next, wallpaperRotatedAt = System.currentTimeMillis())
+        }
+        if (res != null && changedTo != null) Log.i(TAG, "壁纸轮播 → $changedTo")
+        return res != null
     }
 
     /** APK 内置默认底:任何路径都失败时的最后一张,保证永远不黑屏。失败必须留痕:
@@ -127,6 +148,23 @@ object Wallpapers {
     fun builtinDefault(ctx: Context): Bitmap? = runCatching {
         ctx.assets.open(DEFAULT_WALLPAPER_ASSET).use { BitmapFactory.decodeStream(it) }
     }.onFailure { Log.w(TAG, "内置默认壁纸解不出来: ${it.message}") }.getOrNull()
+
+    /**
+     * 从一张壁纸**原图**提主色(RGB,不带 alpha);抽不到返回 null。**必须在 IO 线程调用**:
+     * 解一张 320×180 的缩略图(够 Palette 取色又不占内存)再跑 [androidx.palette.graphics.Palette]。
+     *
+     * 取色优先级:vibrant(有活力的主色)→ 落空再用 dominant(占面积最大的色)。
+     * 读原图不读处理后的缓存——否则主题化开着时会自己染自己,一轮轮收敛成单色。
+     * 用默认 ARGB_8888 而非 RGBA_F16:Palette 不吃 F16。任何一步落空都只返回 null,绝不抛。
+     */
+    fun paletteAccent(ctx: Context, src: File): Int? = runCatching {
+        val bmp = Apps.decodeScaled(src.absolutePath, 320, 180) ?: return@runCatching null
+        val palette = androidx.palette.graphics.Palette.from(bmp).generate()
+        val rgb = palette.getVibrantColor(0).takeIf { it != 0 }
+            ?: palette.getDominantColor(0).takeIf { it != 0 }
+            ?: return@runCatching null
+        rgb and 0xFFFFFF
+    }.getOrNull()
 
     private const val OUT_W = 1920
     private const val OUT_H = 1080
@@ -278,20 +316,37 @@ object Wallpapers {
         }.onFailure { Log.w(TAG, "壁纸缓存写入失败: ${it.message}") }
     }
 
+    /**
+     * [load] 的结果。[settingsChanged] = 这一趟 [prepare] 往 settings.json 写了东西,
+     * 调用方必须重读(否则跟随壁纸主色的用户整个首次会话都停在预设色)。
+     */
+    data class Loaded(val bitmap: Bitmap?, val settingsChanged: Boolean)
+
     /** 显示用位图。IO 线程。解不出来回落内置;调用方只在非 null 时换图。 */
-    fun load(ctx: Context, spec: WallpaperSpec): Bitmap? {
-        prepare(ctx)
+    fun load(ctx: Context, spec: WallpaperSpec): Loaded {
+        val settingsChanged = prepare(ctx)
         // prepare 可能刚把 wallpaperFile 写进 settings,而 spec 是拿旧 settings 组装的;补读一次。
         val name = spec.file.ifEmpty { SettingsStore.read(ctx).wallpaperFile }
-        val src = resolveSource(ctx, name) ?: return builtinDefault(ctx)
+        val src = resolveSource(ctx, name) ?: return Loaded(builtinDefault(ctx), settingsChanged)
         // 参数全零完全绕开管线:不解码两次、不写缓存、保留 F16(零回归路径)。
         // 处理失败退回原图而不是黑屏。
-        if (!spec.isIdentity) processed(ctx, src, spec)?.let { return it }
+        if (!spec.isIdentity) {
+            // 跟随壁纸主色:主色在这里就地取,不由 spec 从外面带进来——spec 里带的话,
+            // 取色是异步到达的,每张图都会先用上一张的旧色渲一遍(外加一份没人命中的缓存)。
+            // 取不到色就回落香槟金(与预设同色),绝不因为取色失败而不渲染。
+            val effective =
+                if (spec.followColor) spec.copy(
+                    accentRgb = paletteAccent(ctx, src) ?: (Theme.ChampagneGold.toArgb() and 0xFFFFFF),
+                    followColor = false,
+                ) else spec
+            processed(ctx, src, effective)?.let { return Loaded(it, settingsChanged) }
+        }
         // RGBA_F16 保留 Ultra HDR gain map(与 M1 同);decodeScaled 在 F16 失败时自动回落 8888。
-        return runCatching { Apps.decodeScaled(src.absolutePath, OUT_W, OUT_H, Bitmap.Config.RGBA_F16) }
+        val bmp = runCatching { Apps.decodeScaled(src.absolutePath, OUT_W, OUT_H, Bitmap.Config.RGBA_F16) }
             .onFailure { Log.w(TAG, "壁纸解码失败 ${src.name}: ${it.message}") }
             .getOrNull()
             ?: builtinDefault(ctx)
+        return Loaded(bmp, settingsChanged)
     }
 }
 
@@ -301,11 +356,14 @@ object Wallpapers {
  * key 只有 spec:换图 / 改参数 / 轮播都只换位图;新图就绪前旧图原样留着,再交叉淡入过去。
  */
 @Composable
-fun Wallpaper(ctx: Context, spec: WallpaperSpec) {
+fun Wallpaper(ctx: Context, spec: WallpaperSpec, onSettingsChanged: () -> Unit = {}) {
     // produceState 的 remember 不带 key:spec 变时只重启生产者,旧值留着 → 不闪黑
     val bmp by produceState<Bitmap?>(initialValue = null, spec) {
-        val next = withContext(Dispatchers.IO) { Wallpapers.load(ctx, spec) }
-        if (next != null) value = next
+        val loaded = withContext(Dispatchers.IO) { Wallpapers.load(ctx, spec) }
+        // withContext 回到主线程之后再通知:调用方要改的是 Compose 状态。
+        // prepare 只有首启/升级那一趟会写,写完 wallpaperFile 非空,不会自激。
+        if (loaded.settingsChanged) onSettingsChanged()
+        loaded.bitmap?.let { value = it }
     }
     val b = bmp ?: return
     Crossfade(

@@ -96,4 +96,24 @@ class WallpaperMathTest {
         assertFalse(wallpaperSpecOf(s, 0).isIdentity)
         assertFalse(wallpaperSpecOf(Settings(wallpaperThemed = true), 0).isIdentity)
     }
+
+    /**
+     * 跟随壁纸主色 + 主题化:spec **不带** accent,改打 followColor 标志由 load 就地取 Palette。
+     * 这一条挡的是「每张图渲两遍」——spec 带 accent 时它就依赖异步到达的取色结果,
+     * 换图那一刻先用旧主色渲一遍、取色落地后再渲一遍,还留下一份永不命中的缓存。
+     */
+    @Test fun specDefersAccentToPaletteWhenFollowingWallpaperColor() {
+        val s = Settings(wallpaperThemed = true, followWallpaperColor = true)
+        val spec = wallpaperSpecOf(s, 0xC0A73A)
+        assertTrue(spec.followColor)
+        assertEquals(0, spec.accentRgb)
+        assertFalse(spec.isIdentity)          // themed 仍然要走管线
+    }
+
+    @Test fun specKeepsPresetAccentWhenNotFollowingWallpaperColor() {
+        val s = Settings(wallpaperThemed = true, followWallpaperColor = false)
+        val spec = wallpaperSpecOf(s, 0xC0A73A)
+        assertFalse(spec.followColor)
+        assertEquals(0xC0A73A, spec.accentRgb)
+    }
 }

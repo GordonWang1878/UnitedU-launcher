@@ -109,10 +109,12 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0, onWallpaperParamsCha
     // 写前重读、只改自己那个字段:后台轮播(Task 6)也会写 settings.json,整对象回写会把它的
     // wallpaperFile/rotatedAt 覆盖(壁纸来回翻)。s 仍是界面显示用的最新值。
     fun update(transform: (Settings) -> Settings) {
-        val newS = transform(SettingsStore.read(ctx))
-        s = newS
-        val ok = SettingsStore.write(ctx, newS)
-        if (!ok) Log.w(LOG_TAG, "settings.json 写入失败,改动只留在内存里")
+        // 持锁的读-改-写(F1);写失败(外置没挂)时保住内存里的改动而不是退回默认(原注释的承诺)。
+        // 早先的「读一次 + 写一次」在存储没挂时会把 s 换成 read() 返回的那份默认值,
+        // 用户按一下左右键,整页设置当场倒退回出厂值——注释说的「当前会话内仍生效」并没兑现。
+        s = SettingsStore.update(ctx, transform) ?: transform(s).also {
+            Log.w(LOG_TAG, "settings.json 写入失败,改动只留在内存里")
+        }
     }
 
     // 主题化/模糊/压暗改动后 300ms 防抖通知首页重读(实时预览)。轮播间隔无可视效果,不通知。

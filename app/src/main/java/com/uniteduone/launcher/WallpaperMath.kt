@@ -10,6 +10,11 @@ import java.security.MessageDigest
 /**
  * 一次壁纸渲染的全部输入。[accentRgb] 只在 [themed] 时有意义,不主题化时**恒为 0**
  * (见 [wallpaperSpecOf]):否则换个预设就会让 spec 变化、触发一次无谓的重处理。
+ *
+ * [followColor] = 「主色由这张图自己决定」:此时 spec **不带** accent,由
+ * `Wallpapers.load` 在 IO 线程取 Palette 后自己填(填完 `followColor` 归 false,
+ * 缓存键带上那个实际主色)。这样 spec 就不再依赖异步到达的取色结果——否则每换一张图
+ * 都会先用**旧主色**渲一遍(还留一份没人会再命中的缓存),取色落地后再渲第二遍。
  */
 data class WallpaperSpec(
     val file: String,
@@ -17,6 +22,7 @@ data class WallpaperSpec(
     val accentRgb: Int,
     val blur: Int,
     val dim: Int,
+    val followColor: Boolean = false,
 ) {
     /** 参数全零:完全绕开管线,走原图 + F16 解码(零回归路径)。 */
     val isIdentity: Boolean get() = !themed && blur == 0 && dim == 0
@@ -25,9 +31,11 @@ data class WallpaperSpec(
 fun wallpaperSpecOf(s: Settings, accentRgb: Int): WallpaperSpec = WallpaperSpec(
     file = s.wallpaperFile,
     themed = s.wallpaperThemed,
-    accentRgb = if (s.wallpaperThemed) accentRgb and 0xFFFFFF else 0,
+    // 跟随壁纸主色时这里留 0:真正的主色由 load 取 Palette 得到(见 [WallpaperSpec.followColor])。
+    accentRgb = if (s.wallpaperThemed && !s.followWallpaperColor) accentRgb and 0xFFFFFF else 0,
     blur = s.wallpaperBlur,
     dim = s.wallpaperDim,
+    followColor = s.wallpaperThemed && s.followWallpaperColor,
 )
 
 /** library 里当前壁纸的下一张(按名排序、循环)。当前不在列表 → 第一张;空表 → null;单张 → 它自己。 */

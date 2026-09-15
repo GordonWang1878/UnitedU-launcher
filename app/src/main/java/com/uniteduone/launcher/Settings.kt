@@ -220,9 +220,21 @@ internal fun isWellFormedJsonObject(text: String): Boolean {
  * 外部存储没挂就用内存默认值不写盘;文件不存在就写默认值再返回;
  * 解析包在 `try/catch (e: Throwable)`(超大文件 OOM 是 Error 不是 Exception);
  * 语法损坏就把坏文件改名成 `.bad`、写回默认值、`Log.w` 留痕。
+ *
+ * **M3 起这是个多写者的store**:主线程的设置页 / 选图,IO 线程的轮播与
+ * prepare 的迁移/铺入,都会写同一个文件。所以写必须串行化——见 [lock] 与 [update]。
  */
 object SettingsStore {
     private const val TAG = "UnitedU"
+
+    /**
+     * 所有写盘串行化。**不加它会真的丢掉全部设置**:[write] 用同一个 `settings.json.tmp`,
+     * 且 rename 失败时的兜底是 `dst.delete()` 再 rename——两个写者交叠时,输的那个可能
+     * 正好删掉赢的那个刚放好的 settings.json,下次 [read] 读不到文件就重写一份默认值,
+     * 用户的全部设置归零。JVM 的 monitor 是可重入的,所以 [update] 里套 [read]、
+     * [read] 里再套 [write] 都不会自锁。
+     */
+    private val lock = Any()
 
     fun read(ctx: Context): Settings {
         if (Paths.baseOrNull(ctx) == null) {
@@ -255,7 +267,7 @@ object SettingsStore {
      * @return 是否真的落盘了;调用方(后续任务里的设置页)需要知道失败,
      *   否则界面上改的值下次开机又变回去,用户只会觉得"设置没保存"。
      */
-    fun write(ctx: Context, s: Settings): Boolean {
+    fun write(ctx: Context, s: Settings): Boolean = synchronized(lock) {
         val base = Paths.baseOrNull(ctx) ?: return false
         val tmp = File(base, "settings.json.tmp")
         return try {
@@ -272,5 +284,15 @@ object SettingsStore {
             Log.w(TAG, "settings.json 写不了: ${e.message}")
             false
         }
+    }
+
+    /**
+     * 读-改-写一次完成、持锁:设置页、轮播、迁移/铺入、选图这些写者全部走这里,
+     * 既不会互相踩 tmp,也没有「读到旧值再整对象回写」的丢更新窗口。
+     * @return 写成功时返回写下的 Settings;写失败(外置没挂等)返回 null。
+     */
+    fun update(ctx: Context, transform: (Settings) -> Settings): Settings? = synchronized(lock) {
+        val next = transform(read(ctx))
+        if (write(ctx, next)) next else null
     }
 }
