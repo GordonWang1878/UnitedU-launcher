@@ -62,6 +62,7 @@ async function load() {
   if (isApk) return;
   let d;
   try { d = await (await fetch(`/api/list?type=${type}`)).json(); } catch (e) { msg(S.error); return; }
+  if (!d || !Array.isArray(d.files)) { msg(S.error); return; }
   const g = $("grid"); g.innerHTML = "";
   $("count").textContent = d.files.length ? String(d.files.length) : "";
   $("empty").textContent = d.files.length ? "" : S.empty;
@@ -73,7 +74,8 @@ async function load() {
     const del = document.createElement("button"); del.className = "del"; del.textContent = S.delete;
     del.onclick = async () => {
       if (!confirm(S.confirm_delete.replace("%s", f.name))) return;
-      const r = await fetch(`/api/file?type=${type}&name=${q(f.name)}`, { method: "DELETE" });
+      let r;
+      try { r = await fetch(`/api/file?type=${type}&name=${q(f.name)}`, { method: "DELETE" }); } catch (e) { msg(S.error); return; }
       msg(r.ok ? S.done : S.error); load();
     };
     c.append(img, n, del); g.appendChild(c);
@@ -85,6 +87,7 @@ $("pick").onchange = async e => {
   msg(S.uploading.replace("%d", files.length));
   let d;
   try { d = await (await fetch(`/api/upload?type=${type}`, { method: "POST", body: fd })).json(); } catch (err) { msg(S.error); return; }
+  if (!d || !Array.isArray(d.saved) || !Array.isArray(d.rejected)) { msg(S.error); e.target.value = ""; return; }
   let t = `${S.done} ${d.saved.length}/${files.length}`;
   for (const x of d.rejected) t += `\n${x.name}: ${S["rejected_" + x.reason] || x.reason}`;
   msg(t); e.target.value = ""; load();

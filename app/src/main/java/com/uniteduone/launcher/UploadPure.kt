@@ -65,6 +65,8 @@ fun jsonStr(s: String): String = buildString {
     for (c in s) when {
         c == '"' -> append("\\\"")
         c == '\\' -> append("\\\\")
+        // 转义 < 防止网页文案里若出现 </script 提前截断 index.html 内联的 <script> 块(合法 JSON,无害)。
+        c == '<' -> append("\\u003c")
         c == '\n' -> append("\\n")
         c == '\r' -> append("\\r")
         c == '\t' -> append("\\t")

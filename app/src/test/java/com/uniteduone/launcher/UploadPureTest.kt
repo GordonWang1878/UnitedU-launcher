@@ -64,6 +64,10 @@ class UploadPureTest {
         assertEquals("""{"ok":false,"reason":"invalid"}""", jsonFail("invalid"))
     }
 
+    @Test fun jsonEscapesLessThanForScriptSafety() {
+        assertEquals("\"\\u003c/script>\"", jsonStr("</script>"))
+    }
+
     @Test fun typeTableIsClosed() {
         assertTrue(isValidType("wallpapers"))
         assertTrue(isValidType("cards"))
