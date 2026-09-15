@@ -40,6 +40,8 @@ data class Settings(
     val wallpaperBlur: Int = 0,
     /** 压暗 0–100,步 10。 */
     val wallpaperDim: Int = 0,
+    /** 上次打开「添加应用」列表的时刻(epoch ms);firstInstallTime 晚于它的应用算「新」。0 = 未初始化(首启时写成当时)。 */
+    val newAppsSeenAt: Long = 0L,
 )
 
 // `internal`(而非 `private`):这两张表是 cardsPerRow / idleAfterMs 的唯一合法取值集合,
@@ -135,6 +137,7 @@ fun parseSettings(json: String): Settings {
             wallpaperThemed = extractBoolean(json, "wallpaperThemed") ?: d.wallpaperThemed,
             wallpaperBlur = clampPercentStep10(extractInt(json, "wallpaperBlur"), d.wallpaperBlur),
             wallpaperDim = clampPercentStep10(extractInt(json, "wallpaperDim"), d.wallpaperDim),
+            newAppsSeenAt = clampEpoch(extractLong(json, "newAppsSeenAt")),
         )
     } catch (e: Throwable) {
         // 理论上上面每一步都已经用 ?: 兜底、不会抛,这层 catch 只是和 Layout 保持同一套
@@ -163,7 +166,8 @@ fun Settings.toJson(): String {
         append("  \"wallpaperRotatedAt\": $wallpaperRotatedAt,\n")
         append("  \"wallpaperThemed\": $wallpaperThemed,\n")
         append("  \"wallpaperBlur\": $wallpaperBlur,\n")
-        append("  \"wallpaperDim\": $wallpaperDim\n")
+        append("  \"wallpaperDim\": $wallpaperDim,\n")
+        append("  \"newAppsSeenAt\": $newAppsSeenAt\n")
         append("}\n")
     }
 }

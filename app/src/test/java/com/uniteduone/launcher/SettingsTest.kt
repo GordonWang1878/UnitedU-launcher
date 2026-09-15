@@ -175,4 +175,11 @@ class SettingsTest {
         )
         assertEquals(s, parseSettings(s.toJson()))
     }
+
+    @Test fun newAppsSeenAtDefaultsToZeroAndNeverNegative() {
+        assertEquals(0L, parseSettings("{}").newAppsSeenAt)
+        assertEquals(0L, parseSettings("""{"newAppsSeenAt": -1}""").newAppsSeenAt)
+        val s = Settings(newAppsSeenAt = 1_700_000_000_000L)
+        assertEquals(s, parseSettings(s.toJson()))
+    }
 }
