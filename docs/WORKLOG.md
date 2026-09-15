@@ -130,3 +130,11 @@ M2 全分支终审(opus)通过(可合并/零 Critical),终审后单次修复波 
 - Task H 延后小项 → M4:HDMI-CEC 父子去重、per-input 隐藏/改名(复用修改标题);Inputs.launch 冗余 enumerate 为 polish。
 
 **M2 里程碑达成**:主题收敛 + 设置页 + 卡片三档 + 主题色 + 时钟 + 输入源行,全部实机验证,推送 github.com/GordonWang1878/UnitedU-launcher。
+
+## 2026-09-15 · M3 开工(设计定稿 + 实施计划 + 并行执行)
+
+- **范围**:壁纸轮播(关/5 分/30 分/每天)+ 主题化管线(去色→染主题色→模糊→压暗,CPU 离线 + 缓存;minSdk 28 不能用 RenderEffect)+ 模糊/压暗滑块实时预览 + 内置 6 张程序生成壁纸 + 默认底换中性暗。spec `docs/superpowers/specs/2026-09-15-m3-wallpaper-design.md`(ba95464),计划 `docs/superpowers/plans/2026-09-15-m3-wallpaper.md`(3cd9ac8,9 任务)。
+- **决策(Gordon)**:内置壁纸=程序生成抽象图(非 CC0 照片);管线参数=我定默认、真机滑块调后回填;滑块=真滑块条 11 档;spec 六节与计划一次通过。
+- **执行方式(Gordon)**:两波并行 subagent(波 1:T1→2 ‖ T3;波 2:T4→5→6 ‖ T7),各自 worktree,我汇合评审;T1–3 机械任务只跑一轮合并评审。分支 `m3-wallpaper`。
+- **环境**:为波 2 两个 agent 各占一台模拟器(同包名互相覆盖安装),把 `unitedu-tv` 克隆为 `unitedu-tv-2`(`~/.android/avd/`,改 AvdId/路径,942 MB)。多台并行时 adb 命令必须带 `ANDROID_SERIAL`。
+- **设计要点**:当前壁纸 = settings 字段指向 library 文件(不再复制 wallpaper.jpg、不再 recreate);新增 `settingsRevision` 计数器只重读 settings 不重建首页行(轮播每 5 分钟一次,走 `revision` 会连卡片图一起重读);`rotate()` 返回「写盘成功」而非「换了图」,否则单张图库时 effect key 不变、轮播停转(铁律 6 变体)。
