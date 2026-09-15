@@ -48,7 +48,9 @@
 - prepare 写 settings 时 `MainActivity.homeSettings` 可能短暂过期(`wallpaperFile` 仍为空)——只影响轮播的「当前指针」与选择器高亮,下一次 `revision++` 即同步,无害。
 
 ### 2.3 选择壁纸(选择器 `onSelect`)
-不再复制文件、**不再 `recreate()`**:写 `wallpaperFile = 文件名`、`wallpaperRotatedAt = now`(重置间隔),`revision++`。toast 文案不变。
+不再复制文件、**不再 `recreate()`**:写 `wallpaperFile = 文件名`、`wallpaperRotatedAt = now`(重置间隔),`settingsRevision++`。toast 文案不变。
+
+**`settingsRevision`(实施时补的计数器)**:`MainActivity` 新增一个只让 `homeSettings` 重读、**不重建首页行**的计数器(`homeSettings = remember(revision, settingsRevision)`)。选图 / 轮播 / 滑块预览都走它——这些事每 5 分钟就来一次,若走 `revision` 会连 `layout.json` 与全部卡片图一起重读一遍。
 
 ### 2.4 轮播
 `MainActivity.setContent` 内:
@@ -59,17 +61,17 @@ LaunchedEffect(homeSettings.wallpaperRotateMs, homeSettings.wallpaperRotatedAt) 
     if (interval == 0L) return@LaunchedEffect          // 守卫 = key(铁律 6)
     delay(rotationDelayMs(homeSettings.wallpaperRotatedAt, interval, now))
     val wrote = withContext(IO) { Wallpapers.rotate(this@MainActivity) }
-    if (wrote) revision++      // 重读 settings → rotatedAt 变 → 本 effect 以新 key 重启、再等一个间隔
+    if (wrote) settingsRevision++   // 重读 settings → rotatedAt 变 → 本 effect 以新 key 重启、再等一个间隔
 }
 ```
 - `rotationDelayMs(rotatedAt, interval, now) = (rotatedAt + interval - now).coerceIn(0, interval)`:重启后按剩余时间续等;`rotatedAt` 在未来(时钟回拨)也最多等一个间隔。
-- `rotate(ctx)`:重读 settings → **重扫目录**(复用屏保「进入时重扫」逻辑)→ `nextWallpaper(names, current)`(按名排序,当前的下一张,循环;当前不在列表 → 第一张)→ 写 `wallpaperFile` + `wallpaperRotatedAt = now` → **返回「是否写盘成功」,不是「是否换了图」**。少于 2 张:只刷新 `rotatedAt`、不换图,但仍返回 true —— `revision++` 让 effect 拿到新 `rotatedAt` 重启;若按「换了图才 revision++」写,单张图库时 key 不变、effect 结束,轮播从此停转,直到别的事件碰巧 `revision++`(铁律 6 的变体:effect 的续命信号必须由它自己的 key 承载)。写盘失败返回 false,effect 自然结束,下次 `revision++` 再试。
+- `rotate(ctx)`:重读 settings → **重扫目录**(复用屏保「进入时重扫」逻辑)→ `nextWallpaper(names, current)`(按名排序,当前的下一张,循环;当前不在列表 → 第一张)→ 写 `wallpaperFile` + `wallpaperRotatedAt = now` → **返回「是否写盘成功」,不是「是否换了图」**。少于 2 张:只刷新 `rotatedAt`、不换图,但仍返回 true —— `settingsRevision++` 让 effect 拿到新 `rotatedAt` 重启;若按「换了图才通知」写,单张图库时 key 不变、effect 结束,轮播从此停转,直到别的事件碰巧重读 settings(铁律 6 的变体:effect 的续命信号必须由它自己的 key 承载)。写盘失败返回 false,effect 自然结束,下次重读 settings 再试。
 - 5 分钟一次写几百字节的 `settings.json`(原子写),可接受。
 - 待机/屏保盖在壁纸上时轮播照常,只是看不见;不额外暂停。
 
 ### 2.5 显示层(`Wallpaper(ctx, spec)` 从 `HomeScreen.kt` 搬到 `Wallpapers.kt`)
 - `WallpaperSpec(file: String, themed: Boolean, accent: Int /*ARGB,themed=false 时恒 0*/, blur: Int, dim: Int)` 由 `homeSettings` + `themeColors` 组装;`accent` 只在 themed 时参与,避免换预设触发无谓重处理。
-- `produceState(key = spec, revision)`:IO 线程 `prepare` → `resolveSource` → 参数全零走原路径(`decodeScaled` RGBA_F16),否则走 §3 管线;都失败回落 APK 内置。
+- `produceState(key = spec)`(`settingsRevision` 只用来重读 settings 组装出新的 spec,不直接当 key):IO 线程 `prepare` → `resolveSource` → 参数全零走原路径(`decodeScaled` RGBA_F16),否则走 §3 管线;都失败回落 APK 内置。`prepare` 刚写进的 `wallpaperFile` 若 spec 里还是空,`load` 补读一次 settings。
 - 换图用 `Crossfade`(`Theme.WallpaperCrossfadeMs = 1500`),新图未就绪前旧图原样留着(与 `revision` 不强制重建的既有原则一致)。
 - 仍住在 `MainActivity.setContent` 顶层,不随编辑页重建。
 
@@ -80,7 +82,7 @@ LaunchedEffect(homeSettings.wallpaperRotateMs, homeSettings.wallpaperRotatedAt) 
 
 ```
 M = Scale(1 - dim/100) × [themed ? Tint(accent) × Saturation(0) : I]
-Saturation(0):Rec.601 权重 (0.299, 0.587, 0.114),与 android ColorMatrix.setSaturation(0) 同值
+Saturation(0):Rec.709 权重 (0.213, 0.715, 0.072),与 android ColorMatrix.setSaturation(0) 同值
 Tint(accent):diag(a.r, a.g, a.b, 1)  —— 即「黑 → 主题色」的渐变映射,与金雾底同一手法
 ```
 颜色运算与模糊都是线性算子,**顺序可交换**,所以先缩小再套矩阵:矩阵作用在小图上,几乎免费。
@@ -94,7 +96,7 @@ Tint(accent):diag(a.r, a.g, a.b, 1)  —— 即「黑 → 主题色」的渐变�
 
 ### 3.3 输入输出
 - 输入:`Apps.decodeScaled(path, 1920, 1080, ARGB_8888)` 后中心裁剪到恰好 1920×1080(缓存尺寸固定)。
-- 输出:同一个 IO 块里 **既返回 Bitmap 直接显示,也写缓存**:`cacheDir/wallpapers/<key>.jpg`,JPEG q90,tmp → rename。
+- 输出:同一个 IO 块里 **既返回 Bitmap 直接显示,也写缓存**:`(externalCacheDir ?: cacheDir)/wallpapers/<key>.jpg`(外置 cache 优先:adb 能看、卸载即清),JPEG q90,tmp → rename。
 - `key = sha1("$path|$mtime|$size|$themed|$accentHex|$blur|$dim|v1")`。下次同键直接解码缓存。
 - 清理:每次写入后只保留最新 4 个(按 lastModified)。
 - **参数全零 → 完全绕开管线**:不解码两次、不写缓存、保留 F16。
@@ -117,7 +119,7 @@ Tint(accent):diag(a.r, a.g, a.b, 1)  —— 即「黑 → 主题色」的渐变�
 
 ### 4.3 实时预览(没有它,真机调参是盲调)
 - 设置页浮层今日是不透明 `Theme.EditScreenBackground`。**焦点落在壁纸分组四行之一时**,浮层背景动画到 `Theme.SettingsPreviewScrim`(黑 0.35 alpha),壁纸从 640dp 内容列两侧与底下透出;离开该分组恢复不透明。
-- `SettingsScreen` 新增参数 `onWallpaperParamsChanged: () -> Unit`;主题化/模糊/压暗任一改动后 **300 ms 防抖**再调用;`MainActivity` 实现为 `revision++`(重读 settings → spec 变 → 重处理 → Crossfade)。
+- `SettingsScreen` 新增参数 `onWallpaperParamsChanged: () -> Unit`;主题化/模糊/压暗任一改动后 **300 ms 防抖**再调用;`MainActivity` 实现为 `settingsRevision++`(重读 settings → spec 变 → 重处理 → Crossfade)。防抖用「上次通知过的值」比对,不用一次性布尔闩(铁律 7)。
 - 轮播间隔改动不触发实时预览(无可视效果),照旧 `leaveSettings()` 时生效。
 
 ## 5. 内置壁纸与默认底
@@ -151,8 +153,9 @@ Tint(accent):diag(a.r, a.g, a.b, 1)  —— 即「黑 → 主题色」的渐变�
 
 ## 7. 文件清单
 
-- **新增**:`app/src/main/java/com/uniteduone/launcher/Wallpapers.kt`(resolve / prepare / select / rotate / process / cache / `Wallpaper` composable)、`app/src/test/java/com/uniteduone/launcher/WallpapersTest.kt`、`scripts/gen-wallpapers.py`、`app/src/main/assets/wallpapers/00–05-*.jpg`。
-- **修改**:`Settings.kt`(6 字段 + 值表)、`SettingsTest.kt`、`SettingsScreen.kt`(分组 / SLIDER / 预览透出 / 防抖回调)、`MainActivity.kt`(轮播 effect、`handlePick` 改写不 recreate、`wallpaperThemeColors` 改读原图、spec 组装)、`HomeScreen.kt`(移走 `Wallpaper` / `ensureDefaultWallpaper`)、`Paths.kt`(`wallpaperCacheDir`)、`Theme.kt`(`WallpaperCrossfadeMs`、`SettingsPreviewScrim`)、`strings.xml` ×3、`NOTICE`、`docs/TVHOME-README-focus-rules.md`。
+- **新增**:`app/src/main/java/com/uniteduone/launcher/Wallpapers.kt`(Android 侧:resolve / prepare / select / rotate / process / cache / `Wallpaper` composable)、`WallpaperMath.kt`(纯函数:`WallpaperSpec`、`nextWallpaper`、`rotationDelayMs`、`blurTargetWidth`、`wallpaperColorMatrix`、`wallpaperCacheKey`)、`app/src/test/java/com/uniteduone/launcher/WallpaperMathTest.kt`、`scripts/gen-wallpapers.py`、`app/src/main/assets/wallpapers/00–05-*.jpg`。
+- **修改**:`Settings.kt`(6 字段 + 值表)、`SettingsTest.kt`、`SettingsScreen.kt`(分组 / SLIDER / 预览透出 / 防抖回调)、`MainActivity.kt`(`settingsRevision`、轮播 effect、`handlePick` 改写不 recreate、`wallpaperThemeColors` 改读原图、spec 组装)、`HomeScreen.kt`(移走 `Wallpaper` / `ensureDefaultWallpaper`)、`Paths.kt`(`wallpaperCacheDir`)、`Theme.kt`(`WallpaperCrossfadeMs`、`SettingsPreviewScrim`)、`strings.xml` ×3、`NOTICE`、`docs/TVHOME-README-focus-rules.md`。
+- **实施计划**:`docs/superpowers/plans/2026-09-15-m3-wallpaper.md`(9 个任务,含并行波次表)。
 - **删除**:`app/src/main/assets/default-wallpaper.jpg`。
 
 ## 8. 估时
