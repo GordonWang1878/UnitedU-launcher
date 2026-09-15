@@ -64,7 +64,7 @@ private val BOTTOM_KEEPOUT = 22.dp
 private const val LOG_TAG = "UnitedU"
 
 // 壁纸分组的控件下标区间(与 order 里的 ControlElem 编号一致):聚焦在这几行时浮层变半透明做实时预览。
-private val WALLPAPER_CTRLS = 2..5
+private val WALLPAPER_CTRLS = 3..6
 
 private enum class CtrlKind { SEGMENTED, TOGGLE, SWATCH, SLIDER }
 
@@ -129,7 +129,7 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0, onWallpaperParamsCha
         onWallpaperParamsChanged()
     }
 
-    // ---- 11 个可聚焦控件的描述,顺序即 ctrlIndex(0..10),看门狗/位移都按它索引 ----
+    // ---- 12 个可聚焦控件的描述,顺序即 ctrlIndex(0..11),看门狗/位移都按它索引 ----
     val onLabels = listOf(stringResource(R.string.settings_off), stringResource(R.string.settings_on))
     val cardSizeLabels = listOf(
         stringResource(R.string.settings_card_large),
@@ -161,52 +161,57 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0, onWallpaperParamsCha
             options = cardSizeLabels, count = 3,
             selected = VALID_CARDS_PER_ROW.indexOf(s.cardsPerRow).let { if (it < 0) 1 else it },
             onSelect = { i -> update { it.copy(cardsPerRow = VALID_CARDS_PER_ROW[i]) } }),
-        // 1 输入源行(design §2,默认关)。开着且真机枚举到硬件输入时,首页应用行上方多一行。
+        // 1 卡片标题(design §2 全局开关;M2 曾移除控件、保留字段,M4 补回)
+        Ctrl(R.string.settings_show_titles, CtrlKind.TOGGLE,
+            options = onLabels, count = 2,
+            selected = if (s.showTitles) 1 else 0,
+            onSelect = { i -> update { it.copy(showTitles = i == 1) } }),
+        // 2 输入源行(design §2,默认关)。开着且真机枚举到硬件输入时,首页应用行上方多一行。
         Ctrl(R.string.settings_show_input_row, CtrlKind.TOGGLE,
             options = onLabels, count = 2,
             selected = if (s.showInputRow) 1 else 0,
             onSelect = { i -> update { it.copy(showInputRow = i == 1) } }),
-        // 2 轮播间隔 关/5 分/30 分/每天(VALID_WALLPAPER_ROTATE_MS 顺序)
+        // 3 轮播间隔 关/5 分/30 分/每天(VALID_WALLPAPER_ROTATE_MS 顺序)
         Ctrl(R.string.settings_wallpaper_rotate, CtrlKind.SEGMENTED,
             options = rotateLabels, count = 4,
             selected = VALID_WALLPAPER_ROTATE_MS.indexOf(s.wallpaperRotateMs).let { if (it < 0) 0 else it },
             onSelect = { i -> update { it.copy(wallpaperRotateMs = VALID_WALLPAPER_ROTATE_MS[i]) } }),
-        // 3 主题化壁纸
+        // 4 主题化壁纸
         Ctrl(R.string.settings_wallpaper_themed, CtrlKind.TOGGLE,
             options = onLabels, count = 2,
             selected = if (s.wallpaperThemed) 1 else 0,
             onSelect = { i -> update { it.copy(wallpaperThemed = i == 1) } }),
-        // 4 模糊 0–100 步 10(11 档滑块;selected = 档位下标)
+        // 5 模糊 0–100 步 10(11 档滑块;selected = 档位下标)
         Ctrl(R.string.settings_wallpaper_blur, CtrlKind.SLIDER,
             options = emptyList(), count = 11,
             selected = s.wallpaperBlur / 10,
             onSelect = { i -> update { it.copy(wallpaperBlur = i * 10) } }),
-        // 5 压暗 0–100 步 10
+        // 6 压暗 0–100 步 10
         Ctrl(R.string.settings_wallpaper_dim, CtrlKind.SLIDER,
             options = emptyList(), count = 11,
             selected = s.wallpaperDim / 10,
             onSelect = { i -> update { it.copy(wallpaperDim = i * 10) } }),
-        // 6 主题色 swatch
+        // 7 主题色 swatch
         Ctrl(R.string.settings_theme_color, CtrlKind.SWATCH,
             options = emptyList(), count = ThemePresets.all.size,
             selected = ThemePresets.indexOf(s.themePresetId),
             onSelect = { i -> update { it.copy(themePresetId = ThemePresets.all[i].id) } }),
-        // 7 跟随壁纸主色
+        // 8 跟随壁纸主色
         Ctrl(R.string.settings_follow_wallpaper, CtrlKind.TOGGLE,
             options = onLabels, count = 2,
             selected = if (s.followWallpaperColor) 1 else 0,
             onSelect = { i -> update { it.copy(followWallpaperColor = i == 1) } }),
-        // 8 显示日期
+        // 9 显示日期
         Ctrl(R.string.settings_show_date, CtrlKind.TOGGLE,
             options = onLabels, count = 2,
             selected = if (s.showDate) 1 else 0,
             onSelect = { i -> update { it.copy(showDate = i == 1) } }),
-        // 9 待机时长 关/1/3/5/10 分
+        // 10 待机时长 关/1/3/5/10 分
         Ctrl(R.string.settings_idle_after, CtrlKind.SEGMENTED,
             options = idleAfterLabels, count = 5,
             selected = VALID_IDLE_AFTER_MS.indexOf(s.idleAfterMs).let { if (it < 0) 2 else it },
             onSelect = { i -> update { it.copy(idleAfterMs = VALID_IDLE_AFTER_MS[i]) } }),
-        // 10 待机显示 时钟/全黑/不淡出
+        // 11 待机显示 时钟/全黑/不淡出
         Ctrl(R.string.settings_idle_content, CtrlKind.SEGMENTED,
             options = idleContentLabels, count = 3,
             selected = IdleContent.entries.indexOf(s.idleContent).coerceAtLeast(0),
@@ -220,15 +225,15 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0, onWallpaperParamsCha
         listOf(
             TitleElem,
             HeaderElem(R.string.settings_group_layout),
-            ControlElem(0), ControlElem(1),
+            ControlElem(0), ControlElem(1), ControlElem(2),
             HeaderElem(R.string.settings_group_wallpaper),
-            ControlElem(2), ControlElem(3), ControlElem(4), ControlElem(5),
+            ControlElem(3), ControlElem(4), ControlElem(5), ControlElem(6),
             HeaderElem(R.string.settings_group_theme),
-            ControlElem(6), ControlElem(7),
+            ControlElem(7), ControlElem(8),
             HeaderElem(R.string.settings_group_clock),
-            ControlElem(8),
+            ControlElem(9),
             HeaderElem(R.string.settings_group_standby),
-            ControlElem(9), ControlElem(10),
+            ControlElem(10), ControlElem(11),
         )
     }
     // 每个控件的顶部 Y(dp),从 order 折出来 —— 与渲染同源。
@@ -279,7 +284,7 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0, onWallpaperParamsCha
     // 常开回调后注册,浮层在时优先接管;关闭后 MainActivity 会 focusNonce++ 让首页重新拿回焦点。
     androidx.activity.compose.BackHandler { onExit() }
 
-    // 内容可能高于屏幕(11 控件 + 5 标题 + 标题栏 ≈ 712dp,超过 540dp 的屏)。**绝不加滚动容器**,
+    // 内容可能高于屏幕(12 控件 + 5 标题 + 标题栏 ≈ 758dp,超过 540dp 的屏)。**绝不加滚动容器**,
     // 自己算纵向位移:焦点行底部快贴屏幕底时,整体上移刚好让它留在可视区(HomeScreen 同一招)。
     val screenH = LocalConfiguration.current.screenHeightDp.dp
     val fRow = focusedRow.coerceIn(0, ctrlCount - 1)

@@ -9,6 +9,11 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- M6/M7:传 APK 安装、检查更新后安装,都要走系统安装器 -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- M4 长按菜单「卸载」:API 26+ 起 ACTION_DELETE 需要它。
+         没有这条时 startActivity **仍然返回成功**(系统卸载页确实起来了),
+         但 UninstallerActivity 立刻以 "Uid … does not have android.permission.
+         REQUEST_DELETE_PACKAGES" 结束 —— 连 toast 兜底都不会触发,用户按了毫无反应。 -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <!-- M6 上传服务(UploadServer,NanoHTTPD)要绑定/监听局域网端口:Android 上创建 AF_INET
          socket(含仅局域网、仅服务端的)一律要求这条权限,没有它 NetworkInterface.getNetworkInterfaces()
          拿到的地址列表就是空的、ServerSocket 也 bind 不了——2026-09-15 模拟器实测确认

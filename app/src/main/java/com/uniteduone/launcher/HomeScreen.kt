@@ -56,6 +56,9 @@ fun HomeScreen(
     menuFromGear: Boolean = true,
     showDate: Boolean = true,
     cardsPerRow: Int = 6,
+    /** 卡片标题全局开关(design §2)。开着时卡片下方多一行标题,行高随之增加
+     *  (见 Theme.cardMetrics 的 titleHeight),纵向位移沿用同一套自算逻辑。 */
+    showTitles: Boolean = false,
     /** 输入源行开关(design §2,默认关)。开着且真机枚举到硬件输入时,在应用行**上方**
      *  多渲染一行输入源;它以普通行的身份加进纵向焦点账本,种类差异只影响点击行为与行图标。 */
     showInputRow: Boolean = false,
@@ -63,10 +66,42 @@ fun HomeScreen(
      *  默认今日常量,保证未接线的调用点逐位复现今日观感。 */
     accent: Color = Theme.ChampagneGold,
     highlight: Color = Theme.Champagne,
+    /** 上次打开「添加应用」列表的时刻(design §4);默认「什么都不算新」,未接线的调用点零回归。 */
+    newAppsSeenAt: Long = Long.MAX_VALUE,
+    /** 当前聚焦的卡(得到时上报,失去时报 null)——MainActivity 长按时据此弹菜单。 */
+    onFocusedCard: (CardRef?) -> Unit = {},
+    /** 长按菜单:非空时在首页内嵌一层 GearMenu(不替换首页,焦点记忆不丢)。 */
+    cardMenu: CardRef? = null,
+    cardMenuItems: List<MenuItem> = emptyList(),
+    onCardMenuDismiss: () -> Unit = {},
+    /** 「修改标题」对话框(Task 5):非空时在首页内嵌一层 TitleDialog(不替换首页,焦点记忆不丢)。 */
+    renameTarget: CardRef? = null,
+    onRenameSave: (CardRef, String) -> Unit = { _, _ -> },
+    onRenameCancel: () -> Unit = {},
+    /**
+     * 首次组合时把焦点记忆**种**在这张卡上 (渲染行, 列);null = 照旧从 (0,0) 起。
+     *
+     * 为什么需要:图片选择器这类浮层住在 MainActivity 的 if/else 链上,开着时首页整棵树
+     * 被移除,`tgtRow`/`tgtIdx` 跟着 `remember` 一起没了 —— 换完图回来焦点落回第一张卡,
+     * 而用户明明是站在第三行操作的。种子只影响**初值**,之后照旧由导航更新,
+     * 不是闩:同一个值种一次,换了新值下一次组合自然按新值种(铁律 7)。
+     */
+    initialTarget: Pair<Int, Int>? = null,
+    /** initialTarget 落地后的回调(T4 review item A):种子只该生效一次,消费完立刻告诉
+     *  MainActivity 清掉,否则下一次从别的浮层(换壁纸、屏保、设置、导入)回来会误种这颗旧值——
+     *  那几条路焦点原本在齿轮上,不该被 CHANGE_ICON 留下的坐标带偏。 */
+    onInitialTargetConsumed: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     // 卡片档位尺寸:6=当前标定常量原样(零回归),5/8 按跨度守恒推导。见 Theme.cardMetrics。
-    val metrics = Theme.cardMetrics(cardsPerRow)
+    val metrics = Theme.cardMetrics(cardsPerRow, showTitles)
+    // **「有没有浮层」只此一个判据。**首页上能盖住卡片的现在有三层(齿轮菜单、长按卡片菜单、
+    // 修改标题对话框),它们对下面四处的要求完全相同:卡片与齿轮不可聚焦、还原与看门狗让路。
+    // 分开写四遍 `menuOpen ||` 迟早漏掉一处,而漏掉的那一处就是「菜单开着时看门狗每帧抢焦点,
+    // 菜单里一项都不高亮」(铁律 4 的推论)。合成一个量之后,它同时是那两个效果的 key 与守卫(铁律 6)。
+    // **例外:`gearNonce` 那个 LaunchedEffect 仍然只看 menuOpen** —— 它专管「齿轮菜单关了回齿轮」,
+    // 长按菜单关掉后焦点应该回到那张卡,不是齿轮。
+    val anyOverlay = menuOpen || cardMenu != null || renameTarget != null
     // 枚举应用 + 解码全部横幅是重活,放到 IO 线程,别拖慢首帧
     // (冷启动实测 2.0–2.3s,Projectivy 是 1.45s)。
     // 用 null 区分「还在加载」和「真的空」,否则每次冷启动和每次退出编辑都会闪一句求救文案
@@ -74,7 +109,17 @@ fun HomeScreen(
     // 新数据到达前**旧画面原样留着**——不会像 key(revision) 那样先黑一下再重建。
     // showInputRow 也作 key:设置页改了这个开关后 leaveSettings() 会 revision++,
     // 这里本就会重跑;带上它是白纸黑字,不依赖「revision 一定跟着变」这条间接约束。
-    val loaded by produceState<List<Row>?>(initialValue = null, ctx, revision, showInputRow) {
+    // titles.json 与 rows 同一趟 IO 读出,配成一对:标题开关关着时 titles 仍会被读到但不渲染
+    // (显示与否只由 showTitles 决定,不进 key——开关切换不必重读数据,只是换一种渲不渲染)。
+    // 「手上这份数据是为哪个 revision 算的」。**移除 / 卸载后焦点能不能留在同一行,全靠它**:
+    // revision++ 之后新的行数据要过几百毫秒才到,数据落地的那一帧焦点卡的节点被销毁,
+    // Compose 会立刻把焦点塞给整棵树第一个可聚焦节点 (0,0) —— 那次上报若不冻结就会把
+    // tgtRow/tgtIdx 改写成 0,记忆在被用到之前就没了(铁律 5),焦点静默跳到第一行。
+    // 与 EditScreen 的 allFresh 同构:数据不新鲜时冻结目标,新鲜之后再由还原效果送回去。
+    var loadedRevision by remember { mutableStateOf(-1) }
+    val loaded by produceState<Triple<List<Row>, Map<String, String>, Int>?>(
+        initialValue = null, ctx, revision, showInputRow, newAppsSeenAt,
+    ) {
         value = withContext(Dispatchers.IO) {
             val appRows = runCatching { buildRows(ctx) }.getOrDefault(emptyList())
             // 输入源行放**最上面**:design §2 把「输入源」当独立顶层类目,置顶与之相符;
@@ -82,10 +127,26 @@ fun HomeScreen(
             // 枚举为空(非电视 / 没有硬件输入)时返回 null,这一行干脆不存在 —— 焦点账本
             // 只认非空行,不会挂空 requester(见 buildRows 结尾那条不变量)。
             val inputRow = if (showInputRow) runCatching { buildInputRow(ctx) }.getOrNull() else null
-            if (inputRow != null) listOf(inputRow) + appRows else appRows
+            val rows = if (inputRow != null) listOf(inputRow) + appRows else appRows
+            val titles = runCatching { Titles.read(ctx) }.getOrDefault(emptyMap())
+            // 「新应用」计数:与首页同一趟 IO 算(应用已经枚举过一次),onLayout 只看应用行
+            // ——输入源行的 packageName 存的是输入 id,不是真的包名。
+            // 基线还没建立(newAppsSeenAt == 0:onCreate 那次基线写盘失败,比如外置存储开机时还没挂上)
+            // 就什么都不算新——否则 countNew(ctx, 0, …) 会把整机几十个应用全算成「新」,整个会话都挂着计数
+            // (终审 Minor #5)。isNewApp 的纯语义不动(仍是「装机时间 > seenAt 且不在桌面上」),只是不喂 0 进去。
+            val newCount = if (newAppsSeenAt == 0L) 0 else runCatching {
+                Apps.countNew(ctx, newAppsSeenAt, appRows.flatMap { r -> r.apps.map { it.packageName } }.toSet())
+            }.getOrDefault(0)
+            Triple(rows, titles, newCount)
         }
+        // **紧跟在 value 之后、同一次恢复里写**:中间没有挂起点,两次快照写入会被同一帧的
+        // 重组一起看到,不会出现「新数据已到但还标着不新鲜」的中间态。
+        loadedRevision = revision
     }
-    val rows = loaded.orEmpty()
+    val rows = loaded?.first.orEmpty()
+    val titles = loaded?.second.orEmpty()
+    /** 数据还没跟上当前 revision(重读在途)。冻结目标用,见 loadedRevision 的注释。 */
+    val stale = loadedRevision != revision
     // 开机后焦点要自己落到第一张卡片上,否则方向键第一下没有反应。
     val firstCard = remember { FocusRequester() }
     // 每行一个 requester,挂在「这一行的目标格」上 —— 用来把焦点**还原到离开前那张卡**。
@@ -93,8 +154,32 @@ fun HomeScreen(
     // 「目标格」只由用户的主动导航更新,还原过程中不更新 ——
     // 否则 Compose 抢先把焦点给了第一张卡,目标就被改写成 0 了。
     // (横向位移由 CategoryRow 自己的 focusedIndex 算,不在这里。)
-    val tgtIdx = remember(rows.size) { mutableStateListOf(*Array(rows.size.coerceAtLeast(1)) { 0 }) }
-    var tgtRow by remember { mutableStateOf(0) }
+    // initialTarget 只作**初值**(见它的 KDoc):首帧的初始焦点请求打的就是
+    // rowFocus[tgtRow] @ tgtIdx[tgtRow],种在这里等于「第一次落点就是那张卡」。
+    // 越界不必在这里挡:取用处(还原效果、看门狗、requester 挂点)全都 coerceIn 过。
+    // 种子只在这个组合实例创建时读一次,此后不再跟随活参数变化(T5 review Critical)。
+    // 不冻的话会踩一次时序竞争:首次合成时 rows 还是空的(loaded 没落地),`loaded != null`
+    // 前 `rows.size == 0`,tgtIdx 的 remember(rows.size) 第一次落在 key=0;紧接着下面的
+    // LaunchedEffect(Unit) 立刻把 homeInitialTarget 消费成 null(那是活参数,不是这里),
+    // 等 loaded 真正到达、rows.size 从 0 变成 N,tgtIdx 的初始化器随 key 变化重跑——
+    // 这次重跑读到的 initialTarget 早已是 null,列号被种成 0,种子形同虚设。
+    // tgtRow 用的是不带 key 的 remember,天然躲过了这个坑(下面这行只是把它也接到 seedTarget
+    // 上,两处必须读同一份冻结值);tgtIdx 必须显式冻一份才能对齐。
+    val seedTarget = remember { initialTarget }
+    val tgtIdx = remember(rows.size) {
+        mutableStateListOf(*Array(rows.size.coerceAtLeast(1)) { i ->
+            if (seedTarget != null && i == seedTarget.first) seedTarget.second else 0
+        })
+    }
+    var tgtRow by remember { mutableStateOf(seedTarget?.first ?: 0) }
+    // 种子只消费一次(T4 review item A):落地当帧就告诉 MainActivity 清掉 homeInitialTarget,
+    // 不然下一次从「换壁纸/屏保/设置/导入」这类焦点原本在齿轮上的浮层回来,会被这颗旧坐标误种。
+    // Unit key = 只在这个组合实例首次进场时跑一次,和 tgtRow/tgtIdx 的初值是同一次落地。
+    // 守卫读 seedTarget(冻结值)而不是 initialTarget(活参数):这一帧之后活参数就可能已经
+    // 被消费成 null,守卫要反映「这个实例到底种没种」,不是参数此刻的值。
+    LaunchedEffect(Unit) {
+        if (seedTarget != null) onInitialTargetConsumed()
+    }
     var restoring by remember { mutableStateOf(false) }
     // 关菜单后焦点该还给齿轮。**用 nonce 比对而不是布尔闩**:布尔闩只有「看门狗跑完整个循环」
     // 这一条窄路能清掉,任何一次早退(菜单又开了、restoring 被 ON_PAUSE 置位、
@@ -119,15 +204,46 @@ fun HomeScreen(
         lifecycle.addObserver(obs)
         onDispose { lifecycle.removeObserver(obs) }
     }
+    /**
+     * 「现在站在哪张卡上」**只派生、不缓存**(终审 Important #1)。曾经在焦点事件时缓存一份 CardRef、
+     * 只在下一次焦点事件才重报,有两条路会让它过期:
+     * (i) **重载而没有焦点事件**——CategoryRow 按位置组合卡片(没有 key()),移除第一行第一张后
+     *     节点 (0,0) 原地换成了原来的 (0,1),焦点没动、没有事件,缓存里仍是被移除的那张:长按弹出的是
+     *     「幽灵」的菜单(打开会启动它、卸载会卸它、移动位置 indexOf(pkg) = -1)。后台 PACKAGE_REMOVED
+     *     让焦点卡左边任一张消失,同一形态。
+     * (ii) **卡→齿轮且回调顺序是「新先旧后」**——齿轮 got 把 focusedCell 写成 (-1,-1)(不上报),
+     *     随后卡片的 lost 看到 focusedCell != null 就不清,齿轮上长按弹出上一张卡的菜单。
+     * 派生之后两条路都自愈:上报值永远等于 cardAt(focusedCell) 对**当前** rows 的求值;
+     * 数据重载由下面那个 LaunchedEffect(loaded, focusedCell) 再算一次(rows 变 → key 变,没有闩)。
+     * layoutRow **直接取 Row 自己带的那个**(buildRows 在 filter 之前按 layout.json 定的),
+     * 不由渲染下标推导 —— 装不到的包会让某一行消失,推导出来的行号就会偏移,
+     * 「移除」会删到别人那一行(见 Row.layoutRow 的 KDoc)。
+     */
+    fun cardAt(cell: Pair<Int, Int>?): CardRef? {
+        val (row, idx) = cell ?: return null
+        if (row < 0) return null                       // (-1,-1) = 齿轮:它不是卡,长按不该出菜单
+        val r = rows.getOrNull(row) ?: return null
+        val app = r.apps.getOrNull(idx) ?: return null
+        return CardRef(row, idx, r.layoutRow, r.kind, app.packageName, app.label)
+    }
     fun report(row: Int, idx: Int, got: Boolean) {
         // 齿轮真的拿到焦点 = 这次「关菜单回齿轮」的意图已经兑现,比对立刻作废。
         // 不作废的话它会一直成立到下一次 nonce 递增,**窗口里每一次丢焦点都被送到齿轮**
         // (比如后台某个应用自动更新让某行短一格、焦点所在节点被销毁),
         // 人正站在第三行却突然瞬移到右上角。
         if (got && row == -1) gearNonce = -1
+        // focusedCell 自己的得失顺序保护留着:只有「本格仍是持有者」才作废。导航时若两张卡的
+        // 得失顺序颠倒(新卡先报 got、旧卡后报 lost),旧卡那次 lost 不会把新卡抹掉。
         if (got) focusedCell = row to idx
         else if (focusedCell == row to idx) focusedCell = null
+        // 上报**无条件**按 focusedCell 派生,不再看这次事件是谁:齿轮拿到焦点 → 派生为 null,
+        // 卡片拿到 → 派生为那张卡;颠倒顺序下旧卡的 lost 派生出来的仍是新卡。
+        onFocusedCard(cardAt(focusedCell))
     }
+    // 数据重载(移除、卸载、后台 PACKAGE_*)之后节点原地换卡、没有任何焦点事件——这里按新 rows 再派生一次。
+    // 两个 key 都只是被读的量,没有守卫,不存在铁律 6 那种「守卫不在 key 里」的洞;
+    // 也没有闩(铁律 7):每次 rows 或 focusedCell 变化都是一次全新求值。
+    LaunchedEffect(loaded, focusedCell) { onFocusedCard(cardAt(focusedCell)) }
     // 配置里的包一个都装不到时,卡片一张都没有,焦点无处可落;而这时唯一能自救的
     // 控件正是齿轮。不能指望框架的隐式 focus-enter——这份代码在别处恰恰拒绝依赖它。
     val gearFocus = remember { FocusRequester() }
@@ -139,8 +255,10 @@ fun HomeScreen(
     val screenH = LocalConfiguration.current.screenHeightDp.dp
     // 同理:整行被 filter 摘掉后 activeRow 会越界,内容会整块多上移一个 RowPitch
     val activeRowSafe = activeRow.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
+    // 标题开着时卡片下面还挂一行字(titleHeight),焦点行的「底」要连这行字一起算,
+    // 否则标题开关打开时,焦点落在最后一行会让标题的放大后半截探出屏幕底边(见 M4 Task 2 复审)。
     val overflow = metrics.firstCardTop + metrics.rowPitch * activeRowSafe +
-        metrics.cardHeight + Theme.BottomKeepout - screenH
+        metrics.cardHeight + metrics.titleHeight + Theme.BottomKeepout - screenH
     val shift by animateDpAsState(
         targetValue = if (overflow > 0.dp) -overflow else 0.dp,
         label = "rowShift",
@@ -159,10 +277,25 @@ fun HomeScreen(
         if (!menuOpen && menuWasOpen && menuFromGear) gearNonce = focusNonce
         menuWasOpen = menuOpen
     }
-    LaunchedEffect(focusNonce, rows.size, rows.isEmpty(), menuOpen) {
-        // 无论走哪条分支都要把 restoring 放掉,否则用户自己的导航从此更新不了目标
-        if (focusNonce == 0 || rows.isEmpty() || menuOpen || focusNonce == gearNonce) {
-            restoring = false; return@LaunchedEffect
+    LaunchedEffect(focusNonce, rows.size, rows.isEmpty(), anyOverlay, stale) {
+        // 除「浮层开着」外的每条分支都要把 restoring 放掉,否则用户自己的导航从此更新不了目标。
+        // **浮层开着时反过来要把它按住**(`restoring = anyOverlay` 而不是恒 false):
+        // 浮层关掉的那一帧,canFocus 从 false 回到 true,Compose 的默认恢复会抢在本效果重启之前
+        // 把焦点给整棵树第一个可聚焦节点 = (0,0);那次上报此时看到 restoring 还是 false,
+        // 于是把 tgtRow/tgtIdx 改写成 (0,0) —— **记忆在被用到之前就没了**(铁律 5),
+        // 本效果随后读到的目标已经是第一张卡,循环一次都不跑,焦点静默留在 (0,0)。
+        // 2026-09-16 实测:长按菜单与三条杠键打开的齿轮菜单都复现,而「从别的应用回来」这条路
+        // 不复现 —— 差别正是后者在 ON_PAUSE 就冻结了。冻结点必须早于那次默认恢复,
+        // 而浮层**打开**时冻结留有整整一个浮层的时间,足够早。
+        // 写成派生于 anyOverlay 而不是一次性布尔闩(铁律 7):浮层一关它自然放开,没有要清的闩;
+        // 而守卫读的 anyOverlay 本身就是 key(铁律 6)。
+        // **`stale` 同理,而且它是「移除 / 卸载后还站在同一行」的关键**:那两个动作先关菜单
+        // (nonce++)、再 revision++,新的行数据要几百毫秒才到。此刻若放开冻结,数据落地那一帧
+        // 焦点卡的节点被销毁、Compose 把焦点塞给 (0,0),那次上报就把目标改写成第一行第一张,
+        // 随后的还原只会把焦点送回那里。冻到数据新鲜为止,还原效果再按夹过的列号把焦点送到
+        // 同行邻卡(design §1 的「行变短时索引夹取」)。
+        if (focusNonce == 0 || rows.isEmpty() || anyOverlay || stale || focusNonce == gearNonce) {
+            restoring = anyOverlay || stale; return@LaunchedEffect
         }
         val r = tgtRow.coerceIn(0, rowFocus.lastIndex)
         restoring = true
@@ -182,11 +315,12 @@ fun HomeScreen(
         }
         restoring = false
     }
-    LaunchedEffect(rows.isEmpty(), loaded != null, focusNonce, focusedCell, menuOpen, restoring, gearNonce) {
-        // **菜单开着时让路。**focusedCell 只记录卡片与齿轮,不认识菜单项 ——
-        // 菜单一开它就变成 null,看门狗会误判「树里没焦点」并每帧抢着请求,
-        // 把菜单自己刚拿到的焦点搅掉,症状是「打开菜单后一项都没高亮、按什么都没反应」。
-        if (menuOpen) return@LaunchedEffect
+    LaunchedEffect(rows.isEmpty(), loaded != null, focusNonce, focusedCell, anyOverlay, restoring, gearNonce) {
+        // **任何浮层开着时让路。**focusedCell 只记录卡片与齿轮,不认识菜单项 ——
+        // 浮层一开它就变成 null,看门狗会误判「树里没焦点」并每帧抢着请求,
+        // 把浮层自己刚拿到的焦点搅掉,症状是「打开菜单后一项都没高亮、按什么都没反应」。
+        // 让路的前提是浮层自己负责焦点恢复(铁律 3 的推论):GearMenu 自带 nonce 驱动的初始焦点循环。
+        if (anyOverlay) return@LaunchedEffect
         // 还原效果正在把焦点送回离开前那一格时也要让路:否则两者同挤一帧,
         // 中间必然有一帧落在 (0,0),那次上报会把 activeRow 改成 0、其余行当场压暗再弹回 —— 闪一下。
         if (restoring) return@LaunchedEffect
@@ -243,7 +377,7 @@ fun HomeScreen(
                 // 节点调 clearFocus(force=true),整棵树的焦点当场消失,而 DPAD_CENTER 不参与
                 // 框架的焦点恢复 —— 症状是「醒来后按确定永远没反应」。待机的唤醒改由
                 // MainActivity.dispatchKeyEvent 吞掉第一下按键来实现,焦点全程不动。
-                .focusProperties { canFocus = !menuOpen }
+                .focusProperties { canFocus = !anyOverlay }
                 .offset(y = shift)
                 .padding(top = Theme.TopPadding),
             verticalArrangement = Arrangement.spacedBy(Theme.RowSpacing),
@@ -266,6 +400,8 @@ fun HomeScreen(
                     row = row,
                     metrics = metrics,
                     highlight = highlight,
+                    showTitles = showTitles,
+                    titles = titles,
                     firstCard = if (rowIndex == 0) firstCard else null,
                     active = rowIndex == activeRowSafe,
                     rowRequester = rowFocus.getOrNull(rowIndex),
@@ -298,10 +434,23 @@ fun HomeScreen(
                 // 找不到候选会冒泡到根继续找;卡片那一列已经被 canFocus 关掉,
                 // 但齿轮不在那一列里 —— 于是菜单里按右键焦点会落到蒙版后面的齿轮上,
                 // 高亮消失、上下左右都没反应,而这个菜单里装着「切回 Projectivy」这条退路。
-                .focusProperties { canFocus = !menuOpen },
+                .focusProperties { canFocus = !anyOverlay },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),   // 复审实测参考 36.2px,17dp 给出 42.2px
         ) {
+            // 「有 N 个新应用」:状态栏里、齿轮左边的小字(design §4 的最终落位)。
+            // **住在这一行是为了永不被卡片盖住**:左上角那版会在焦点落到最后一行、
+            // 内容整块上移(`offset(y = shift)`)时被升上来的第一行盖掉半截(2026-09-16 实测);
+            // 左下角那版会撞底行的卡片标题。右上角这条带子是屏幕上唯一永远没有卡片的地方。
+            // 只是一行字,不可聚焦 —— 外层那个 canFocus 管的是齿轮,与它无关。
+            val newCount = loaded?.third ?: 0
+            if (newCount > 0) {
+                BasicText(
+                    text = stringResource(R.string.home_new_apps, newCount),
+                    modifier = Modifier.alpha(contentAlpha),
+                    style = TextStyle(fontFamily = Theme.Sans, color = Theme.FooterHintText, fontSize = 12.sp),
+                )
+            }
             // 齿轮同样用 alpha 而不是 AnimatedVisibility:待机时若把节点移除,
             // 恰好停在齿轮上的焦点会被销毁,醒来第一下按键落空。
             GearButton(
@@ -338,6 +487,31 @@ fun HomeScreen(
                 nonce = focusNonce,
             )
         }
+
+        // 长按卡片菜单。**嵌在首页里而不是替换首页**:替换掉的话整棵卡片树被销毁,
+        // tgtRow/tgtIdx 这些「记住的那一格」跟着 remember 一起没了,关菜单后焦点回到第一张卡。
+        // 标题用该卡的显示名;取不到(极端情况下 label 为空)退回包名,绝不留一行空标题。
+        val cm = cardMenu
+        if (cm != null) {
+            GearMenu(
+                items = cardMenuItems,
+                onDismiss = onCardMenuDismiss,
+                nonce = focusNonce,
+                title = cm.label.ifBlank { cm.pkg },
+            )
+        }
+
+        // 「修改标题」对话框(Task 5,spec §3)。同样嵌在首页里而不是替换首页,理由同上。
+        val rt = renameTarget
+        if (rt != null) {
+            TitleDialog(
+                ref = rt,
+                current = titles[rt.pkg] ?: "",
+                onSave = { onRenameSave(rt, it) },
+                onCancel = onRenameCancel,
+                nonce = focusNonce,
+            )
+        }
     }
 }
 
@@ -347,6 +521,9 @@ private fun CategoryRow(
     metrics: CardMetrics,
     /** highlight 主题色:行标题文字色 + 卡片呼吸光晕色。 */
     highlight: Color,
+    /** 卡片标题全局开关 + 自定义标题表(design §2);输入源行不受它影响,见下方 AppCard 调用。 */
+    showTitles: Boolean,
+    titles: Map<String, String>,
     firstCard: FocusRequester?,
     active: Boolean,
     rowRequester: FocusRequester?,
@@ -417,6 +594,9 @@ private fun CategoryRow(
                     app = app,
                     metrics = metrics,
                     glowColor = highlight,
+                    // 标题开关为全局(design §2.2):输入源行不显示,自定义标题也一样受它约束。
+                    title = if (showTitles && row.kind == RowKind.APPS) (titles[app.packageName] ?: app.label) else null,
+                    fallbackColor = app.fallbackColor?.let { Color(it) },
                     onClick = {
                         // 唯一按种类分流的地方:应用行启动包,输入源行切信号源
                         //(packageName 里存的是输入 id)。其余焦点/渲染全部与种类无关。
@@ -570,8 +750,11 @@ private fun buildRows(ctx: Context): List<Row> {
     val layout = Layout.read(ctx)
     val needed = layout.flatMap { it.second }.toSet()
     val all = Apps.load(ctx, needed, withBitmaps = needed, withLabels = needed)
-    return layout.map { (name, pkgs) ->
-        Row(name = name, apps = pkgs.mapNotNull { all[it] })
+    // **layoutRow 必须在 filter 之前定下来**:下面那个 filter 会整行丢掉空行,
+    // 丢掉之后剩下行的下标就不再等于它们在 layout.json 里的下标。
+    // 「移除 / 移动位置」写的是 layout.json,拿渲染下标去写就会打在别人那一行上。
+    return layout.mapIndexed { layoutIndex, (name, pkgs) ->
+        Row(name = name, apps = pkgs.mapNotNull { all[it] }, layoutRow = layoutIndex)
     }.filter { it.apps.isNotEmpty() }
     // ⚠️ 这个 filter 不只是显示意图,**它同时是焦点的不变量**:
     // upTarget/downTarget 指向相邻行的 rowFocus,而 rowFocus 只挂在非空行的卡片上。

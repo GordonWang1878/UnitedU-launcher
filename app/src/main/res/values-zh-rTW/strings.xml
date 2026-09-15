@@ -17,6 +17,26 @@
     <string name="menu_system_settings_desc">開啟電視的 Android 設定</string>
     <string name="menu_set_default_home">設定預設桌面</string>
     <string name="menu_set_default_home_desc">選擇按下 Home 鍵時啟動哪個桌面</string>
+    <!-- card_menu_* : 首頁長按卡片選單 -->
+    <string name="card_menu_open">開啟應用程式</string>
+    <string name="card_menu_open_desc">啟動這個應用程式</string>
+    <string name="card_menu_uninstall">解除安裝</string>
+    <string name="card_menu_uninstall_desc">透過系統確認解除安裝;之後卡片會自動消失</string>
+    <string name="card_menu_rename">修改標題</string>
+    <string name="card_menu_rename_desc">只改卡片上的名字,不改應用程式</string>
+    <string name="card_menu_icon">更改圖片</string>
+    <string name="card_menu_icon_desc">從圖庫選一張 16:9 的圖</string>
+    <string name="card_menu_move">移動位置</string>
+    <string name="card_menu_move_desc">進入編輯桌面並定位到這張卡</string>
+    <string name="card_menu_remove">從目前分類移除</string>
+    <string name="card_menu_remove_desc">應用程式本身不會被解除安裝</string>
+    <!-- title_dialog_* : 「修改標題」對話框 -->
+    <string name="title_dialog_title">修改標題</string>
+    <string name="title_dialog_hint">確定儲存 · 返回取消 · 清空恢復應用程式名稱</string>
+    <string name="toast_title_saved">標題已儲存</string>
+    <string name="toast_title_not_saved">標題無法儲存</string>
+    <string name="toast_uninstall_failed">無法開啟系統解除安裝頁</string>
+    <string name="toast_remove_failed">找不到這張卡,可能剛被移出</string>
     <string name="menu_import">匯入圖片</string>
     <string name="menu_import_desc">手機掃碼上傳桌布、卡片圖、螢幕保護程式</string>
     <!-- import_* : 「匯入圖片」頁(電視端) -->
@@ -70,9 +90,11 @@
     <string name="edit_add_app_title">新增應用程式</string>
     <string name="edit_loading_apps">正在讀取應用程式清單…</string>
     <string name="edit_no_more_apps">沒有可新增的應用程式了</string>
+    <string name="edit_badge_new">新</string>
 
     <!-- home_* : 首頁與預設桌面設定卡 -->
     <string name="home_empty_apps_hint">沒有可顯示的應用程式\n右上角的齒輪已選取,按「確定」進入「編輯桌面」新增</string>
+    <string name="home_new_apps">有 %1$d 個新應用程式</string>
     <string name="home_input_row_title">輸入源</string>
     <string name="home_settings_title">預設桌面</string>
     <string name="home_settings_current_label">目前</string>
@@ -110,6 +132,7 @@
     <string name="settings_card_large">大</string>
     <string name="settings_card_medium">中</string>
     <string name="settings_card_small">小</string>
+    <string name="settings_show_titles">卡片標題</string>
     <string name="settings_show_input_row">輸入源行</string>
     <string name="settings_theme_color">主題色</string>
     <string name="settings_follow_wallpaper">跟隨桌布主色</string>

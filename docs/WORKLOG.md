@@ -242,3 +242,69 @@ commit `a0ae3ad`(分支 `m6-upload`)。全branch 复审判定「可合并」,但
 - 合并顺序 M3(`e1a6a4e`)→ M6(`61e5c73`);唯一冲突 `docs/WORKLOG.md`(两边各追加一节,保留两段)。合并树 `testReleaseUnitTest assembleRelease` 绿,48 单测。
 - 模拟器接缝冒烟 5/5 通过:首启铺入 6 张内置;上传页能列/删/传内置库,删掉的内置图重启不复活(`.seeded`);轮播每次重扫目录,上传的图进入轮播;删掉**当前**壁纸后回落到排序第一张,不黑屏不崩;设置页 12 行上下全程焦点不丢,导入页开关后首页焦点仍在。
 - 待 Gordon:推送;T9 真机调参;手机扫码真机验证;M5 电视 spike。
+
+## 2026-09-16 · M4 收官(长按卡片菜单 + 卡片标题 + 新应用标记)
+
+分支 `m4-card-menu`(design spec 提交 `bf4f1fb` 起,T1–T5 共 16 commit,HEAD `65b70d5`;T6 收官提交在其上;pre-M4 基线 = main `61e5c73`,M3+M6 合并)。子代理驱动 + 每任务评审,T2/T4/T5 各 1 轮修复后过审,T1/T3 一次过审,全部 clean。
+
+### M4 交付(spec §0)
+- **长按卡片菜单**:确定键/Enter `ACTION_DOWN` 且 `repeatCount == 1`(≈0.4 s)触发,复用 `GearMenu` 承载六项——打开、卸载(`ACTION_DELETE` 系统确认页)、修改标题、更改图标、移动位置(兜底,跳编辑页定位到该卡)、从当前分类移除;输入源行(`RowKind.INPUTS`)长按只吞按压、不出菜单(隐藏/改名留 M4b)。
+- **卡片标题**:`titles.json` 独立存储(读写 + 清洗:trim、去控制字符、≤40 字符、空=删除条目);全局开关 `Settings.showTitles`(默认 false,设置页「布局」组补回);卡片正下方一行,开关打开时行高按 `cardMetrics` 三档同比例增加;无横幅纯图标应用用 `Palette` 取主色铺底(`AppEntry.fallbackColor`)。
+- **新应用标记**:`Settings.newAppsSeenAt` 首启写入当前时间(之前装的都不算新);首页状态栏(齿轮左侧,随齿轮/时钟一起待机淡出)显示计数;编辑页「添加应用」列表候选项标「新」角标,打开列表即把 `newAppsSeenAt` 刷新为当前时间(按打开前的时间戳标记本次列表,关闭后首页计数归零)。
+- `TitleDialog`:系统 IME 重命名对话框,`BasicTextField` + nonce 焦点账本 + 四向 Cancel。
+
+### 验收结果(spec §7,`unitedu-tv` 模拟器)
+1. T1(`f6f5dc1..cee9628`):`Titles` 读写/清洗 + `isNewApp` + `cardMenuItems` 纯函数,43/43 单测,评审 clean。
+2. T2(`cee9628..36b7c34`):卡片标题渲染(全局开关、三档行高缩放、无横幅回落色),43/43,评审 1 轮修复(溢出公式漏计 `titleHeight` → 三行桌面底行标题被裁;spec §2.2 分档缩放漏实现)后 clean。
+3. T3(`ccac3b7..c1d570c`,先合并 main/M6 到分支):新应用计数 + 角标 + `newAppsSeenAt`,57/57,评审 clean(Important 项——onCreate 基线写入无读门控、`countNew` 重复枚举——折入 T4/留手)。
+4. T4(`4dea174..c8a7204`):长按菜单六项落地,57/57,评审 1 轮修复(MENU 键在卡片菜单上又叠出齿轮菜单;`layoutRow`/`colIndex` 用了渲染下标而非 `layout.json` 下标;更改图标回来后焦点归零)后 clean。
+5. T5(`a4814e1..65b70d5`):`TitleDialog` 系统 IME 改名,评审 1 轮修复(Critical——`onInitialTargetConsumed` 与 `tgtIdx` 靠 `rows.size` 的重新播种互相竞态,非 0 列的种子会丢;Important——MENU 未在改名时让路、输入框 `focusProperties` 缺 Cancel 出口)后 clean。
+6. T6(`b2a7578`)+ 终审修复波次(`8cc5134`):零回归像素对比 + 焦点责任表 + 文档收尾,见下;全分支终审的 3 Important + 5 Minor 在修复波次一次修完(见「终审修复波次」)。
+
+### 零回归像素对比
+方法同 M3 Task 8 Step 1(Python/PIL,clock-bbox 法),但这次用**真实三行布局**(YouTube/TV设置/TV桌面/Play商店,Google ATV 镜像自带系统应用)而非空布局——M4 的长按菜单/标题/新标全挂在真实卡片上,空首页测不出东西。脚本原样输出:
+```
+clock bbox: (102, 70, 1557, 677)
+m4 diff bbox: (99, 70, 1556, 680)
+ZERO-REGRESSION: FAIL
+```
+raw `getbbox()` 判 FAIL,但差在 clock bbox 外的 1168 个像素逐一核实**全部只差 1/255**(单通道最小可表示量,肉眼不可辨)。根因是 `AppCard.kt` 的「呼吸光晕」——聚焦卡外发光半径按 2.5 s 线性周期呼吸(`Theme.GlowPeriodMs`,注释标「v4 实测周期」,M4 之前就有、非本轮改动),M3 当年测空首页从未触发过它(默认 `layout.json` 引用的应用在测试机上一个都没装,首页本身是空的)。按 >10/255 可见性阈值重算,基线自比(61 s 间隔)与「基线 vs M4」两组差异框几乎重合、都落在时钟本体(约 (1391–1393,70)–(1555–1556,118)),框外像素在所有阈值下最大量级仅 9/255(与 T2 记录的「glow-phase noise ≤9/255」同一现象),零结构性差异。**结论:M4 相对 M3+M6 基线无可见回归;raw FAIL 是这个脚本第一次遇到真实聚焦卡时暴露的呼吸光晕采样噪声,不是代码问题**(逐阈值数据见 `task-6-report.md`)。角落新应用计数按预期不显示(`newAppsSeenAt` 本次冷启动刚初始化,参照应用都是装机自带的旧系统应用)。
+
+**前向缓解(T6 评审 Critical 项的裁定,终审修复波次补记)**:以后凡是带真实布局的零回归对比,**截图前先把焦点放到齿轮上**——没有聚焦卡就没有呼吸光晕,噪声源根本不存在;做不到的话就在 diff 里把聚焦卡所在区域整块遮掉/排除。脚本里 >10/255 的量级下限只作次级保险,不再当主判据(它能滤掉光晕采样噪声,但也会把真正的 ≤10/255 结构性差异一起滤掉)。另:不变量本身只对**横幅卡**成立——spec §2.3 的无横幅回落卡不看开关一律铺回落色,对比布局里若有纯图标应用,那几张卡本来就与基线不同(spec §2.2 已改写)。
+
+### 终审修复波次(`b2a7578` → 代码 `8cc5134`,文档随后一提交)
+全分支终审(base `19fe918`)判「ready with fixes」,裁定后一波修完、再做范围内复审。**3 Important**:
+- **#1 `focusedCard` 改为派生,不再缓存**:`HomeScreen.cardAt(focusedCell)`,`report()` 无条件按它上报,`LaunchedEffect(loaded, focusedCell)` 在数据重载时重算。原来在焦点事件时缓存一份 `CardRef`、只在下一次焦点事件才重报,而卡片是按位置组合的(无 `key()`):移除首行首张后节点 (0,0) 原地换成原 (0,1),焦点没动、没有事件,长按弹出的是**被移除那张**的菜单(打开会启动它、卸载会卸它、移动位置 `indexOf = -1`);后台 `PACKAGE_REMOVED` 让焦点卡左侧任一张消失同形;卡→齿轮回调「新先旧后」时齿轮上长按也弹上一张卡的菜单。
+- **#2 改名对话框确定键保存**:`BasicTextField` 只把 `Key.Enter` 映射到 IME 动作,第一次返回键收起输入法(对话框还在)后 DPAD_CENTER 到达 Compose 却无人接,唯一出口是返回=取消、刚打的字全丢。文本框加 `onPreviewKeyEvent`(`DirectionCenter` 抬起保存、按下抬起都吞);**不加「已提交」布尔闩**(铁律 7),重复触发由 `MainActivity.onRenameSave` 的幂等守卫(`renameTarget` 已清则返回)吸收。
+- **#3 待机计时对卡片菜单 / 改名对话框让路**:输入法开着时按键到不了 `dispatchKeyEvent`,`lastInput` 打字期间不刷新,三分钟后卡片淡出、屏保从蒙版后渐入、下一键被当唤醒吞掉。`cardMenu != null || renameTarget != null` 与 `menuOpen` 同一处理:既是 key 也是守卫(铁律 6)。
+
+**5 Minor**:#4「移除」写盘(tmp → fsync → rename)搬到 IO 线程(`lifecycleScope.launch` + `withContext(IO)`,与 `onRenameSave`/`EditScreen.persist` 同构);#5 `newAppsSeenAt == 0`(onCreate 基线写盘失败)时不算新,不再把整机应用全算成新;#6 `pickIcon` 返回 Boolean,存储没就绪时不种 `homeInitialTarget`;#10a `truncateTitle` 不拆代理对(`sanitizeTitle` 与对话框 `onValueChange` 共用同一 helper,+1 单测);#10b zh-rTW 卸载描述改「透過系統確認解除安裝;之後卡片會自動消失」。单测 **58/58**(57 + 1)。
+模拟器证据(`.superpowers/sdd/2026-09-15-m4-card-menu/final-fix-shots/`,`final-fix-report.md` 逐项;菜单标题以 `uiautomator dump` 的文本为准,不只看截图):移除 (0,0) 后长按新 (0,0),菜单标题为原 (0,1)「Cast moderator」而非被移除的 YouTube(`22/23-a1a-*`);后台 `pm disable-user` 掉焦点卡左侧的应用后长按,菜单命名的是高亮卡「Android TV Home」(`17/18-a1c-*`);卡→齿轮后长按齿轮只出齿轮菜单、无卡片菜单(`28/29-a1b-*`);中列 (0,1) 移除后焦点留在同行邻卡、菜单命名它(`26/27-a4-*`);改名对话框输入 NewName → BACK 收起输入法(对话框仍在,`mInputShown=false`)→ 确定键保存,`titles.json` 与卡下标题均为 NewName(`05–07-a2-*`);Enter 仍保存(`10-a2-*`)、BACK×2 取消不保存(`13–15-a2-*`);对话框开着等 3 分 45 秒(05:16:46 → 05:20:31)卡片不淡出、无屏保(`03/04-a3-*`,卡片区亮度逐位不变)。
+
+### 决策(Gordon,spec §0)
+1. 范围切分:**M4 = 长按菜单 + 卡片标题渲染 + 新应用标记;M4b = 行数 1–5 与行的增删/命名/图标 + HDMI-CEC 父子去重 + 输入源逐项隐藏/改名 + 原地移动**,分开评审、分开真机验。
+2. 「移动位置」:M4 只做兜底(跳编辑页定位到该卡),原地移动态(卡片抬起/左右换位/上下换行)后置到 M4b 之后,等长按菜单真机验过再做。
+3. 卡片标题位置:卡片下方一行(Projectivy 同款,不遮横幅)。
+
+### 延后项(带去向)
+- **M4b**:行数 1–5 与行的增删/命名/图标、HDMI-CEC 父子去重、输入源逐项隐藏/改名、原地移动。
+- **真机(Gordon)**:长按手感(0.4 s 是否合适)、`TitleDialog` 用索尼输入法输中文、DPAD_CENTER 与 KEYCODE_ENTER 哪个当保存手势、改名时 IME 的返回键要按几次、**BACK 隐藏 IME 后按确定键是否保存(本波已实现,索尼输入法下复核)**。
+- M6 的 `ImportScreen` `ON_STOP` 关页逻辑与 M4 无接口交叉,本轮未碰、未验,维持既有行为。
+- **M4b(外观)**:输入源行不渲染标题,但纵向溢出公式对每一行都按 `titleHeight` 算——两个开关都开着、焦点落在输入源行下方时整列多上移一个 `titleHeight`(纯外观,M4b 重做输入源行时一并处理)。
+- **架构跟进(终审建议)**:把首页焦点记忆(`tgtRow/tgtIdx`)提升到 `setContent` 层 `remember` 的一个 holder 里,让每个**替换**首页的界面(四个选择器、编辑页、设置页、导入页)回来都能还原,从而退役 `initialTarget`/`seedTarget`/`onInitialTargetConsumed` 这套接线及它缓解的两条延后项(picker 类浮层回来落 (0,0);`initialTarget` 只覆盖「改图标」一条路)。今日实况:「移动位置 → 编辑页 → 返回」落回 (0,0),因为 `leaveEdit()` 会清种子。
+- **既有问题,非 M4 引入**:设置页能改 `Settings.idleAfterMs` / `idleContent`,但没有任何地方消费它们——`MainActivity` 仍是 `delay(Theme.IdleAfterMs)` 常量。M4 之外另立跟进。
+
+### 注记
+- `titles.json` 与 `layout.json` 各自独立存储(同一应用在两行共用一个标题,零迁移成本)。
+- 新应用角落计数的位置改了两次才定案:左下角会和开着标题的底行卡片标题重叠;左上角在底行聚焦、整列上移时被首行卡片盖住;最终并入状态栏(齿轮左侧)——「卡片上移时从状态栏下方穿过」本来就是齿轮/时钟已接受的既有行为。
+- `buildRows` 会丢弃未安装的包和整行为空的行,渲染下标 ≠ `layout.json` 下标——`Row.layoutRow` 在过滤前赋值,「移除」「移动位置」一律按 `(layoutRow, pkg)` 寻址,绝不用渲染列号(T4 评审 Critical 项,CLAUDE.md 七条第 5 条的又一实例)。
+- `HomeScreen(initialTarget)` 的焦点种子在组合创建时用 `remember` 冻结成 `seedTarget`,经回调消费一次后由 `MainActivity` 清空——T5 评审揪出 `tgtIdx` 靠 `rows.size` 重新播种会与种子消费竞态(非 0 列的种子会静默丢失),是「目标与当前位置必须拆开」铁律(第 5 条)的第三次实例。
+- 输入源行(`RowKind.INPUTS`)长按只吞按压、不出菜单。
+- 清单原缺 `REQUEST_DELETE_PACKAGES`(API 26+ `ACTION_DELETE` 必需),卸载点了没反应、`startActivity` 仍返回成功——T4 修复。
+- MENU/BACK 在卡片菜单、改名对话框开着时要先关自己再冒泡,否则会在看不见的那层上叠出齿轮菜单/丢焦点。
+- T4 实施代理在 `HomeScreen` 里顺手加了两处任务书之外的焦点修复(打开浮层时冻结目标;`stale` 重载时冻结)——评审专门复核,判定 clean,没有引入铁律第 6 条那类漏洞。
+- onCreate 的 `newAppsSeenAt` 基线写入现在有读门控(先 `SettingsStore.read` 判 `== 0L` 再写);T3 初版是无条件写、每次冷启动都写一次——T3 评审 Important 项,T4 一并修。
+- 已知技术债(非阻塞,留手):`countNew` 重新枚举了一遍 `Apps.load` 刚算过的东西(需要 `buildRows` 暴露那张 map 才能省掉);`parseTitles` 容忍尾随逗号、`readString` 对任意 `\X` 都转义(应只认 `\"` `\\`);角落计数与添加列表「新」标的「新」口径不完全一致(前者不含已上桌面的,已记录非 bug);添加列表候选项走的「便宜路径」仍对每个已装应用产生一次 `getPackageInfo` IPC;`fontScale > 1.15` 时固定行高的标题会被裁;后台 `PACKAGE_CHANGED` 触发的 reload 冻结窗口可能吞掉一次方向键;壁纸选择器/屏保图库/默认桌面卡等 picker 类浮层仍是整体替换 `HomeScreen`(M3 已记录的既有行为),`initialTarget` 种子只覆盖了「改图标」这一条长按菜单路径,其余 picker 回来焦点仍落 (0,0)。
+- **工具链事故一则**:T4 修复轮的一个 opus 实施代理在验证阶段撞上 `claude-opus-5` 的 API 403 中途死亡,改动留在 worktree 未提交;由一个 sonnet 代理从这份未提交的 diff 接手,核对后补完验证并提交。后续若当晚再撞 403,优先换 sonnet/fable 而非 opus。
+
+spec 状态行已改为「已实施(commit `8cc5134`),待真机验」(T6 时为 `65b70d5`,修复波次后更新)。

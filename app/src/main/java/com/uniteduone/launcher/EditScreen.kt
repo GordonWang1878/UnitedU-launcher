@@ -49,10 +49,25 @@ fun EditScreen(
     focusNonce: Int = 0,
     revision: Int = 0,
     cardsPerRow: Int = 6,
+    /** 卡片标题全局开关(design §2):编辑页与首页共用同一份 titles.json,标题同样显示——
+     *  编辑时看得见名字更好认。 */
+    showTitles: Boolean = false,
+    /**
+     * 首页长按菜单「移动位置」带进来的 **(layout.json 行号, 包名)**;null = 正常进入,不定位。
+     *
+     * 用包名而不是列号:首页那边 `buildRows` 把装不到的包丢掉了,编辑页这边是
+     * `Layout.read` 的原样(缺的包也占一格,画成暗红的「未安装」)—— 两边的列号对不上。
+     * 包名在一行里唯一(`Layout.read` 做过 distinct),按它查才落在同一张卡上。
+     */
+    initialTarget: Pair<Int, String>? = null,
 ) {
     val ctx = LocalContext.current
     // 与首页同一套卡片档位尺寸,编辑页的卡片才会和首页一样大。见 Theme.cardMetrics。
-    val metrics = Theme.cardMetrics(cardsPerRow)
+    val metrics = Theme.cardMetrics(cardsPerRow, showTitles)
+    // 自定义标题表,revision 变化(改过标题)时重读;与首页同一份数据源。
+    val titles by produceState(emptyMap<String, String>(), revision) {
+        value = withContext(Dispatchers.IO) { Titles.read(ctx) }
+    }
     var rows by remember { mutableStateOf(Layout.read(ctx).map { it.first to it.second.toMutableList() }) }
     var picking by remember { mutableStateOf<Int?>(null) }        // 正在给第几行加应用
     var acting by remember { mutableStateOf<Pair<Int, Int>?>(null) } // (行, 位置) 的操作菜单
@@ -125,6 +140,21 @@ fun EditScreen(
         focusRow = ri
         retargetRow = ri
         focusTarget[ri.coerceIn(0, focusTarget.lastIndex)] = col
+    }
+
+    // 「移动位置」兜底:从首页带着 (layout 行号, 包名) 进来,数据到位后定位一次。
+    // 用「已应用的目标」比对,不用一次性布尔闩(铁律 7):同一个 initialTarget 只应用一次,
+    // 换了新值自然再应用。
+    var appliedTarget by remember { mutableStateOf<Pair<Int, String>?>(null) }
+    LaunchedEffect(initialTarget, all) {
+        val t = initialTarget ?: return@LaunchedEffect
+        if (all == null || appliedTarget == t) return@LaunchedEffect
+        appliedTarget = t
+        val ri = t.first.coerceIn(0, rows.lastIndex.coerceAtLeast(0))
+        // **按包名查列号**,不信任首页传来的渲染列号(两边的行内容不一样,见 initialTarget 的 KDoc)。
+        // 查不到(那一行刚被别处改过)就退到行首,至少落在正确的那一行上,绝不乱指一张卡。
+        val ci = rows.getOrNull(ri)?.second?.indexOf(t.second) ?: -1
+        if (ci >= 0) retarget(ri, ci) else retarget(ri, 0)
     }
 
     // 与首页同一套:**从 ON_PAUSE 就冻结**、ON_RESUME 再显式恢复。
@@ -305,6 +335,8 @@ fun EditScreen(
                                 AppCard(
                                     app = app,
                                     metrics = metrics,
+                                    title = if (showTitles) (titles[pkg] ?: app.label) else null,
+                                    fallbackColor = app.fallbackColor?.let { Color(it) },
                                     onClick = { acting = ri to pi },
                                     modifier = fm,
                                     onFocusChange = tell,
@@ -534,6 +566,13 @@ private fun AppPicker(
     exclude: Set<String>,
     onPick: (String) -> Unit,
 ) {
+    // 打开列表那一刻的基线:本次列表按打开前的时间戳标「新」,同时把时间戳推到现在(先算后写)。
+    val seenAtBefore = remember { SettingsStore.read(ctx).newAppsSeenAt }
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            SettingsStore.update(ctx) { it.copy(newAppsSeenAt = System.currentTimeMillis()) }
+        }
+    }
     // 选择器只显示名字,不需要位图
     // null = 还在读。用 emptyList 当初值时,弹出的框第一眼就写着「没有可添加的应用了」,
     // 几百毫秒后才刷出列表 —— 看到这句话的人会直接按返回,认定功能坏了。
@@ -615,6 +654,8 @@ private fun AppPicker(
                         },
                         isFirst = i == 0,
                         isLast = i == candidates.orEmpty().lastIndex,
+                        // 候选本来就不在桌面上(loadCandidates 已经把 layout.json 里的包 exclude 掉了)。
+                        isNew = isNewApp(app.firstInstallTime, seenAtBefore, onLayout = false),
                         onClick = { onPick(app.packageName) },
                     )
                 }
@@ -631,6 +672,7 @@ private fun PickerRow(
     onFocusChange: (Boolean) -> Unit = {},
     isFirst: Boolean = false,
     isLast: Boolean = false,
+    isNew: Boolean = false,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -657,10 +699,20 @@ private fun PickerRow(
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
-        BasicText(
-            text = app.label.ifBlank { app.packageName },
-            style = TextStyle(fontFamily = Theme.Sans, color = if (focused) Theme.Champagne else Theme.DialogBodyText, fontSize = 14.sp),
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            BasicText(
+                text = app.label.ifBlank { app.packageName },
+                // weight(fill = false):名字很长时先挤自己(换行),不把「新」标推出对话框右边缘;
+                // fill = false 保证短名字仍然紧挨着标,不会中间空一大段。
+                modifier = Modifier.weight(1f, fill = false),
+                style = TextStyle(fontFamily = Theme.Sans, color = if (focused) Theme.Champagne else Theme.DialogBodyText, fontSize = 14.sp),
+            )
+            if (isNew) Box(
+                Modifier.clip(RoundedCornerShape(4.dp)).background(Theme.Champagne.copy(alpha = 0.22f)).padding(horizontal = 6.dp, vertical = 1.dp),
+            ) {
+                BasicText(text = stringResource(R.string.edit_badge_new), style = TextStyle(fontFamily = Theme.Sans, color = Theme.Champagne, fontSize = 10.sp))
+            }
+        }
         BasicText(
             text = app.packageName,
             style = TextStyle(fontFamily = Theme.Sans, color = Theme.FootnoteText, fontSize = 10.sp),

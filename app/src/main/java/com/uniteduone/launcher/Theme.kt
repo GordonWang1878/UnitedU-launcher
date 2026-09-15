@@ -6,7 +6,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.times
 
 /**
  * 一档卡片布局的全部尺寸(随「每行张数」变化的那些)。
@@ -23,6 +26,13 @@ data class CardMetrics(
     val rowPitch: Dp,
     /** 第一行卡片顶到内容顶的距离,同样只用于 overflow 计算。 */
     val firstCardTop: Dp,
+    /** 标题行占的高度(开关关 = 0),已计入 rowPitch。 */
+    val titleHeight: Dp = 0.dp,
+    /** 标题的卡底间距 / 行高 / 字号,随档位按 [cardWidth] 比例缩放(design §2.2,与卡宽同一推导)。
+     *  开关关着时这三个字段不影响任何东西(titleHeight 已经是 0);默认值只为了让其它构造点不必改。 */
+    val titleGap: Dp = 0.dp,
+    val titleLine: Dp = 0.dp,
+    val titleSize: TextUnit = 0.sp,
 )
 
 /** 全部视觉常量集中在这里,对应 docs/DESIGN-custom-launcher.md §4 的规格表。 */
@@ -142,6 +152,12 @@ object Theme {
     // 注意参考图里**正文比行图标高 3.33px**,而我们两者齐平,所以这里以正文为基准
     // (图标字形本来就不是同一个,拿它当基准会把正文推错位)。
     val RowTitleGap = 2.3.dp
+    /** 卡片标题(design §2,Gordon 定放卡片下方):卡底到文字的间距、一行文字的高度、字号。
+     *  这三个是**中档基准值**——实际渲染读 [CardMetrics.titleGap]/[titleLine]/[titleSize],
+     *  在 [cardMetrics] 里按 f 跨档缩放(同 CardCorner/GlowRadius 那一套),这里不再重复读。 */
+    val CardTitleGap = 6.dp
+    val CardTitleLine = 18.dp
+    val CardTitleSize = 13.sp
     val SidePadding = 84.5.dp   // 复审三轮实测参考左边缘 168.4/168.6px(85dp 给出 169.5px)
     val TopPadding = 195.3.dp   // 与 RowTitleGap/RowSpacing 联立解出:第一行卡顶落在 483.4px
     /** 行内上下留白:要放得下聚焦后放大 31% 的卡片,否则会被行高裁掉。 */
@@ -172,37 +188,53 @@ object Theme {
      * - **5 / 8 档由「可见跨度守恒」推导**:当前 6 张卡的可见跨度
      *   `S = 6*CardWidth + 5*CardSpacing`;换成 N 张时保持同一个 S、且 [CardSpacing] 不变,
      *   于是 `cardWidth(N) = (S - (N-1)*CardSpacing) / N`。再用比例 `f = cardWidth(N)/CardWidth`
-     *   缩放随卡宽变的量:高、圆角、光晕。[FocusScale] 与 [CardSpacing] 跨档不变。
+     *   缩放随卡宽变的量:高、圆角、光晕、标题(卡底间距/行高/字号,design §2.2)。
+     *   [FocusScale] 与 [CardSpacing] 跨档不变。
      *   → 5 张更大、8 张更小、6 张不变。
      * - **纵向**:行距 [RowPitch] 里只有卡高一项随档变(标题、间隙、留白、行间距都不变),
      *   所以 `rowPitch(N) = RowPitch + (cardHeight(N) - CardHeight)`。
      *   卡「顶」的位置不受卡高影响,故 [FirstCardTop] 跨档不变。
      */
-    fun cardMetrics(cardsPerRow: Int): CardMetrics {
-        // 6 与任何意外值都走中档:原始常量原样,保证与本次改动前逐像素一致。
+    fun cardMetrics(cardsPerRow: Int, showTitles: Boolean = false): CardMetrics {
+        // 6 与任何意外值都走中档:原始常量原样(不乘 f,连浮点乘 1.0 的风险都不冒),
+        // 保证与本次改动前逐像素一致。
         if (cardsPerRow != 5 && cardsPerRow != 8) {
+            val titleHeight = if (showTitles) CardTitleGap + CardTitleLine else 0.dp
             return CardMetrics(
                 cardWidth = CardWidth,
                 cardHeight = CardHeight,
                 cardCorner = CardCorner,
                 cardSpacing = CardSpacing,
                 glowRadius = GlowRadius,
-                rowPitch = RowPitch,
+                rowPitch = RowPitch + titleHeight,
                 firstCardTop = FirstCardTop,
+                titleHeight = titleHeight,
+                titleGap = CardTitleGap,
+                titleLine = CardTitleLine,
+                titleSize = CardTitleSize,
             )
         }
         val span = CardWidth * 6 + CardSpacing * 5           // 6 张时的可见跨度 S = 811.0dp
         val cardWidth = (span - CardSpacing * (cardsPerRow - 1)) / cardsPerRow
         val f = cardWidth / CardWidth                         // Dp/Dp = Float 比例因子
         val cardHeight = CardHeight * f
+        // 标题随卡宽同一个 f 缩放(design §2.2:「随档位按 cardWidth 比例缩放,与 cardMetrics 同一推导」)。
+        val titleGap = CardTitleGap * f
+        val titleLine = CardTitleLine * f
+        val titleSize = CardTitleSize * f
+        val titleHeight = if (showTitles) titleGap + titleLine else 0.dp
         return CardMetrics(
             cardWidth = cardWidth,
             cardHeight = cardHeight,
             cardCorner = CardCorner * f,
             cardSpacing = CardSpacing,                        // 跨档不变
             glowRadius = GlowRadius * f,
-            rowPitch = RowPitch + (cardHeight - CardHeight),  // 只有卡高随档变
+            rowPitch = RowPitch + (cardHeight - CardHeight) + titleHeight,  // 只有卡高随档变
             firstCardTop = FirstCardTop,                      // 卡顶位置与卡高无关
+            titleHeight = titleHeight,
+            titleGap = titleGap,
+            titleLine = titleLine,
+            titleSize = titleSize,
         )
     }
 
