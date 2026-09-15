@@ -107,6 +107,20 @@ object Wallpapers {
         return SettingsStore.write(ctx, s.copy(wallpaperFile = name, wallpaperRotatedAt = System.currentTimeMillis()))
     }
 
+    /**
+     * 轮播一步:重扫目录(推完/删完图下次轮换即生效,与屏保同理)→ 当前的下一张 → 写盘。
+     * **返回「是否写盘成功」,不是「是否换了图」**:单张图库也要刷新 rotatedAt,MainActivity 据此
+     * settingsRevision++ → effect 以新 key 重启。若按「换了图才通知」写,单张时 key 不变、
+     * effect 结束,轮播从此停转(铁律 6 的变体:effect 的续命信号必须由它自己的 key 承载)。
+     */
+    fun rotate(ctx: Context): Boolean {
+        val s = SettingsStore.read(ctx)
+        val names = libraryImages(ctx).map { it.name }
+        val next = nextWallpaper(names, s.wallpaperFile) ?: s.wallpaperFile
+        if (next != s.wallpaperFile) Log.i(TAG, "壁纸轮播 → $next")
+        return SettingsStore.write(ctx, s.copy(wallpaperFile = next, wallpaperRotatedAt = System.currentTimeMillis()))
+    }
+
     /** APK 内置默认底:任何路径都失败时的最后一张,保证永远不黑屏。失败必须留痕:
      *  这是黑屏前最后一道回落,静默失败会让"为什么黑屏"排查不出来。 */
     fun builtinDefault(ctx: Context): Bitmap? = runCatching {

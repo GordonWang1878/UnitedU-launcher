@@ -125,6 +125,16 @@ class MainActivity : ComponentActivity() {
                 delay(Theme.IdleAfterMs)
                 idle = true
             }
+            // 壁纸轮播。守卫读的两个量就是 key(铁律 6):rotate() 写盘后 settingsRevision++ 重读 settings,
+            // rotatedAt 变 → 本 effect 以新 key 重启、再等一个间隔;重启 app 后按剩余时间续等。
+            val rotateMs = homeSettings.wallpaperRotateMs
+            val rotatedAt = homeSettings.wallpaperRotatedAt
+            LaunchedEffect(rotateMs, rotatedAt) {
+                if (rotateMs == 0L) return@LaunchedEffect
+                delay(rotationDelayMs(rotatedAt, rotateMs, System.currentTimeMillis()))
+                val wrote = withContext(Dispatchers.IO) { Wallpapers.rotate(this@MainActivity) }
+                if (wrote) settingsRevision++
+            }
             // 不用 key(revision) 强制重建:那会连壁纸和焦点一起推倒,
             // 后台应用自动更新时屏幕会黑一下、焦点被打回第一张卡。
             // revision 只喂给读数据的 produceState,新数据到达前旧画面原样留着。
