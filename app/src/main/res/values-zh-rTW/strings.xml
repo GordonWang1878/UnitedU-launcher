@@ -37,6 +37,7 @@
 
     <!-- home_* : 首頁與預設桌面設定卡 -->
     <string name="home_empty_apps_hint">沒有可顯示的應用程式\n右上角的齒輪已選取,按「確定」進入「編輯桌面」新增</string>
+    <string name="home_input_row_title">輸入源</string>
     <string name="home_settings_title">預設桌面</string>
     <string name="home_settings_current_label">目前</string>
     <string name="home_settings_change_button">在系統設定中變更</string>
@@ -67,6 +68,7 @@
     <string name="settings_card_large">大</string>
     <string name="settings_card_medium">中</string>
     <string name="settings_card_small">小</string>
+    <string name="settings_show_input_row">輸入源行</string>
     <string name="settings_theme_color">主題色</string>
     <string name="settings_follow_wallpaper">跟隨桌布主色</string>
     <string name="settings_show_date">顯示日期</string>

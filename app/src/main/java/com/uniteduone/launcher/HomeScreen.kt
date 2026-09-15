@@ -57,6 +57,9 @@ fun HomeScreen(
     menuFromGear: Boolean = true,
     showDate: Boolean = true,
     cardsPerRow: Int = 6,
+    /** 输入源行开关(design §2,默认关)。开着且真机枚举到硬件输入时,在应用行**上方**
+     *  多渲染一行输入源;它以普通行的身份加进纵向焦点账本,种类差异只影响点击行为与行图标。 */
+    showInputRow: Boolean = false,
     /** 主题色(选中预设或跟随壁纸解析出的)。accent 给齿轮;highlight 给行标题/光晕/时钟。
      *  默认今日常量,保证未接线的调用点逐位复现今日观感。 */
     accent: Color = Theme.ChampagneGold,
@@ -70,8 +73,18 @@ fun HomeScreen(
     // 用 null 区分「还在加载」和「真的空」,否则每次冷启动和每次退出编辑都会闪一句求救文案
     // revision 变化(换了卡片图、装/卸了应用)时重跑,但 produceState 的 remember 不带 key,
     // 新数据到达前**旧画面原样留着**——不会像 key(revision) 那样先黑一下再重建。
-    val loaded by produceState<List<Row>?>(initialValue = null, ctx, revision) {
-        value = withContext(Dispatchers.IO) { runCatching { buildRows(ctx) }.getOrDefault(emptyList()) }
+    // showInputRow 也作 key:设置页改了这个开关后 leaveSettings() 会 revision++,
+    // 这里本就会重跑;带上它是白纸黑字,不依赖「revision 一定跟着变」这条间接约束。
+    val loaded by produceState<List<Row>?>(initialValue = null, ctx, revision, showInputRow) {
+        value = withContext(Dispatchers.IO) {
+            val appRows = runCatching { buildRows(ctx) }.getOrDefault(emptyList())
+            // 输入源行放**最上面**:design §2 把「输入源」当独立顶层类目,置顶与之相符;
+            // 且置顶后应用行的相对次序、以及「开机焦点落在最上一行」的直觉都不变。
+            // 枚举为空(非电视 / 没有硬件输入)时返回 null,这一行干脆不存在 —— 焦点账本
+            // 只认非空行,不会挂空 requester(见 buildRows 结尾那条不变量)。
+            val inputRow = if (showInputRow) runCatching { buildInputRow(ctx) }.getOrNull() else null
+            if (inputRow != null) listOf(inputRow) + appRows else appRows
+        }
     }
     val rows = loaded.orEmpty()
     // 开机后焦点要自己落到第一张卡片上,否则方向键第一下没有反应。
@@ -398,7 +411,7 @@ private fun CategoryRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            RowIcon(row.name)
+            RowIcon(row.name, row.kind)
             BasicText(
                 text = row.name,
                 style = TextStyle(
@@ -443,7 +456,13 @@ private fun CategoryRow(
                     metrics = metrics,
                     glowColor = highlight,
                     onClick = {
-                        if (!Apps.launch(ctx, app.packageName)) {
+                        // 唯一按种类分流的地方:应用行启动包,输入源行切信号源
+                        //(packageName 里存的是输入 id)。其余焦点/渲染全部与种类无关。
+                        val ok = when (row.kind) {
+                            RowKind.INPUTS -> Inputs.launch(ctx, app.packageName)
+                            RowKind.APPS -> Apps.launch(ctx, app.packageName)
+                        }
+                        if (!ok) {
                             android.widget.Toast.makeText(
                                 ctx, ctx.getString(R.string.toast_cant_open_app, app.label), android.widget.Toast.LENGTH_SHORT,
                             ).show()
@@ -588,6 +607,22 @@ private fun ensureDefaultWallpaper(ctx: Context) {
         if (!tmp.renameTo(dst)) { dst.delete(); check(tmp.renameTo(dst)) }
     }
     tmp.delete()
+}
+
+/**
+ * 输入源行。把每个硬件输入伪装成 [AppEntry](packageName 存输入 id、card=null 走文字回退),
+ * 从而与应用行**共用** AppCard / CategoryRow / 整套纵向焦点账本。
+ * 枚举为空(非电视、或没有硬件输入)时返回 null —— 这一行不渲染,焦点账本只挂非空行,
+ * 与 buildRows 结尾那条不变量同源。标题走本地化字符串;ctx.getString 在 IO 线程可安全调用。
+ */
+private fun buildInputRow(ctx: Context): Row? {
+    val inputs = Inputs.load(ctx)
+    if (inputs.isEmpty()) return null
+    return Row(
+        name = ctx.getString(R.string.home_input_row_title),
+        apps = inputs.map { AppEntry(packageName = it.id, label = it.label, card = null, isWide = false) },
+        kind = RowKind.INPUTS,
+    )
 }
 
 private fun buildRows(ctx: Context): List<Row> {

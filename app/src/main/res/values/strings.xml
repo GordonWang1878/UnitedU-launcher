@@ -37,6 +37,7 @@
 
     <!-- home_* : 首页与默认桌面设置卡 -->
     <string name="home_empty_apps_hint">没有可显示的应用\n右上角的齿轮已选中,按「确定」进「编辑桌面」添加</string>
+    <string name="home_input_row_title">输入源</string>
     <string name="home_settings_title">默认桌面</string>
     <string name="home_settings_current_label">当前</string>
     <string name="home_settings_change_button">在系统设置中更改</string>
@@ -67,6 +68,7 @@
     <string name="settings_card_large">大</string>
     <string name="settings_card_medium">中</string>
     <string name="settings_card_small">小</string>
+    <string name="settings_show_input_row">输入源行</string>
     <string name="settings_theme_color">主题色</string>
     <string name="settings_follow_wallpaper">跟随壁纸主色</string>
     <string name="settings_show_date">显示日期</string>

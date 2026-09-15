@@ -188,6 +188,7 @@ class MainActivity : ComponentActivity() {
                     menuFromGear = menuFromGear,
                     showDate = homeSettings.showDate,
                     cardsPerRow = homeSettings.cardsPerRow,
+                    showInputRow = homeSettings.showInputRow,
                     accent = themeColors.accent,
                     highlight = themeColors.highlight,
                 )

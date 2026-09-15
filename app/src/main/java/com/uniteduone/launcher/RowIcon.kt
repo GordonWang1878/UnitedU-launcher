@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Theaters
+import androidx.compose.material.icons.outlined.SettingsInputHdmi
 import androidx.compose.material.icons.outlined.Tv
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.ColorFilter
@@ -17,8 +18,12 @@ import androidx.compose.ui.unit.dp
  * (胶片画成了横向描边矩形、电视画成了开口盒子加天线、音符的旗是细线)。
  */
 @Composable
-fun RowIcon(name: String) {
-    val icon = when (name.uppercase()) {
+fun RowIcon(name: String, kind: RowKind = RowKind.APPS) {
+    // 输入源行的标题是本地化文字(「输入源」/「Inputs」),按 name 匹配跨语言不可靠 ——
+    // 用 kind 判定,不看标题文字。
+    val icon = if (kind == RowKind.INPUTS) {
+        Icons.Outlined.SettingsInputHdmi     // 信号源:HDMI 插口
+    } else when (name.uppercase()) {
         "VIDEO" -> Icons.Filled.Theaters      // 竖向实心胶片,两侧方孔
         "LIVE" -> Icons.Outlined.Tv           // 带底座的显示器
         "MUSIC" -> Icons.Filled.MusicNote     // 实心旗的八分音符
