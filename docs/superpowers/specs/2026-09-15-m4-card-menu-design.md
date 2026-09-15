@@ -63,7 +63,7 @@
 
 - `Settings.newAppsSeenAt: Long`(默认 0;`MainActivity.onCreate` 读到 0 时写成当前时间——首启之前装的都不算「新」)。
 - 「新」= `pkg.firstInstallTime > newAppsSeenAt` **且**不在 `layout.json` 任何一行里。纯函数 `isNewApp(firstInstallTime, seenAt, onLayout)` 可测。
-- 首页:左下角小字 `home_new_apps`「有 %1$d 个新应用」(`Theme.FooterHintText`,12sp,`SidePadding` 内),N = 0 不显示;待机时随卡片一起淡出(挂在同一 alpha 上)。计数在 `buildRows` 同一 IO 块里算(已枚举全部应用),随 `revision` 刷新——装/卸应用广播已接。
+- 首页:**左上角**小字 `home_new_apps`「有 %1$d 个新应用」(与时钟同一水平带:`TopStart`,`padding(top = 40dp, start = SidePadding)`;`Theme.FooterHintText`,12sp),N = 0 不显示;待机时随卡片一起淡出(挂在同一 alpha 上)。T3 实施时发现左下角会与底行卡片标题重叠(标题开着、底行靠近屏底时),改到左上角——行内容从 `TopPadding` 起,永远不与这一带重叠。计数在 `buildRows` 同一 IO 块里算(已枚举全部应用),随 `revision` 刷新——装/卸应用广播已接。
 - 编辑页「添加应用」列表:候选项右侧香槟色小标「新」(`edit_badge_new`);打开列表那一刻 `newAppsSeenAt = now`(写 settings),列表本次仍按打开前的时间戳标记(先算后写),关闭后首页计数归零。
 
 ## 5. 设置页
