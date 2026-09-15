@@ -236,3 +236,9 @@ commit `a0ae3ad`(分支 `m6-upload`)。全branch 复审判定「可合并」,但
 - `uploadKeys` 收下了 `filesX` 这类非数字后缀(旧代码会滤掉),按复审给的用例实现;无害——没有临时文件的 key 直接跳过,每个文件仍逐个过四道闸。
 - **又撞了一次 appops 杀进程**(上面 M6 收官的「验收方法论踩坑」那条):`appops set … deny` 收紧权限时系统会 `Killing … REQUEST_INSTALL_PACKAGES changed` 直接杀掉应用,服务凭空消失不是产品缺陷。顺序永远是**先设 appop、再开页面**。
 - `cacheDir/apk/upload.apk` 的清扫在 release 包上无法直接目击(不可 `run-as`、模拟器 `adb root` 被拒);它与 tmp 清扫在同一个 `runCatching` 里且在循环之前,tmp 被删即证明该行已执行。
+
+## 2026-09-16 · M3 + M6 合并进 main(本地,未推送)+ 接缝冒烟
+
+- 合并顺序 M3(`e1a6a4e`)→ M6(`61e5c73`);唯一冲突 `docs/WORKLOG.md`(两边各追加一节,保留两段)。合并树 `testReleaseUnitTest assembleRelease` 绿,48 单测。
+- 模拟器接缝冒烟 5/5 通过:首启铺入 6 张内置;上传页能列/删/传内置库,删掉的内置图重启不复活(`.seeded`);轮播每次重扫目录,上传的图进入轮播;删掉**当前**壁纸后回落到排序第一张,不黑屏不崩;设置页 12 行上下全程焦点不丢,导入页开关后首页焦点仍在。
+- 待 Gordon:推送;T9 真机调参;手机扫码真机验证;M5 电视 spike。
