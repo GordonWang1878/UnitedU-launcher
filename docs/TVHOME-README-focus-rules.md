@@ -137,16 +137,16 @@ licenses 目录里手写了 `android-sdk-license` 的三个 hash,否则 AGP 认�
 ├── layout.json              # 三行的成员与顺序,首次启动自动生成默认值
 ├── icons/<包名>.png         # 覆盖某个应用的卡片图,存在即生效
 └── library/
-    ├── wallpapers/          # 内置选择器的壁纸候选池
+    ├── wallpapers/          # 壁纸池:内置 6 张首次启动铺入;当前壁纸与轮播设置在 settings.json
     ├── screensavers/        # 屏保轮播池:所有图片参与轮播(30s 一张,交叉淡入+Ken Burns)
     └── cards/               # 内置选择器的卡片图候选池
 ```
 
-`assets/wallpaper-gold-fog.jpg` 是当前那张,用 ffmpeg 生成:6×4 的真随机噪声 → 放大到 1080p → 高斯模糊 sigma 78 → 归一化 → 色调曲线 `0/0 0.55/0 0.80/0.22 1/0.62` 压掉暗部 → 染成金色。生成脚本的参数记在 §6.28。**注意**:`geq=random()` 只按列变化会得到竖条纹,必须用 `/dev/urandom` 喂 rawvideo 才是真二维噪声。
+内置壁纸由 `scripts/gen-wallpapers.py` 生成(噪声 → 放大 → 高斯模糊 → 归一化 → 压暗曲线 → 染色,参数与种子在脚本顶部),`00-neutral` 为默认底。
 
-同一张图也打包在 `app/src/main/assets/default-wallpaper.jpg`,**首次启动会自动铺到上面那个路径**——没有它的话,全新安装或清除数据后就是永久全黑且无法自救。
+APK 内置 `assets/wallpapers/*.jpg`;首次启动铺进 `library/wallpapers/`(标记 `.seeded`,只铺一次),`settings.json` 的 `wallpaperFile` 指向当前壁纸;M1/M2 的根目录 `wallpaper.jpg` 首次启动自动迁入 library 为 `legacy-wallpaper.jpg`。
 
-**换图方式**:壁纸和卡片图用内置 D-pad 选择器(`ImagePicker.kt`),扫描 `library/wallpapers/` 或 `library/cards/` 目录,全键盘导航,不跳外部应用。图片通过 `adb push` 预先放到对应的 `library/` 子目录。屏保图片也用 `adb push` 放到 `library/screensavers/`,该目录里的所有图片自动参与轮播。**轮播列表在每次进入待机那一刻重扫**(2026-09-13 起):推完/删完图,下次待机即生效,不用重启桌面。之前是进程启动时扫一次的快照,同步删掉的图会以「只剩壁纸」的形式留在轮播里各占 30 秒(FEASIBILITY §6.50)。旧版单文件 `screensaver.jpg`/`.png` 会在首次加载时自动迁移到 `library/screensavers/`。
+**换图方式**:壁纸和卡片图用内置 D-pad 选择器(`ImagePicker.kt`),扫描 `library/wallpapers/` 或 `library/cards/` 目录,全键盘导航,不跳外部应用。图片通过 `adb push` 预先放到对应的 `library/` 子目录。屏保图片也用 `adb push` 放到 `library/screensavers/`,该目录里的所有图片自动参与轮播。**轮播列表在每次进入待机那一刻重扫**(2026-09-13 起):推完/删完图,下次待机即生效,不用重启桌面。之前是进程启动时扫一次的快照,同步删掉的图会以「只剩壁纸」的形式留在轮播里各占 30 秒(FEASIBILITY §6.50)。旧版单文件 `screensaver.jpg`/`.png` 会在首次加载时自动迁移到 `library/screensavers/`。轮播、主题化、模糊、压暗在「UnitedU 设置 → 壁纸」调;处理结果缓存在 `externalCacheDir/wallpapers/`(最多 12 张)。
 
 ## 实测数据(2026-09-11)
 
