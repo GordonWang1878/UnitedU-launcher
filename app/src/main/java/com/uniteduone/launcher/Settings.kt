@@ -27,6 +27,19 @@ data class Settings(
     val showDate: Boolean = true,
     val idleAfterMs: Long = 180_000L,
     val idleContent: IdleContent = IdleContent.CLOCK_ONLY,
+    // ---- M3 壁纸(spec §1)。默认全零/空/关 ⇒ 首页观感与 M2 逐位一致 ----
+    /** library/wallpapers/ 里的文件名;空 = 未指定(解析顺序见 Wallpapers.resolveSource)。 */
+    val wallpaperFile: String = "",
+    /** 轮播间隔 ms;0 = 关。合法值见 [VALID_WALLPAPER_ROTATE_MS]。 */
+    val wallpaperRotateMs: Long = 0L,
+    /** 上次轮换的 epoch ms;「每天」档靠它跨重启续等。 */
+    val wallpaperRotatedAt: Long = 0L,
+    /** 主题化壁纸(去色→染主题色);默认关,守住 M2「默认背景不随主题」。 */
+    val wallpaperThemed: Boolean = false,
+    /** 模糊 0–100,步 10。 */
+    val wallpaperBlur: Int = 0,
+    /** 压暗 0–100,步 10。 */
+    val wallpaperDim: Int = 0,
 )
 
 // `internal`(而非 `private`):这两张表是 cardsPerRow / idleAfterMs 的唯一合法取值集合,
@@ -34,6 +47,26 @@ data class Settings(
 // 一份表两处读,才不会有人手改一处、另一处悄悄漂移(2026-09-15 复审前两处各写了一份字面量)。
 internal val VALID_CARDS_PER_ROW = intArrayOf(5, 6, 8)
 internal val VALID_IDLE_AFTER_MS = longArrayOf(0L, 60_000L, 180_000L, 300_000L, 600_000L)
+internal val VALID_WALLPAPER_ROTATE_MS = longArrayOf(0L, 300_000L, 1_800_000L, 86_400_000L)
+
+private fun snapRotateMs(v: Long?): Long =
+    if (v != null && VALID_WALLPAPER_ROTATE_MS.contains(v)) v else 0L
+
+/** 0..100 夹取后四舍五入到 10 的倍数(滑块 11 档);解析不出数字 → 该字段的默认值(真机调参后默认可能非零)。 */
+private fun clampPercentStep10(v: Int?, default: Int): Int =
+    if (v == null) default else ((v.coerceIn(0, 100) + 5) / 10) * 10
+
+private fun clampEpoch(v: Long?): Long = (v ?: 0L).coerceAtLeast(0L)
+
+/**
+ * 壁纸文件名只能指向 library/wallpapers/ 里的一个条目:含路径分隔符或 `..` 的一律当没写。
+ * `internal`:Wallpapers.select 写入前也走同一道清洗。
+ */
+internal fun sanitizeWallpaperFileName(name: String?): String {
+    val n = name?.trim() ?: return ""
+    if (n.isEmpty() || n.contains('/') || n.contains('\\') || n.contains("..")) return ""
+    return n
+}
 
 private fun clampRowCount(v: Int?): Int = (v ?: 3).coerceIn(1, 5)
 
@@ -96,6 +129,12 @@ fun parseSettings(json: String): Settings {
             idleContent = extractString(json, "idleContent")
                 ?.let { name -> runCatching { IdleContent.valueOf(name) }.getOrNull() }
                 ?: d.idleContent,
+            wallpaperFile = sanitizeWallpaperFileName(extractString(json, "wallpaperFile")),
+            wallpaperRotateMs = snapRotateMs(extractLong(json, "wallpaperRotateMs")),
+            wallpaperRotatedAt = clampEpoch(extractLong(json, "wallpaperRotatedAt")),
+            wallpaperThemed = extractBoolean(json, "wallpaperThemed") ?: d.wallpaperThemed,
+            wallpaperBlur = clampPercentStep10(extractInt(json, "wallpaperBlur"), d.wallpaperBlur),
+            wallpaperDim = clampPercentStep10(extractInt(json, "wallpaperDim"), d.wallpaperDim),
         )
     } catch (e: Throwable) {
         // 理论上上面每一步都已经用 ?: 兜底、不会抛,这层 catch 只是和 Layout 保持同一套
@@ -118,7 +157,13 @@ fun Settings.toJson(): String {
         append("  \"clock24hFollowSystem\": $clock24hFollowSystem,\n")
         append("  \"showDate\": $showDate,\n")
         append("  \"idleAfterMs\": $idleAfterMs,\n")
-        append("  \"idleContent\": \"${idleContent.name}\"\n")
+        append("  \"idleContent\": \"${idleContent.name}\",\n")
+        append("  \"wallpaperFile\": \"${esc(wallpaperFile)}\",\n")
+        append("  \"wallpaperRotateMs\": $wallpaperRotateMs,\n")
+        append("  \"wallpaperRotatedAt\": $wallpaperRotatedAt,\n")
+        append("  \"wallpaperThemed\": $wallpaperThemed,\n")
+        append("  \"wallpaperBlur\": $wallpaperBlur,\n")
+        append("  \"wallpaperDim\": $wallpaperDim\n")
         append("}\n")
     }
 }

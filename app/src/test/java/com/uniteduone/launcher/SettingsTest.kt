@@ -121,4 +121,58 @@ class SettingsTest {
         assertFalse(isWellFormedJsonObject("{}}"))
         assertFalse(isWellFormedJsonObject("""{"a": "unterminated"""))
     }
+
+    @Test fun wallpaperFieldsDefaultWhenAbsent() {
+        val s = parseSettings("{}")
+        assertEquals("", s.wallpaperFile)
+        assertEquals(0L, s.wallpaperRotateMs)
+        assertEquals(0L, s.wallpaperRotatedAt)
+        assertFalse(s.wallpaperThemed)
+        assertEquals(0, s.wallpaperBlur)
+        assertEquals(0, s.wallpaperDim)
+    }
+
+    @Test fun wallpaperFileRejectsPathEscapes() {
+        // settings.json 用户可手改;文件名只能指向 library/wallpapers/ 里的一个条目
+        assertEquals("", parseSettings("""{"wallpaperFile": "../x.jpg"}""").wallpaperFile)
+        assertEquals("", parseSettings("""{"wallpaperFile": "a/b.jpg"}""").wallpaperFile)
+        assertEquals("", parseSettings("""{"wallpaperFile": "a\\b.jpg"}""").wallpaperFile)
+        assertEquals("", parseSettings("""{"wallpaperFile": "   "}""").wallpaperFile)
+        assertEquals("unitedu-00-neutral.jpg",
+            parseSettings("""{"wallpaperFile": "unitedu-00-neutral.jpg"}""").wallpaperFile)
+    }
+
+    @Test fun wallpaperRotateMsMustBeOneOfAllowedValues() {
+        assertEquals(0L, parseSettings("""{"wallpaperRotateMs": 12345}""").wallpaperRotateMs)
+        for (v in listOf(0L, 300_000L, 1_800_000L, 86_400_000L)) {
+            assertEquals(v, parseSettings("""{"wallpaperRotateMs": $v}""").wallpaperRotateMs)
+        }
+    }
+
+    @Test fun wallpaperRotatedAtNeverNegative() {
+        assertEquals(0L, parseSettings("""{"wallpaperRotatedAt": -5}""").wallpaperRotatedAt)
+        assertEquals(1_700_000_000_000L,
+            parseSettings("""{"wallpaperRotatedAt": 1700000000000}""").wallpaperRotatedAt)
+    }
+
+    @Test fun blurAndDimClampAndSnapToTens() {
+        assertEquals(0, parseSettings("""{"wallpaperBlur": -20}""").wallpaperBlur)
+        assertEquals(100, parseSettings("""{"wallpaperBlur": 250}""").wallpaperBlur)
+        assertEquals(50, parseSettings("""{"wallpaperBlur": 54}""").wallpaperBlur)
+        assertEquals(60, parseSettings("""{"wallpaperBlur": 55}""").wallpaperBlur)
+        assertEquals(100, parseSettings("""{"wallpaperDim": 96}""").wallpaperDim)
+        assertEquals(0, parseSettings("""{"wallpaperDim": "x"}""").wallpaperDim)
+    }
+
+    @Test fun wallpaperFieldsRoundTrip() {
+        val s = Settings(
+            wallpaperFile = "sea.jpg",
+            wallpaperRotateMs = 1_800_000L,
+            wallpaperRotatedAt = 1_700_000_000_000L,
+            wallpaperThemed = true,
+            wallpaperBlur = 30,
+            wallpaperDim = 70,
+        )
+        assertEquals(s, parseSettings(s.toJson()))
+    }
 }
