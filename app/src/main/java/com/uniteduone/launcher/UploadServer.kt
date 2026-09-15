@@ -96,6 +96,10 @@ class UploadServer(
      * 且原始文件名**不是**累加进 `parameters["files"]` 一个 list,而是每个后缀 key 各自
      * 只装一个元素(`parameters["files1"] = [name]`、`parameters["files2"] = [name]`…)。
      * 所以按 key 探测(而不是按 parameters["files"] 的长度)才能拿全同批全部文件。
+     * **探测按「实际存在的 key」枚举,不按连续序号硬猜**:某个 part 没带逐段 Content-Type 时
+     * NanoHTTPD 的编号可能跳号(如 files、files2 之间缺 files1),按固定步长探测撞上空位就
+     * 会把后面全部截断;改成先收集 files 映射与 parameters 里全部形如 files/files<数字> 的 key、
+     * 按数字排序再逐个处理,断一个不连累同批其余文件。
      * 每个文件独立判定:名字清洗 → 扩展名 → 大小 → 可解码 → 重名 → 移入;失败进 rejected,不影响同批其他文件。
      */
     private fun serveUpload(session: IHTTPSession, type: String?): Response {
@@ -104,11 +108,13 @@ class UploadServer(
         session.parseBody(files)
         val saved = ArrayList<String>()
         val rejected = ArrayList<Pair<String, String>>()
-        var i = 0
-        while (true) {
-            val key = if (i == 0) "files" else "files$i"
-            val tmpPath = files[key] ?: break
-            val original = session.parameters[key]?.firstOrNull() ?: break
+        val keys = (files.keys + session.parameters.keys)
+            .filter { it == "files" || (it.startsWith("files") && it.length > 5 && it.substring(5).all(Char::isDigit)) }
+            .distinct()
+            .sortedBy { if (it == "files") 0 else it.substring(5).toInt() }
+        for (key in keys) {
+            val tmpPath = files[key] ?: continue
+            val original = session.parameters[key]?.firstOrNull() ?: continue
             val tmp = File(tmpPath)
             val clean = sanitizeUploadName(original)
             when {
@@ -125,7 +131,6 @@ class UploadServer(
                 }
             }
             tmp.delete()
-            i++
         }
         return json(Response.Status.OK, jsonUploadResult(saved, rejected))
     }
@@ -195,11 +200,18 @@ class UploadServer(
             return pickAddress(candidates)
         }
 
-        /** 从 8090 起找一个能 bind 的端口起服务;8090–8099 全占返回 null。 */
+        /**
+         * 从 8090 起找一个能 bind 的端口起服务;8090–8099 全占返回 null。
+         * bind 失败时 `start()` 抛异常,但 NanoHTTPD 在抛之前已经把底层 ServerSocket 建好
+         * (只是没 bind 成功)——不 `stop()` 就换下一个端口重试,这个 fd 就漏在那里,
+         * 10 个端口全占的最坏情况会漏 9 个。
+         */
         fun startOnFreePort(ctx: Context, onSaved: (String) -> Unit): UploadServer? {
             for (port in UPLOAD_PORT_FIRST..UPLOAD_PORT_LAST) {
                 val s = UploadServer(ctx, port, onSaved)
-                val ok = runCatching { s.start(SOCKET_READ_TIMEOUT, false); true }.getOrDefault(false)
+                val ok = runCatching { s.start(SOCKET_READ_TIMEOUT, false); true }
+                    .onFailure { runCatching { s.stop() } }
+                    .getOrDefault(false)
                 if (ok) return s
             }
             return null

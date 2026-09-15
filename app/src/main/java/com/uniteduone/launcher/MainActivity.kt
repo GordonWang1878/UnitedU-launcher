@@ -262,12 +262,17 @@ class MainActivity : ComponentActivity() {
         return result
     }
 
-    /** HOME 键的语义是「回到桌面初始状态」,所以要把编辑界面和菜单都收掉。 */
+    /**
+     * HOME 键的语义是「回到桌面初始状态」,所以要把编辑界面和菜单都收掉。
+     * 导入页额外收一次:它拿着一个无密码的局域网 HTTP 服务,按 HOME 离开时必须一并关掉
+     * (其余选择器不持有任何资源,不用管)。
+     */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         leaveEdit()
         leaveSettings()
         closeMenu()
+        if (pickerTarget == VIEW_IMPORT) { pickerTarget = null; focusNonce++ }
     }
 
     /**
