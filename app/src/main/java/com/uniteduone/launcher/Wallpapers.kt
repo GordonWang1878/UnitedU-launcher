@@ -115,7 +115,9 @@ object Wallpapers {
 
     private const val OUT_W = 1920
     private const val OUT_H = 1080
-    private const val CACHE_KEEP = 4
+    // 库里最多 6 张内置 + 1 张迁移的 legacy,轮播会挨个访问到:留够 12 个才能让 LRU 真正生效,
+    // 不然任何非 identity 的轮播每一轮都把上一轮的缓存挤掉,退化成"从不命中"。
+    private const val CACHE_KEEP = 12
 
     /** 处理后的位图:先查缓存,没有就渲染并写缓存。任何一步失败返回 null,调用方退回原图。IO 线程。 */
     fun processed(ctx: Context, src: File, spec: WallpaperSpec): Bitmap? {
@@ -126,39 +128,65 @@ object Wallpapers {
         val dir = Paths.wallpaperCacheDir(ctx)
         val cached = File(dir, "$key.jpg")
         if (cached.isFile) {
-            runCatching { Apps.decodeScaled(cached.absolutePath, OUT_W, OUT_H) }.getOrNull()?.let { return it }
+            runCatching { Apps.decodeScaled(cached.absolutePath, OUT_W, OUT_H) }.getOrNull()?.let {
+                // 命中即续命:prune 按 mtime 淘汰最旧的,命中不刷新 mtime 的话这就是 FIFO 不是 LRU——
+                // 常读的那张反而会被一串不相关的新渲染挤掉。
+                cached.setLastModified(System.currentTimeMillis())
+                return it
+            }
             cached.delete()   // 缓存文件坏了:删掉重做
         }
         val t0 = System.currentTimeMillis()
         val bmp = runCatching { render(src, spec) }
             .onFailure { Log.w(TAG, "壁纸处理失败 ${src.name}: ${it.message}") }
             .getOrNull() ?: return null
-        Log.i(TAG, "壁纸处理 ${src.name} blur=${spec.blur} dim=${spec.dim} themed=${spec.themed} 用时 ${System.currentTimeMillis() - t0}ms")
+        // 日志放在 writeCache 之后:压缩 + fsync + 清理也在这条阻塞路径上,漏掉就低估了真实耗时。
         writeCache(dir, cached, bmp)
+        Log.i(TAG, "壁纸处理 ${src.name} blur=${spec.blur} dim=${spec.dim} themed=${spec.themed} 用时 ${System.currentTimeMillis() - t0}ms")
         return bmp
     }
 
     /**
      * 缩小 → 套 ColorMatrix → 放大。颜色运算与模糊都是线性算子、顺序可交换,
-     * 所以矩阵作用在缩小后的小图上,几乎免费;blur=0 时矩阵直接作用于 1920×1080。
+     * 所以矩阵作用在缩小后的小图上,几乎免费;blur=0 时矩阵直接作用于 1920×1080
+     * (且与裁剪缩放合并成一次 draw,见 [cropScale])。
      */
     private fun render(src: File, spec: WallpaperSpec): Bitmap? {
-        val decoded = Apps.decodeScaled(src.absolutePath, OUT_W, OUT_H) ?: return null
-        val full = centerCrop(decoded, OUT_W, OUT_H)
+        val decoded = Apps.decodeScaled(src.absolutePath, OUT_W, OUT_H)
+        if (decoded == null) { Log.w(TAG, "壁纸源图解不出来 ${src.name}"); return null }
         val targetW = blurTargetWidth(spec.blur, OUT_W)
-        val small = if (targetW >= full.width) full else downscale(full, targetW)
-        val colored = applyMatrix(small, wallpaperColorMatrix(spec.themed, spec.accentRgb, spec.dim))
+        val matrix = wallpaperColorMatrix(spec.themed, spec.accentRgb, spec.dim)
+        // blur=0:裁剪 + 缩放 + 上色一次 draw 完事,decoded 之外只多分配这一张 1920×1080。
+        if (targetW >= OUT_W) return cropScale(decoded, OUT_W, OUT_H, matrix)
+        val full = cropScale(decoded, OUT_W, OUT_H, null)
+        val small = downscale(full, targetW)
+        val colored = applyMatrix(small, matrix)
         return if (colored.width == OUT_W && colored.height == OUT_H) colored else upscale(colored, OUT_W, OUT_H)
     }
 
-    /** 中心裁剪成 w:h 再缩到恰好 w×h(缓存尺寸固定,后面的缩放链才有确定的起点)。 */
-    private fun centerCrop(b: Bitmap, w: Int, h: Int): Bitmap {
-        val scale = maxOf(w.toFloat() / b.width, h.toFloat() / b.height)
-        val sw = (w / scale).toInt().coerceIn(1, b.width)
-        val sh = (h / scale).toInt().coerceIn(1, b.height)
-        val cropped = Bitmap.createBitmap(b, (b.width - sw) / 2, (b.height - sh) / 2, sw, sh)
-        return if (cropped.width == w && cropped.height == h) cropped
-        else Bitmap.createScaledBitmap(cropped, w, h, true)
+    /**
+     * 一次 drawBitmap 完成中心裁剪 + 缩放(+ blur=0 时的 ColorMatrix):只分配一张输出,不留全分辨率中间图。
+     * 换成 Canvas 画而不是先前 `Bitmap.createBitmap(src,x,y,w,h)` 取子图再 `createScaledBitmap`:
+     * 这两个 API 在「裁剪/缩放是无操作」时可能直接返回入参本身(别名同一个对象)——
+     * pipeline 里任何位图都不能 recycle(),否则一旦命中别名会把上游(甚至刚解出来的源图)一起废掉。
+     */
+    private fun cropScale(src: Bitmap, w: Int, h: Int, matrix: FloatArray?): Bitmap {
+        val scale = maxOf(w.toFloat() / src.width, h.toFloat() / src.height)
+        val sw = (w / scale).toInt().coerceIn(1, src.width)
+        val sh = (h / scale).toInt().coerceIn(1, src.height)
+        val sx = (src.width - sw) / 2
+        val sy = (src.height - sh) / 2
+        val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG).apply {
+            if (matrix != null) colorFilter = android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix(matrix))
+        }
+        android.graphics.Canvas(out).drawBitmap(
+            src,
+            android.graphics.Rect(sx, sy, sx + sw, sy + sh),
+            android.graphics.Rect(0, 0, w, h),
+            paint,
+        )
+        return out
     }
 
     /** 反复减半到 ≤ 2× 目标,再一步缩到目标宽;每次减半都是一次 2×2 均值,叠起来就是一块便宜的低通滤波。 */
@@ -210,7 +238,12 @@ object Wallpapers {
         return Bitmap.createScaledBitmap(cur, w, h, true)
     }
 
-    /** tmp → rename 写缓存,然后只留最新 [CACHE_KEEP] 个。失败只记日志:这次仍用内存里的位图显示。 */
+    /**
+     * tmp → rename 写缓存,然后只留最新(按 mtime)[CACHE_KEEP] 个——缓存命中会顺带刷新 mtime
+     * ([processed]),所以这是真 LRU,不是写入顺序的 FIFO。顺带扫掉遗留超过 60s 的 .tmp
+     * (compress 中途被杀留下的半成品;60s 内的可能是另一个还在写的调用,不能碰)。
+     * 失败只记日志:这次仍用内存里的位图显示。
+     */
     private fun writeCache(dir: File, dst: File, bmp: Bitmap) {
         runCatching {
             dir.mkdirs()
@@ -223,6 +256,9 @@ object Wallpapers {
             dir.listFiles { f -> f.isFile && f.extension == "jpg" }
                 ?.sortedByDescending { it.lastModified() }
                 ?.drop(CACHE_KEEP)
+                ?.forEach { it.delete() }
+            val staleCutoff = System.currentTimeMillis() - 60_000
+            dir.listFiles { f -> f.isFile && f.extension == "tmp" && f.lastModified() < staleCutoff }
                 ?.forEach { it.delete() }
         }.onFailure { Log.w(TAG, "壁纸缓存写入失败: ${it.message}") }
     }
