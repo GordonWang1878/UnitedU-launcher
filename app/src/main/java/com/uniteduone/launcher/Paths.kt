@@ -39,4 +39,7 @@ object Paths {
     fun wallpaperLibrary(ctx: Context) = File(base(ctx), "library/wallpapers").also { it.mkdirs() }
     fun screensaverLibrary(ctx: Context) = File(base(ctx), "library/screensavers").also { it.mkdirs() }
     fun cardLibrary(ctx: Context) = File(base(ctx), "library/cards").also { it.mkdirs() }
+
+    /** 处理后的壁纸缓存。外置 cache 优先(adb 能看、卸载即清),没挂用内置 cache。 */
+    fun wallpaperCacheDir(ctx: Context) = File(ctx.externalCacheDir ?: ctx.cacheDir, "wallpapers").also { it.mkdirs() }
 }
