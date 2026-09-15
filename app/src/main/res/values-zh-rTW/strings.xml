@@ -30,6 +30,11 @@
     <string name="card_menu_move_desc">進入編輯桌面並定位到這張卡</string>
     <string name="card_menu_remove">從目前分類移除</string>
     <string name="card_menu_remove_desc">應用程式本身不會被解除安裝</string>
+    <!-- title_dialog_* : 「修改標題」對話框 -->
+    <string name="title_dialog_title">修改標題</string>
+    <string name="title_dialog_hint">確定儲存 · 返回取消 · 清空恢復應用程式名稱</string>
+    <string name="toast_title_saved">標題已儲存</string>
+    <string name="toast_title_not_saved">標題無法儲存</string>
     <string name="toast_uninstall_failed">無法開啟系統解除安裝頁</string>
     <string name="toast_remove_failed">找不到這張卡,可能剛被移出</string>
     <string name="menu_import">匯入圖片</string>

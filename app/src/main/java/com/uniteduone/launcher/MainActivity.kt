@@ -18,8 +18,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.*
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -260,8 +262,18 @@ class MainActivity : ComponentActivity() {
                     cardMenu = cardMenu,
                     cardMenuItems = remember(cardMenu) { cardMenu?.let { cardMenuItems(it) } ?: emptyList() },
                     onCardMenuDismiss = ::closeCardMenu,
-                    renameOpen = renameTarget != null,
+                    renameTarget = renameTarget,
+                    onRenameSave = { ref, text ->
+                        renameTarget = null; focusNonce++
+                        lifecycleScope.launch {
+                            val ok = withContext(Dispatchers.IO) { Titles.set(this@MainActivity, ref.pkg, text) }
+                            toast(getString(if (ok) R.string.toast_title_saved else R.string.toast_title_not_saved))
+                            if (ok) revision++
+                        }
+                    },
+                    onRenameCancel = { renameTarget = null; focusNonce++ },
                     initialTarget = homeInitialTarget,
+                    onInitialTargetConsumed = { homeInitialTarget = null },
                 )
             }
             }
@@ -363,6 +375,7 @@ class MainActivity : ComponentActivity() {
         leaveSettings()
         closeMenu()
         closeCardMenu()
+        renameTarget = null
         if (pickerTarget == VIEW_IMPORT) { pickerTarget = null; focusNonce++ }
     }
 
@@ -440,7 +453,9 @@ class MainActivity : ComponentActivity() {
                 }.isSuccess
                 if (!ok) toast(getString(R.string.toast_uninstall_failed))
             }
-            CardAction.RENAME -> null   // Task 5:renameTarget = ref
+            CardAction.RENAME -> MenuItem(getString(R.string.card_menu_rename), getString(R.string.card_menu_rename_desc)) {
+                closeCardMenu(); renameTarget = ref
+            }
             CardAction.CHANGE_ICON -> MenuItem(getString(R.string.card_menu_icon), getString(R.string.card_menu_icon_desc)) {
                 closeCardMenu()
                 // 选择器会把首页整棵树移除,焦点记忆随 remember 一起没;先把落点记下来,
@@ -474,24 +489,29 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun pickWallpaper() {
+        // 从齿轮菜单进来,焦点原本在齿轮上——不清的话会被 CHANGE_ICON 留下的旧种子带偏(T4 review item A)。
+        homeInitialTarget = null
         if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
         closeMenu()
         pickerTarget = PICK_WALLPAPER
     }
 
     private fun openImport() {
+        homeInitialTarget = null
         if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
         closeMenu()
         pickerTarget = VIEW_IMPORT
     }
 
     private fun openScreensaverPool() {
+        homeInitialTarget = null
         if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
         closeMenu()
         pickerTarget = VIEW_SCREENSAVER_POOL
     }
 
     private fun openHomeSettings() {
+        homeInitialTarget = null
         closeMenu()
         pickerTarget = VIEW_HOME_SETTINGS
     }

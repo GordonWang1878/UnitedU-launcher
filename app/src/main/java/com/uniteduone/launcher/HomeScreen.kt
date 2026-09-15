@@ -74,8 +74,10 @@ fun HomeScreen(
     cardMenu: CardRef? = null,
     cardMenuItems: List<MenuItem> = emptyList(),
     onCardMenuDismiss: () -> Unit = {},
-    /** 修改标题对话框开着(Task 5 接线;本任务只把它算进「有浮层」)。 */
-    renameOpen: Boolean = false,
+    /** 「修改标题」对话框(Task 5):非空时在首页内嵌一层 TitleDialog(不替换首页,焦点记忆不丢)。 */
+    renameTarget: CardRef? = null,
+    onRenameSave: (CardRef, String) -> Unit = { _, _ -> },
+    onRenameCancel: () -> Unit = {},
     /**
      * 首次组合时把焦点记忆**种**在这张卡上 (渲染行, 列);null = 照旧从 (0,0) 起。
      *
@@ -85,6 +87,10 @@ fun HomeScreen(
      * 不是闩:同一个值种一次,换了新值下一次组合自然按新值种(铁律 7)。
      */
     initialTarget: Pair<Int, Int>? = null,
+    /** initialTarget 落地后的回调(T4 review item A):种子只该生效一次,消费完立刻告诉
+     *  MainActivity 清掉,否则下一次从别的浮层(换壁纸、屏保、设置、导入)回来会误种这颗旧值——
+     *  那几条路焦点原本在齿轮上,不该被 CHANGE_ICON 留下的坐标带偏。 */
+    onInitialTargetConsumed: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     // 卡片档位尺寸:6=当前标定常量原样(零回归),5/8 按跨度守恒推导。见 Theme.cardMetrics。
@@ -95,7 +101,7 @@ fun HomeScreen(
     // 菜单里一项都不高亮」(铁律 4 的推论)。合成一个量之后,它同时是那两个效果的 key 与守卫(铁律 6)。
     // **例外:`gearNonce` 那个 LaunchedEffect 仍然只看 menuOpen** —— 它专管「齿轮菜单关了回齿轮」,
     // 长按菜单关掉后焦点应该回到那张卡,不是齿轮。
-    val anyOverlay = menuOpen || cardMenu != null || renameOpen
+    val anyOverlay = menuOpen || cardMenu != null || renameTarget != null
     // 枚举应用 + 解码全部横幅是重活,放到 IO 线程,别拖慢首帧
     // (冷启动实测 2.0–2.3s,Projectivy 是 1.45s)。
     // 用 null 区分「还在加载」和「真的空」,否则每次冷启动和每次退出编辑都会闪一句求救文案
@@ -154,6 +160,12 @@ fun HomeScreen(
         })
     }
     var tgtRow by remember { mutableStateOf(initialTarget?.first ?: 0) }
+    // 种子只消费一次(T4 review item A):落地当帧就告诉 MainActivity 清掉 homeInitialTarget,
+    // 不然下一次从「换壁纸/屏保/设置/导入」这类焦点原本在齿轮上的浮层回来,会被这颗旧坐标误种。
+    // Unit key = 只在这个组合实例首次进场时跑一次,和 tgtRow/tgtIdx 的初值是同一次落地。
+    LaunchedEffect(Unit) {
+        if (initialTarget != null) onInitialTargetConsumed()
+    }
     var restoring by remember { mutableStateOf(false) }
     // 关菜单后焦点该还给齿轮。**用 nonce 比对而不是布尔闩**:布尔闩只有「看门狗跑完整个循环」
     // 这一条窄路能清掉,任何一次早退(菜单又开了、restoring 被 ON_PAUSE 置位、
@@ -458,6 +470,18 @@ fun HomeScreen(
                 onDismiss = onCardMenuDismiss,
                 nonce = focusNonce,
                 title = cm.label.ifBlank { cm.pkg },
+            )
+        }
+
+        // 「修改标题」对话框(Task 5,spec §3)。同样嵌在首页里而不是替换首页,理由同上。
+        val rt = renameTarget
+        if (rt != null) {
+            TitleDialog(
+                ref = rt,
+                current = titles[rt.pkg] ?: "",
+                onSave = { onRenameSave(rt, it) },
+                onCancel = onRenameCancel,
+                nonce = focusNonce,
             )
         }
     }

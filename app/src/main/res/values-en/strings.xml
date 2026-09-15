@@ -30,6 +30,11 @@
     <string name="card_menu_move_desc">Open Edit Home Screen at this card</string>
     <string name="card_menu_remove">Remove from This Row</string>
     <string name="card_menu_remove_desc">The app itself is not uninstalled</string>
+    <!-- title_dialog_* : the "Rename Card" dialog -->
+    <string name="title_dialog_title">Rename Card</string>
+    <string name="title_dialog_hint">OK saves · Back cancels · empty restores the app name</string>
+    <string name="toast_title_saved">Title saved</string>
+    <string name="toast_title_not_saved">Could not save the title</string>
     <string name="toast_uninstall_failed">Could not open the system uninstall page</string>
     <string name="toast_remove_failed">Card not found — it may have just been removed</string>
     <string name="menu_import">Import Images</string>

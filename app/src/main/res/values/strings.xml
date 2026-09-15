@@ -30,6 +30,11 @@
     <string name="card_menu_move_desc">进入编辑桌面并定位到这张卡</string>
     <string name="card_menu_remove">从当前分类移除</string>
     <string name="card_menu_remove_desc">应用本身不会被卸载</string>
+    <!-- title_dialog_* : 「修改标题」对话框 -->
+    <string name="title_dialog_title">修改标题</string>
+    <string name="title_dialog_hint">确定保存 · 返回取消 · 清空恢复应用名</string>
+    <string name="toast_title_saved">标题已保存</string>
+    <string name="toast_title_not_saved">标题没能存下来</string>
     <string name="toast_uninstall_failed">打不开系统卸载页</string>
     <string name="toast_remove_failed">没找到这张卡,可能刚被移出</string>
     <string name="menu_import">导入图片</string>
