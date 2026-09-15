@@ -21,7 +21,7 @@
     <string name="card_menu_open">開啟應用程式</string>
     <string name="card_menu_open_desc">啟動這個應用程式</string>
     <string name="card_menu_uninstall">解除安裝</string>
-    <string name="card_menu_uninstall_desc">走系統解除安裝確認;之後卡片自動消失</string>
+    <string name="card_menu_uninstall_desc">透過系統確認解除安裝;之後卡片會自動消失</string>
     <string name="card_menu_rename">修改標題</string>
     <string name="card_menu_rename_desc">只改卡片上的名字,不改應用程式</string>
     <string name="card_menu_icon">更改圖片</string>

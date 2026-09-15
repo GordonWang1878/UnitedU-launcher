@@ -1,6 +1,7 @@
 package com.uniteduone.launcher
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -38,5 +39,19 @@ class TitlesTest {
 
     @Test fun emptyMapSerializesToEmptyObject() {
         assertEquals("{}\n", titlesToJson(emptyMap()))
+    }
+
+    @Test fun truncateNeverSplitsSurrogatePair() {
+        val emoji = "\uD83D\uDE00"                                   // 😀:一个码点、两个 UTF-16 单元
+        val straddle = "x".repeat(MAX_TITLE_CHARS - 1) + emoji       // 第 40/41 个单元正好是这一对
+        val t = truncateTitle(straddle)
+        assertEquals(MAX_TITLE_CHARS - 1, t.length)                  // 截到 39,而不是留半个 emoji 凑 40
+        assertFalse(t.last().isSurrogate())
+        assertEquals(t, sanitizeTitle(straddle))                     // 两条截断路径同一口径
+        val inside = "x".repeat(MAX_TITLE_CHARS - 2) + emoji         // 第 39/40 个单元是这一对:完整保留
+        assertEquals(inside, truncateTitle(inside))
+        val bmp = "y".repeat(MAX_TITLE_CHARS)                        // 40 个基本平面字符:原样
+        assertEquals(bmp, truncateTitle(bmp))
+        assertEquals(bmp, sanitizeTitle(bmp))
     }
 }

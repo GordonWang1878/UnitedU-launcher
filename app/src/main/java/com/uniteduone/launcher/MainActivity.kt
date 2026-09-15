@@ -147,9 +147,13 @@ class MainActivity : ComponentActivity() {
             // 第一下按键却被当唤醒吃掉,症状就是「按了没反应」。
             // 长时间停在这两个界面由电视自己的系统屏保接管(实测存在 DreamActivity)。
             val importing = pickerTarget == VIEW_IMPORT
-            LaunchedEffect(touched, editing, menuOpen, settings, importing) {
+            // 长按卡片菜单与「修改标题」对话框同理(终审 Important #3):输入法显示着时每个按键都被它先吃掉,
+            // 根本到不了 dispatchKeyEvent,lastInput 在打字期间不会刷新;不让路的话三分钟后卡片淡出、
+            // 屏保从蒙版后面渐入,下一个按键还被当唤醒吞掉。与 menuOpen 完全同一处理:既是 key 也是守卫(铁律 6)。
+            val homeOverlay = cardMenu != null || renameTarget != null
+            LaunchedEffect(touched, editing, menuOpen, settings, importing, homeOverlay) {
                 idle = false
-                if (editing || menuOpen || settings || importing) return@LaunchedEffect
+                if (editing || menuOpen || settings || importing || homeOverlay) return@LaunchedEffect
                 delay(Theme.IdleAfterMs)
                 idle = true
             }
@@ -228,7 +232,7 @@ class MainActivity : ComponentActivity() {
                 )
             } else if (editing) {
                 EditScreen(
-                    onPickIcon = ::pickIcon,
+                    onPickIcon = { pickIcon(it) },
                     onExit = ::leaveEdit,
                     focusNonce = focusNonce,
                     revision = revision,
@@ -263,14 +267,7 @@ class MainActivity : ComponentActivity() {
                     cardMenuItems = remember(cardMenu) { cardMenu?.let { cardMenuItems(it) } ?: emptyList() },
                     onCardMenuDismiss = ::closeCardMenu,
                     renameTarget = renameTarget,
-                    onRenameSave = { ref, text ->
-                        renameTarget = null; focusNonce++
-                        lifecycleScope.launch {
-                            val ok = withContext(Dispatchers.IO) { Titles.set(this@MainActivity, ref.pkg, text) }
-                            toast(getString(if (ok) R.string.toast_title_saved else R.string.toast_title_not_saved))
-                            if (ok) revision++
-                        }
-                    },
+                    onRenameSave = ::onRenameSave,
                     onRenameCancel = { renameTarget = null; focusNonce++ },
                     initialTarget = homeInitialTarget,
                     onInitialTargetConsumed = { homeInitialTarget = null },
@@ -443,6 +440,23 @@ class MainActivity : ComponentActivity() {
      */
     private fun closeCardMenu() { if (cardMenu != null) { cardMenu = null; focusNonce++ } }
 
+    /**
+     * 「修改标题」保存**只有这一条路**,而且幂等:对话框里确定键(KeyUp)与 IME Done 是两条触发路径,
+     * 极端时序下可能各来一次(输入法收起的同一帧里 Done 与抬起先后到达)。以 `renameTarget` 是否还在为准——
+     * 第一次进来先把它清掉再去写盘,第二次直接返回。**不在对话框里放「已提交」布尔闩**(铁律 7):
+     * 那种闩只有一条路能清,而这里的判据每次打开对话框天然重置。`focusNonce++` 让首页把焦点送回那张卡;
+     * 写盘放 IO 线程,与 EditScreen.persist 同构。
+     */
+    private fun onRenameSave(ref: CardRef, text: String) {
+        if (renameTarget == null) return
+        renameTarget = null; focusNonce++
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) { Titles.set(this@MainActivity, ref.pkg, text) }
+            toast(getString(if (ok) R.string.toast_title_saved else R.string.toast_title_not_saved))
+            if (ok) revision++
+        }
+    }
+
     /** 长按菜单项。顺序与文案见 design §2;RENAME 在 Task 5 接对话框,本任务先不列出。 */
     private fun cardMenuItems(ref: CardRef): List<MenuItem> = cardMenuActions(ref.kind).mapNotNull { action ->
         when (action) {
@@ -462,10 +476,11 @@ class MainActivity : ComponentActivity() {
             }
             CardAction.CHANGE_ICON -> MenuItem(getString(R.string.card_menu_icon), getString(R.string.card_menu_icon_desc)) {
                 closeCardMenu()
-                // 选择器会把首页整棵树移除,焦点记忆随 remember 一起没;先把落点记下来,
+                // 选择器会把首页整棵树移除,焦点记忆随 remember 一起没;把落点记下来,
                 // 回来时 HomeScreen 用它当初值(**渲染坐标**,种的是焦点不是盘上的位置)。
-                homeInitialTarget = ref.rowIndex to ref.colIndex
-                pickIcon(ref.pkg)
+                // **只在选择器真的打开时才种**(终审 Minor #6):存储没就绪时 pickIcon 只弹 toast、首页原地不动,
+                // 提前种下的坐标会一直留到下一次从别的浮层回来时误种——那几条路焦点原本在齿轮上。
+                if (pickIcon(ref.pkg)) homeInitialTarget = ref.rowIndex to ref.colIndex
             }
             CardAction.MOVE -> MenuItem(getString(R.string.card_menu_move), getString(R.string.card_menu_move_desc)) {
                 // 带**包名**而不是列号:编辑页按 layout.json 排,里面还留着装不到的包,
@@ -474,17 +489,26 @@ class MainActivity : ComponentActivity() {
             }
             CardAction.REMOVE -> MenuItem(getString(R.string.card_menu_remove), getString(R.string.card_menu_remove_desc)) {
                 closeCardMenu()
-                if (Layout.removeFromRow(this, ref.layoutRow, ref.pkg)) revision++
-                // 失败只有一种原因:那一行/那个包已经不在盘上了(别处刚改过 layout.json)。
-                // 不能再报「顺序没能存下来」—— 那是写盘失败的文案,会把人引到错误的方向。
-                else toast(getString(R.string.toast_remove_failed))
+                // 写盘(tmp → fsync → rename)放 IO 线程,与 onRenameSave / EditScreen.persist 同构——
+                // 主线程上 fd.sync() 会卡住那一帧(终审 Minor #4)。先关菜单再写,时序是安全的:
+                // 关菜单 nonce++ 让还原效果先把焦点落回那张卡(它此刻还在);写完 revision++ → stale 冻结目标
+                // → 新行数据落地后再按夹过的列号送到同行邻卡(design §1「行变短时索引夹取」)。
+                lifecycleScope.launch {
+                    val ok = withContext(Dispatchers.IO) { Layout.removeFromRow(this@MainActivity, ref.layoutRow, ref.pkg) }
+                    if (ok) revision++
+                    // 失败只有一种原因:那一行/那个包已经不在盘上了(别处刚改过 layout.json)。
+                    // 不能再报「顺序没能存下来」—— 那是写盘失败的文案,会把人引到错误的方向。
+                    else toast(getString(R.string.toast_remove_failed))
+                }
             }
         }
     }
 
-    private fun pickIcon(pkg: String) {
-        if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
+    /** @return 选择器是否真的打开了;false = 存储没就绪(已 toast),调用方不要留任何「回来时用」的状态。 */
+    private fun pickIcon(pkg: String): Boolean {
+        if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return false }
         pickerTarget = pkg
+        return true
     }
 
     private fun open(intent: Intent) {

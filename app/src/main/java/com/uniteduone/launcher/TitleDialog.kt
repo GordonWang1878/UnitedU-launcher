@@ -31,6 +31,11 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -42,7 +47,7 @@ import androidx.compose.ui.unit.sp
 /**
  * 「修改标题」对话框(spec §3):一个文本框是唯一可聚焦项,系统输入法负责输入。
  * 焦点账本:初始焦点只信自报 isFocused,nonce 变化重请求(铁律 2、3);守卫 `focused` 同时是 key(铁律 6)。
- * 确定(IME Done)保存;返回取消;清空 = 恢复应用名。
+ * 确定(IME Done / 确定键)保存;返回取消;清空 = 恢复应用名。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
@@ -80,7 +85,8 @@ fun TitleDialog(ref: CardRef, current: String, onSave: (String) -> Unit, onCance
             Spacer(Modifier.height(16.dp))
             BasicTextField(
                 value = text,
-                onValueChange = { text = it.take(MAX_TITLE_CHARS) },
+                // 截断与 sanitizeTitle 同一个 helper:光在这里 take(40) 会把第 40/41 个单元的 emoji 劈成半个代理项。
+                onValueChange = { text = truncateTitle(it) },
                 singleLine = true,
                 textStyle = TextStyle(fontFamily = Theme.Sans, color = Theme.EmphasisText, fontSize = 16.sp),
                 cursorBrush = SolidColor(Theme.Champagne),
@@ -88,6 +94,19 @@ fun TitleDialog(ref: CardRef, current: String, onSave: (String) -> Unit, onCance
                 keyboardActions = KeyboardActions(onDone = { onSave(text) }),
                 modifier = Modifier
                     .fillMaxWidth()
+                    // **确定键 = 保存**(spec §3「IME 动作 Done / 确定键」,终审 Important #2)。BasicTextField 只把
+                    // Key.Enter 映射到 IME 动作;第一次返回键把输入法收起、对话框还在时,DPAD_CENTER 会原样到达
+                    // Compose 却没人接(keyboard.show() 只在 focused 翻转时跑,输入法也不会回来),唯一出口只剩
+                    // 返回 = 取消,刚打的字全丢。抬起时保存,按下与抬起都吞掉(不吞的话按下会落进文本框自己的
+                    // 按键处理)。输入法显示着时 DPAD_CENTER 被输入法窗口先吃掉、走它的 Done → onDone,不会双重
+                    // 保存;Enter 仍走原来的 onDone 路径。这里**不放「已提交」布尔闩**(铁律 7):极端时序下的
+                    // 重复触发由 MainActivity.onRenameSave 的幂等守卫(renameTarget 已清则返回)吸收。
+                    .onPreviewKeyEvent {
+                        if (it.key == Key.DirectionCenter) {
+                            if (it.type == KeyEventType.KeyUp) onSave(text)
+                            true
+                        } else false
+                    }
                     .focusRequester(fr)
                     // 对话框里只有这一个可聚焦节点,但边界仍要自己锁死(铁律 4 推论,T5 review
                     // Important #3):不锁的话 D-pad 上下会让焦点搜索冒泡出对话框、落到蒙版

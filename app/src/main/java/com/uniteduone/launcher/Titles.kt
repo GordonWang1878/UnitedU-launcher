@@ -9,9 +9,19 @@ import java.io.FileOutputStream
 
 const val MAX_TITLE_CHARS = 40
 
-/** 去首尾空白与控制字符,截到 40 字符;空 = 「没有自定义标题」(恢复应用名)。 */
+/**
+ * 截到 [MAX_TITLE_CHARS] 个 UTF-16 单元;若最后保留的那个是高代理项(emoji 等增补平面字符的前半),
+ * 连它一起丢——绝不留下孤立代理项(写进 JSON 再读回会变成 U+FFFD,标题尾巴多一个「�」)。
+ * [sanitizeTitle] 与对话框的 onValueChange 共用这一个,两条截断路径同一口径(终审 Minor #10a)。
+ */
+fun truncateTitle(s: String): String {
+    val t = s.take(MAX_TITLE_CHARS)
+    return if (t.isNotEmpty() && t.last().isHighSurrogate()) t.dropLast(1) else t
+}
+
+/** 去首尾空白与控制字符,截到 40 字符(不拆代理对);空 = 「没有自定义标题」(恢复应用名)。 */
 fun sanitizeTitle(raw: String?): String =
-    (raw ?: "").filter { it.code >= 0x20 && it.code != 0x7F }.trim().take(MAX_TITLE_CHARS)
+    truncateTitle((raw ?: "").filter { it.code >= 0x20 && it.code != 0x7F }.trim())
 
 private fun esc(s: String) = s.replace("\\", "\\\\").replace("\"", "\\\"")
 

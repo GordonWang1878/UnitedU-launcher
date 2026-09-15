@@ -131,7 +131,10 @@ fun HomeScreen(
             val titles = runCatching { Titles.read(ctx) }.getOrDefault(emptyMap())
             // 「新应用」计数:与首页同一趟 IO 算(应用已经枚举过一次),onLayout 只看应用行
             // ——输入源行的 packageName 存的是输入 id,不是真的包名。
-            val newCount = runCatching {
+            // 基线还没建立(newAppsSeenAt == 0:onCreate 那次基线写盘失败,比如外置存储开机时还没挂上)
+            // 就什么都不算新——否则 countNew(ctx, 0, …) 会把整机几十个应用全算成「新」,整个会话都挂着计数
+            // (终审 Minor #5)。isNewApp 的纯语义不动(仍是「装机时间 > seenAt 且不在桌面上」),只是不喂 0 进去。
+            val newCount = if (newAppsSeenAt == 0L) 0 else runCatching {
                 Apps.countNew(ctx, newAppsSeenAt, appRows.flatMap { r -> r.apps.map { it.packageName } }.toSet())
             }.getOrDefault(0)
             Triple(rows, titles, newCount)
@@ -201,32 +204,46 @@ fun HomeScreen(
         lifecycle.addObserver(obs)
         onDispose { lifecycle.removeObserver(obs) }
     }
+    /**
+     * 「现在站在哪张卡上」**只派生、不缓存**(终审 Important #1)。曾经在焦点事件时缓存一份 CardRef、
+     * 只在下一次焦点事件才重报,有两条路会让它过期:
+     * (i) **重载而没有焦点事件**——CategoryRow 按位置组合卡片(没有 key()),移除第一行第一张后
+     *     节点 (0,0) 原地换成了原来的 (0,1),焦点没动、没有事件,缓存里仍是被移除的那张:长按弹出的是
+     *     「幽灵」的菜单(打开会启动它、卸载会卸它、移动位置 indexOf(pkg) = -1)。后台 PACKAGE_REMOVED
+     *     让焦点卡左边任一张消失,同一形态。
+     * (ii) **卡→齿轮且回调顺序是「新先旧后」**——齿轮 got 把 focusedCell 写成 (-1,-1)(不上报),
+     *     随后卡片的 lost 看到 focusedCell != null 就不清,齿轮上长按弹出上一张卡的菜单。
+     * 派生之后两条路都自愈:上报值永远等于 cardAt(focusedCell) 对**当前** rows 的求值;
+     * 数据重载由下面那个 LaunchedEffect(loaded, focusedCell) 再算一次(rows 变 → key 变,没有闩)。
+     * layoutRow **直接取 Row 自己带的那个**(buildRows 在 filter 之前按 layout.json 定的),
+     * 不由渲染下标推导 —— 装不到的包会让某一行消失,推导出来的行号就会偏移,
+     * 「移除」会删到别人那一行(见 Row.layoutRow 的 KDoc)。
+     */
+    fun cardAt(cell: Pair<Int, Int>?): CardRef? {
+        val (row, idx) = cell ?: return null
+        if (row < 0) return null                       // (-1,-1) = 齿轮:它不是卡,长按不该出菜单
+        val r = rows.getOrNull(row) ?: return null
+        val app = r.apps.getOrNull(idx) ?: return null
+        return CardRef(row, idx, r.layoutRow, r.kind, app.packageName, app.label)
+    }
     fun report(row: Int, idx: Int, got: Boolean) {
         // 齿轮真的拿到焦点 = 这次「关菜单回齿轮」的意图已经兑现,比对立刻作废。
         // 不作废的话它会一直成立到下一次 nonce 递增,**窗口里每一次丢焦点都被送到齿轮**
         // (比如后台某个应用自动更新让某行短一格、焦点所在节点被销毁),
         // 人正站在第三行却突然瞬移到右上角。
         if (got && row == -1) gearNonce = -1
+        // focusedCell 自己的得失顺序保护留着:只有「本格仍是持有者」才作废。导航时若两张卡的
+        // 得失顺序颠倒(新卡先报 got、旧卡后报 lost),旧卡那次 lost 不会把新卡抹掉。
         if (got) focusedCell = row to idx
         else if (focusedCell == row to idx) focusedCell = null
-        // 长按菜单要知道「现在站在哪张卡上」。**只在行号合法时上报**:齿轮用 (-1, -1) 报到这里,
-        // 它不是卡,长按不该出菜单。
-        // layoutRow **直接取 Row 自己带的那个**(buildRows 在 filter 之前按 layout.json 定的),
-        // 不再由渲染下标推导 —— 装不到的包会让某一行消失,推导出来的行号就会偏移,
-        // 「移除」会删到别人那一行(见 Row.layoutRow 的 KDoc)。
-        if (row >= 0) {
-            val r = rows.getOrNull(row)
-            val app = r?.apps?.getOrNull(idx)
-            if (got && r != null && app != null) {
-                onFocusedCard(CardRef(row, idx, r.layoutRow, r.kind, app.packageName, app.label))
-            } else if (!got && focusedCell == null) {
-                // 与上面 focusedCell 的作废判据同构:只有「现在确实没人持有焦点」才报 null。
-                // 不加这道闸的话,导航时若两张卡的得失顺序颠倒(新卡先报 got、旧卡后报 loss),
-                // 这一句会把刚上报的新卡抹成 null,长按当场弹不出菜单。
-                onFocusedCard(null)
-            }
-        }
+        // 上报**无条件**按 focusedCell 派生,不再看这次事件是谁:齿轮拿到焦点 → 派生为 null,
+        // 卡片拿到 → 派生为那张卡;颠倒顺序下旧卡的 lost 派生出来的仍是新卡。
+        onFocusedCard(cardAt(focusedCell))
     }
+    // 数据重载(移除、卸载、后台 PACKAGE_*)之后节点原地换卡、没有任何焦点事件——这里按新 rows 再派生一次。
+    // 两个 key 都只是被读的量,没有守卫,不存在铁律 6 那种「守卫不在 key 里」的洞;
+    // 也没有闩(铁律 7):每次 rows 或 focusedCell 变化都是一次全新求值。
+    LaunchedEffect(loaded, focusedCell) { onFocusedCard(cardAt(focusedCell)) }
     // 配置里的包一个都装不到时,卡片一张都没有,焦点无处可落;而这时唯一能自救的
     // 控件正是齿轮。不能指望框架的隐式 focus-enter——这份代码在别处恰恰拒绝依赖它。
     val gearFocus = remember { FocusRequester() }
