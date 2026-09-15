@@ -50,7 +50,9 @@ fun Clock(modifier: Modifier = Modifier, showDate: Boolean = true) {
     // is24Hour 挂在 tzTick 上重读就够:不必每分钟都查一次系统设置,理由同上面的广播说明。
     val is24Hour = remember(tzTick) { android.text.format.DateFormat.is24HourFormat(ctx) }
     val pattern = remember(showDate, is24Hour) {
-        val timePart = if (is24Hour) "HH:mm" else "h:mm"
+        // 12 小时制必须带 a(AM/PM):"h:mm" 单看数字,凌晨 2 点和下午 2 点长得一模一样,
+        // 一天里一半时间是歧义的——2026-09-15 复审发现,补上标记。
+        val timePart = if (is24Hour) "HH:mm" else "h:mm a"
         if (showDate) "$timePart EEE yyyy/M/d" else timePart
     }
     // tzTick 作为 key:SimpleDateFormat 出生时就把时区绑死了,换时区后必须重建。

@@ -46,9 +46,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 // 卡片档位:大/中/小 → 每行张数(门 1 Gordon 定 8/6/5;大=5,中=6,小=8)。
 private val CARDS_PER_ROW_BY_SIZE = intArrayOf(5, 6, 8)
@@ -97,16 +94,18 @@ private data class ControlElem(val ctrlIndex: Int) : Elem { override val height 
 fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0) {
     val ctx = LocalContext.current
     var s by remember { mutableStateOf(SettingsStore.read(ctx)) }
-    val scope = rememberCoroutineScope()
 
-    // 改一下存一下:本地状态先更新(UI 立刻反映),再异步落盘。write 返回 false 是存储故障,
-    // 只 Log、不崩(任务要求);下次开机会读回旧值,但当前会话内改动仍在内存里生效。
+    // 改一下存一下,同步落盘——照抄 [Layout.write] 的姿势,不像早期版本那样丢去
+    // scope.launch { withContext(Dispatchers.IO) {...} } 异步写。文件是几百字节的扁平
+    // JSON,主线程写是亚毫秒级,不会卡;换成同步是为了堵 Task G 复审揪出的一个真实竞态:
+    // 「改完立刻按返回」时,leaveSettings() → revision++ → SettingsStore.read() 在主线程
+    // 同步跑,如果这边写盘还在后台协程里排队,首页读到的就是改之前的旧值。write 返回
+    // false 是存储故障,只 Log、不崩(任务要求);下次开机会读回旧值,但当前会话内的
+    // 改动仍在内存里的 s 生效。
     fun update(newS: Settings) {
         s = newS
-        scope.launch {
-            val ok = withContext(Dispatchers.IO) { SettingsStore.write(ctx, newS) }
-            if (!ok) Log.w(LOG_TAG, "settings.json 写入失败,改动只留在内存里")
-        }
+        val ok = SettingsStore.write(ctx, newS)
+        if (!ok) Log.w(LOG_TAG, "settings.json 写入失败,改动只留在内存里")
     }
 
     // ---- 9 个可聚焦控件的描述,顺序即 ctrlIndex(0..8),看门狗/位移都按它索引 ----
