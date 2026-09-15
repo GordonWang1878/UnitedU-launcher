@@ -62,6 +62,8 @@ fun ImportScreen(onExit: () -> Unit, focusNonce: Int = 0) {
     // 这条路径下不能照常关页(会把安装流程中间的服务杀掉)——用时间戳而非布尔闩(铁律 7),
     // 窗口到期自然失效,不需要谁去清。
     var suppressStopUntil by remember { mutableStateOf(0L) }
+    // 被豁免窗压掉的 ON_STOP 计数(不是布尔闩,铁律 7):每压掉一次 +1,下面的效果靠它重新触发到期复查。
+    var suppressedStopTick by remember { mutableStateOf(0) }
 
     // 服务寿命 = 本页寿命:起在这里、停在 onDispose(返回键 → MainActivity 把本页拆掉)。
     DisposableEffect(Unit) {
@@ -89,10 +91,26 @@ fun ImportScreen(onExit: () -> Unit, focusNonce: Int = 0) {
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
         val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
-            if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP && System.currentTimeMillis() > suppressStopUntil) onExit()
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                if (System.currentTimeMillis() > suppressStopUntil) onExit()
+                // 窗内压下的这次交给下面的到期复查效果兜底,而不是就此不管。
+                else suppressedStopTick++
+            }
         }
         lifecycle.addObserver(obs)
         onDispose { lifecycle.removeObserver(obs) }
+    }
+
+    // 被压掉的 ON_STOP 到期复查(T4 复审补,spec §4 末段):窗口过了 Activity 仍没回到前台
+    // (待机、切到别的应用——不是从安装流程正常返回)→ 关页停服务,否则无密码的局域网服务会
+    // 无限期活着。while 而非单次 delay:等待期间若又传一个 APK 把窗口续了,按最新的
+    // suppressStopUntil 重新等一轮,不会提前关掉正在进行的安装。
+    LaunchedEffect(suppressedStopTick) {
+        if (suppressedStopTick == 0) return@LaunchedEffect
+        while (System.currentTimeMillis() < suppressStopUntil) {
+            kotlinx.coroutines.delay((suppressStopUntil - System.currentTimeMillis()).coerceAtLeast(0L))
+        }
+        if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) onExit()
     }
 
     val qr by produceState<Bitmap?>(null, url) {

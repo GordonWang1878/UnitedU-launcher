@@ -142,7 +142,10 @@ class UploadServer(
     /**
      * 传 APK:存到 cacheDir/apk/upload.apk(FileProvider 只开放这个目录)→ 校验是 APK →
      * 主线程调 [ApkInstaller.install](startActivity 不能在请求线程)→ 把结果告诉手机。
-     * STARTED 与 NEEDS_PERMISSION 都先回调 [onNotice] 让电视端「导入图片」页显示一行提示,再返回 JSON。
+     * STARTED 路径的 [onNotice] 在 `startActivity` **之前**、同一个主线程回合里调用——先撑开
+     * `suppressStopUntil` 窗口再放系统安装器出场,不然安装器自己的 ON_STOP 可能抢在窗口插上之前
+     * 就把页面拆了(T4 复审发现,同一个 looper 上两件事没有 happens-before)。NEEDS_PERMISSION
+     * 分支事后再回调一次,把提示改写成更准确的那句。
      */
     private fun serveApk(session: IHTTPSession): Response {
         val files = HashMap<String, String>()
@@ -151,15 +154,16 @@ class UploadServer(
         val tmp = File(tmpPath)
         if (tmp.length() > MAX_APK_BYTES) { tmp.delete(); return json(Response.Status.OK, jsonFail("size")) }
         val dst = File(File(ctx.cacheDir, "apk").also { it.mkdirs() }, "upload.apk")
-        if (!moveInto(tmp, dst)) return json(Response.Status.OK, jsonFail("write"))
+        if (!moveInto(tmp, dst)) { dst.delete(); return json(Response.Status.OK, jsonFail("write")) }
         val info = ApkInstaller.archiveInfo(ctx, dst) ?: run { dst.delete(); return json(Response.Status.OK, jsonFail("invalid")) }
-        val task = java.util.concurrent.FutureTask { ApkInstaller.install(ctx, dst) }
+        val task = java.util.concurrent.FutureTask {
+            onNotice(R.string.import_apk_started)
+            ApkInstaller.install(ctx, dst)
+        }
         main.post(task)
         return when (task.get()) {
-            ApkInstaller.Result.STARTED -> {
-                main.post { onNotice(R.string.import_apk_started) }
+            ApkInstaller.Result.STARTED ->
                 json(Response.Status.OK, jsonOk("\"package\":${jsonStr(info.first)},\"version\":${jsonStr(info.second)}"))
-            }
             ApkInstaller.Result.NEEDS_PERMISSION -> {
                 main.post { onNotice(R.string.import_apk_needs_permission) }
                 json(Response.Status.OK, jsonFail("needs-permission"))

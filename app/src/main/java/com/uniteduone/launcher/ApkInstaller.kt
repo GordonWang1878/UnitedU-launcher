@@ -27,12 +27,17 @@ object ApkInstaller {
             )
             return Result.NEEDS_PERMISSION
         }
-        val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
-        ctx.startActivity(
-            Intent(Intent.ACTION_VIEW)
-                .setDataAndType(uri, "application/vnd.android.package-archive")
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK),
-        )
-        return Result.STARTED
+        // getUriForFile 在 file 落在 file_paths.xml 声明范围外时抛 IllegalArgumentException;
+        // startActivity 找不到能处理这个 Intent 的 Activity 时抛 ActivityNotFoundException——
+        // M7 检查更新会拿任意来源的文件复用这个入口,两种异常都不该让调用方崩溃,按 INVALID 处理。
+        return runCatching {
+            val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
+            ctx.startActivity(
+                Intent(Intent.ACTION_VIEW)
+                    .setDataAndType(uri, "application/vnd.android.package-archive")
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+            Result.STARTED
+        }.getOrDefault(Result.INVALID)
     }
 }
