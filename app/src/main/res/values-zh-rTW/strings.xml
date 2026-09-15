@@ -52,6 +52,7 @@
     <string name="web_apk_needs_permission">請先在電視上允許安裝未知應用程式,然後重試</string>
     <string name="web_apk_invalid">不是有效的 APK 檔案</string>
     <string name="web_apk_size">APK 超過 100 MB</string>
+    <string name="web_apk_background">電視上的匯入頁不在前景,回到匯入頁後重試</string>
 
     <!-- edit_* : 編輯桌面畫面 -->
     <string name="edit_title">編輯桌面</string>

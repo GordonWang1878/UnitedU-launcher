@@ -39,6 +39,26 @@ fun sanitizeUploadName(raw: String?): String? {
 
 fun extensionOf(name: String): String = name.substringAfterLast('.', "").lowercase()
 
+/**
+ * multipart 同批上传要处理哪些字段 key,按处理顺序排好(纯函数,好单测;Android 侧由
+ * `UploadServer.serveUpload` 传入 `files`(key → 临时文件路径)与 `session.parameters` 的 key 集)。
+ *
+ * 规律见 `serveUpload` 的注释:NanoHTTPD 把同名多个文件摊成 `files`、`files1`、`files2`…
+ * 这里**按实际存在的 key 取并集**(两张表各自可能缺项)、**按数字后缀排序**,而不是按固定步长
+ * 硬猜序号——某个 part 没带逐段 Content-Type 时编号会跳号,硬猜撞上空位就会把后面全部截断。
+ * 后缀不是合法 Int 的(手工构造的 `files99999999999999` 溢出、或干脆不是数字的 `filesX`)
+ * 排到最后而不是抛异常:这种边角输入不该把整批正常文件拖垮。同名次序再按 key 字面排,保证稳定。
+ */
+fun uploadKeys(fileKeys: Set<String>, paramKeys: Set<String>): List<String> =
+    (fileKeys + paramKeys)
+        .filter { it.startsWith("files") }
+        .sortedWith(
+            compareBy(
+                { if (it == "files") Int.MIN_VALUE else it.substring(5).toIntOrNull() ?: Int.MAX_VALUE },
+                { it },
+            ),
+        )
+
 /** a.jpg 已存在 → a-1.jpg → a-2.jpg … */
 fun uniqueName(existing: Set<String>, name: String): String {
     if (name !in existing) return name

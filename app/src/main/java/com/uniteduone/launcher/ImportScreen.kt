@@ -45,6 +45,15 @@ private fun BitMatrix.toBitmap(): Bitmap {
 }
 
 /**
+ * 某条提示该把 ON_STOP 豁免窗撑多久(epoch ms 的增量,spec §3)。
+ * 默认 30 s 够系统安装器走完;「请先允许安装未知应用」那条不够——用户要在电视的设置页里
+ * 翻到本应用、开开关、再返回,遥控器上这几步在真机上常常超过 30 s,窗一过页面就被关掉、
+ * 服务也停了,他回来只看见桌面(Minor #6)。这条给 120 s。
+ */
+private fun windowFor(noticeId: Int): Long =
+    if (noticeId == R.string.import_apk_needs_permission) 120_000L else 30_000L
+
+/**
  * 「导入图片」页(spec §3):进入即起 HTTP 服务,显示地址 + 二维码 + 已收到计数;返回键关闭并停止服务。
  * 焦点账本最简:根节点是唯一可聚焦项;守卫 `focused` 同时是 key(铁律 2、3、6);
  * 焦点是否落下只信自报 isFocused,不信 requestFocus 的返回。
@@ -60,10 +69,14 @@ fun ImportScreen(onExit: () -> Unit, focusNonce: Int = 0) {
     var notice by remember { mutableStateOf<Int?>(null) }  // R.string 资源 id(APK 安装提示,spec §4)
     // epoch ms:系统安装器 / 「允许安装未知应用」设置页把本 Activity 推到后台时也会触发 ON_STOP,
     // 这条路径下不能照常关页(会把安装流程中间的服务杀掉)——用时间戳而非布尔闩(铁律 7),
-    // 窗口到期自然失效,不需要谁去清。
+    // 窗口到期自然失效,不需要谁去清。窗长见 [windowFor];只有页面还在前台时才撑窗。
     var suppressStopUntil by remember { mutableStateOf(0L) }
     // 被豁免窗压掉的 ON_STOP 计数(不是布尔闩,铁律 7):每压掉一次 +1,下面的效果靠它重新触发到期复查。
     var suppressedStopTick by remember { mutableStateOf(0) }
+
+    // 本页整段生命周期里 LocalLifecycleOwner 就是宿主 Activity,不会中途换人——所以下面几个
+    // DisposableEffect 捕获它是安全的,不需要把它写进 key(写进去反而会让服务白白重起)。
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
 
     // 服务寿命 = 本页寿命:起在这里、停在 onDispose(返回键 → MainActivity 把本页拆掉)。
     DisposableEffect(Unit) {
@@ -75,7 +88,16 @@ fun ImportScreen(onExit: () -> Unit, focusNonce: Int = 0) {
             server = UploadServer.startOnFreePort(
                 ctx,
                 onSaved = { name -> received++; lastName = name; notice = null },
-                onNotice = { notice = it; suppressStopUntil = System.currentTimeMillis() + 30_000 },
+                // **只有前台才撑窗**(spec §4):窗的用途是「别把正在进行的安装流程关掉」,
+                // 页面本就不在前台时没有这样的流程可护——照撑的话,局域网上任何人每 30 s 传一次
+                // APK 就能让这个无密码服务在用户已经切去看视频之后无限期活着。
+                onNotice = { id ->
+                    notice = id
+                    if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
+                        suppressStopUntil = System.currentTimeMillis() + windowFor(id)
+                    }
+                },
+                isForeground = { lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) },
             )
             if (server == null) error = R.string.import_error_port
             else url = "http://$ip:${server.listeningPort}/"
@@ -87,8 +109,11 @@ fun ImportScreen(onExit: () -> Unit, focusNonce: Int = 0) {
     // (上面那个 DisposableEffect 的 onDispose 负责真正停服务)。HOME 键另有 MainActivity.onNewIntent
     // 兜底——onNewIntent 不保证总是先于 ON_STOP,两条路都要收。
     // 例外(spec §4 末段,T2 复审发现):系统安装器 / 未知来源设置页同样是全屏 Activity、同样触发
-    // ON_STOP——30 s 豁免窗内(suppressStopUntil)不关页,窗口过后再照常关。
-    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    // ON_STOP——豁免窗内(suppressStopUntil)不关页,窗口过后再照常关。
+    // **这里的 onExit() 能生效,靠的是 Compose(≥1.5)在 Activity STOPPED 期间照常重组**
+    // ——停的只有帧时钟,重组与 LaunchedEffect 的协程都还在跑,所以下面那个到期复查也收得到。
+    // 不要因为「后台还能跑」看着可疑就把 stop() 挪到别处(比如挪进 ON_STOP 观察者里直接停服务):
+    // 服务寿命必须与本页组合寿命绑死在同一个 onDispose 上,拆开就会出现「页面还在、服务已停」。
     DisposableEffect(lifecycle) {
         val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
             if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP) {

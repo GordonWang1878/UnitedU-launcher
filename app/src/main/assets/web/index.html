@@ -47,6 +47,9 @@ input[type=file]{display:none}
 <div id="view"><img id="viewimg" alt=""></div>
 <script>
 const S = __STRINGS__;
+// 非 GET 一律带这个头:服务端只认带它的写请求(见 UploadServer.serve)。fetch + FormData 本来是
+// CORS 简单请求,手机上随便哪个网页都能往这台电视 POST;自定义头会把跨源请求顶成要预检,发不出来。
+const H = { "X-Requested-With": "UnitedU" };
 const TABS = [["wallpapers", S.tab_wallpapers], ["cards", S.tab_cards], ["screensavers", S.tab_screensavers], ["apk", S.tab_apk]];
 let type = "wallpapers";
 const $ = id => document.getElementById(id);
@@ -75,7 +78,7 @@ async function load() {
     del.onclick = async () => {
       if (!confirm(S.confirm_delete.replace("%s", f.name))) return;
       let r;
-      try { r = await fetch(`/api/file?type=${type}&name=${q(f.name)}`, { method: "DELETE" }); } catch (e) { msg(S.error); return; }
+      try { r = await fetch(`/api/file?type=${type}&name=${q(f.name)}`, { method: "DELETE", headers: H }); } catch (e) { msg(S.error); return; }
       msg(r.ok ? S.done : S.error); load();
     };
     c.append(img, n, del); g.appendChild(c);
@@ -86,7 +89,7 @@ $("pick").onchange = async e => {
   const fd = new FormData(); for (const f of files) fd.append("files", f, f.name);
   msg(S.uploading.replace("%d", files.length));
   let d;
-  try { d = await (await fetch(`/api/upload?type=${type}`, { method: "POST", body: fd })).json(); } catch (err) { msg(S.error); return; }
+  try { d = await (await fetch(`/api/upload?type=${type}`, { method: "POST", headers: H, body: fd })).json(); } catch (err) { msg(S.error); return; }
   if (!d || !Array.isArray(d.saved) || !Array.isArray(d.rejected)) { msg(S.error); e.target.value = ""; return; }
   let t = `${S.done} ${d.saved.length}/${files.length}`;
   for (const x of d.rejected) t += `\n${x.name}: ${S["rejected_" + x.reason] || x.reason}`;
@@ -97,7 +100,7 @@ $("apkpick").onchange = async e => {
   const fd = new FormData(); fd.append("apk", f, f.name);
   $("apkstatus").textContent = S.uploading.replace("%d", 1);
   let d;
-  try { d = await (await fetch("/api/apk", { method: "POST", body: fd })).json(); } catch (err) { d = { ok: false, reason: "server" }; }
+  try { d = await (await fetch("/api/apk", { method: "POST", headers: H, body: fd })).json(); } catch (err) { d = { ok: false, reason: "server" }; }
   $("apkstatus").textContent = d.ok ? `${S.done} ${d.package || ""} ${d.version || ""}` : (S["apk_" + d.reason] || S.error);
   e.target.value = "";
 };

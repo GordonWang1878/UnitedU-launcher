@@ -26,6 +26,8 @@ class UploadServer(
     private val onSaved: (String) -> Unit,
     /** 有提示要给电视端页面显示时回调一次(**主线程**),参数是 R.string id(spec §4)。 */
     private val onNotice: (Int) -> Unit = {},
+    /** 导入页是否还在前台(**只在主线程问**)。false 时不许弹系统安装器,见 [serveApk]。 */
+    private val isForeground: () -> Boolean = { true },
 ) : NanoHTTPD(port) {
 
     private val main = Handler(Looper.getMainLooper())
@@ -39,6 +41,19 @@ class UploadServer(
     init {
         // NanoHTTPD 默认把上传临时文件放 java.io.tmpdir,Android 上那不可写;改放我们的 cache 子目录。
         setTempFileManagerFactory { CacheTempFileManager(tmpDir) }
+        sweepStale()
+    }
+
+    /**
+     * 开服前扫一遍上一条命留下的垃圾:进程被杀在安装流程中间时(系统安装器在前台,我们在后台被回收),
+     * `cacheDir/apk/upload.apk` 与 multipart 临时文件都没人删,几十上百 MB 就那么占着。
+     * 临时文件按 60 s 老化判定:本轮正在传的文件由 `TempFileManager.clear()` 自己收,
+     * 不能被同一进程里后开的服务误删——不过这两件事本就不会同时发生(服务寿命 = 导入页寿命)。
+     */
+    private fun sweepStale() = runCatching {
+        File(File(ctx.cacheDir, "apk"), "upload.apk").delete()
+        val cutoff = System.currentTimeMillis() - 60_000
+        tmpDir.listFiles()?.forEach { if (it.isFile && it.lastModified() < cutoff) it.delete() }
     }
 
     private fun libraryFor(type: String?): File? = when (type) {
@@ -53,6 +68,17 @@ class UploadServer(
         val p = session.parameters
         val type = p["type"]?.firstOrNull()
         val name = p["name"]?.firstOrNull()
+        // CSRF:`fetch` + `FormData` 属于 CORS 简单请求——手机浏览器里**任何**网页都能直接往这台
+        // 电视 POST/DELETE(没有预检、也不需要读回响应就已经把事做了)。自定义头把它顶成非简单请求:
+        // 跨源发它会先触发预检,我们不回 CORS 头,浏览器就把请求拦在发出之前。只管非 GET——
+        // GET 那几条路由只读、且本来就要能被 <img> 直接加载。(NanoHTTPD 把请求头 key 全小写)
+        // 挡下来时 body 还没读,所以同样要 `Connection: close`,理由见 [closing]。
+        if (session.method != Method.GET && session.headers["x-requested-with"] != "UnitedU") {
+            return closing(json(Response.Status.FORBIDDEN, jsonFail("origin")))
+        }
+        // Content-Length 预检:超限的请求不必先把几百 MB 收进 cache 再判——直接 413 + 关连接。
+        // 声明值含 multipart 边界,比文件本身略大;卡在这里的一定也过不了后面逐文件那道闸。
+        contentLengthOverLimit(session, uri)?.let { return it }
         return try {
             when {
                 uri == "/" && session.method == Method.GET -> serveIndex()
@@ -68,6 +94,31 @@ class UploadServer(
             Log.w(TAG, "上传服务请求失败 $uri: ${e.message}")
             json(Response.Status.INTERNAL_ERROR, jsonFail("server"))
         }
+    }
+
+    /**
+     * **没读 body 就回的响应一律经这里**:body 还躺在 socket 里,这条连接若被复用,剩下的字节会被
+     * 当成下一个请求的请求行。`Connection: close` 让 NanoHTTPD 发完就关(它按响应头的
+     * `connection` 判,见 `Response.isCloseConnection`),连接复用这条路就不存在了。
+     */
+    private fun closing(resp: Response): Response = resp.apply { addHeader("Connection", "close") }
+
+    /**
+     * POST 路由的 Content-Length 上限:`/api/apk` 一个 APK,`/api/upload` 最多一批 8 张图。
+     * 超了直接 413,不读 body(不然几百 MB 要先落进 cache 才判得出来)。
+     * 声明值含 multipart 边界、比文件本身略大;卡在这里的一定也过不了后面逐文件那道闸。
+     * 没超 / 不是这两条路由 → null(照常走)。
+     */
+    private fun contentLengthOverLimit(session: IHTTPSession, uri: String): Response? {
+        if (session.method != Method.POST) return null
+        val cap = when (uri) {
+            "/api/apk" -> MAX_APK_BYTES
+            "/api/upload" -> MAX_UPLOAD_BYTES * 8
+            else -> return null
+        }
+        val declared = session.headers["content-length"]?.toLongOrNull() ?: return null
+        if (declared <= cap) return null
+        return closing(json(Response.Status.PAYLOAD_TOO_LARGE, jsonFail("size")))
     }
 
     /** 网页。把 index.html 里的 __STRINGS__ 占位替换成按电视当前语言取的三语 JSON。 */
@@ -98,10 +149,9 @@ class UploadServer(
      * 且原始文件名**不是**累加进 `parameters["files"]` 一个 list,而是每个后缀 key 各自
      * 只装一个元素(`parameters["files1"] = [name]`、`parameters["files2"] = [name]`…)。
      * 所以按 key 探测(而不是按 parameters["files"] 的长度)才能拿全同批全部文件。
-     * **探测按「实际存在的 key」枚举,不按连续序号硬猜**:某个 part 没带逐段 Content-Type 时
-     * NanoHTTPD 的编号可能跳号(如 files、files2 之间缺 files1),按固定步长探测撞上空位就
-     * 会把后面全部截断;改成先收集 files 映射与 parameters 里全部形如 files/files<数字> 的 key、
-     * 按数字排序再逐个处理,断一个不连累同批其余文件。
+     * **探测按「实际存在的 key」枚举,不按连续序号硬猜**(枚举与排序是纯函数 [uploadKeys],单测在
+     * `UploadPureTest`):某个 part 没带逐段 Content-Type 时 NanoHTTPD 的编号可能跳号
+     * (如 files、files2 之间缺 files1),按固定步长探测撞上空位就会把后面全部截断。
      * 每个文件独立判定:名字清洗 → 扩展名 → 大小 → 可解码 → 重名 → 移入;失败进 rejected,不影响同批其他文件。
      */
     private fun serveUpload(session: IHTTPSession, type: String?): Response {
@@ -110,13 +160,7 @@ class UploadServer(
         session.parseBody(files)
         val saved = ArrayList<String>()
         val rejected = ArrayList<Pair<String, String>>()
-        val keys = (files.keys + session.parameters.keys)
-            .filter { it == "files" || (it.startsWith("files") && it.length > 5 && it.substring(5).all(Char::isDigit)) }
-            .distinct()
-            // 手工构造的字段名(如 files99999999999999)可能超出 Int 范围;toInt() 会抛异常把整个
-            // 请求 500——排到最后即可,不必让这种边角输入拖垮同批其它正常文件。
-            .sortedBy { if (it == "files") 0 else it.substring(5).toIntOrNull() ?: Int.MAX_VALUE }
-        for (key in keys) {
+        for (key in uploadKeys(files.keys, session.parameters.keys)) {
             val tmpPath = files[key] ?: continue
             val original = session.parameters[key]?.firstOrNull() ?: continue
             val tmp = File(tmpPath)
@@ -146,6 +190,12 @@ class UploadServer(
      * `suppressStopUntil` 窗口再放系统安装器出场,不然安装器自己的 ON_STOP 可能抢在窗口插上之前
      * 就把页面拆了(T4 复审发现,同一个 looper 上两件事没有 happens-before)。NEEDS_PERMISSION
      * 分支事后再回调一次,把提示改写成更准确的那句。
+     *
+     * **只在导入页还在前台时才装**(spec §4):否则局域网上任何人都能每 30 s 续一次豁免窗、
+     * 在用户已经切去看视频的时候把安装弹窗糊到屏幕上——而 ON_STOP 关页这道保险正好被那个窗压着。
+     * 前台判定与 `isAlive` 一起放在**主线程回合里**问:请求线程上问到的答案可能已经过期,而
+     * `stop()` 与 ON_STOP 都发生在主线程,同一个回合里问到的「前台」与随后的 `startActivity`
+     * 之间没有别的机会插进来。`isAlive` 兜的是另一头:body 刚解析完、`stop()` 已经把服务停了。
      */
     private fun serveApk(session: IHTTPSession): Response {
         val files = HashMap<String, String>()
@@ -157,6 +207,7 @@ class UploadServer(
         if (!moveInto(tmp, dst)) { dst.delete(); return json(Response.Status.OK, jsonFail("write")) }
         val info = ApkInstaller.archiveInfo(ctx, dst) ?: run { dst.delete(); return json(Response.Status.OK, jsonFail("invalid")) }
         val task = java.util.concurrent.FutureTask {
+            if (!isAlive || !isForeground()) return@FutureTask ApkInstaller.Result.BACKGROUND
             onNotice(R.string.import_apk_started)
             ApkInstaller.install(ctx, dst)
         }
@@ -169,6 +220,8 @@ class UploadServer(
                 json(Response.Status.OK, jsonFail("needs-permission"))
             }
             ApkInstaller.Result.INVALID -> json(Response.Status.OK, jsonFail("invalid"))
+            // 没装,暂存文件立刻删掉:窗口没被续,页面照原到期时间关,这个文件也不该留到下次。
+            ApkInstaller.Result.BACKGROUND -> { dst.delete(); json(Response.Status.OK, jsonFail("background")) }
         }
     }
 
@@ -243,9 +296,14 @@ class UploadServer(
          * (只是没 bind 成功)——不 `stop()` 就换下一个端口重试,这个 fd 就漏在那里,
          * 10 个端口全占的最坏情况会漏 9 个。
          */
-        fun startOnFreePort(ctx: Context, onSaved: (String) -> Unit, onNotice: (Int) -> Unit = {}): UploadServer? {
+        fun startOnFreePort(
+            ctx: Context,
+            onSaved: (String) -> Unit,
+            onNotice: (Int) -> Unit = {},
+            isForeground: () -> Boolean = { true },
+        ): UploadServer? {
             for (port in UPLOAD_PORT_FIRST..UPLOAD_PORT_LAST) {
-                val s = UploadServer(ctx, port, onSaved, onNotice)
+                val s = UploadServer(ctx, port, onSaved, onNotice, isForeground)
                 val ok = runCatching { s.start(SOCKET_READ_TIMEOUT, false); true }
                     .onFailure { runCatching { s.stop() } }
                     .getOrDefault(false)
@@ -293,6 +351,7 @@ fun webStringsJson(ctx: Context): String {
         "apk_needs-permission" to R.string.web_apk_needs_permission,
         "apk_invalid" to R.string.web_apk_invalid,
         "apk_size" to R.string.web_apk_size,
+        "apk_background" to R.string.web_apk_background,
         "apk_server" to R.string.web_error,
         "apk_write" to R.string.web_rejected_write,
     )

@@ -52,6 +52,7 @@
     <string name="web_apk_needs_permission">Allow installing unknown apps on the TV first, then retry</string>
     <string name="web_apk_invalid">Not a valid APK file</string>
     <string name="web_apk_size">APK larger than 100 MB</string>
+    <string name="web_apk_background">The TV\'s import page is not in the foreground. Return to it and retry</string>
 
     <!-- edit_* : edit home screen -->
     <string name="edit_title">Edit Home Screen</string>

@@ -41,6 +41,43 @@ class UploadPureTest {
         assertEquals("noext-1", uniqueName(setOf("noext"), "noext"))
     }
 
+    @Test fun uploadKeysOrdersFilesThenNumericSuffixes() {
+        assertEquals(
+            listOf("files", "files1", "files2"),
+            uploadKeys(setOf("files", "files2", "files1"), setOf("files", "files1", "files2")),
+        )
+    }
+
+    @Test fun uploadKeysToleratesGaps() {
+        // 某个 part 没带逐段 Content-Type 时 NanoHTTPD 会跳号(files、files2 之间没有 files1)——
+        // 按固定步长探测会在空位截断,按实际 key 枚举不会。
+        assertEquals(listOf("files", "files2"), uploadKeys(setOf("files", "files2"), setOf("files", "files2")))
+    }
+
+    @Test fun uploadKeysSortsNumericallyNotLexically() {
+        assertEquals(
+            listOf("files", "files2", "files10"),
+            uploadKeys(setOf("files", "files10", "files2"), setOf("files", "files10", "files2")),
+        )
+    }
+
+    @Test fun uploadKeysPutsUnparsableSuffixesLast() {
+        // 非数字后缀与溢出 Int 的数字后缀都排最后,不抛异常、不挡住同批正常文件。
+        assertEquals(
+            listOf("files", "files2", "files99999999999999", "filesX"),
+            uploadKeys(
+                setOf("filesX", "files2", "files", "files99999999999999"),
+                setOf("filesX", "files2", "files", "files99999999999999"),
+            ),
+        )
+    }
+
+    @Test fun uploadKeysUnionsBothMaps() {
+        // 只出现在一张表里的 key 也要进来(两张表各自可能缺项);非 files* 的参数(type)不进来。
+        assertEquals(listOf("files", "files1"), uploadKeys(setOf("files"), setOf("files1", "type")))
+        assertEquals(emptyList<String>(), uploadKeys(emptySet(), setOf("type", "apk")))
+    }
+
     @Test fun pickAddressPrefersWlanEthEnThenAny() {
         assertEquals("192.168.1.9", pickAddress(listOf("dummy0" to "10.0.0.1", "wlan0" to "192.168.1.9")))
         assertEquals("192.168.1.9", pickAddress(listOf("dummy0" to "10.0.0.1", "eth0" to "192.168.1.9")))
