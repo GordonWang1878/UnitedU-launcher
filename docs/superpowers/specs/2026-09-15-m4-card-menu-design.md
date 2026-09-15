@@ -1,6 +1,6 @@
 # M4 设计:长按卡片菜单 + 卡片标题 + 新应用标记
 
-> **状态:已实施(commit 65b70d5),待真机验。**
+> **状态:已实施(commit 8cc5134),待真机验。**
 > 上游:`docs/DESIGN-unitedu-open-source.md` §2(卡片、长按菜单、移动位置、新装应用)、§6、§11 M4 行;M2 收官时推给 M4 的四项里,本文只收「卡片标题渲染」,其余三项(行管理、CEC 去重、输入源隐藏/改名)归 **M4b**(另立 spec)。
 > 焦点铁律:根 `CLAUDE.md` 七条。
 
@@ -18,7 +18,7 @@
 ## 1. 长按检测与卡片菜单
 
 - **检测在 `MainActivity.dispatchKeyEvent`**(今日已在此吞掉确定键的重复事件):首页无浮层(`!editing && !settings && !menuOpen && pickerTarget == null && cardMenu == null`)且 `HomeScreen` 上报的当前焦点卡非空时,确定键 / Enter 的 `ACTION_DOWN` 且 `repeatCount == 1`(按住约 0.4 s)→ 记 `longPressDownTime = event.downTime`、置 `cardMenu = 当前焦点卡`,返回 true;**同一 `downTime` 的后续事件(含 UP)全部吞掉**——Compose `clickable` 在 UP 才触发,所以不会顺带启动应用。`repeatCount > 1` 照旧吞。
-- **当前焦点卡**:`HomeScreen` 本来就为看门狗记着 (行索引, 列索引);新增回调 `onFocusedCard: (CardRef?) -> Unit`,`CardRef(rowIndex, kind, pkg, label)`,得到焦点时上报、失去时上报 null。`MainActivity` 用 `mutableStateOf<CardRef?>` 存。
+- **当前焦点卡**:`HomeScreen` 本来就为看门狗记着 (行索引, 列索引)(`focusedCell`);新增回调 `onFocusedCard: (CardRef?) -> Unit`,`CardRef(rowIndex, colIndex, layoutRow, kind, pkg, label)`(`rowIndex/colIndex` 是渲染坐标,`layoutRow` 是 `layout.json` 行号、输入源行为 −1)。上报值**只派生、不缓存**:永远等于 `cardAt(focusedCell)` 对当前 `rows` 的求值——焦点事件时算一次,数据重载(`loaded` 变化)时再算一次;齿轮 (−1,−1) 派生为 null。缓存一份只在焦点事件时重报会过期:卡片按位置组合(无 `key()`),移除/卸载后节点原地换卡却没有焦点事件,长按会弹出被移除那张的菜单(终审修复波次 Important #1)。`MainActivity` 用 `mutableStateOf<CardRef?>` 存。
 - **菜单 UI 复用 `GearMenu`**(齿轮菜单与编辑页条目菜单都在用它):`cardMenu != null` 时 `HomeScreen` 里叠一层 `GearMenu(items, onDismiss, nonce)`,标题为该卡显示名。**零新焦点模式**:`GearMenu` 自带焦点账本;首页看门狗与齿轮菜单打开时同一处理——`cardMenu != null` 时让路(守卫与 key 成对,铁律 6)。关闭菜单 `focusNonce++`,焦点回到那张卡(现有「记住的行/列」机制)。
 - 菜单项(顺序即设计 §2):
 
@@ -28,7 +28,7 @@
 | 卸载应用 | `startActivity(Intent(ACTION_DELETE, "package:$pkg"))` 走系统确认页;卸载完成靠现有 `PACKAGE_REMOVED → revision++`,`buildRows` 的 `mapNotNull` 让卡片消失;`layout.json` 里的包名留着(重装即复现,与今日行为一致) |
 | 修改标题 | 打开 `TitleDialog`(§3) |
 | 更改图标 | 现有 `pickIcon(pkg)`(`IconPicker`) |
-| 移动位置 | `editTarget = (rowIndex, colIndex)`、`editing = true`;`EditScreen` 新参数 `initialTarget: Pair<Int,Int>?`,数据加载完成后调用它自己的 `retarget(ri, col)` 一次(该函数已是「所有重定位的唯一入口」);`MainActivity` 在 `leaveEdit()` 时清 `editTarget` |
+| 移动位置 | `editTarget = (layoutRow, pkg)`、`editing = true`;`EditScreen` 新参数 `initialTarget: Pair<Int, String>?`(= `(layout.json 行号, 包名)`,见下方「坐标口径」),数据加载完成后用 `indexOf(pkg)` 解出列号、调用它自己的 `retarget(ri, col)` 一次(该函数已是「所有重定位的唯一入口」);`MainActivity` 在 `leaveEdit()` 时清 `editTarget` |
 | 从当前分类移除 | `Layout` 里该行去掉 pkg → `Layout.write` → `revision++`;焦点落到同行相邻卡(现有「行变短时索引夹取」逻辑) |
 
 - 输入源行(`RowKind.INPUTS`)的卡片长按**不出菜单**(隐藏/改名归 M4b),按压照常吞掉、不启动:`dispatchKeyEvent` 只要有聚焦卡就记 `longPressDownTime` 并吞掉本次按压的后续事件,只在 `cardMenuActions` 非空时才开菜单。
@@ -50,7 +50,7 @@
 - 文字 = `titles[pkg] ?: AppEntry.label`;**开关关着一律不显示**,自定义标题也不显示(设计 §2「标题开关为全局」)。
 - 位置:卡片正下方一行,`Theme.CardTitleGap`(6dp)+ 一行 `Theme.CardTitleSize`(13sp 中档;随档位按 `cardWidth` 比例缩放,与 `cardMetrics` 同一推导)`Theme.RowTitle` 色 0.85 alpha,超宽省略号;聚焦卡随卡片一起放大(标题在 `AppCard` 的缩放容器内)。
 - **行高**:`showTitles` 时 `CardMetrics.rowPitch` 增加标题行高;`HomeScreen` 的纵向溢出与位移已按 `rowPitch` 自算,不改机制;`EditScreen` 同一份 `cardMetrics`,标题同样显示(编辑时看得见名字更好认)。
-- **零回归不变量**:`showTitles=false` 且无自定义标题时,首页像素与 M3 收官一致。
+- **零回归不变量**:`showTitles=false` 且无自定义标题时,首页**横幅卡**像素与 M3 收官一致。**§2.3 除外**:无横幅的纯图标应用不论开关一律铺回落色(§2.3 只改底色、不看开关),那些卡与 M3 的纯图标占位底不同,不在像素一致的范围内;像素对比只对横幅卡成立。
 
 ### 2.3 无横幅回落卡(设计 §2)
 - `Apps.load` 对「既无自定义图也无 banner、只有方形图标」的应用,用 `Palette` 从图标取主色(dominant → vibrant → `Theme.IconPlaceholderBackground`),存进 `AppEntry.fallbackColor: Int?`;`AppCard` 用它铺 16:9 底,图标居中。
@@ -76,13 +76,13 @@
 
 ## 6. 文件与接口
 
-- **新增**:`Titles.kt`(读写 + 纯解析)、`TitleDialog.kt`、`CardMenu.kt`(`data class CardRef`、`fun cardMenuItems(ref, hasCustomIcon, strings): List<MenuItem>` 纯构造)、`app/src/test/.../TitlesTest.kt`、`NewAppsTest.kt`。
+- **新增**:`Titles.kt`(读写 + 纯解析 + `truncateTitle`)、`TitleDialog.kt`、`CardMenu.kt`(`data class CardRef`、`enum CardAction`、`fun cardMenuActions(kind): List<CardAction>` 纯函数——菜单项的文案与动作在 `MainActivity.cardMenuItems(ref)` 里按它构造;`isNewApp`)、`app/src/test/.../TitlesTest.kt`、`CardMenuTest.kt`(六项顺序、输入源空表、`isNewApp`)。
 - **修改**:`MainActivity.kt`(长按分发、`cardMenu`/`editTarget`/`focusedCard` 状态、`newAppsSeenAt` 初始化、卸载/移除动作)、`HomeScreen.kt`(上报焦点卡、叠 `GearMenu`、角落文字、标题接线、看门狗让路)、`AppCard.kt`(标题行 + 回落底色)、`EditScreen.kt`(`initialTarget`、「新」标、`newAppsSeenAt` 写入)、`Apps.kt`(`fallbackColor`、`firstInstallTime`)、`Theme.kt`(`CardTitleGap`/`CardTitleSize`,`cardMetrics` 的 `rowPitch` 带标题)、`Settings.kt`(`newAppsSeenAt`)、`SettingsScreen.kt`(标题开关)、`Layout.kt`(`removeFromRow(ctx, rowIndex, pkg)`)、`strings.xml` ×3。
 
 ## 7. 错误处理、测试、验收
 
 - 不崩不留黑:`titles.json` 坏 → 改名重写;卸载被系统拒绝 → toast;`editTarget` 指向的行/列在加载后已不存在 → `retarget` 夹取到最近合法格。
 - 单测:`Titles` 往返 / 坏文件 / 清洗(trim、控制字符、40 字符、空=删除);`isNewApp()` 三种情形;`cardMenuItems()` 输入源卡返回空表、应用卡六项顺序固定。
-- 模拟器:`adb shell input keyevent --longpress KEYCODE_DPAD_CENTER` 出菜单截图(应用未启动);六项各走一遍——卸载到系统确认页截图即止、移动位置进编辑页焦点落在该卡、移除后卡片消失且焦点在同行邻卡;改 `titles.json` 后开关开/关各截一张(行高变化、省略号);`newAppsSeenAt` 改 0 → 角落计数 = 未上桌面的应用数,打开添加列表带「新」标,关闭后计数 0;零回归像素对比(开关关、无自定义标题)。
+- 模拟器:`adb shell input keyevent --longpress KEYCODE_DPAD_CENTER` 出菜单截图(应用未启动);六项各走一遍——卸载到系统确认页截图即止、移动位置进编辑页焦点落在该卡、移除后卡片消失且焦点在同行邻卡;改 `titles.json` 后开关开/关各截一张(行高变化、省略号);`newAppsSeenAt` 改 0 → 角落计数 = 未上桌面的应用数,打开添加列表带「新」标,关闭后计数 0;零回归像素对比(开关关、无自定义标题;横幅卡逐位一致,§2.3 回落卡除外;截图前把焦点放到齿轮上,避免聚焦卡的呼吸光晕当噪声源)。
 - 真机(Gordon):长按手感(0.4 s 是否合适)、`TitleDialog` 用索尼输入法输中文。
 - 估时 3 天(设计 §11 原估 3 天含原地移动;原地移动后置换来标题渲染与设置页开关,量相当)。
