@@ -52,7 +52,7 @@
 
 - 齿轮菜单新项「导入图片」→ `MainActivity.pickerTarget = VIEW_IMPORT`(与「默认桌面」卡同一挂法);全屏暗底浮层。
 - 内容:标题「用手机导入图片」、大字 URL、二维码(ZXing `QRCodeWriter.encode(url, QR_CODE, 360, 360)` → `BitMatrix` → `Bitmap`,IO 线程生成)、实时行「已收到 N 个文件 · 最近:x.jpg」、底部提示「按返回键关闭并停止服务」。
-- 服务寿命:`DisposableEffect(Unit)` 起服务(8090 起顺延),`onDispose` 停;拿不到 IP 或端口全占 → 用错误文案替换 URL 与二维码,页面照常可返回。
+- 服务寿命:`DisposableEffect(Unit)` 起服务(8090 起顺延),`onDispose` 停;拿不到 IP 或端口全占 → 用错误文案替换 URL 与二维码,页面照常可返回。**无密码的局域网服务不能活过用户离开**(T2 评审补的计划漏洞):按 HOME(`onNewIntent`)与 Activity `ON_STOP`(待机、切到别的应用)都关掉本页,服务随之停;回到桌面再进导入页重新起。
 - **焦点账本(最简)**:根节点是唯一可聚焦项,`BackHandler { onExit() }`;`LaunchedEffect(focusNonce, focused) { if (!focused) 逐帧 requestFocus 直到自报 isFocused }`(铁律 2、3、6:守卫 `focused` 同时是 key)。
 - **待机**:导入页打开期间不进入待机——手机传图几分钟没人碰遥控器是常态,若待机接管,第一下返回键会被当唤醒吞掉。`MainActivity` 那个待机 `LaunchedEffect` 的 key 与守卫同时加上 `pickerTarget == VIEW_IMPORT`(铁律 6)。
 
