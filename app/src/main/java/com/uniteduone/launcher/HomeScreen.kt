@@ -154,17 +154,28 @@ fun HomeScreen(
     // initialTarget 只作**初值**(见它的 KDoc):首帧的初始焦点请求打的就是
     // rowFocus[tgtRow] @ tgtIdx[tgtRow],种在这里等于「第一次落点就是那张卡」。
     // 越界不必在这里挡:取用处(还原效果、看门狗、requester 挂点)全都 coerceIn 过。
+    // 种子只在这个组合实例创建时读一次,此后不再跟随活参数变化(T5 review Critical)。
+    // 不冻的话会踩一次时序竞争:首次合成时 rows 还是空的(loaded 没落地),`loaded != null`
+    // 前 `rows.size == 0`,tgtIdx 的 remember(rows.size) 第一次落在 key=0;紧接着下面的
+    // LaunchedEffect(Unit) 立刻把 homeInitialTarget 消费成 null(那是活参数,不是这里),
+    // 等 loaded 真正到达、rows.size 从 0 变成 N,tgtIdx 的初始化器随 key 变化重跑——
+    // 这次重跑读到的 initialTarget 早已是 null,列号被种成 0,种子形同虚设。
+    // tgtRow 用的是不带 key 的 remember,天然躲过了这个坑(下面这行只是把它也接到 seedTarget
+    // 上,两处必须读同一份冻结值);tgtIdx 必须显式冻一份才能对齐。
+    val seedTarget = remember { initialTarget }
     val tgtIdx = remember(rows.size) {
         mutableStateListOf(*Array(rows.size.coerceAtLeast(1)) { i ->
-            if (initialTarget != null && i == initialTarget.first) initialTarget.second else 0
+            if (seedTarget != null && i == seedTarget.first) seedTarget.second else 0
         })
     }
-    var tgtRow by remember { mutableStateOf(initialTarget?.first ?: 0) }
+    var tgtRow by remember { mutableStateOf(seedTarget?.first ?: 0) }
     // 种子只消费一次(T4 review item A):落地当帧就告诉 MainActivity 清掉 homeInitialTarget,
     // 不然下一次从「换壁纸/屏保/设置/导入」这类焦点原本在齿轮上的浮层回来,会被这颗旧坐标误种。
     // Unit key = 只在这个组合实例首次进场时跑一次,和 tgtRow/tgtIdx 的初值是同一次落地。
+    // 守卫读 seedTarget(冻结值)而不是 initialTarget(活参数):这一帧之后活参数就可能已经
+    // 被消费成 null,守卫要反映「这个实例到底种没种」,不是参数此刻的值。
     LaunchedEffect(Unit) {
-        if (initialTarget != null) onInitialTargetConsumed()
+        if (seedTarget != null) onInitialTargetConsumed()
     }
     var restoring by remember { mutableStateOf(false) }
     // 关菜单后焦点该还给齿轮。**用 nonce 比对而不是布尔闩**:布尔闩只有「看门狗跑完整个循环」

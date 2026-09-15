@@ -312,6 +312,10 @@ class MainActivity : ComponentActivity() {
             if (editing) { leaveEdit(); return true }
             if (settings) { leaveSettings(); return true }
             window.decorView.playSoundEffect(SoundEffectConstants.NAVIGATION_DOWN)
+            // 「修改标题」对话框开着时同理:三条杠键只负责取消它,不能在它底下叠出齿轮菜单——
+            // 不判的话 menuOpen 会被悄悄置 true,对话框仍在最上层挡着,直到它关掉才会露出
+            // 一个其实早就"开着"的齿轮菜单(T5 review Important #2)。
+            if (renameTarget != null) { renameTarget = null; focusNonce++; return true }
             // 长按菜单开着时,三条杠键只负责**收掉它**,绝不再叠一层齿轮菜单:
             // 两层 GearMenu 会同时在场,上面那层拿走焦点、下面那层的蒙版仍然盖着,
             // 而 cardMenu 永远不会被清 —— 看上去是「菜单花屏且怎么按都出不去」。
@@ -591,6 +595,9 @@ class MainActivity : ComponentActivity() {
                     // 但这一层不能是空的 —— 万一那条路没接住,返回键就会落进「桌面根状态什么都不做」,
                     // 菜单留在屏幕上而按键毫无反应。
                     cardMenu != null -> closeCardMenu()
+                    // 同理:TitleDialog 自带的 BackHandler 正常会先接管,这里是同一种兜底
+                    // (T5 review Important #4)——返回键在对话框开着时绝不能是空操作。
+                    renameTarget != null -> { renameTarget = null; focusNonce++ }
                     editing -> leaveEdit()
                     settings -> leaveSettings()
                     // 桌面根状态:什么都不做,绝不 finish
