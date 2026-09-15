@@ -76,6 +76,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             // 菜单项列表不必每次重组都新建,否则整棵树都不可跳过
             val menu = remember { menuItems() }
+            // 设置页关闭时 leaveSettings() 会让 revision++,这里跟着重读 settings.json,
+            // 首页拿到的就是最新设置——复用换布局图那颗计数器,不必再单独维护一份
+            // settingsRevision。注意:这里不能显式写 Settings 类型名,本文件已经
+            // `import android.provider.Settings`,裸写 Settings 会撞上那个系统类;
+            // 靠类型推断绕开,只取用到的字段(showDate)。
+            val homeSettings = remember(revision) { SettingsStore.read(this@MainActivity) }
             val touched = lastInput
             // **编辑界面和菜单开着时不进入待机。**淡出只做在首页那一层,而吞掉唤醒键是
             // Activity 级的 —— 两头不占的结果是:编辑界面画面全亮(看着醒着),
@@ -160,6 +166,7 @@ class MainActivity : ComponentActivity() {
                     focusNonce = focusNonce,
                     revision = revision,
                     menuFromGear = menuFromGear,
+                    showDate = homeSettings.showDate,
                 )
             }
             }
@@ -248,10 +255,12 @@ class MainActivity : ComponentActivity() {
 
     /**
      * 关设置页**只有这一条路**。关掉后 focusNonce++ 让首页重新拿回焦点(与各选择器 onDismiss 同理);
-     * 不 revision++:Task C 的设置还没让首页生效(D–I 才接),没必要触发首页重读数据。
+     * revision++ 让首页跟着重读 settings.json——Task G 起首页开始消费 Settings(先接时钟的
+     * showDate,E/F/H 陆续接其余字段),复用换布局图那颗计数器,不必再单独维护一份
+     * settingsRevision。
      */
     private fun leaveSettings() {
-        if (settings) { settings = false; focusNonce++ }
+        if (settings) { settings = false; focusNonce++; revision++ }
     }
 
     override fun onResume() {

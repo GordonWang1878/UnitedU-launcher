@@ -16,15 +16,17 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * 右上角时钟。格式照 v4 屏幕上的实际样子:`HH:mm EEE yyyy/M/d`,英文星期。
- * Locale 固定 ENGLISH——Projectivy 当初是靠把整个应用语言改成 English 才拿到英文星期的,
- * 这里直接指定,不依赖系统语言。
+ * 右上角时钟。格式照 v4 屏幕上的实际样子:`<时间> EEE yyyy/M/d`。design §3:
+ * 12/24 小时跟系统的「使用24小时格式」开关走,星期跟系统语言走(比如中文系统显示"周一"),
+ * [showDate] 关掉时只留时间,星期和 `yyyy/M/d` 一起隐藏。
+ * Locale 用 [Locale.getDefault]——不再像早期版本那样固定 ENGLISH。
  */
 @Composable
-fun Clock(modifier: Modifier = Modifier) {
+fun Clock(modifier: Modifier = Modifier, showDate: Boolean = true) {
     var now by remember { mutableStateOf(Date()) }
     // 时区变更 / NTP 校时是**跳变**,整分钟定时器接不住:不监听的话最多显示错一分钟,
-    // 换时区则会一直错到下一个整分。
+    // 换时区则会一直错到下一个整分。系统的 12/24 小时开关也会触发 ACTION_TIME_CHANGED
+    // (AOSP Settings 改这项时就是发的这个广播),所以不用再单独监听 Settings.System。
     var tzTick by remember { mutableStateOf(0) }
     val ctx = LocalContext.current
     DisposableEffect(ctx) {
@@ -45,8 +47,14 @@ fun Clock(modifier: Modifier = Modifier) {
             delay(60_000L - msIntoMinute)
         }
     }
+    // is24Hour 挂在 tzTick 上重读就够:不必每分钟都查一次系统设置,理由同上面的广播说明。
+    val is24Hour = remember(tzTick) { android.text.format.DateFormat.is24HourFormat(ctx) }
+    val pattern = remember(showDate, is24Hour) {
+        val timePart = if (is24Hour) "HH:mm" else "h:mm"
+        if (showDate) "$timePart EEE yyyy/M/d" else timePart
+    }
     // tzTick 作为 key:SimpleDateFormat 出生时就把时区绑死了,换时区后必须重建。
-    val fmt = remember(tzTick) { SimpleDateFormat("HH:mm EEE yyyy/M/d", Locale.ENGLISH) }
+    val fmt = remember(tzTick, pattern) { SimpleDateFormat(pattern, Locale.getDefault()) }
     BasicText(
         text = fmt.format(now),
         modifier = modifier,

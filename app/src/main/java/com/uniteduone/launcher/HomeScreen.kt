@@ -54,6 +54,7 @@ fun HomeScreen(
     focusNonce: Int,
     revision: Int = 0,
     menuFromGear: Boolean = true,
+    showDate: Boolean = true,
 ) {
     val ctx = LocalContext.current
     // 枚举应用 + 解码全部横幅是重活,放到 IO 线程,别拖慢首帧
@@ -301,7 +302,7 @@ fun HomeScreen(
                     },
                 onFocusChange = { got -> report(-1, -1, got) },
             )
-            Clock()
+            Clock(showDate = showDate)
         }
 
         if (menuOpen) {
