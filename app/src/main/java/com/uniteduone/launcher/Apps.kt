@@ -9,6 +9,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import androidx.compose.ui.graphics.toArgb
 import kotlin.math.max
 
 /** 枚举可启动的应用,并按「自定义图 → leanback banner → 应用图标」选卡片图。 */
@@ -104,11 +105,14 @@ object Apps {
         }.getOrNull()?.takeIf { it.width.toFloat() / it.height.coerceAtLeast(1) in 1.4f..2.2f }
         val bmp = custom ?: banner ?: runCatching { drawableOf(ri.loadIcon(pm)) }.getOrNull()
         val icon = if (custom == null && banner == null) bmp else null
-        // 无横幅回落:图标主色铺 16:9 底(design §2)。Palette 在 IO 线程跑(load 本来就在 IO)。
+        // 无横幅回落:图标主色铺 16:9 底(design §2.3)。Palette 在 IO 线程跑(load 本来就在 IO)。
+        // 取不到主色/取色抛异常时(纯色或极简图标常见)不能留 null——那样这张卡会透回黑底,
+        // 和「没取到色」与「isWide=true 本就不该铺底」两种情况混在一起分不清,所以兜底到
+        // Theme.IconPlaceholderBackground:只在 icon != null(确实要铺底)时才生效。
         val fallbackColor = icon?.let { b ->
             runCatching { androidx.palette.graphics.Palette.from(b).generate() }.getOrNull()?.let { p ->
                 p.getDominantColor(0).takeIf { it != 0 } ?: p.getVibrantColor(0).takeIf { it != 0 }
-            }
+            } ?: Theme.IconPlaceholderBackground.toArgb()
         }
         val firstInstall = runCatching { pm.getPackageInfo(pkg, 0).firstInstallTime }.getOrDefault(0L)
         return AppEntry(

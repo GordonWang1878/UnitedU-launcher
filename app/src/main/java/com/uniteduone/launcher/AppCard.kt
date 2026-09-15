@@ -194,6 +194,8 @@ fun AppCard(
             }
         }
         if (title != null) {
+            // 标题尺寸随档位缩放(design §2.2),读 metrics 而不是 Theme 的中档基准值——
+            // 否则小档(8/行)标题不跟着卡片缩小,大档(5/行)标题偏小,还可能撞到下一行。
             BasicText(
                 text = title,
                 maxLines = 1,
@@ -201,10 +203,10 @@ fun AppCard(
                 style = TextStyle(
                     fontFamily = Theme.Sans,
                     color = Theme.RowTitle.copy(alpha = 0.85f),
-                    fontSize = Theme.CardTitleSize,
+                    fontSize = metrics.titleSize,
                     textAlign = TextAlign.Center,
                 ),
-                modifier = Modifier.padding(top = Theme.CardTitleGap).width(metrics.cardWidth).height(Theme.CardTitleLine),
+                modifier = Modifier.padding(top = metrics.titleGap).width(metrics.cardWidth).height(metrics.titleLine),
             )
         }
     }

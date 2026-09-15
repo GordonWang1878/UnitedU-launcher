@@ -149,8 +149,10 @@ fun HomeScreen(
     val screenH = LocalConfiguration.current.screenHeightDp.dp
     // 同理:整行被 filter 摘掉后 activeRow 会越界,内容会整块多上移一个 RowPitch
     val activeRowSafe = activeRow.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
+    // 标题开着时卡片下面还挂一行字(titleHeight),焦点行的「底」要连这行字一起算,
+    // 否则标题开关打开时,焦点落在最后一行会让标题的放大后半截探出屏幕底边(见 M4 Task 2 复审)。
     val overflow = metrics.firstCardTop + metrics.rowPitch * activeRowSafe +
-        metrics.cardHeight + Theme.BottomKeepout - screenH
+        metrics.cardHeight + metrics.titleHeight + Theme.BottomKeepout - screenH
     val shift by animateDpAsState(
         targetValue = if (overflow > 0.dp) -overflow else 0.dp,
         label = "rowShift",
