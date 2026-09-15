@@ -117,8 +117,9 @@ object Wallpapers {
         val s = SettingsStore.read(ctx)
         val names = libraryImages(ctx).map { it.name }
         val next = nextWallpaper(names, s.wallpaperFile) ?: s.wallpaperFile
-        if (next != s.wallpaperFile) Log.i(TAG, "壁纸轮播 → $next")
-        return SettingsStore.write(ctx, s.copy(wallpaperFile = next, wallpaperRotatedAt = System.currentTimeMillis()))
+        val ok = SettingsStore.write(ctx, s.copy(wallpaperFile = next, wallpaperRotatedAt = System.currentTimeMillis()))
+        if (ok && next != s.wallpaperFile) Log.i(TAG, "壁纸轮播 → $next")
+        return ok
     }
 
     /** APK 内置默认底:任何路径都失败时的最后一张,保证永远不黑屏。失败必须留痕:

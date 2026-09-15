@@ -129,8 +129,11 @@ class MainActivity : ComponentActivity() {
             // rotatedAt 变 → 本 effect 以新 key 重启、再等一个间隔;重启 app 后按剩余时间续等。
             val rotateMs = homeSettings.wallpaperRotateMs
             val rotatedAt = homeSettings.wallpaperRotatedAt
-            LaunchedEffect(rotateMs, rotatedAt) {
-                if (rotateMs == 0L) return@LaunchedEffect
+            LaunchedEffect(rotateMs, rotatedAt, settings) {
+                // 设置页开着时不轮播:它持有整份 Settings 快照、每次改动整对象回写,后台轮播写进去的
+                // wallpaperFile/rotatedAt 会被下一次按键覆盖(壁纸来回翻)。leaveSettings() 会 revision++,
+                // 重读后 settings=false → 本 effect 重启,过期的那一拍在退出时补上。守卫读的量同时是 key(铁律 6)。
+                if (rotateMs == 0L || settings) return@LaunchedEffect
                 delay(rotationDelayMs(rotatedAt, rotateMs, System.currentTimeMillis()))
                 val wrote = withContext(Dispatchers.IO) { Wallpapers.rotate(this@MainActivity) }
                 if (wrote) settingsRevision++
