@@ -90,3 +90,32 @@ M1 全部推送 github.com/GordonWang1878/UnitedU-launcher(main,8 commit)。
 - 决策对比页 artifact:https://claude.ai/artifact/MdYivJkN8PRpqFF6LmcdDa
 
 **Google 开发者权益评估(Gordon 有 Google AI Pro)**:结论——对本项目基本不划算,不为用权益改工作流。理由:app 完全离线、零 AI、不上 Play、更新走腾讯 COS 非 Google Cloud。逐项:Cloud/GenAI credits 无落点;AI Studio 无关(零 AI);Dev Program Premium 的 Play/Firebase 实惠用不上;Gemini-in-Android-Studio 与 Claude Code 职责冗余;Antigravity 是替代 agent,中途换=净增复杂度,仅留作后备(Android 冷门难题时求第二意见)。**唯一按需推荐**:Android Studio 的 Layout Inspector / Compose 运行时检查——仅在 M2 焦点 bug 用 CLU+截图查不出时,临时装来定位,不进主流程。
+
+## 2026-09-15 · M2 收官(主题收敛 + 设置页 + 卡片三档)
+
+M2 全分支终审(opus)通过(可合并/零 Critical),终审后单次修复波 + re-review 清。全部推送到 main。
+
+### M2 交付(逐任务 SDD 实施 + 评审)
+- **颜色收拢**:45 处散落 `Color(0x)` 收进 `Theme` 命名调色板(零改值)。
+- **设置持久化**:`Settings`(10 字段)+ `SettingsStore`(照 Layout 健壮性 + 原子写)+ 14 单测;手写零依赖扁平 JSON(org.json 单测不可用)。
+- **设置页**:「UnitedU 设置」分组浮层(布局/主题/时钟/待机)+ D-pad 焦点账本(镜像 HomeScreen watchdog,七条铁律)。
+- **首页消费管线**:`leaveSettings()` 触发 `revision++` 重读 Settings;各设置返回首页即生效。
+- **时钟**:日期开关(Settings.showDate)+ 12/24 跟系统 + 星期跟系统语言。
+- **卡片三档**:每行 8/6/5(小/中/大),`Theme.cardMetrics(cardsPerRow)`;中档=当前常量原样(零回归),5/8 跨度守恒推导,纵向焦点按档重算。
+- **主题色**:6 预设(沉稳)驱动齿轮/时钟/行标题/光晕;gold 档零回归(gear #C0A73A、clock/glow #FFF5DC);行标题 gold 档 #FFF5DC(Gordon 定保留);跟随壁纸主色(androidx.palette,IO 线程 + 回落)。
+- **值表统一**:`VALID_CARDS_PER_ROW`/`VALID_IDLE_AFTER_MS` 为 Settings 唯一源,SettingsScreen 引用。
+
+### 决策(Gordon)
+包名 com.uniteduone.launcher / 主题色沉稳 / 设置页分组带标题 / 卡片档位只定张数中档锚定 / 待机 M2 只做 UI(行为 M5)/ 默认背景固定中性暗(不随主题)/ 行数推迟 M4 移除控件 / 输入源行推迟真机 pass 移除控件 / gold 行标题保留 #FFF5DC / 卡片标题移除控件(渲染后续).
+
+### 延后项(带去向,字段已保留)
+- **H 输入源行 → 真机 pass**:TvInputManager 枚举 + 焦点集成必须真机才能建对+验对。Settings.showInputRow 字段保留。
+- **行数 → M4**:与行 增删/命名/图标 一起做。Settings.rowCount 字段保留。
+- **卡片标题渲染 → 后续任务**:Settings.showTitles 字段保留。
+- **待机行为(DreamService)→ M5**:idleAfterMs/idleContent 设置 UI 已做、已持久化。
+- **默认壁纸 → M3**:把 M1 的金色 default-wallpaper.jpg 换成中性暗底(配合默认背景决策)。
+- **Polish**:聚焦 drop shadow / edit ＋字号未随档缩放、RowIcon 未主题化、跟随壁纸壁纸解码两次(IO 线程)。
+- **预存债(非 M2 引入)**:EditScreen verticalScroll + AppPicker LazyColumn;13 个 lintRelease 错误。
+
+### 注记
+多个子代理 commit 的 co-author 用了「Claude Sonnet 5」而非「Claude Opus 4.8」(子代理系统配置强制,覆盖了任务指令)。纯 cosmetic,未 force-push 改写历史。
