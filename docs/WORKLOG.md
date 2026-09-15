@@ -138,3 +138,11 @@ M2 全分支终审(opus)通过(可合并/零 Critical),终审后单次修复波 
 - **执行方式(Gordon)**:两波并行 subagent(波 1:T1→2 ‖ T3;波 2:T4→5→6 ‖ T7),各自 worktree,我汇合评审;T1–3 机械任务只跑一轮合并评审。分支 `m3-wallpaper`。
 - **环境**:为波 2 两个 agent 各占一台模拟器(同包名互相覆盖安装),把 `unitedu-tv` 克隆为 `unitedu-tv-2`(`~/.android/avd/`,改 AvdId/路径,942 MB)。多台并行时 adb 命令必须带 `ANDROID_SERIAL`。
 - **设计要点**:当前壁纸 = settings 字段指向 library 文件(不再复制 wallpaper.jpg、不再 recreate);新增 `settingsRevision` 计数器只重读 settings 不重建首页行(轮播每 5 分钟一次,走 `revision` 会连卡片图一起重读);`rotate()` 返回「写盘成功」而非「换了图」,否则单张图库时 effect key 不变、轮播停转(铁律 6 变体)。
+
+## 2026-09-15 · M3 运行期间并行起 M4/M5/M6(Gordon 定)
+
+- **并行原则**:按耦合面而非里程碑编号——M6(上传页)几乎全是新文件,整段并行;M5 先做真机 spike;M4 全在焦点代码上,只设计不实施,等 M3 合并。
+- **M6 spec + 计划**已落分支 `m6-upload`(worktree `.claude/worktrees/m6-upload`):NanoHTTPD 2.3.1(**BSD-3-Clause,设计 §5 写 Apache-2.0 有误,M6 收官时纠正**)+ ZXing core 3.5.3;端口 8090–8099;不做远程设壁纸(守 §9);传 APK 安装放 M6(`ApkInstaller` 供 M7 复用)。T1(纯函数)已完成待评审;T2 起需一台模拟器,排在 M3 波 2 之后。
+- **M4 spec**已落分支 `m4-card-menu`:范围拆 M4(长按菜单 + 卡片标题 + 新应用标记)/ M4b(行管理 + CEC 去重 + 输入源隐藏改名 + 原地移动);「移动位置」M4 只做兜底;标题放卡片下方;自定义标题存独立 `titles.json`。
+- **M5 spike**:最小 `DreamService` 测试 APK 已编(`.superpowers/spike-m5/unitedu-dream-spike.apk`,分支 `worktree-agent-a21dcfb91b5103162`),待 Gordon 电视配对后安装、看系统屏保列表是否列出 UnitedU。
+- **工程发现**:Agent 工具的 `isolation: worktree` 从 **main** 分支,不是当前分支——波 2 起改为控制器自己 `git worktree add` 从 `m3-wallpaper` 建;子 agent 的 Write 被沙箱限制在自己的 worktree 内,报告落在各自 worktree 的 `.superpowers/` 再由控制器拷回。模拟器 `unitedu-tv` 上 `KEYCODE_HOME` 归原厂 Google TV 桌面(RoleManager 持有 HOME,`set-home-activity` 压不过),验证一律 `am start -n com.uniteduone.launcher/.MainActivity`。
