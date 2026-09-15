@@ -26,6 +26,8 @@
     <string name="import_hint_back">按返回键关闭并停止服务</string>
     <string name="import_error_no_network">电视没有连接网络,连上 Wi-Fi 或网线后再试</string>
     <string name="import_error_port">端口 8090–8099 都被占用,稍后再试</string>
+    <string name="import_apk_needs_permission">请在电视上允许「安装未知应用」,然后在手机上重试</string>
+    <string name="import_apk_started">已交给系统安装器</string>
 
     <!-- web_* : 手机上传网页文案(服务端注入,JS 里 %s/%d 由网页自己替换) -->
     <string name="web_title">用手机导入图片</string>

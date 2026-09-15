@@ -57,6 +57,11 @@ fun ImportScreen(onExit: () -> Unit, focusNonce: Int = 0) {
     var lastName by remember { mutableStateOf<String?>(null) }
     var url by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<Int?>(null) }   // R.string 资源 id
+    var notice by remember { mutableStateOf<Int?>(null) }  // R.string 资源 id(APK 安装提示,spec §4)
+    // epoch ms:系统安装器 / 「允许安装未知应用」设置页把本 Activity 推到后台时也会触发 ON_STOP,
+    // 这条路径下不能照常关页(会把安装流程中间的服务杀掉)——用时间戳而非布尔闩(铁律 7),
+    // 窗口到期自然失效,不需要谁去清。
+    var suppressStopUntil by remember { mutableStateOf(0L) }
 
     // 服务寿命 = 本页寿命:起在这里、停在 onDispose(返回键 → MainActivity 把本页拆掉)。
     DisposableEffect(Unit) {
@@ -65,7 +70,11 @@ fun ImportScreen(onExit: () -> Unit, focusNonce: Int = 0) {
         if (ip == null) {
             error = R.string.import_error_no_network
         } else {
-            server = UploadServer.startOnFreePort(ctx) { name -> received++; lastName = name }
+            server = UploadServer.startOnFreePort(
+                ctx,
+                onSaved = { name -> received++; lastName = name; notice = null },
+                onNotice = { notice = it; suppressStopUntil = System.currentTimeMillis() + 30_000 },
+            )
             if (server == null) error = R.string.import_error_port
             else url = "http://$ip:${server.listeningPort}/"
         }
@@ -75,10 +84,12 @@ fun ImportScreen(onExit: () -> Unit, focusNonce: Int = 0) {
     // 无密码的局域网服务不能活过用户离开:待机 / 切到别的应用(ON_STOP)→ 关掉本页
     // (上面那个 DisposableEffect 的 onDispose 负责真正停服务)。HOME 键另有 MainActivity.onNewIntent
     // 兜底——onNewIntent 不保证总是先于 ON_STOP,两条路都要收。
+    // 例外(spec §4 末段,T2 复审发现):系统安装器 / 未知来源设置页同样是全屏 Activity、同样触发
+    // ON_STOP——30 s 豁免窗内(suppressStopUntil)不关页,窗口过后再照常关。
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
         val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
-            if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP) onExit()
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP && System.currentTimeMillis() > suppressStopUntil) onExit()
         }
         lifecycle.addObserver(obs)
         onDispose { lifecycle.removeObserver(obs) }
@@ -136,6 +147,11 @@ fun ImportScreen(onExit: () -> Unit, focusNonce: Int = 0) {
                     text = stringResource(R.string.import_received, received) +
                         (if (last != null) " · " + stringResource(R.string.import_last, last) else ""),
                     style = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 15.sp),
+                )
+                val n = notice
+                if (n != null) BasicText(
+                    text = stringResource(n),
+                    style = TextStyle(fontFamily = Theme.Sans, color = Theme.Champagne, fontSize = 15.sp),
                 )
             }
             BasicText(

@@ -26,6 +26,8 @@
     <string name="import_hint_back">按返回鍵關閉並停止服務</string>
     <string name="import_error_no_network">電視尚未連上網路,連上 Wi-Fi 或網路線後再試</string>
     <string name="import_error_port">連接埠 8090–8099 都被佔用,請稍後再試</string>
+    <string name="import_apk_needs_permission">請在電視上允許「安裝未知應用程式」,然後在手機上重試</string>
+    <string name="import_apk_started">已交給系統安裝程式</string>
 
     <!-- web_* : 手機上傳網頁文案(伺服端注入,JS 裡 %s/%d 由網頁自行取代) -->
     <string name="web_title">用手機匯入圖片</string>

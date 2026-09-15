@@ -26,6 +26,8 @@
     <string name="import_hint_back">Press Back to close and stop the service</string>
     <string name="import_error_no_network">The TV is not connected to a network. Connect Wi-Fi or Ethernet and try again</string>
     <string name="import_error_port">Ports 8090–8099 are all in use. Try again later</string>
+    <string name="import_apk_needs_permission">Allow "Install unknown apps" on the TV, then retry on your phone</string>
+    <string name="import_apk_started">Handed to the system installer</string>
 
     <!-- web_* : phone upload page (injected by the server; %s/%d replaced by the page's JS) -->
     <string name="web_title">Import images from your phone</string>

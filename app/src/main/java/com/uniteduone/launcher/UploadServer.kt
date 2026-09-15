@@ -17,14 +17,15 @@ private const val TAG = "UnitedU"
 
 /**
  * 手机上传页的 HTTP 服务(spec §1)。只在「导入图片」页打开时活着;每请求一线程(NanoHTTPD 默认)。
- * 路由:GET / | GET /api/list | POST /api/upload | DELETE /api/file | GET /thumb | GET /file。
- * (POST /api/apk 由 Task 4 加。)
+ * 路由:GET / | GET /api/list | POST /api/upload | DELETE /api/file | GET /thumb | GET /file | POST /api/apk。
  */
 class UploadServer(
     private val ctx: Context,
     port: Int,
     /** 每存下一个文件回调一次(**主线程**),给电视端页面计数。 */
     private val onSaved: (String) -> Unit,
+    /** 有提示要给电视端页面显示时回调一次(**主线程**),参数是 R.string id(spec §4)。 */
+    private val onNotice: (Int) -> Unit = {},
 ) : NanoHTTPD(port) {
 
     private val main = Handler(Looper.getMainLooper())
@@ -60,6 +61,7 @@ class UploadServer(
                 uri == "/api/file" && session.method == Method.DELETE -> serveDelete(type, name)
                 uri == "/thumb" && session.method == Method.GET -> serveThumb(type, name)
                 uri == "/file" && session.method == Method.GET -> serveFile(type, name)
+                uri == "/api/apk" && session.method == Method.POST -> serveApk(session)
                 else -> text(Response.Status.NOT_FOUND, "not found")
             }
         } catch (e: Throwable) {
@@ -111,7 +113,9 @@ class UploadServer(
         val keys = (files.keys + session.parameters.keys)
             .filter { it == "files" || (it.startsWith("files") && it.length > 5 && it.substring(5).all(Char::isDigit)) }
             .distinct()
-            .sortedBy { if (it == "files") 0 else it.substring(5).toInt() }
+            // 手工构造的字段名(如 files99999999999999)可能超出 Int 范围;toInt() 会抛异常把整个
+            // 请求 500——排到最后即可,不必让这种边角输入拖垮同批其它正常文件。
+            .sortedBy { if (it == "files") 0 else it.substring(5).toIntOrNull() ?: Int.MAX_VALUE }
         for (key in keys) {
             val tmpPath = files[key] ?: continue
             val original = session.parameters[key]?.firstOrNull() ?: continue
@@ -133,6 +137,35 @@ class UploadServer(
             tmp.delete()
         }
         return json(Response.Status.OK, jsonUploadResult(saved, rejected))
+    }
+
+    /**
+     * 传 APK:存到 cacheDir/apk/upload.apk(FileProvider 只开放这个目录)→ 校验是 APK →
+     * 主线程调 [ApkInstaller.install](startActivity 不能在请求线程)→ 把结果告诉手机。
+     * STARTED 与 NEEDS_PERMISSION 都先回调 [onNotice] 让电视端「导入图片」页显示一行提示,再返回 JSON。
+     */
+    private fun serveApk(session: IHTTPSession): Response {
+        val files = HashMap<String, String>()
+        session.parseBody(files)
+        val tmpPath = files["apk"] ?: return json(Response.Status.BAD_REQUEST, jsonFail("invalid"))
+        val tmp = File(tmpPath)
+        if (tmp.length() > MAX_APK_BYTES) { tmp.delete(); return json(Response.Status.OK, jsonFail("size")) }
+        val dst = File(File(ctx.cacheDir, "apk").also { it.mkdirs() }, "upload.apk")
+        if (!moveInto(tmp, dst)) return json(Response.Status.OK, jsonFail("write"))
+        val info = ApkInstaller.archiveInfo(ctx, dst) ?: run { dst.delete(); return json(Response.Status.OK, jsonFail("invalid")) }
+        val task = java.util.concurrent.FutureTask { ApkInstaller.install(ctx, dst) }
+        main.post(task)
+        return when (task.get()) {
+            ApkInstaller.Result.STARTED -> {
+                main.post { onNotice(R.string.import_apk_started) }
+                json(Response.Status.OK, jsonOk("\"package\":${jsonStr(info.first)},\"version\":${jsonStr(info.second)}"))
+            }
+            ApkInstaller.Result.NEEDS_PERMISSION -> {
+                main.post { onNotice(R.string.import_apk_needs_permission) }
+                json(Response.Status.OK, jsonFail("needs-permission"))
+            }
+            ApkInstaller.Result.INVALID -> json(Response.Status.OK, jsonFail("invalid"))
+        }
     }
 
     private fun serveDelete(type: String?, name: String?): Response {
@@ -206,9 +239,9 @@ class UploadServer(
          * (只是没 bind 成功)——不 `stop()` 就换下一个端口重试,这个 fd 就漏在那里,
          * 10 个端口全占的最坏情况会漏 9 个。
          */
-        fun startOnFreePort(ctx: Context, onSaved: (String) -> Unit): UploadServer? {
+        fun startOnFreePort(ctx: Context, onSaved: (String) -> Unit, onNotice: (Int) -> Unit = {}): UploadServer? {
             for (port in UPLOAD_PORT_FIRST..UPLOAD_PORT_LAST) {
-                val s = UploadServer(ctx, port, onSaved)
+                val s = UploadServer(ctx, port, onSaved, onNotice)
                 val ok = runCatching { s.start(SOCKET_READ_TIMEOUT, false); true }
                     .onFailure { runCatching { s.stop() } }
                     .getOrDefault(false)
