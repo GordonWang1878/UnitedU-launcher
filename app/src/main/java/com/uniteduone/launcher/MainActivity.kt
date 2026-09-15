@@ -84,17 +84,18 @@ class MainActivity : ComponentActivity() {
         setContent {
             // 菜单项列表不必每次重组都新建,否则整棵树都不可跳过
             val menu = remember { menuItems() }
-            // 设置页关闭时 leaveSettings() 会让 revision++,这里跟着重读 settings.json,
-            // 首页拿到的就是最新设置——复用换布局图那颗计数器,不必再单独维护一份
-            // settingsRevision。注意:这里不能显式写 Settings 类型名,本文件已经
-            // `import android.provider.Settings`,裸写 Settings 会撞上那个系统类;
-            // 靠类型推断绕开,只取用到的字段(showDate)。
+            // 设置页关闭时 leaveSettings() 会让 revision++,壁纸选图 / 轮播 / 滑块预览走的是
+            // 专用的 settingsRevision(见其字段 KDoc,只重读 settings、不重建首页行)——
+            // 两颗计数器都能让这里重读 settings.json,首页拿到的就是最新设置。注意:
+            // 这里不能显式写 Settings 类型名,本文件已经 `import android.provider.Settings`,
+            // 裸写 Settings 会撞上那个系统类;靠类型推断绕开,只取用到的字段(showDate)。
             val homeSettings = remember(revision, settingsRevision) { SettingsStore.read(this@MainActivity) }
             // 主题色:选中预设的 accent(齿轮)+ highlight(时钟/光晕/行标题)。
             // followWallpaperColor 打开时,accent 改从当前壁纸主色提取、highlight 由它混白推得
             // (与非金预设同一算法);解不出色或没壁纸就回落到预设。壁纸解码放 IO 线程,
-            // key 带上 followWallpaperColor 与 revision:换壁纸(handlePick 走 recreate)、开关跟随、
-            // 回到设置页都会重跑。preset 路径是纯内存查表,直接同步解析。
+            // key 带上 followWallpaperColor、wallpaperFile 与 revision:换壁纸(handlePick 只
+            // settingsRevision++,不再 recreate)会让 homeSettings.wallpaperFile 变、这里跟着重跑;
+            // 开关跟随、回到设置页同样触发。preset 路径是纯内存查表,直接同步解析。
             val presetColors = remember(homeSettings.themePresetId) {
                 ThemePresets.byId(homeSettings.themePresetId).colors()
             }

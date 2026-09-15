@@ -88,10 +88,14 @@ object Wallpapers {
             }.onFailure { Log.w(TAG, "内置壁纸铺入失败 $name: ${it.message}") }
             tmp.delete()
         }
-        runCatching { marker.createNewFile() }
+        // 标记只在全部 6 张确实落地后才写:被杀/失败留下的半成品库不能被当成"已铺完"——
+        // 标记一旦存在,下次 prepare 直接 return,没有人会再补铺,library 就永久缺图。
+        val seeded = BUILTIN_WALLPAPERS.all { File(dir, "$BUILTIN_PREFIX$it.jpg").isFile }
+        if (seeded) runCatching { marker.createNewFile() }
+        val defaultFile = File(dir, "$BUILTIN_PREFIX${BUILTIN_WALLPAPERS[0]}.jpg")
         val s = SettingsStore.read(ctx)
-        if (s.wallpaperFile.isEmpty()) {
-            SettingsStore.write(ctx, s.copy(wallpaperFile = "$BUILTIN_PREFIX${BUILTIN_WALLPAPERS[0]}.jpg"))
+        if (s.wallpaperFile.isEmpty() && defaultFile.isFile) {
+            SettingsStore.write(ctx, s.copy(wallpaperFile = defaultFile.name))
         }
     }
 
@@ -103,10 +107,11 @@ object Wallpapers {
         return SettingsStore.write(ctx, s.copy(wallpaperFile = name, wallpaperRotatedAt = System.currentTimeMillis()))
     }
 
-    /** APK 内置默认底:任何路径都失败时的最后一张,保证永远不黑屏。 */
+    /** APK 内置默认底:任何路径都失败时的最后一张,保证永远不黑屏。失败必须留痕:
+     *  这是黑屏前最后一道回落,静默失败会让"为什么黑屏"排查不出来。 */
     fun builtinDefault(ctx: Context): Bitmap? = runCatching {
         ctx.assets.open(DEFAULT_WALLPAPER_ASSET).use { BitmapFactory.decodeStream(it) }
-    }.getOrNull()
+    }.onFailure { Log.w(TAG, "内置默认壁纸解不出来: ${it.message}") }.getOrNull()
 
     /** 显示用位图。IO 线程。解不出来回落内置;调用方只在非 null 时换图。 */
     fun load(ctx: Context, spec: WallpaperSpec): Bitmap? {
@@ -115,7 +120,9 @@ object Wallpapers {
         val name = spec.file.ifEmpty { SettingsStore.read(ctx).wallpaperFile }
         val src = resolveSource(ctx, name) ?: return builtinDefault(ctx)
         // RGBA_F16 保留 Ultra HDR gain map(与 M1 同);decodeScaled 在 F16 失败时自动回落 8888。
-        return runCatching { Apps.decodeScaled(src.absolutePath, 1920, 1080, Bitmap.Config.RGBA_F16) }.getOrNull()
+        return runCatching { Apps.decodeScaled(src.absolutePath, 1920, 1080, Bitmap.Config.RGBA_F16) }
+            .onFailure { Log.w(TAG, "壁纸解码失败 ${src.name}: ${it.message}") }
+            .getOrNull()
             ?: builtinDefault(ctx)
     }
 }
