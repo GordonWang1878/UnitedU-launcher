@@ -29,8 +29,11 @@ data class Settings(
     val idleContent: IdleContent = IdleContent.CLOCK_ONLY,
 )
 
-private val VALID_CARDS_PER_ROW = intArrayOf(5, 6, 8)
-private val VALID_IDLE_AFTER_MS = longArrayOf(0L, 60_000L, 180_000L, 300_000L, 600_000L)
+// `internal`(而非 `private`):这两张表是 cardsPerRow / idleAfterMs 的唯一合法取值集合,
+// 既用来夹取(见下面 snap 系列函数),也是 [SettingsScreen] 里对应分段控件的选项顺序 ——
+// 一份表两处读,才不会有人手改一处、另一处悄悄漂移(2026-09-15 复审前两处各写了一份字面量)。
+internal val VALID_CARDS_PER_ROW = intArrayOf(5, 6, 8)
+internal val VALID_IDLE_AFTER_MS = longArrayOf(0L, 60_000L, 180_000L, 300_000L, 600_000L)
 
 private fun clampRowCount(v: Int?): Int = (v ?: 3).coerceIn(1, 5)
 

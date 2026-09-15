@@ -67,7 +67,6 @@
     <string name="settings_card_large">大</string>
     <string name="settings_card_medium">中</string>
     <string name="settings_card_small">小</string>
-    <string name="settings_show_titles">卡片标题</string>
     <string name="settings_theme_color">主题色</string>
     <string name="settings_follow_wallpaper">跟随壁纸主色</string>
     <string name="settings_show_date">显示日期</string>

@@ -47,10 +47,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// 卡片档位:大/中/小 → 每行张数(门 1 Gordon 定 8/6/5;大=5,中=6,小=8)。
-private val CARDS_PER_ROW_BY_SIZE = intArrayOf(5, 6, 8)
-// 待机时长档位(与 Settings.VALID_IDLE_AFTER_MS 同集,顺序即左右键顺序)。
-private val IDLE_AFTER_OPTIONS = longArrayOf(0L, 60_000L, 180_000L, 300_000L, 600_000L)
+// 卡片档位(大/中/小 → 每行张数)、待机时长档位:直接复用 [VALID_CARDS_PER_ROW] /
+// [VALID_IDLE_AFTER_MS](定义在 Settings.kt,唯一合法取值表,也用于 clamp-on-read)——
+// 这里不再自己另存一份字面量,选中项的下标 = 显示顺序 = 那两张表本身的顺序
+// (门 1 Gordon 定 8/6/5;大=5,中=6,小=8,与 VALID_CARDS_PER_ROW 顺序一致)。
 
 // 固定行高 —— **渲染高度必须和这里逐一相等**,否则下面自算的纵向位移会算错、
 // 焦点行可能被推出屏幕(HomeScreen 用 Theme 里的实测尺寸算位移,同一招)。
@@ -108,7 +108,7 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0) {
         if (!ok) Log.w(LOG_TAG, "settings.json 写入失败,改动只留在内存里")
     }
 
-    // ---- 7 个可聚焦控件的描述,顺序即 ctrlIndex(0..6),看门狗/位移都按它索引 ----
+    // ---- 6 个可聚焦控件的描述,顺序即 ctrlIndex(0..5),看门狗/位移都按它索引 ----
     val onLabels = listOf(stringResource(R.string.settings_off), stringResource(R.string.settings_on))
     val cardSizeLabels = listOf(
         stringResource(R.string.settings_card_large),
@@ -132,34 +132,29 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0) {
         // 0 卡片大小 大/中/小 → 5/6/8
         Ctrl(R.string.settings_card_size, CtrlKind.SEGMENTED,
             options = cardSizeLabels, count = 3,
-            selected = CARDS_PER_ROW_BY_SIZE.indexOf(s.cardsPerRow).let { if (it < 0) 1 else it },
-            onSelect = { i -> update(s.copy(cardsPerRow = CARDS_PER_ROW_BY_SIZE[i])) }),
-        // 1 卡片标题
-        Ctrl(R.string.settings_show_titles, CtrlKind.TOGGLE,
-            options = onLabels, count = 2,
-            selected = if (s.showTitles) 1 else 0,
-            onSelect = { i -> update(s.copy(showTitles = i == 1)) }),
-        // 2 主题色 swatch
+            selected = VALID_CARDS_PER_ROW.indexOf(s.cardsPerRow).let { if (it < 0) 1 else it },
+            onSelect = { i -> update(s.copy(cardsPerRow = VALID_CARDS_PER_ROW[i])) }),
+        // 1 主题色 swatch
         Ctrl(R.string.settings_theme_color, CtrlKind.SWATCH,
             options = emptyList(), count = ThemePresets.all.size,
             selected = ThemePresets.indexOf(s.themePresetId),
             onSelect = { i -> update(s.copy(themePresetId = ThemePresets.all[i].id)) }),
-        // 3 跟随壁纸主色
+        // 2 跟随壁纸主色
         Ctrl(R.string.settings_follow_wallpaper, CtrlKind.TOGGLE,
             options = onLabels, count = 2,
             selected = if (s.followWallpaperColor) 1 else 0,
             onSelect = { i -> update(s.copy(followWallpaperColor = i == 1)) }),
-        // 4 显示日期
+        // 3 显示日期
         Ctrl(R.string.settings_show_date, CtrlKind.TOGGLE,
             options = onLabels, count = 2,
             selected = if (s.showDate) 1 else 0,
             onSelect = { i -> update(s.copy(showDate = i == 1)) }),
-        // 5 待机时长 关/1/3/5/10 分
+        // 4 待机时长 关/1/3/5/10 分
         Ctrl(R.string.settings_idle_after, CtrlKind.SEGMENTED,
             options = idleAfterLabels, count = 5,
-            selected = IDLE_AFTER_OPTIONS.indexOf(s.idleAfterMs).let { if (it < 0) 2 else it },
-            onSelect = { i -> update(s.copy(idleAfterMs = IDLE_AFTER_OPTIONS[i])) }),
-        // 6 待机显示 时钟/全黑/不淡出
+            selected = VALID_IDLE_AFTER_MS.indexOf(s.idleAfterMs).let { if (it < 0) 2 else it },
+            onSelect = { i -> update(s.copy(idleAfterMs = VALID_IDLE_AFTER_MS[i])) }),
+        // 5 待机显示 时钟/全黑/不淡出
         Ctrl(R.string.settings_idle_content, CtrlKind.SEGMENTED,
             options = idleContentLabels, count = 3,
             selected = IdleContent.entries.indexOf(s.idleContent).coerceAtLeast(0),
@@ -173,13 +168,13 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0) {
         listOf(
             TitleElem,
             HeaderElem(R.string.settings_group_layout),
-            ControlElem(0), ControlElem(1),
+            ControlElem(0),
             HeaderElem(R.string.settings_group_theme),
-            ControlElem(2), ControlElem(3),
+            ControlElem(1), ControlElem(2),
             HeaderElem(R.string.settings_group_clock),
-            ControlElem(4),
+            ControlElem(3),
             HeaderElem(R.string.settings_group_standby),
-            ControlElem(5), ControlElem(6),
+            ControlElem(4), ControlElem(5),
         )
     }
     // 每个控件的顶部 Y(dp),从 order 折出来 —— 与渲染同源。
@@ -230,7 +225,7 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0) {
     // 常开回调后注册,浮层在时优先接管;关闭后 MainActivity 会 focusNonce++ 让首页重新拿回焦点。
     androidx.activity.compose.BackHandler { onExit() }
 
-    // 内容可能高于屏幕(7 控件 + 4 标题 + 标题栏 ≈ 498dp)。**绝不加滚动容器**,
+    // 内容可能高于屏幕(6 控件 + 4 标题 + 标题栏 ≈ 452dp)。**绝不加滚动容器**,
     // 自己算纵向位移:焦点行底部快贴屏幕底时,整体上移刚好让它留在可视区(HomeScreen 同一招)。
     val screenH = LocalConfiguration.current.screenHeightDp.dp
     val fRow = focusedRow.coerceIn(0, ctrlCount - 1)
