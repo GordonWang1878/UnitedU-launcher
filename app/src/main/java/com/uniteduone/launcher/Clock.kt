@@ -7,6 +7,7 @@ import android.content.IntentFilter
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.sp
@@ -22,7 +23,12 @@ import java.util.Locale
  * Locale 用 [Locale.getDefault]——不再像早期版本那样固定 ENGLISH。
  */
 @Composable
-fun Clock(modifier: Modifier = Modifier, showDate: Boolean = true) {
+fun Clock(
+    modifier: Modifier = Modifier,
+    showDate: Boolean = true,
+    /** highlight 主题色。默认今日的 [Theme.Champagne],保持 0.55 alpha。 */
+    highlight: Color = Theme.Champagne,
+) {
     var now by remember { mutableStateOf(Date()) }
     // 时区变更 / NTP 校时是**跳变**,整分钟定时器接不住:不监听的话最多显示错一分钟,
     // 换时区则会一直错到下一个整分。系统的 12/24 小时开关也会触发 ACTION_TIME_CHANGED
@@ -60,6 +66,6 @@ fun Clock(modifier: Modifier = Modifier, showDate: Boolean = true) {
     BasicText(
         text = fmt.format(now),
         modifier = modifier,
-        style = TextStyle(fontFamily = Theme.Sans, color = Theme.Champagne.copy(alpha = 0.55f), fontSize = 16.sp),
+        style = TextStyle(fontFamily = Theme.Sans, color = highlight.copy(alpha = 0.55f), fontSize = 16.sp),
     )
 }

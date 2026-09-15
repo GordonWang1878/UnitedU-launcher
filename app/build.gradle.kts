@@ -73,5 +73,7 @@ dependencies {
     // 手画的三个形状被复审逐一指出「fill/朝向/笔画都不对」,是最显眼的差异。
     implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.compose.material:material-icons-extended")
+    // followWallpaperColor:从壁纸位图提取主色(Task F)。从 google maven 镜像解析。
+    implementation("androidx.palette:palette-ktx:1.0.0")
     testImplementation("junit:junit:4.13.2")
 }

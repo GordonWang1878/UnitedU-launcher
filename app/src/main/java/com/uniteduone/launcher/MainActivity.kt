@@ -17,7 +17,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 /**
  * 桌面主界面。这里只管三件事:待机计时、返回键不退出、齿轮菜单的入口。
@@ -82,6 +84,23 @@ class MainActivity : ComponentActivity() {
             // `import android.provider.Settings`,裸写 Settings 会撞上那个系统类;
             // 靠类型推断绕开,只取用到的字段(showDate)。
             val homeSettings = remember(revision) { SettingsStore.read(this@MainActivity) }
+            // 主题色:选中预设的 accent(齿轮)+ highlight(时钟/光晕/行标题)。
+            // followWallpaperColor 打开时,accent 改从当前壁纸主色提取、highlight 由它混白推得
+            // (与非金预设同一算法);解不出色或没壁纸就回落到预设。壁纸解码放 IO 线程,
+            // key 带上 followWallpaperColor 与 revision:换壁纸(handlePick 走 recreate)、开关跟随、
+            // 回到设置页都会重跑。preset 路径是纯内存查表,直接同步解析。
+            val presetColors = remember(homeSettings.themePresetId) {
+                ThemePresets.byId(homeSettings.themePresetId).colors()
+            }
+            val wallpaperColors by produceState<ThemeColors?>(
+                null, homeSettings.followWallpaperColor, revision,
+            ) {
+                value = if (!homeSettings.followWallpaperColor) null
+                else withContext(Dispatchers.IO) { wallpaperThemeColors(this@MainActivity) }
+            }
+            val themeColors =
+                if (homeSettings.followWallpaperColor) wallpaperColors ?: presetColors
+                else presetColors
             val touched = lastInput
             // **编辑界面和菜单开着时不进入待机。**淡出只做在首页那一层,而吞掉唤醒键是
             // Activity 级的 —— 两头不占的结果是:编辑界面画面全亮(看着醒着),
@@ -169,6 +188,8 @@ class MainActivity : ComponentActivity() {
                     menuFromGear = menuFromGear,
                     showDate = homeSettings.showDate,
                     cardsPerRow = homeSettings.cardsPerRow,
+                    accent = themeColors.accent,
+                    highlight = themeColors.highlight,
                 )
             }
             }
@@ -403,4 +424,28 @@ class MainActivity : ComponentActivity() {
             }
         })
     }
+}
+
+/**
+ * followWallpaperColor 打开时,从当前壁纸主色推导四处强调色。**必须在 IO 线程调用**:
+ * 会解码一张缩略图(320×180 量级,够 Palette 取色又不占内存)并跑 [androidx.palette.graphics.Palette]。
+ *
+ * 取色优先级:vibrant(有活力的主色)→ 落空再用 dominant(占面积最大的色)。
+ * accent 用取到的色,highlight 由 [highlightFrom] 混白 55% 推得 —— 与非金预设 highlight 同一手法。
+ * 任何一步落空(没壁纸、解不出、Palette 抽不到色)返回 null,调用方回落到选中预设,绝不崩、绝不留黑。
+ *
+ * 壁纸文件与解码方式跟 [Wallpaper] 一致(Paths.wallpaper / wallpaperPng + Apps.decodeScaled),
+ * 但这里用默认 ARGB_8888 而非 RGBA_F16:Palette 不吃 F16。
+ */
+private fun wallpaperThemeColors(ctx: android.content.Context): ThemeColors? {
+    val f = listOf(Paths.wallpaper(ctx), Paths.wallpaperPng(ctx))
+        .firstOrNull { it.exists() } ?: return null
+    val bmp = runCatching { Apps.decodeScaled(f.absolutePath, 320, 180) }.getOrNull() ?: return null
+    val palette = runCatching { androidx.palette.graphics.Palette.from(bmp).generate() }.getOrNull()
+        ?: return null
+    val rgb = palette.getVibrantColor(0).takeIf { it != 0 }
+        ?: palette.getDominantColor(0).takeIf { it != 0 }
+        ?: return null
+    val accent = androidx.compose.ui.graphics.Color(rgb)
+    return ThemeColors(accent, highlightFrom(accent))
 }

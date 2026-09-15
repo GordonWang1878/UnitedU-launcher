@@ -29,6 +29,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.focus.FocusRequester
@@ -56,6 +57,10 @@ fun HomeScreen(
     menuFromGear: Boolean = true,
     showDate: Boolean = true,
     cardsPerRow: Int = 6,
+    /** 主题色(选中预设或跟随壁纸解析出的)。accent 给齿轮;highlight 给行标题/光晕/时钟。
+     *  默认今日常量,保证未接线的调用点逐位复现今日观感。 */
+    accent: Color = Theme.ChampagneGold,
+    highlight: Color = Theme.Champagne,
 ) {
     val ctx = LocalContext.current
     // 卡片档位尺寸:6=当前标定常量原样(零回归),5/8 按跨度守恒推导。见 Theme.cardMetrics。
@@ -248,6 +253,7 @@ fun HomeScreen(
                 CategoryRow(
                     row = row,
                     metrics = metrics,
+                    highlight = highlight,
                     firstCard = if (rowIndex == 0) firstCard else null,
                     active = rowIndex == activeRowSafe,
                     rowRequester = rowFocus.getOrNull(rowIndex),
@@ -288,6 +294,7 @@ fun HomeScreen(
             // 恰好停在齿轮上的焦点会被销毁,醒来第一下按键落空。
             GearButton(
                 onClick = { onMenuOpenChange(true) },
+                accent = accent,
                 // 齿轮的上、左、右都是空的(时钟不可聚焦),不锁的话按这三个方向焦点会整棵树消失
                 modifier = Modifier
                     .alpha(contentAlpha)
@@ -306,7 +313,7 @@ fun HomeScreen(
                     },
                 onFocusChange = { got -> report(-1, -1, got) },
             )
-            Clock(showDate = showDate)
+            Clock(showDate = showDate, highlight = highlight)
         }
 
         if (menuOpen) {
@@ -363,6 +370,8 @@ fun Wallpaper(ctx: Context) {
 private fun CategoryRow(
     row: Row,
     metrics: CardMetrics,
+    /** highlight 主题色:行标题文字色 + 卡片呼吸光晕色。 */
+    highlight: Color,
     firstCard: FocusRequester?,
     active: Boolean,
     rowRequester: FocusRequester?,
@@ -394,7 +403,9 @@ private fun CategoryRow(
                 text = row.name,
                 style = TextStyle(
                 fontFamily = Theme.Sans,
-                    color = Theme.RowTitle, fontSize = 15.5.sp, fontWeight = FontWeight.Medium,
+                    // 行标题跟主题色走(design §3 四处之一)。金预设下 highlight=#FFF5DC,
+                    // 相比今日的纯白 #FFFFFF 是约 5% 的暖移(见任务报告的零回归说明)。
+                    color = highlight, fontSize = 15.5.sp, fontWeight = FontWeight.Medium,
                 ),
             )
         }
@@ -430,6 +441,7 @@ private fun CategoryRow(
                 AppCard(
                     app = app,
                     metrics = metrics,
+                    glowColor = highlight,
                     onClick = {
                         if (!Apps.launch(ctx, app.packageName)) {
                             android.widget.Toast.makeText(

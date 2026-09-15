@@ -55,6 +55,9 @@ fun AppCard(
     modifier: Modifier = Modifier,
     /** 当前卡片档位的尺寸(卡宽/高/圆角/光晕)。默认中档,保证未接线的调用点仍与今日一致。 */
     metrics: CardMetrics = Theme.cardMetrics(6),
+    /** 呼吸光晕的颜色(highlight 主题色)。默认今日的 [Theme.Champagne] —— 编辑页的卡片不接线,
+     *  保持原样;首页把选中预设的 highlight 穿进来。 */
+    glowColor: Color = Theme.Champagne,
     onFocusChange: (Boolean) -> Unit = {},
     /** 行首/行末:到边界后左右键不再跳到别的行(Compose 默认会按几何位置找最近的可聚焦项,
      *  表现就是「按右键从第一行末尾跳进了第二行」,Projectivy 不会这样)。 */
@@ -122,7 +125,7 @@ fun AppCard(
                         0f, 0f, size.width, size.height, r, r,
                         shadowPaint(
                             radiusPx, 0f, 0f,
-                            Theme.Champagne.copy(alpha = 0.88f + 0.12f * amount).toArgb(),
+                            glowColor.copy(alpha = 0.88f + 0.12f * amount).toArgb(),
                         ),
                     )
                 }
