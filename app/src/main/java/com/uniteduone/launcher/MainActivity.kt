@@ -69,8 +69,12 @@ class MainActivity : ComponentActivity() {
     private var cardMenu by mutableStateOf<CardRef?>(null)
     /** 「修改标题」对话框(Task 5 接线)。 */
     private var renameTarget by mutableStateOf<CardRef?>(null)
-    /** 「移动位置」兜底:进编辑页时定位到这张卡。 */
-    private var editTarget by mutableStateOf<Pair<Int, Int>?>(null)
+    /** 「移动位置」兜底:进编辑页时定位到这张卡。**(layout.json 行号, 包名)** ——
+     *  列号不能带:编辑页按 layout.json 排,里面还有装不到的包占位,渲染列号对不上。 */
+    private var editTarget by mutableStateOf<Pair<Int, String>?>(null)
+    /** 图片选择器关掉、首页重新组合时,把焦点记忆种回这张卡 (渲染行, 列)。
+     *  选择器会把首页整棵树移除,`remember` 的焦点记忆一并没了,不种就落回第一张卡。 */
+    private var homeInitialTarget by mutableStateOf<Pair<Int, Int>?>(null)
     /** 长按识别:记下那次按压的 downTime,同一次按压之后的事件(含 UP)全吞——clickable 在 UP 才触发,不会顺带启动应用。 */
     private var longPressDownTime = -1L
 
@@ -257,6 +261,7 @@ class MainActivity : ComponentActivity() {
                     cardMenuItems = remember(cardMenu) { cardMenu?.let { cardMenuItems(it) } ?: emptyList() },
                     onCardMenuDismiss = ::closeCardMenu,
                     renameOpen = renameTarget != null,
+                    initialTarget = homeInitialTarget,
                 )
             }
             }
@@ -295,6 +300,11 @@ class MainActivity : ComponentActivity() {
             if (editing) { leaveEdit(); return true }
             if (settings) { leaveSettings(); return true }
             window.decorView.playSoundEffect(SoundEffectConstants.NAVIGATION_DOWN)
+            // 长按菜单开着时,三条杠键只负责**收掉它**,绝不再叠一层齿轮菜单:
+            // 两层 GearMenu 会同时在场,上面那层拿走焦点、下面那层的蒙版仍然盖着,
+            // 而 cardMenu 永远不会被清 —— 看上去是「菜单花屏且怎么按都出不去」。
+            // 放在音效之后、toggle 之前:按键照样有声音反馈,只是改成「关掉当前这层」。
+            if (cardMenu != null) { closeCardMenu(); return true }
             if (menuOpen) closeMenu() else { menuFromGear = false; menuOpen = true }
             return true
         }
@@ -307,10 +317,14 @@ class MainActivity : ComponentActivity() {
             val homeBare = !editing && !settings && !menuOpen && pickerTarget == null && cardMenu == null && renameTarget == null
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 1 && homeBare) {
                 val ref = focusedCard
-                if (ref != null && cardMenuActions(ref.kind).isNotEmpty()) {
+                if (ref != null) {
+                    // **只要站在卡片上,长按就整下吞掉**(design §1:输入源卡「按压照常吞掉、不启动」)。
+                    // 没有这一半的话,输入源卡上长按会走到下面「重复事件照吞」、可 UP 仍然落到界面上,
+                    // 而 clickable 正是在 UP 触发 —— 用户长按只想看看有没有菜单,结果切了信号源。
                     longPressDownTime = event.downTime
                     window.decorView.playSoundEffect(SoundEffectConstants.CLICK)
-                    cardMenu = ref
+                    // 有菜单的种类才弹菜单;输入源行的菜单归 M4b,现在只是「什么都不发生」。
+                    if (cardMenuActions(ref.kind).isNotEmpty()) cardMenu = ref
                     return true
                 }
             }
@@ -363,7 +377,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun leaveEdit() {
-        if (editing) { editing = false; revision++; editTarget = null }
+        // homeInitialTarget 也要清:编辑页退出照旧把焦点交给首页自己的还原逻辑,
+        // 留着旧种子会把焦点按在「上次换图那张卡」上,那不是这条路该有的行为。
+        if (editing) { editing = false; revision++; editTarget = null; homeInitialTarget = null }
     }
 
     /**
@@ -373,7 +389,7 @@ class MainActivity : ComponentActivity() {
      * settingsRevision。
      */
     private fun leaveSettings() {
-        if (settings) { settings = false; focusNonce++; revision++ }
+        if (settings) { settings = false; focusNonce++; revision++; homeInitialTarget = null }
     }
 
     override fun onResume() {
@@ -389,6 +405,9 @@ class MainActivity : ComponentActivity() {
         super.onPause()
         // 唤醒键的 UP 可能落不到本 Activity,离开时清掉,免得下次多吞一整下
         wakeDownTime = -1L
+        // 长按那一下同理:「打开应用」会在 UP 之前就切走前台,那个 UP 落不回来。
+        // (两者都按 downTime 匹配,留着也不会误吞后面的按键;清掉是为了不留悬空状态。)
+        longPressDownTime = -1L
     }
 
     private fun menuItems() = listOf(
@@ -423,15 +442,23 @@ class MainActivity : ComponentActivity() {
             }
             CardAction.RENAME -> null   // Task 5:renameTarget = ref
             CardAction.CHANGE_ICON -> MenuItem(getString(R.string.card_menu_icon), getString(R.string.card_menu_icon_desc)) {
-                closeCardMenu(); pickIcon(ref.pkg)
+                closeCardMenu()
+                // 选择器会把首页整棵树移除,焦点记忆随 remember 一起没;先把落点记下来,
+                // 回来时 HomeScreen 用它当初值(**渲染坐标**,种的是焦点不是盘上的位置)。
+                homeInitialTarget = ref.rowIndex to ref.colIndex
+                pickIcon(ref.pkg)
             }
             CardAction.MOVE -> MenuItem(getString(R.string.card_menu_move), getString(R.string.card_menu_move_desc)) {
-                closeCardMenu(); editTarget = ref.layoutRow to ref.colIndex; editing = true
+                // 带**包名**而不是列号:编辑页按 layout.json 排,里面还留着装不到的包,
+                // 渲染列号在那边会对到另一张卡上。行号用 layout 行号,同理。
+                closeCardMenu(); editTarget = ref.layoutRow to ref.pkg; editing = true
             }
             CardAction.REMOVE -> MenuItem(getString(R.string.card_menu_remove), getString(R.string.card_menu_remove_desc)) {
                 closeCardMenu()
                 if (Layout.removeFromRow(this, ref.layoutRow, ref.pkg)) revision++
-                else toast(getString(R.string.edit_toast_order_not_saved))
+                // 失败只有一种原因:那一行/那个包已经不在盘上了(别处刚改过 layout.json)。
+                // 不能再报「顺序没能存下来」—— 那是写盘失败的文案,会把人引到错误的方向。
+                else toast(getString(R.string.toast_remove_failed))
             }
         }
     }

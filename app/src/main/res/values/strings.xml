@@ -31,6 +31,7 @@
     <string name="card_menu_remove">从当前分类移除</string>
     <string name="card_menu_remove_desc">应用本身不会被卸载</string>
     <string name="toast_uninstall_failed">打不开系统卸载页</string>
+    <string name="toast_remove_failed">没找到这张卡,可能刚被移出</string>
     <string name="menu_import">导入图片</string>
     <string name="menu_import_desc">手机扫码上传壁纸、卡片图、屏保</string>
     <!-- import_* : 「导入图片」页(电视端) -->

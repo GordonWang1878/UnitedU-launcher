@@ -52,8 +52,14 @@ fun EditScreen(
     /** 卡片标题全局开关(design §2):编辑页与首页共用同一份 titles.json,标题同样显示——
      *  编辑时看得见名字更好认。 */
     showTitles: Boolean = false,
-    /** 首页长按菜单「移动位置」带进来的 (layout 行号, 列号);null = 正常进入,不定位。 */
-    initialTarget: Pair<Int, Int>? = null,
+    /**
+     * 首页长按菜单「移动位置」带进来的 **(layout.json 行号, 包名)**;null = 正常进入,不定位。
+     *
+     * 用包名而不是列号:首页那边 `buildRows` 把装不到的包丢掉了,编辑页这边是
+     * `Layout.read` 的原样(缺的包也占一格,画成暗红的「未安装」)—— 两边的列号对不上。
+     * 包名在一行里唯一(`Layout.read` 做过 distinct),按它查才落在同一张卡上。
+     */
+    initialTarget: Pair<Int, String>? = null,
 ) {
     val ctx = LocalContext.current
     // 与首页同一套卡片档位尺寸,编辑页的卡片才会和首页一样大。见 Theme.cardMetrics。
@@ -136,15 +142,19 @@ fun EditScreen(
         focusTarget[ri.coerceIn(0, focusTarget.lastIndex)] = col
     }
 
-    // 「移动位置」兜底:从首页带着 (行, 列) 进来,数据到位后定位一次。用「已应用的目标」比对,
-    // 不用一次性布尔闩(铁律 7):同一个 initialTarget 只应用一次,换了新值自然再应用。
-    var appliedTarget by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    // 「移动位置」兜底:从首页带着 (layout 行号, 包名) 进来,数据到位后定位一次。
+    // 用「已应用的目标」比对,不用一次性布尔闩(铁律 7):同一个 initialTarget 只应用一次,
+    // 换了新值自然再应用。
+    var appliedTarget by remember { mutableStateOf<Pair<Int, String>?>(null) }
     LaunchedEffect(initialTarget, all) {
         val t = initialTarget ?: return@LaunchedEffect
         if (all == null || appliedTarget == t) return@LaunchedEffect
         appliedTarget = t
         val ri = t.first.coerceIn(0, rows.lastIndex.coerceAtLeast(0))
-        retarget(ri, t.second.coerceIn(0, rows.getOrNull(ri)?.second?.size ?: 0))
+        // **按包名查列号**,不信任首页传来的渲染列号(两边的行内容不一样,见 initialTarget 的 KDoc)。
+        // 查不到(那一行刚被别处改过)就退到行首,至少落在正确的那一行上,绝不乱指一张卡。
+        val ci = rows.getOrNull(ri)?.second?.indexOf(t.second) ?: -1
+        if (ci >= 0) retarget(ri, ci) else retarget(ri, 0)
     }
 
     // 与首页同一套:**从 ON_PAUSE 就冻结**、ON_RESUME 再显式恢复。

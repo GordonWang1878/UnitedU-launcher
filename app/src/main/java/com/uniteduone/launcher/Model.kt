@@ -28,4 +28,14 @@ data class Row(
     val name: String,
     val apps: List<AppEntry>,
     val kind: RowKind = RowKind.APPS,
+    /**
+     * 这一行在 **layout.json** 里的下标;输入源行没有对应条目,记 -1。
+     *
+     * **不能用渲染位置代替**:`buildRows` 会丢掉装不到的包、再整行丢掉空行,
+     * 所以「屏幕上第几行」和「layout.json 里第几行」随时可能对不上 ——
+     * 而「从当前分类移除」「移动位置」写的是 layout.json。用渲染下标去写盘,
+     * 前面有任何一行被丢掉,删的就是**别人那一行**的应用。
+     * 因此这个值必须在 `filter` **之前**按 layout 的下标定下来(见 buildRows)。
+     */
+    val layoutRow: Int = -1,
 )

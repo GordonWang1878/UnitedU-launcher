@@ -76,6 +76,15 @@ fun HomeScreen(
     onCardMenuDismiss: () -> Unit = {},
     /** 修改标题对话框开着(Task 5 接线;本任务只把它算进「有浮层」)。 */
     renameOpen: Boolean = false,
+    /**
+     * 首次组合时把焦点记忆**种**在这张卡上 (渲染行, 列);null = 照旧从 (0,0) 起。
+     *
+     * 为什么需要:图片选择器这类浮层住在 MainActivity 的 if/else 链上,开着时首页整棵树
+     * 被移除,`tgtRow`/`tgtIdx` 跟着 `remember` 一起没了 —— 换完图回来焦点落回第一张卡,
+     * 而用户明明是站在第三行操作的。种子只影响**初值**,之后照旧由导航更新,
+     * 不是闩:同一个值种一次,换了新值下一次组合自然按新值种(铁律 7)。
+     */
+    initialTarget: Pair<Int, Int>? = null,
 ) {
     val ctx = LocalContext.current
     // 卡片档位尺寸:6=当前标定常量原样(零回归),5/8 按跨度守恒推导。见 Theme.cardMetrics。
@@ -136,8 +145,15 @@ fun HomeScreen(
     // 「目标格」只由用户的主动导航更新,还原过程中不更新 ——
     // 否则 Compose 抢先把焦点给了第一张卡,目标就被改写成 0 了。
     // (横向位移由 CategoryRow 自己的 focusedIndex 算,不在这里。)
-    val tgtIdx = remember(rows.size) { mutableStateListOf(*Array(rows.size.coerceAtLeast(1)) { 0 }) }
-    var tgtRow by remember { mutableStateOf(0) }
+    // initialTarget 只作**初值**(见它的 KDoc):首帧的初始焦点请求打的就是
+    // rowFocus[tgtRow] @ tgtIdx[tgtRow],种在这里等于「第一次落点就是那张卡」。
+    // 越界不必在这里挡:取用处(还原效果、看门狗、requester 挂点)全都 coerceIn 过。
+    val tgtIdx = remember(rows.size) {
+        mutableStateListOf(*Array(rows.size.coerceAtLeast(1)) { i ->
+            if (initialTarget != null && i == initialTarget.first) initialTarget.second else 0
+        })
+    }
+    var tgtRow by remember { mutableStateOf(initialTarget?.first ?: 0) }
     var restoring by remember { mutableStateOf(false) }
     // 关菜单后焦点该还给齿轮。**用 nonce 比对而不是布尔闩**:布尔闩只有「看门狗跑完整个循环」
     // 这一条窄路能清掉,任何一次早退(菜单又开了、restoring 被 ON_PAUSE 置位、
@@ -171,15 +187,21 @@ fun HomeScreen(
         if (got) focusedCell = row to idx
         else if (focusedCell == row to idx) focusedCell = null
         // 长按菜单要知道「现在站在哪张卡上」。**只在行号合法时上报**:齿轮用 (-1, -1) 报到这里,
-        // 它不是卡,长按不该出菜单。layoutRow 是 layout.json 里的行号(不含置顶的输入源行),
-        // 「移除 / 移动位置」写盘时用的正是它;INPUTS 行没有对应的 layout 行,记 -1。
+        // 它不是卡,长按不该出菜单。
+        // layoutRow **直接取 Row 自己带的那个**(buildRows 在 filter 之前按 layout.json 定的),
+        // 不再由渲染下标推导 —— 装不到的包会让某一行消失,推导出来的行号就会偏移,
+        // 「移除」会删到别人那一行(见 Row.layoutRow 的 KDoc)。
         if (row >= 0) {
             val r = rows.getOrNull(row)
             val app = r?.apps?.getOrNull(idx)
             if (got && r != null && app != null) {
-                val layoutRow = if (r.kind == RowKind.APPS) rows.take(row).count { it.kind == RowKind.APPS } else -1
-                onFocusedCard(CardRef(row, idx, layoutRow, r.kind, app.packageName, app.label))
-            } else if (!got) onFocusedCard(null)
+                onFocusedCard(CardRef(row, idx, r.layoutRow, r.kind, app.packageName, app.label))
+            } else if (!got && focusedCell == null) {
+                // 与上面 focusedCell 的作废判据同构:只有「现在确实没人持有焦点」才报 null。
+                // 不加这道闸的话,导航时若两张卡的得失顺序颠倒(新卡先报 got、旧卡后报 loss),
+                // 这一句会把刚上报的新卡抹成 null,长按当场弹不出菜单。
+                onFocusedCard(null)
+            }
         }
     }
     // 配置里的包一个都装不到时,卡片一张都没有,焦点无处可落;而这时唯一能自救的
@@ -376,6 +398,19 @@ fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),   // 复审实测参考 36.2px,17dp 给出 42.2px
         ) {
+            // 「有 N 个新应用」:状态栏里、齿轮左边的小字(design §4 的最终落位)。
+            // **住在这一行是为了永不被卡片盖住**:左上角那版会在焦点落到最后一行、
+            // 内容整块上移(`offset(y = shift)`)时被升上来的第一行盖掉半截(2026-09-16 实测);
+            // 左下角那版会撞底行的卡片标题。右上角这条带子是屏幕上唯一永远没有卡片的地方。
+            // 只是一行字,不可聚焦 —— 外层那个 canFocus 管的是齿轮,与它无关。
+            val newCount = loaded?.third ?: 0
+            if (newCount > 0) {
+                BasicText(
+                    text = stringResource(R.string.home_new_apps, newCount),
+                    modifier = Modifier.alpha(contentAlpha),
+                    style = TextStyle(fontFamily = Theme.Sans, color = Theme.FooterHintText, fontSize = 12.sp),
+                )
+            }
             // 齿轮同样用 alpha 而不是 AnimatedVisibility:待机时若把节点移除,
             // 恰好停在齿轮上的焦点会被销毁,醒来第一下按键落空。
             GearButton(
@@ -400,25 +435,6 @@ fun HomeScreen(
                 onFocusChange = { got -> report(-1, -1, got) },
             )
             Clock(showDate = showDate, highlight = highlight)
-        }
-
-        // 「有 N 个新应用」:**左上角**小字,与时钟同一水平带,待机时随内容一起淡出(design §4)。
-        // 原本在左下角,T3 评审实测会与底行卡片标题重叠(标题开着、底行贴近屏底时),故改到这里。
-        // ⚠️ **换位置只是换了撞法,没有消灭碰撞**(2026-09-16 T4 实测):焦点落到最后一行时
-        // 内容整块上移(上面那个 `offset(y = shift)`),第一行会升进这条 40dp 的带子,
-        // 这行字就被第一张卡盖住半截。时钟不受影响只因为卡片都在左边、右上角本来就空。
-        // 真要彻底解决,得让它跟着 shift 一起走、或挂进右上角时钟那一行 —— 归 design 决定,
-        // 这里照 T3 评审裁定的位置实现,先把已知边界写在这儿,别让下一个人再测一遍。
-        val newCount = loaded?.third ?: 0
-        if (newCount > 0) {
-            BasicText(
-                text = stringResource(R.string.home_new_apps, newCount),
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(top = 40.dp, start = Theme.SidePadding)
-                    .alpha(contentAlpha),
-                style = TextStyle(fontFamily = Theme.Sans, color = Theme.FooterHintText, fontSize = 12.sp),
-            )
         }
 
         if (menuOpen) {
@@ -682,8 +698,11 @@ private fun buildRows(ctx: Context): List<Row> {
     val layout = Layout.read(ctx)
     val needed = layout.flatMap { it.second }.toSet()
     val all = Apps.load(ctx, needed, withBitmaps = needed, withLabels = needed)
-    return layout.map { (name, pkgs) ->
-        Row(name = name, apps = pkgs.mapNotNull { all[it] })
+    // **layoutRow 必须在 filter 之前定下来**:下面那个 filter 会整行丢掉空行,
+    // 丢掉之后剩下行的下标就不再等于它们在 layout.json 里的下标。
+    // 「移除 / 移动位置」写的是 layout.json,拿渲染下标去写就会打在别人那一行上。
+    return layout.mapIndexed { layoutIndex, (name, pkgs) ->
+        Row(name = name, apps = pkgs.mapNotNull { all[it] }, layoutRow = layoutIndex)
     }.filter { it.apps.isNotEmpty() }
     // ⚠️ 这个 filter 不只是显示意图,**它同时是焦点的不变量**:
     // upTarget/downTarget 指向相邻行的 rowFocus,而 rowFocus 只挂在非空行的卡片上。

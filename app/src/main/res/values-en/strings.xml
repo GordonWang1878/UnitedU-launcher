@@ -31,6 +31,7 @@
     <string name="card_menu_remove">Remove from This Row</string>
     <string name="card_menu_remove_desc">The app itself is not uninstalled</string>
     <string name="toast_uninstall_failed">Could not open the system uninstall page</string>
+    <string name="toast_remove_failed">Card not found — it may have just been removed</string>
     <string name="menu_import">Import Images</string>
     <string name="menu_import_desc">Scan a QR code to upload wallpapers, card images, screensavers</string>
     <!-- import_* : Import Images page (TV side) -->
