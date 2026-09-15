@@ -7,6 +7,14 @@
     <!-- 不画悬浮窗。只为让 RelaunchAfterUpdate 的 startActivity 通过后台启动限制:
          索尼固件不豁免默认桌面,悬浮窗权限(appops 授一次)是清单里剩下能用的豁免。 -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- M6/M7:传 APK 安装、检查更新后安装,都要走系统安装器 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- M6 上传服务(UploadServer,NanoHTTPD)要绑定/监听局域网端口:Android 上创建 AF_INET
+         socket(含仅局域网、仅服务端的)一律要求这条权限,没有它 NetworkInterface.getNetworkInterfaces()
+         拿到的地址列表就是空的、ServerSocket 也 bind 不了——2026-09-15 模拟器实测确认
+         (加之前「导入图片」页固定显示「电视没有连接网络」,即使 eth0 明明有地址)。
+         M6 设计文档 5 份任务简报都没提这条,是全计划遗漏,这里补上。 -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:label="@string/app_name"
@@ -40,5 +48,16 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+
+        <!-- 把 cacheDir/apk/ 里的 APK 以 content:// 交给系统安装器(file:// 自 API 24 起不允许) -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

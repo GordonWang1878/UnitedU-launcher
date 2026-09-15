@@ -17,6 +17,42 @@
     <string name="menu_system_settings_desc">開啟電視的 Android 設定</string>
     <string name="menu_set_default_home">設定預設桌面</string>
     <string name="menu_set_default_home_desc">選擇按下 Home 鍵時啟動哪個桌面</string>
+    <string name="menu_import">匯入圖片</string>
+    <string name="menu_import_desc">手機掃碼上傳桌布、卡片圖、螢幕保護程式</string>
+    <!-- import_* : 「匯入圖片」頁(電視端) -->
+    <string name="import_title">用手機匯入圖片</string>
+    <string name="import_received">已收到 %1$d 個檔案</string>
+    <string name="import_last">最近:%1$s</string>
+    <string name="import_hint_back">按返回鍵關閉並停止服務</string>
+    <string name="import_error_no_network">電視尚未連上網路,連上 Wi-Fi 或網路線後再試</string>
+    <string name="import_error_port">連接埠 8090–8099 都被佔用,請稍後再試</string>
+    <string name="import_apk_needs_permission">請在電視上允許「安裝未知應用程式」,然後在手機上重試</string>
+    <string name="import_apk_started">已交給系統安裝程式</string>
+
+    <!-- web_* : 手機上傳網頁文案(伺服端注入,JS 裡 %s/%d 由網頁自行取代) -->
+    <string name="web_title">用手機匯入圖片</string>
+    <string name="web_tab_wallpapers">桌布</string>
+    <string name="web_tab_cards">卡片圖</string>
+    <string name="web_tab_screensavers">螢幕保護程式</string>
+    <string name="web_tab_apk">安裝 APK</string>
+    <string name="web_upload">上傳</string>
+    <string name="web_delete">刪除</string>
+    <string name="web_confirm_delete" formatted="false">刪除 %s?</string>
+    <string name="web_empty">還沒有圖片,點右上「上傳」</string>
+    <string name="web_uploading" formatted="false">正在上傳 %d 個檔案…</string>
+    <string name="web_done">完成</string>
+    <string name="web_error">發生錯誤,請再試一次</string>
+    <string name="web_rejected_type">只支援 jpg / png / webp</string>
+    <string name="web_rejected_size">超過 30 MB</string>
+    <string name="web_rejected_decode">圖片解碼失敗</string>
+    <string name="web_rejected_name">檔名無效</string>
+    <string name="web_rejected_write">電視儲存空間寫入失敗</string>
+    <string name="web_apk_hint">選擇 APK 後,電視會跳出系統安裝程式;第一次需要在電視上允許「安裝未知應用程式」。</string>
+    <string name="web_apk_install">選擇 APK 並安裝到電視</string>
+    <string name="web_apk_needs_permission">請先在電視上允許安裝未知應用程式,然後重試</string>
+    <string name="web_apk_invalid">不是有效的 APK 檔案</string>
+    <string name="web_apk_size">APK 超過 100 MB</string>
+    <string name="web_apk_background">電視上的匯入頁不在前景,回到匯入頁後重試</string>
 
     <!-- edit_* : 編輯桌面畫面 -->
     <string name="edit_title">編輯桌面</string>

@@ -17,6 +17,42 @@
     <string name="menu_system_settings_desc">Open the TV\'s Android settings</string>
     <string name="menu_set_default_home">Set Default Home</string>
     <string name="menu_set_default_home_desc">Choose which launcher opens on the Home button</string>
+    <string name="menu_import">Import Images</string>
+    <string name="menu_import_desc">Scan a QR code to upload wallpapers, card images, screensavers</string>
+    <!-- import_* : Import Images page (TV side) -->
+    <string name="import_title">Import images from your phone</string>
+    <string name="import_received">%1$d file(s) received</string>
+    <string name="import_last">Latest: %1$s</string>
+    <string name="import_hint_back">Press Back to close and stop the service</string>
+    <string name="import_error_no_network">The TV is not connected to a network. Connect Wi-Fi or Ethernet and try again</string>
+    <string name="import_error_port">Ports 8090–8099 are all in use. Try again later</string>
+    <string name="import_apk_needs_permission">Allow "Install unknown apps" on the TV, then retry on your phone</string>
+    <string name="import_apk_started">Handed to the system installer</string>
+
+    <!-- web_* : phone upload page (injected by the server; %s/%d replaced by the page's JS) -->
+    <string name="web_title">Import images from your phone</string>
+    <string name="web_tab_wallpapers">Wallpapers</string>
+    <string name="web_tab_cards">Card Images</string>
+    <string name="web_tab_screensavers">Screensavers</string>
+    <string name="web_tab_apk">Install APK</string>
+    <string name="web_upload">Upload</string>
+    <string name="web_delete">Delete</string>
+    <string name="web_confirm_delete" formatted="false">Delete %s?</string>
+    <string name="web_empty">No images yet. Tap Upload at the top right</string>
+    <string name="web_uploading" formatted="false">Uploading %d file(s)…</string>
+    <string name="web_done">Done</string>
+    <string name="web_error">Something went wrong. Please try again</string>
+    <string name="web_rejected_type">Only jpg / png / webp are supported</string>
+    <string name="web_rejected_size">Larger than 30 MB</string>
+    <string name="web_rejected_decode">Image could not be decoded</string>
+    <string name="web_rejected_name">Invalid file name</string>
+    <string name="web_rejected_write">Could not write to TV storage</string>
+    <string name="web_apk_hint">After you pick an APK the TV shows the system installer. The first time, allow "Install unknown apps" on the TV.</string>
+    <string name="web_apk_install">Pick an APK and install on the TV</string>
+    <string name="web_apk_needs_permission">Allow installing unknown apps on the TV first, then retry</string>
+    <string name="web_apk_invalid">Not a valid APK file</string>
+    <string name="web_apk_size">APK larger than 100 MB</string>
+    <string name="web_apk_background">The TV\'s import page is not in the foreground. Return to it and retry</string>
 
     <!-- edit_* : edit home screen -->
     <string name="edit_title">Edit Home Screen</string>

@@ -29,6 +29,7 @@ import kotlinx.coroutines.withContext
 private const val PICK_WALLPAPER = "__wallpaper__"
 private const val VIEW_SCREENSAVER_POOL = "__screensaver_pool__"
 private const val VIEW_HOME_SETTINGS = "__home_settings__"
+private const val VIEW_IMPORT = "__import__"
 
 class MainActivity : ComponentActivity() {
 
@@ -123,9 +124,10 @@ class MainActivity : ComponentActivity() {
             // Activity 级的 —— 两头不占的结果是:编辑界面画面全亮(看着醒着),
             // 第一下按键却被当唤醒吃掉,症状就是「按了没反应」。
             // 长时间停在这两个界面由电视自己的系统屏保接管(实测存在 DreamActivity)。
-            LaunchedEffect(touched, editing, menuOpen, settings) {
+            val importing = pickerTarget == VIEW_IMPORT
+            LaunchedEffect(touched, editing, menuOpen, settings, importing) {
                 idle = false
-                if (editing || menuOpen || settings) return@LaunchedEffect
+                if (editing || menuOpen || settings || importing) return@LaunchedEffect
                 delay(Theme.IdleAfterMs)
                 idle = true
             }
@@ -171,6 +173,11 @@ class MainActivity : ComponentActivity() {
                     directory = Paths.screensaverLibrary(this@MainActivity),
                     nonce = focusNonce,
                     onDismiss = { pickerTarget = null; focusNonce++ },
+                )
+            } else if (pt == VIEW_IMPORT) {
+                ImportScreen(
+                    onExit = { pickerTarget = null; focusNonce++ },
+                    focusNonce = focusNonce,
                 )
             } else if (pt == VIEW_HOME_SETTINGS) {
                 val pm = packageManager
@@ -289,12 +296,17 @@ class MainActivity : ComponentActivity() {
         return result
     }
 
-    /** HOME 键的语义是「回到桌面初始状态」,所以要把编辑界面和菜单都收掉。 */
+    /**
+     * HOME 键的语义是「回到桌面初始状态」,所以要把编辑界面和菜单都收掉。
+     * 导入页额外收一次:它拿着一个无密码的局域网 HTTP 服务,按 HOME 离开时必须一并关掉
+     * (其余选择器不持有任何资源,不用管)。
+     */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         leaveEdit()
         leaveSettings()
         closeMenu()
+        if (pickerTarget == VIEW_IMPORT) { pickerTarget = null; focusNonce++ }
     }
 
     /**
@@ -339,6 +351,7 @@ class MainActivity : ComponentActivity() {
     private fun menuItems() = listOf(
         MenuItem(getString(R.string.menu_edit), getString(R.string.menu_edit_desc)) { editing = true },
         MenuItem(getString(R.string.menu_settings), getString(R.string.menu_settings_desc)) { settings = true },
+        MenuItem(getString(R.string.menu_import), getString(R.string.menu_import_desc)) { openImport() },
         MenuItem(getString(R.string.menu_wallpaper), getString(R.string.menu_wallpaper_desc)) { pickWallpaper() },
         MenuItem(getString(R.string.menu_screensaver), getString(R.string.menu_screensaver_desc)) { openScreensaverPool() },
         MenuItem(getString(R.string.menu_system_settings), getString(R.string.menu_system_settings_desc)) { open(Intent(Settings.ACTION_SETTINGS)) },
@@ -359,6 +372,12 @@ class MainActivity : ComponentActivity() {
         if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
         closeMenu()
         pickerTarget = PICK_WALLPAPER
+    }
+
+    private fun openImport() {
+        if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
+        closeMenu()
+        pickerTarget = VIEW_IMPORT
     }
 
     private fun openScreensaverPool() {
