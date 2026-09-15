@@ -113,14 +113,131 @@ object Wallpapers {
         ctx.assets.open(DEFAULT_WALLPAPER_ASSET).use { BitmapFactory.decodeStream(it) }
     }.onFailure { Log.w(TAG, "内置默认壁纸解不出来: ${it.message}") }.getOrNull()
 
+    private const val OUT_W = 1920
+    private const val OUT_H = 1080
+    private const val CACHE_KEEP = 4
+
+    /** 处理后的位图:先查缓存,没有就渲染并写缓存。任何一步失败返回 null,调用方退回原图。IO 线程。 */
+    fun processed(ctx: Context, src: File, spec: WallpaperSpec): Bitmap? {
+        val key = wallpaperCacheKey(
+            src.absolutePath, src.lastModified(), src.length(),
+            spec.themed, spec.accentRgb, spec.blur, spec.dim,
+        )
+        val dir = Paths.wallpaperCacheDir(ctx)
+        val cached = File(dir, "$key.jpg")
+        if (cached.isFile) {
+            runCatching { Apps.decodeScaled(cached.absolutePath, OUT_W, OUT_H) }.getOrNull()?.let { return it }
+            cached.delete()   // 缓存文件坏了:删掉重做
+        }
+        val t0 = System.currentTimeMillis()
+        val bmp = runCatching { render(src, spec) }
+            .onFailure { Log.w(TAG, "壁纸处理失败 ${src.name}: ${it.message}") }
+            .getOrNull() ?: return null
+        Log.i(TAG, "壁纸处理 ${src.name} blur=${spec.blur} dim=${spec.dim} themed=${spec.themed} 用时 ${System.currentTimeMillis() - t0}ms")
+        writeCache(dir, cached, bmp)
+        return bmp
+    }
+
+    /**
+     * 缩小 → 套 ColorMatrix → 放大。颜色运算与模糊都是线性算子、顺序可交换,
+     * 所以矩阵作用在缩小后的小图上,几乎免费;blur=0 时矩阵直接作用于 1920×1080。
+     */
+    private fun render(src: File, spec: WallpaperSpec): Bitmap? {
+        val decoded = Apps.decodeScaled(src.absolutePath, OUT_W, OUT_H) ?: return null
+        val full = centerCrop(decoded, OUT_W, OUT_H)
+        val targetW = blurTargetWidth(spec.blur, OUT_W)
+        val small = if (targetW >= full.width) full else downscale(full, targetW)
+        val colored = applyMatrix(small, wallpaperColorMatrix(spec.themed, spec.accentRgb, spec.dim))
+        return if (colored.width == OUT_W && colored.height == OUT_H) colored else upscale(colored, OUT_W, OUT_H)
+    }
+
+    /** 中心裁剪成 w:h 再缩到恰好 w×h(缓存尺寸固定,后面的缩放链才有确定的起点)。 */
+    private fun centerCrop(b: Bitmap, w: Int, h: Int): Bitmap {
+        val scale = maxOf(w.toFloat() / b.width, h.toFloat() / b.height)
+        val sw = (w / scale).toInt().coerceIn(1, b.width)
+        val sh = (h / scale).toInt().coerceIn(1, b.height)
+        val cropped = Bitmap.createBitmap(b, (b.width - sw) / 2, (b.height - sh) / 2, sw, sh)
+        return if (cropped.width == w && cropped.height == h) cropped
+        else Bitmap.createScaledBitmap(cropped, w, h, true)
+    }
+
+    /** 反复减半到 ≤ 2× 目标,再一步缩到目标宽;每次减半都是一次 2×2 均值,叠起来就是一块便宜的低通滤波。 */
+    private fun downscale(b: Bitmap, targetW: Int): Bitmap {
+        var cur = b
+        while (cur.width / 2 >= targetW * 2) {
+            cur = Bitmap.createScaledBitmap(cur, cur.width / 2, cur.height / 2, true)
+        }
+        val targetH = maxOf(1, Math.round(targetW * OUT_H.toFloat() / OUT_W))
+        cur = Bitmap.createScaledBitmap(cur, targetW, targetH, true)
+        return boxBlur3(cur)
+    }
+
+    /** 3×3 均值:小图上的最后一道低通,消掉减半链留下的锯齿。小图最多 1920 宽,像素循环可接受。 */
+    private fun boxBlur3(b: Bitmap): Bitmap {
+        val w = b.width
+        val h = b.height
+        val src = IntArray(w * h).also { b.getPixels(it, 0, w, 0, 0, w, h) }
+        val out = IntArray(w * h)
+        for (y in 0 until h) for (x in 0 until w) {
+            var r = 0; var g = 0; var bl = 0; var n = 0
+            for (dy in -1..1) for (dx in -1..1) {
+                val yy = y + dy
+                val xx = x + dx
+                if (yy < 0 || yy >= h || xx < 0 || xx >= w) continue
+                val p = src[yy * w + xx]
+                r += (p shr 16) and 0xFF; g += (p shr 8) and 0xFF; bl += p and 0xFF; n++
+            }
+            out[y * w + x] = (0xFF shl 24) or ((r / n) shl 16) or ((g / n) shl 8) or (bl / n)
+        }
+        return Bitmap.createBitmap(out, w, h, Bitmap.Config.ARGB_8888)
+    }
+
+    private fun applyMatrix(b: Bitmap, m: FloatArray): Bitmap {
+        val out = Bitmap.createBitmap(b.width, b.height, Bitmap.Config.ARGB_8888)
+        val paint = android.graphics.Paint().apply {
+            colorFilter = android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix(m))
+        }
+        android.graphics.Canvas(out).drawBitmap(b, 0f, 0f, paint)
+        return out
+    }
+
+    /** 分级放大,每级 ≤ 4×:一次 16× 的 bilinear 会留下菱形纹。 */
+    private fun upscale(b: Bitmap, w: Int, h: Int): Bitmap {
+        var cur = b
+        while (cur.width * 4 < w) {
+            cur = Bitmap.createScaledBitmap(cur, cur.width * 4, cur.height * 4, true)
+        }
+        return Bitmap.createScaledBitmap(cur, w, h, true)
+    }
+
+    /** tmp → rename 写缓存,然后只留最新 [CACHE_KEEP] 个。失败只记日志:这次仍用内存里的位图显示。 */
+    private fun writeCache(dir: File, dst: File, bmp: Bitmap) {
+        runCatching {
+            dir.mkdirs()
+            val tmp = File(dir, "${dst.nameWithoutExtension}.tmp")
+            tmp.outputStream().use { out ->
+                bmp.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                out.flush(); out.fd.sync()
+            }
+            if (!tmp.renameTo(dst)) { dst.delete(); check(tmp.renameTo(dst)) }
+            dir.listFiles { f -> f.isFile && f.extension == "jpg" }
+                ?.sortedByDescending { it.lastModified() }
+                ?.drop(CACHE_KEEP)
+                ?.forEach { it.delete() }
+        }.onFailure { Log.w(TAG, "壁纸缓存写入失败: ${it.message}") }
+    }
+
     /** 显示用位图。IO 线程。解不出来回落内置;调用方只在非 null 时换图。 */
     fun load(ctx: Context, spec: WallpaperSpec): Bitmap? {
         prepare(ctx)
         // prepare 可能刚把 wallpaperFile 写进 settings,而 spec 是拿旧 settings 组装的;补读一次。
         val name = spec.file.ifEmpty { SettingsStore.read(ctx).wallpaperFile }
         val src = resolveSource(ctx, name) ?: return builtinDefault(ctx)
+        // 参数全零完全绕开管线:不解码两次、不写缓存、保留 F16(零回归路径)。
+        // 处理失败退回原图而不是黑屏。
+        if (!spec.isIdentity) processed(ctx, src, spec)?.let { return it }
         // RGBA_F16 保留 Ultra HDR gain map(与 M1 同);decodeScaled 在 F16 失败时自动回落 8888。
-        return runCatching { Apps.decodeScaled(src.absolutePath, 1920, 1080, Bitmap.Config.RGBA_F16) }
+        return runCatching { Apps.decodeScaled(src.absolutePath, OUT_W, OUT_H, Bitmap.Config.RGBA_F16) }
             .onFailure { Log.w(TAG, "壁纸解码失败 ${src.name}: ${it.message}") }
             .getOrNull()
             ?: builtinDefault(ctx)
