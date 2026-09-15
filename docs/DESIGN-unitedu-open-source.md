@@ -55,7 +55,7 @@
 ## 5. 素材入口
 
 - **内置 6 张壁纸**:只用 CC0 或明确允许再分发的图,来源写进 `NOTICE`。**不能用**现有资源仓里的图:卓耿烈焰 / 龙石日蚀 / 临冬落日(《权力的游戏》)、沙丘·暮色沙虫(《沙丘》)、阿伽门农(《特洛伊》)是剧照或同人图;`launcher/assets/wallpaper-gold-fog.jpg` 是 Projectivy 默认壁纸的加工品。Gordon 自己电视上照旧用。
-- **手机上传页**:应用内 HTTP 服务(NanoHTTPD,Apache-2.0),屏幕显示地址 + 二维码,手机浏览器打开;支持上传 / 预览 / 删除,三类:壁纸 / 卡片图 / 屏保。**服务只在「导入图片」页打开时运行,退出即停;不设密码。**
+- **手机上传页**:应用内 HTTP 服务(NanoHTTPD,BSD-3-Clause),屏幕显示地址 + 二维码,手机浏览器打开;支持上传 / 预览 / 删除,三类:壁纸 / 卡片图 / 屏保。**服务只在「导入图片」页打开时运行,退出即停;不设密码。**
 - **adb 后门**:`files/library/` 固定路径原样保留,Gordon 的 `tv-sync-resources.sh` 不受影响。
 - 不做 U 盘导入(SAF 选择器在这台机上 D-pad 走不动,挂载路径各家不同)。
 - **不做备份/迁移**(Gordon 定;卸载即丢已解释)。换钥匙那次 Gordon 自己那台由我 adb 备份回灌。
@@ -86,7 +86,7 @@ UnitedU 设置   ← 行数/卡片大小/标题开关/输入源行/壁纸与主�
 - **签名**:新 release keystore。密码 Gordon 写本地文件、我只读路径;不进仓库、不进聊天。
 - **去 adb 依赖**:`RelaunchAfterUpdate` 检测 `SYSTEM_ALERT_WINDOW` appop 未授权时静默跳过;权限声明保留。
 - **文案**:全部抽到 `strings.xml`,简 / 繁 / 英三份(现在中英混写在 Kotlin 里)。
-- **发布件**:`LICENSE`(Apache-2.0)、`NOTICE`(DM Sans OFL、Material Icons Apache、NanoHTTPD、内置壁纸来源)、面向用户的 README(安装、设默认桌面、上传图片、回退)。
+- **发布件**:`LICENSE`(Apache-2.0)、`NOTICE`(DM Sans OFL、Material Icons Apache、NanoHTTPD(BSD-3)、ZXing(Apache-2.0)、内置壁纸来源)、面向用户的 README(安装、设默认桌面、上传图片、回退)。
 - **首发 v1.0.0-beta**。测试设备 = Gordon 的索尼 A95L + Android TV 模拟器(装在 Core:emulator + TV 系统镜像);README 征集其他品牌社区测试。
 - 无崩溃上报;README 教 `adb logcat`。
 

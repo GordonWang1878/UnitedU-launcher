@@ -130,3 +130,33 @@ M2 全分支终审(opus)通过(可合并/零 Critical),终审后单次修复波 
 - Task H 延后小项 → M4:HDMI-CEC 父子去重、per-input 隐藏/改名(复用修改标题);Inputs.launch 冗余 enumerate 为 polish。
 
 **M2 里程碑达成**:主题收敛 + 设置页 + 卡片三档 + 主题色 + 时钟 + 输入源行,全部实机验证,推送 github.com/GordonWang1878/UnitedU-launcher。
+
+## 2026-09-15 · M6 收官(手机上传页 + 传 APK 安装 + NOTICE 纠错)
+
+M6(Task 1–5)全部完成,子代理驱动 + 每任务评审通过,收官验收在 emulator-5558 全项命中(`pm clear` 干净安装重跑)。
+
+### 交付(spec §0)
+应用内 HTTP 服务(NanoHTTPD:壁纸/卡片图/屏保三类的传/看/删 + 传 APK 安装)+ 网页(`assets/web/index.html`,四标签、缩略图网格、上传/删除/预览,服务端注入三语文案)+ 电视端二维码页(`ImportScreen`,ZXing 生成)+ 齿轮菜单入口(「导入图片」,插在「换壁纸」之前)+ `NOTICE` 条目。
+
+### 验收结果(spec §6)
+- 不崩不留黑:坏图不落盘(`x.gif` → `rejected reason=type`)PASS;`type=icons` → 400 PASS;删除不存在的文件 → 404 PASS(`../settings.json` 经 `sanitizeUploadName` 剥离成 `settings.json`,该名字在目标目录不存在,404 而非设计原稿设想的 400——Task 2 已查实这是清洗函数既有契约下的安全行为,非 bug,详见 task-2-report)。
+- 单测:`testReleaseUnitTest` 24 项全绿、0 failure(`SettingsTest` 14 / `UploadPureTest` 9 / `RelaunchPolicyTest` 1)。
+- 模拟器:三类目录各传 1 张 + 列表核对,wallpapers 额外走完整序列(同名去重 `a.jpg`/`a-1.jpg`、gif 拒收、`/thumb` 与 `/file` 200、delete、`adb shell ls` 与 API 列表一致)全部命中;二维码页截图(`docs/screenshots/m6-import.png`,URL/二维码/计数三项清晰可读)、网页截图(`docs/screenshots/m6-web.png`,四标签、缩略图、删除按钮渲染正确)、`GET /` 注入的 `const S = {...}` 三语字符串核对、`__STRINGS__` 占位符清零;APK 三段式(gif → invalid、未授权 → needs-permission + 系统「安装未知应用」页截图、放行后 → started + 系统安装器截图)全部命中,两次跳系统页返回后服务都还活着(30 s 豁免窗生效,详见下方注记)。
+- 真机:留 Gordon(spec §6 唯一需要肉眼的一步)。
+
+### 决策
+- Gordon:手机页不做远程「设为当前壁纸」(壁纸/卡片图仍只在电视端选择器选);传 APK 安装放进 M6,不等 M7。
+- 技术选型:HTTP 服务用 **NanoHTTPD 2.3.1**(许可证是 **BSD-3-Clause**——设计文档 §5/§8 原写 Apache-2.0 系笔误,本任务已订正,`NOTICE` 按 BSD-3 的三条件写全);二维码用 **ZXing core 3.5.3**(Apache-2.0);服务寿命绑定「导入图片」页本身——端口从 8090 起顺延到 8099,HOME/`ON_STOP` 触发即关闭,但传 APK 安装期间(系统安装器 / 「允许安装未知应用」页会让 `MainActivity` 走 `ON_STOP`)有 30 s 自发起安装豁免窗,用时间戳到期自动失效,不需要任何人手动清(不是一次性布尔闩)。
+
+### 延后项
+- 真机扫码验证(Gordon,spec §6 唯一肉眼步骤)。
+- 齿轮菜单四项归并 → M7(设计 §6)。
+- 检查更新 → M7,复用本任务的 `ApkInstaller`(`install`/`archiveInfo` 已是独立、无状态的可复用入口)。
+
+### 注记
+- 目录/端口:上传落盘临时目录 `externalCacheDir/upload/`(外置卷未挂载时回落 `cacheDir/upload/`);APK 落 `cacheDir/apk/upload.apk`(FileProvider 只开放这一个子目录,见 `res/xml/file_paths.xml`);服务端口固定从 8090 尝试到 8099。
+- **NanoHTTPD 同名多文件字段命名坑**:2.3.1 把重复的 `files` multipart 字段依次存成 tempfile key `files`(第 1 个)、`files1`(第 2 个)、`files2`(第 3 个)……**不是**计划书最初假设的 `files`/`files2`/`files3`(1-based 跳号少算一位);`parameters` 里每个 key 各自持有自己那一份原始文件名,不是全部塞进一个 `files` 列表。Task 2 用 3 文件、4 文件各实测一次后,改成按 key 直接枚举(`files` 加 `files<digits>`,数字排序)而不是假设连续序号,序号中间有洞也不会把整批截断。
+- 其余计划外发现:`AndroidManifest.xml` 最初漏了 `android.permission.INTERNET`(服务器完全绑不上端口,Task 2 补上,commit 286a32d);模拟器上系统「安装未知应用」设置页是半透明浮层,不会真正触发 `MainActivity` 的 `ON_STOP`,真正验证 30 s 豁免窗要靠不透明的系统安装器确认框(Task 4 报告已记录,本任务验收沿用同一手法验证)。
+- 已知技术债(均不影响当前功能,留手):缩略图内存缓存 key 只有 `name|mtime`、没带 `type`(三个 library 目录彼此独立,实际不会撞,但契约上不够严谨);`UploadServer.start()` 在主线程跑(实测最坏约 100 ms);超限上传先落临时文件再判断大小(30 MB 封顶,极端情况多一次磁盘写);`uniqueName` 在多台手机并发上传同名文件时有 TOCTOU 窗口;网页上传 `fetch` 失败(网络错误)不会重置文件 `<input>`;网页 tab 切换有竞态——异步 `await` 完成时读的是彼时的全局 `type` 而不是发起请求那一刻的 `type`;`ApkInstaller` 极少数情况下会先报 `STARTED`(`onNotice` 已经喊了「已交给系统安装器」)、随后因异常被判成 `INVALID`,电视端文案会短暂说错。
+- **合并顺序**:M6 基于 M3 落地之前的 main 切出(`library/wallpapers` 在本分支是空的,M3 的壁纸种子没有落进来,验收时确认过这是预期状态,不是回归)。M6 → main 的合并在 M3 之后做,已知冲突点在 `MainActivity.kt`(菜单项/待机守卫附近)、`strings.xml`(追加行)、`NOTICE`,由控制器处理,本任务不动。
+- **验收方法论踩坑一则**:`adb shell appops set <pkg> REQUEST_INSTALL_PACKAGES default` 在应用进程存活期间执行会被 Android 直接杀掉该进程(logcat:`ActivityManager: Killing … REQUEST_INSTALL_PACKAGES changed`——appop 收紧才会触发这条安全策略,放宽成 `allow` 不会)。Task 4 把这一步放在 `am start` 之前,没撞上;本任务重置权限的时点晚了,撞了一次,`am start` 重新拉起后 `library/*` 三个目录的文件原样还在(未丢数据),后续同类验收改用「先重置权限、再启动 app」的顺序可以绕开。

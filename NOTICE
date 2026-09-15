@@ -14,6 +14,18 @@ This product bundles the following third-party materials:
   Copyright The Android Open Source Project
   Licensed under the Apache License, Version 2.0
 
+- NanoHTTPD (org.nanohttpd:nanohttpd:2.3.1)
+  Copyright (c) 2012-2013 by Paul S. Hawke, 2001,2005-2013 by Jarno Elonen, 2010 by Konstantinos Togias
+  Licensed under the BSD 3-Clause License — https://github.com/NanoHttpd/nanohttpd/blob/master/LICENSE.md
+  Redistribution and use in source and binary forms, with or without modification, are permitted provided
+  that the copyright notice, this list of conditions and the disclaimer in that license are retained, and
+  that neither the name of the NanoHttpd organization nor the names of its contributors are used to endorse
+  or promote products derived from this software without specific prior written permission.
+
+- ZXing core (com.google.zxing:core:3.5.3)
+  Copyright 2007 ZXing authors
+  Licensed under the Apache License, Version 2.0
+
 This product's own assets carry no third-party rights:
 
 - app/src/main/res/mipmap-xhdpi/banner.png — original "United" wordmark created for this project
