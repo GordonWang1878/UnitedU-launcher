@@ -8,7 +8,7 @@
     <string name="menu_edit">編輯桌面</string>
     <string name="menu_edit_desc">新增或移除應用程式、調整順序、換卡片圖</string>
     <string name="menu_settings">UnitedU 設定</string>
-    <string name="menu_settings_desc">行數、卡片、主題色、待機</string>
+    <string name="menu_settings_desc">卡片、主題色、時鐘、待機</string>
     <string name="menu_wallpaper">換桌布</string>
     <string name="menu_wallpaper_desc">選一張圖片取代背景</string>
     <string name="menu_screensaver">螢幕保護程式圖庫</string>

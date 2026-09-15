@@ -8,7 +8,7 @@
     <string name="menu_edit">Edit Home Screen</string>
     <string name="menu_edit_desc">Add, remove, reorder apps, or change card art</string>
     <string name="menu_settings">UnitedU Settings</string>
-    <string name="menu_settings_desc">Rows, cards, theme color, standby</string>
+    <string name="menu_settings_desc">Cards, theme color, clock, standby</string>
     <string name="menu_wallpaper">Change Wallpaper</string>
     <string name="menu_wallpaper_desc">Pick an image to replace the background</string>
     <string name="menu_screensaver">Screensaver Gallery</string>
