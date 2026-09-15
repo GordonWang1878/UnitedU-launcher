@@ -60,7 +60,7 @@
 - Modify: `Paths.kt`(加 `settingsJson(ctx)` 路径)
 
 **Interfaces:**
-- Produces: `data class Settings(...)` + `object SettingsStore { fun read(ctx): Settings; fun write(ctx, s) }`。字段先放已确定的:`rowCount:Int=3`、`cardTier:Int`(档位索引)、`showTitles:Boolean=false`、`showInputRow:Boolean=false`、`themePresetId:String`、`followWallpaperColor:Boolean=false`、`clock24hFollowSystem:Boolean=true`、`showDate:Boolean=true`、`idleAfterMs:Long`、`idleContent:Enum`。坏/缺文件回落默认并写回(照 `Layout.read` 策略,catch Throwable)。
+- Produces: `data class Settings(...)` + `object SettingsStore { fun read(ctx): Settings; fun write(ctx, s) }`。字段先放已确定的:`rowCount:Int=3`、`cardsPerRow:Int`(每行张数 5/6/8)、`showTitles:Boolean=false`、`showInputRow:Boolean=false`、`themePresetId:String`、`followWallpaperColor:Boolean=false`、`clock24hFollowSystem:Boolean=true`、`showDate:Boolean=true`、`idleAfterMs:Long`、`idleContent:Enum`。坏/缺文件回落默认并写回(照 `Layout.read` 策略,catch Throwable)。
 - 纯解析逻辑(默认值、坏 JSON 回落、字段裁剪)抽成可 JVM 单测的函数,`SettingsTest` 覆盖:缺文件→默认、坏 JSON→默认、部分字段→其余取默认、越界值(如 rowCount=9)→夹到合法范围。
 
 - [ ] Step 1–5:红→实现→绿→装模拟器确认设置无 UI 时默认行为不变→commit。(具体步骤按实施时字段最终集展开,先写测试。)
