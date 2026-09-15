@@ -75,5 +75,8 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     // followWallpaperColor:从壁纸位图提取主色(Task F)。从 google maven 镜像解析。
     implementation("androidx.palette:palette-ktx:1.0.0")
+    // M6 上传页:应用内 HTTP 服务(BSD-3-Clause)与二维码生成(Apache-2.0),都从 mavenCentral 解析。
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
+    implementation("com.google.zxing:core:3.5.3")
     testImplementation("junit:junit:4.13.2")
 }
