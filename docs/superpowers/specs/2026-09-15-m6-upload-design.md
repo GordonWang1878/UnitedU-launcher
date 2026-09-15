@@ -64,12 +64,12 @@
   - 否则 `Intent(ACTION_VIEW).setDataAndType(FileProvider.getUriForFile(ctx, "$packageName.fileprovider", file), "application/vnd.android.package-archive").addFlags(FLAG_GRANT_READ_URI_PERMISSION or FLAG_ACTIVITY_NEW_TASK)` → 系统安装器接管;返回 `STARTED`,手机端 `{"ok":true,"package":…,"version":…}`。
 - 清单:`<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>`;`<provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.fileprovider" android:exported="false" android:grantUriPermissions="true">` + `res/xml/file_paths.xml`(`<cache-path name="apk" path="apk/"/>`)。
 - 装的是别的应用时 UnitedU 自身不受影响;装的是 UnitedU 自己的新版时,现有 `RelaunchAfterUpdate` 照旧接管。
-- **与 §3 的 ON_STOP 关页规则的交互(T2 复审发现)**:系统安装器 / 「允许安装未知应用」页都是全屏 Activity,会让 `MainActivity` 走 ON_STOP;若照 §3 一律关页,服务会被杀在安装流程中间。所以导入页持有 `suppressStopUntil: Long`(epoch ms):APK 路由在主线程回调里把它设为 `now + 30_000`,ON_STOP 观察者只在 `now > suppressStopUntil` 时才 `onExit()`。用时间戳不用布尔闩(铁律 7):窗口自然过期,不需要任何人清。
+- **与 §3 的 ON_STOP 关页规则的交互(T2 复审发现)**:系统安装器 / 「允许安装未知应用」页都是全屏 Activity,会让 `MainActivity` 走 ON_STOP;若照 §3 一律关页,服务会被杀在安装流程中间。所以导入页持有 `suppressStopUntil: Long`(epoch ms):APK 路由在主线程回调里把它设为 `now + 30_000`,ON_STOP 观察者只在 `now > suppressStopUntil` 时才 `onExit()`。用时间戳不用布尔闩(铁律 7):窗口自然过期,不需要任何人清。**窗必须在 `startActivity` 之前、同一个主线程回合内设好**(否则安装器的 ON_STOP 可能抢先);**被窗压掉的 ON_STOP 要到期复查**:窗过了 Activity 仍未回到 STARTED(待机、切走)→ 关页停服务,否则无密码服务会无限期活着(T4 评审补)。
 
 ## 5. 入口、文案、声明
 
 - `MainActivity.menuItems()` 在「换壁纸」之前加「导入图片」(`menu_import` / `menu_import_desc`);归并成设计 §6 的四项留 M7。
-- strings ×3(`values` / `values-en` / `values-zh-rTW`):`menu_import`、`menu_import_desc`、`import_title`、`import_received`(`%1$d`)、`import_last`、`import_hint_back`、`import_error_no_network`、`import_error_port`、`import_apk_needs_permission`;网页用 `web_title`、`web_tab_wallpapers`、`web_tab_cards`、`web_tab_screensavers`、`web_tab_apk`、`web_upload`、`web_delete`、`web_confirm_delete`、`web_empty`、`web_uploading`、`web_done`、`web_rejected_type`、`web_rejected_size`、`web_rejected_decode`、`web_apk_hint`、`web_apk_install`、`web_apk_needs_permission`、`web_apk_invalid`。
+- strings ×3(`values` / `values-en` / `values-zh-rTW`):`menu_import`、`menu_import_desc`、`import_title`、`import_received`(`%1$d`)、`import_last`、`import_hint_back`、`import_error_no_network`、`import_error_port`、`import_apk_needs_permission`、`import_apk_started`;网页用 `web_title`、`web_tab_wallpapers`、`web_tab_cards`、`web_tab_screensavers`、`web_tab_apk`、`web_upload`、`web_delete`、`web_confirm_delete`、`web_empty`、`web_uploading`、`web_done`、`web_rejected_type`、`web_rejected_size`、`web_rejected_decode`、`web_apk_hint`、`web_apk_install`、`web_apk_needs_permission`、`web_apk_invalid`。
 - `NOTICE`:加 NanoHTTPD(BSD-3-Clause,含版权与许可全文要求的三条)与 ZXing core(Apache-2.0)。`docs/DESIGN-unitedu-open-source.md` §5、§8 的「NanoHTTPD,Apache-2.0」改为 BSD-3-Clause。
 - `app/build.gradle` 加两条依赖;仍不引 material3 / tv-material。
 
