@@ -1372,6 +1372,19 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Modify: `docs/superpowers/specs/2026-09-15-m3-wallpaper-design.md`(状态行改「已实施」)
 - Modify: `CLAUDE.md`(模拟器段落末尾加 settings.json 改值工具一句)
 
+- [ ] **Step 0: 设置页写前重读(T6 评审的根治;在合并了引擎链与 T7 的分支上做)** — `SettingsScreen.kt` 的 `update` 改成接一个变换函数,写盘前重读磁盘,只改自己那个字段;12 个 `onSelect` 调用点从 `update(s.copy(x = …))` 改成 `update { it.copy(x = …) }`:
+```kotlin
+    // 写前重读、只改自己那个字段:后台轮播(Task 6)也会写 settings.json,整对象回写会把它的
+    // wallpaperFile/rotatedAt 覆盖(壁纸来回翻)。s 仍是界面显示用的最新值。
+    fun update(transform: (Settings) -> Settings) {
+        val newS = transform(SettingsStore.read(ctx))
+        s = newS
+        val ok = SettingsStore.write(ctx, newS)
+        if (!ok) Log.w(LOG_TAG, "settings.json 写入失败,改动只留在内存里")
+    }
+```
+`SettingsStore.read` 在文件不存在/坏时会写默认值再返回——与今日 `update` 语义一致。改完 `gradle --no-daemon testReleaseUnitTest assembleRelease` 绿,模拟器进设置页改两项、退出后 `settings.json` 两项都在,提交 `fix(settings): re-read before write so background rotation writes are never clobbered`。
+
 - [ ] **Step 1: 零回归像素对比(spec §6.3 第 1 项)**
 
 原则:M2 收官 commit(`f6c5184`)与 M3 各装一次,**同一张用户壁纸、同一套 layout**,只允许时钟区域不同。
