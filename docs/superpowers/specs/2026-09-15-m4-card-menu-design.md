@@ -17,7 +17,7 @@
 
 ## 1. 长按检测与卡片菜单
 
-- **检测在 `MainActivity.dispatchKeyEvent`**(今日已在此吞掉确定键的重复事件):首页无浮层(`!editing && !settings && !menuOpen && pickerTarget == null && cardMenu == null`)且 `HomeScreen` 上报的当前焦点卡非空时,确定键 / Enter 的 `ACTION_DOWN` 且 `repeatCount == 1`(按住约 0.4 s)→ 记 `longPressDownTime = event.downTime`、置 `cardMenu = 当前焦点卡`,返回 true;**同一 `downTime` 的后续事件(含 UP)全部吞掉**——Compose `clickable` 在 UP 才触发,所以不会顺带启动应用。`repeatCount > 1` 照旧吞。
+- **检测在 `MainActivity.dispatchKeyEvent`**(今日已在此吞掉确定键的重复事件):首页无浮层(`!editing && !settings && !menuOpen && pickerTarget == null && cardMenu == null`)且 `HomeScreen` 上报的当前焦点卡非空时,确定键 / Enter 的 `ACTION_DOWN` 且 `repeatCount > 0` 且 `eventTime - downTime ≥ 600 ms`(2026-09-16 真机定 0.6 s;原稿 `repeatCount == 1` ≈ 0.4 s,Gordon 试后嫌短,且首次重复延迟随固件而异,改按时长判)→ 记 `longPressDownTime = event.downTime`、置 `cardMenu = 当前焦点卡`,返回 true;**同一 `downTime` 的后续事件(含 UP)全部吞掉**——Compose `clickable` 在 UP 才触发,所以不会顺带启动应用。`repeatCount > 1` 照旧吞。
 - **当前焦点卡**:`HomeScreen` 本来就为看门狗记着 (行索引, 列索引)(`focusedCell`);新增回调 `onFocusedCard: (CardRef?) -> Unit`,`CardRef(rowIndex, colIndex, layoutRow, kind, pkg, label)`(`rowIndex/colIndex` 是渲染坐标,`layoutRow` 是 `layout.json` 行号、输入源行为 −1)。上报值**只派生、不缓存**:永远等于 `cardAt(focusedCell)` 对当前 `rows` 的求值——焦点事件时算一次,数据重载(`loaded` 变化)时再算一次;齿轮 (−1,−1) 派生为 null。缓存一份只在焦点事件时重报会过期:卡片按位置组合(无 `key()`),移除/卸载后节点原地换卡却没有焦点事件,长按会弹出被移除那张的菜单(终审修复波次 Important #1)。`MainActivity` 用 `mutableStateOf<CardRef?>` 存。
 - **菜单 UI 复用 `GearMenu`**(齿轮菜单与编辑页条目菜单都在用它):`cardMenu != null` 时 `HomeScreen` 里叠一层 `GearMenu(items, onDismiss, nonce)`,标题为该卡显示名。**零新焦点模式**:`GearMenu` 自带焦点账本;首页看门狗与齿轮菜单打开时同一处理——`cardMenu != null` 时让路(守卫与 key 成对,铁律 6)。关闭菜单 `focusNonce++`,焦点回到那张卡(现有「记住的行/列」机制)。
 - 菜单项(顺序即设计 §2):

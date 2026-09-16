@@ -116,6 +116,16 @@ class UploadPureTest {
         assertEquals("", extensionOf("noext"))
     }
 
+    @Test fun utf8MultipartContentTypeOnlyPatchesCharsetlessMultipart() {
+        assertEquals(
+            "multipart/form-data; boundary=----WebKitFormBoundaryabc; charset=UTF-8",
+            utf8MultipartContentType("multipart/form-data; boundary=----WebKitFormBoundaryabc"),
+        )
+        assertEquals(null, utf8MultipartContentType("multipart/form-data; boundary=x; charset=utf-8"))
+        assertEquals(null, utf8MultipartContentType("application/json"))
+        assertEquals(null, utf8MultipartContentType(null))
+    }
+
     @Test fun qrMatrixRoundTripsThroughZxingReader() {
         val url = "http://192.168.1.22:8090/"
         val m = qrMatrix(url, 200)

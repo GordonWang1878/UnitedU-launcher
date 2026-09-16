@@ -157,6 +157,7 @@ class UploadServer(
     private fun serveUpload(session: IHTTPSession, type: String?): Response {
         val dir = libraryFor(type) ?: return json(Response.Status.BAD_REQUEST, jsonFail("type"))
         val files = HashMap<String, String>()
+        forceUtf8Multipart(session)
         session.parseBody(files)
         val saved = ArrayList<String>()
         val rejected = ArrayList<Pair<String, String>>()
@@ -197,8 +198,21 @@ class UploadServer(
      * `stop()` 与 ON_STOP 都发生在主线程,同一个回合里问到的「前台」与随后的 `startActivity`
      * 之间没有别的机会插进来。`isAlive` 兜的是另一头:body 刚解析完、`stop()` 已经把服务停了。
      */
+    /**
+     * 浏览器发 multipart 时 Content-Type 只有 boundary、不带 charset,NanoHTTPD 2.3.1 于是按 US-ASCII
+     * 解每个 part 的头,文件名里每个非 ASCII 字节都变成 U+FFFD——2026-09-16 A95L 真机实测:手机传中文名
+     * 图片,落盘与列表都成「���.jpg」。补救:在 [IHTTPSession.parseBody] 之前把 `charset=UTF-8` 补进
+     * 请求头([IHTTPSession.getHeaders] 返回的就是会话内部那张 map),NanoHTTPD 建 ContentType 时读到它。
+     * 判定与拼接是纯函数 [utf8MultipartContentType](单测在 `UploadPureTest`)。
+     */
+    private fun forceUtf8Multipart(session: IHTTPSession) {
+        val fixed = utf8MultipartContentType(session.headers["content-type"]) ?: return
+        (session.headers as? MutableMap<String, String>)?.put("content-type", fixed)
+    }
+
     private fun serveApk(session: IHTTPSession): Response {
         val files = HashMap<String, String>()
+        forceUtf8Multipart(session)
         session.parseBody(files)
         val tmpPath = files["apk"] ?: return json(Response.Status.BAD_REQUEST, jsonFail("invalid"))
         val tmp = File(tmpPath)

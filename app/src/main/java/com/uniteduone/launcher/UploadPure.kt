@@ -20,6 +20,17 @@ const val UPLOAD_PORT_LAST = 8099
 fun isValidType(type: String?): Boolean = type != null && type in LIBRARY_TYPES
 
 /**
+ * multipart 请求头缺 charset 时返回补上 `; charset=UTF-8` 的新值,否则 null(不用改)。
+ * NanoHTTPD 2.3.1 用这个 charset 解 part 头(文件名在里面),缺省是 US-ASCII——中文名会全变 U+FFFD。
+ */
+fun utf8MultipartContentType(contentType: String?): String? {
+    if (contentType == null) return null
+    if (!contentType.contains("multipart/form-data", ignoreCase = true)) return null
+    if (contentType.contains("charset=", ignoreCase = true)) return null
+    return "$contentType; charset=UTF-8"
+}
+
+/**
  * 上传文件名清洗:只取最后一个 / 或 \ 之后;去控制字符;trim;空、"."、".."、以 "." 开头 → null
  * (点开头会撞上 library 里的 .seeded 标记);保留中文等 Unicode;超过 100 字符截主名、保扩展名。
  */

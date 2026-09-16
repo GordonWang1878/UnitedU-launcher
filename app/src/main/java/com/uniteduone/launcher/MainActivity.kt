@@ -79,10 +79,25 @@ class MainActivity : ComponentActivity() {
     private var homeInitialTarget by mutableStateOf<Pair<Int, Int>?>(null)
     /** 长按识别:记下那次按压的 downTime,同一次按压之后的事件(含 UP)全吞——clickable 在 UP 才触发,不会顺带启动应用。 */
     private var longPressDownTime = -1L
+    private val LONG_PRESS_MS = 600L
 
-    /** 装了新应用或卸载了应用后,桌面和「添加应用」列表都要能跟上。 */
+    /**
+     * 装了新应用或卸载了应用后,桌面和「添加应用」列表都要能跟上。
+     * 真正卸载(`PACKAGE_FULLY_REMOVED`,更新不会发它)还要把包从 layout.json / titles.json 里清掉,
+     * **清完再** `revision++`——先 bump 的话编辑页按旧文件重载,僵尸卡要等下一次变动才消失。
+     */
     private val packageChanges = object : android.content.BroadcastReceiver() {
-        override fun onReceive(c: android.content.Context?, i: Intent?) { revision++ }
+        override fun onReceive(c: android.content.Context?, i: Intent?) {
+            val pkg = i?.data?.schemeSpecificPart
+            if (i?.action == Intent.ACTION_PACKAGE_FULLY_REMOVED && pkg != null) {
+                lifecycleScope.launch {
+                    withContext(Dispatchers.IO) { pruneUninstalled(this@MainActivity, pkg) }
+                    revision++
+                }
+                return
+            }
+            revision++
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -93,6 +108,7 @@ class MainActivity : ComponentActivity() {
             android.content.IntentFilter().apply {
                 addAction(Intent.ACTION_PACKAGE_ADDED)
                 addAction(Intent.ACTION_PACKAGE_REMOVED)
+                addAction(Intent.ACTION_PACKAGE_FULLY_REMOVED)
                 addAction(Intent.ACTION_PACKAGE_CHANGED)
                 addDataScheme("package")
             },
@@ -326,9 +342,14 @@ class MainActivity : ComponentActivity() {
                 if (event.action == KeyEvent.ACTION_UP) longPressDownTime = -1L
                 return true
             }
-            // 长按 = 同一次按压的第一个重复事件(约 0.4 s)。只在首页无任何浮层时识别。
+            // 长按 = 同一次按压持续满 LONG_PRESS_MS 后的第一个重复事件。只在首页无任何浮层时识别。
+            // 不再用 `repeatCount == 1`(≈0.4 s):首次重复延迟与重复频率都由固件定,按时长判才跨设备一致;
+            // Gordon 2026-09-16 A95L 真机试过 0.4 s 后定为 0.6 s。未满时长的重复事件走下面的「照吞」分支,
+            // 松手仍是一次普通点击。
             val homeBare = !editing && !settings && !menuOpen && pickerTarget == null && cardMenu == null && renameTarget == null
-            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 1 && homeBare) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount > 0 && homeBare
+                && event.eventTime - event.downTime >= LONG_PRESS_MS
+            ) {
                 val ref = focusedCard
                 if (ref != null) {
                     // **只要站在卡片上,长按就整下吞掉**(design §1:输入源卡「按压照常吞掉、不启动」)。

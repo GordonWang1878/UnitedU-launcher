@@ -54,6 +54,17 @@
             </intent-filter>
         </receiver>
 
+        <!-- 应用被真正卸载后把它从 layout.json / titles.json 清掉;桌面进程不在时也要收得到,
+             PACKAGE_FULLY_REMOVED 在隐式广播白名单里。系统广播,exported 必须为 true。 -->
+        <receiver
+            android:name=".PackageRemovedReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PACKAGE_FULLY_REMOVED" />
+                <data android:scheme="package" />
+            </intent-filter>
+        </receiver>
+
         <!-- 把 cacheDir/apk/ 里的 APK 以 content:// 交给系统安装器(file:// 自 API 24 起不允许) -->
         <provider
             android:name="androidx.core.content.FileProvider"

@@ -69,6 +69,27 @@ object Layout {
     }
 
     /**
+     * 纯函数:把一个包从所有行里去掉。一行都没命中时返回**同一个** list(调用方用 `!==` 判断要不要写盘)。
+     * 行名、行序、其余包的顺序都不动;整行空了也保留(空行只是没有卡片,不是损坏——`read` 只把「零行」当损坏)。
+     */
+    fun withoutPackage(rows: List<Pair<String, List<String>>>, pkg: String): List<Pair<String, List<String>>> {
+        if (rows.none { pkg in it.second }) return rows
+        return rows.map { r -> if (pkg in r.second) r.first to r.second.filter { it != pkg } else r }
+    }
+
+    /**
+     * 应用被**真正卸载**(`PACKAGE_FULLY_REMOVED`)后从所有行移除;不在任何行 → false,不写盘。
+     * 只在卸载事件上调,**绝不在读取时按「未安装」清理**:默认布局里的包可能还没装(装上就该自动出现),
+     * 应用更新过程中包也会短暂"不存在"。2026-09-16 A95L 真机:从长按菜单卸载后首页卡片消失,
+     * 编辑页原位却留着一张「未安装 com.dangbei.dbmusic.sonyos.tab」的僵尸卡——就是缺这一步。
+     */
+    fun removePackage(ctx: Context, pkg: String): Boolean {
+        val rows = read(ctx)
+        val next = withoutPackage(rows, pkg)
+        return next !== rows && write(ctx, next)
+    }
+
+    /**
      * 先写临时文件再改名:直接 writeText 会先截断,断电或进程被杀就留下半截文件。
      * @return 是否真的落盘了。**调用方必须告诉用户失败**——只 Log 的话,界面上顺序已经变了,
      *   重启后又变回原样,用户只会觉得「我排的顺序总是丢」。
