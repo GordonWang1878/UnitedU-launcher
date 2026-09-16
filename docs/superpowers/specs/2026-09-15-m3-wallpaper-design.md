@@ -10,7 +10,7 @@
 |---|---|---|
 | 内置 6 张壁纸来源 | **程序生成抽象图**(1 中性暗底 + 5 同系变体) | 零版权、每张 ~50 KB、我全程可做、与「沉稳」主题一致 |
 | 主题化管线参数 | **我定默认,Gordon 真机用滑块调**,调完把满意值改成默认 | 电脑管线数值在 Hub(SSH 不通);滑块让默认值不再关键 |
-| 模糊/压暗控件 | **真滑块条**:左右键每步 10%,0–100% 共 11 档,带进度条 | 忠于设计 §3「两个滑块」;分段档位调不细 |
+| 模糊/亮度控件 | **真滑块条**:左右键每步 10%,模糊 0–100% 共 11 档;亮度 −50…+50% 共 11 档(0 居中 = 原片,负压暗、正提亮;2026-09-16 Gordon 真机后把「压暗 0–100」改成双向亮度),带进度条 | 忠于设计 §3「两个滑块」;分段档位调不细 |
 
 **做**:壁纸轮播(关/5 分/30 分/每天)、主题化壁纸开关、模糊/压暗滑块、CPU 离线处理 + 缓存、内置 6 张生成壁纸、替换 M1 金色默认底为中性暗底、设置页新增「壁纸」分组。
 **不做**(带去向):齿轮菜单四项归并(M7)、上传页删图(M6)、DreamService(M5)、恢复默认(M7)、壁纸 Ken Burns(不做)、取色器(v1 排除)。
@@ -81,7 +81,7 @@ LaunchedEffect(homeSettings.wallpaperRotateMs, homeSettings.wallpaperRotatedAt, 
 ## 3. 处理管线与缓存(`Wallpapers.process`,IO 线程)
 
 ### 3.1 顺序与数学
-设计 §3:开 = 去色 → 染主题色 → 模糊 → 压暗;关 = 原图 + 模糊、压暗。三步颜色运算合成**一个 ColorMatrix**(纯函数 `wallpaperColorMatrix(themed, accentRgb, dim): FloatArray(20)`,可单测):
+设计 §3:开 = 去色 → 染主题色 → 模糊 → 亮度;关 = 原图 + 模糊、亮度(亮度 = 整体乘 1 + b/100,b ∈ [−50, 50])。三步颜色运算合成**一个 ColorMatrix**(纯函数 `wallpaperColorMatrix(themed, accentRgb, brightness): FloatArray(20)`,可单测):
 
 ```
 M = Scale(1 - dim/100) × [themed ? Tint(accent) × Saturation(0) : I]
@@ -114,7 +114,7 @@ Tint(accent):diag(a.r, a.g, a.b, 1)  —— 即「黑 → 主题色」的渐变�
 | 轮播间隔 | SEGMENTED | 关 / 5 分 / 30 分 / 每天(`VALID_WALLPAPER_ROTATE_MS` 顺序) |
 | 主题化壁纸 | TOGGLE | 关 / 开 |
 | 模糊 | **SLIDER** | 0–100,步 10 |
-| 压暗 | **SLIDER** | 0–100,步 10 |
+| 亮度 | **SLIDER** | −50…+50,步 10;旧 `wallpaperDim` 读入时换算成 −min(dim,50) |
 
 ### 4.2 SLIDER 控件
 - 数据上就是 `count = 11` 的 `Ctrl`,复用 `SettingRow.step(±1)` 与「左右键全消费、焦点不横移」的既有语义,**不引入新的焦点行为**;行高仍 `H_CTRL`,位移账本不变。
@@ -123,7 +123,7 @@ Tint(accent):diag(a.r, a.g, a.b, 1)  —— 即「黑 → 主题色」的渐变�
 
 ### 4.3 实时预览(没有它,真机调参是盲调)
 - 设置页浮层今日是不透明 `Theme.EditScreenBackground`。**焦点落在壁纸分组四行之一时**,浮层背景动画到 `Theme.SettingsPreviewScrim`(黑 0.35 alpha),壁纸从 640dp 内容列两侧与底下透出;离开该分组恢复不透明。
-- `SettingsScreen` 新增参数 `onWallpaperParamsChanged: () -> Unit`;主题化/模糊/压暗任一改动后 **300 ms 防抖**再调用;`MainActivity` 实现为 `settingsRevision++`(重读 settings → spec 变 → 重处理 → Crossfade)。防抖用「上次通知过的值」比对,不用一次性布尔闩(铁律 7)。
+- `SettingsScreen` 新增参数 `onWallpaperParamsChanged: () -> Unit`;主题化/模糊/亮度任一改动后 **300 ms 防抖**再调用;`MainActivity` 实现为 `settingsRevision++`(重读 settings → spec 变 → 重处理 → Crossfade)。防抖用「上次通知过的值」比对,不用一次性布尔闩(铁律 7)。
 - 轮播间隔改动不触发实时预览(无可视效果),照旧 `leaveSettings()` 时生效。
 
 ## 5. 内置壁纸与默认底

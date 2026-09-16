@@ -21,11 +21,12 @@ data class WallpaperSpec(
     val themed: Boolean,
     val accentRgb: Int,
     val blur: Int,
-    val dim: Int,
+    /** −50…+50:负压暗、正提亮、0 原片。 */
+    val brightness: Int,
     val followColor: Boolean = false,
 ) {
     /** 参数全零:完全绕开管线,走原图 + F16 解码(零回归路径)。 */
-    val isIdentity: Boolean get() = !themed && blur == 0 && dim == 0
+    val isIdentity: Boolean get() = !themed && blur == 0 && brightness == 0
 }
 
 fun wallpaperSpecOf(s: Settings, accentRgb: Int): WallpaperSpec = WallpaperSpec(
@@ -34,7 +35,7 @@ fun wallpaperSpecOf(s: Settings, accentRgb: Int): WallpaperSpec = WallpaperSpec(
     // 跟随壁纸主色时这里留 0:真正的主色由 load 取 Palette 得到(见 [WallpaperSpec.followColor])。
     accentRgb = if (s.wallpaperThemed && !s.followWallpaperColor) accentRgb and 0xFFFFFF else 0,
     blur = s.wallpaperBlur,
-    dim = s.wallpaperDim,
+    brightness = s.wallpaperBrightness,
     followColor = s.wallpaperThemed && s.followWallpaperColor,
 )
 
@@ -60,13 +61,13 @@ fun blurTargetWidth(blur: Int, fullWidth: Int = 1920): Int {
 }
 
 /**
- * 去色 → 染主题色 → 压暗 三步合成一个 4×5 ColorMatrix(android.graphics.ColorMatrix 行主序)。
+ * 去色 → 染主题色 → 亮度 三步合成一个 4×5 ColorMatrix(android.graphics.ColorMatrix 行主序)。
  * 去色用 Rec.709 亮度权重 (0.213, 0.715, 0.072),与 `ColorMatrix.setSaturation(0)` 同值;
- * 染色 = 各通道乘主题色分量(黑→主题色的渐变映射,与金雾底同一手法);压暗 = 整体乘 (1 - dim)。
- * 不主题化时只剩压暗(对角阵)。
+ * 染色 = 各通道乘主题色分量(黑→主题色的渐变映射,与金雾底同一手法);亮度 = 整体乘 (1 + brightness/100):
+ * −50 → ×0.5 压暗,+50 → ×1.5 提亮(超过白的分量由 ColorMatrix 应用时截断到 255)。不主题化时只剩这一项(对角阵)。
  */
-fun wallpaperColorMatrix(themed: Boolean, accentRgb: Int, dim: Int): FloatArray {
-    val k = 1f - dim.coerceIn(0, 100) / 100f
+fun wallpaperColorMatrix(themed: Boolean, accentRgb: Int, brightness: Int): FloatArray {
+    val k = 1f + brightness.coerceIn(-50, 50) / 100f
     if (!themed) {
         return floatArrayOf(
             k, 0f, 0f, 0f, 0f,
@@ -92,9 +93,10 @@ fun wallpaperColorMatrix(themed: Boolean, accentRgb: Int, dim: Int): FloatArray 
 /** 缓存文件名:源文件身份(路径 + mtime + 大小)+ 全部参数 + 算法版本号,任一变则键变。 */
 fun wallpaperCacheKey(
     path: String, mtime: Long, size: Long,
-    themed: Boolean, accentRgb: Int, blur: Int, dim: Int,
+    themed: Boolean, accentRgb: Int, blur: Int, brightness: Int,
 ): String {
-    val raw = "$path|$mtime|$size|$themed|${Integer.toHexString(accentRgb)}|$blur|$dim|v1"
+    // v2:第 7 段从「压暗 0–100」改成「亮度 −50…+50」,同一个数字含义相反,版本号必须变,否则旧缓存被错配。
+    val raw = "$path|$mtime|$size|$themed|${Integer.toHexString(accentRgb)}|$blur|$brightness|v2"
     val digest = MessageDigest.getInstance("SHA-1").digest(raw.toByteArray())
     return digest.joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
 }

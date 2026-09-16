@@ -76,6 +76,7 @@ private class Ctrl(
     val count: Int,              // 选项个数(SWATCH = 预设数)
     val selected: Int,
     val onSelect: (Int) -> Unit,
+    val zeroAt: Int = 0,         // SLIDER:代表 0 的档位下标(双向滑块居中为 5),填充段从它画到当前档
 )
 
 /** 纵向布局的一格:标题 / 分组标题(不可聚焦)/ 控件(可聚焦,ctrlIndex 指向 controls)。 */
@@ -120,7 +121,7 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0, onWallpaperParamsCha
     // 主题化/模糊/压暗改动后 300ms 防抖通知首页重读(实时预览)。轮播间隔无可视效果,不通知。
     // 用「上次通知过的值」比对,不用一次性布尔闩(铁律 7):首次组合两者相等不发;
     // 改回原值也会再发一次(与上次通知值不同),预览不会卡在旧参数上。
-    val previewKey = Triple(s.wallpaperThemed, s.wallpaperBlur, s.wallpaperDim)
+    val previewKey = Triple(s.wallpaperThemed, s.wallpaperBlur, s.wallpaperBrightness)
     var lastNotified by remember { mutableStateOf(previewKey) }
     LaunchedEffect(previewKey) {
         if (previewKey == lastNotified) return@LaunchedEffect
@@ -186,11 +187,12 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0, onWallpaperParamsCha
             options = emptyList(), count = 11,
             selected = s.wallpaperBlur / 10,
             onSelect = { i -> update { it.copy(wallpaperBlur = i * 10) } }),
-        // 6 压暗 0–100 步 10
-        Ctrl(R.string.settings_wallpaper_dim, CtrlKind.SLIDER,
+        // 6 亮度 −50…+50 步 10(11 档双向滑块,档位 5 = 0 = 原片;2026-09-16 取代 0–100 压暗)
+        Ctrl(R.string.settings_wallpaper_brightness, CtrlKind.SLIDER,
             options = emptyList(), count = 11,
-            selected = s.wallpaperDim / 10,
-            onSelect = { i -> update { it.copy(wallpaperDim = i * 10) } }),
+            selected = (s.wallpaperBrightness + 50) / 10,
+            onSelect = { i -> update { it.copy(wallpaperBrightness = i * 10 - 50) } },
+            zeroAt = 5),
         // 7 主题色 swatch
         Ctrl(R.string.settings_theme_color, CtrlKind.SWATCH,
             options = emptyList(), count = ThemePresets.all.size,
@@ -457,7 +459,7 @@ private fun SettingRow(
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                 when (ctrl.kind) {
                     CtrlKind.SWATCH -> SwatchControl(selected = ctrl.selected, rowFocused = focused)
-                    CtrlKind.SLIDER -> SliderControl(selected = ctrl.selected, count = ctrl.count, rowFocused = focused)
+                    CtrlKind.SLIDER -> SliderControl(selected = ctrl.selected, count = ctrl.count, rowFocused = focused, zeroAt = ctrl.zeroAt)
                     else -> SegmentedControl(
                         options = ctrl.options, selected = ctrl.selected, rowFocused = focused,
                     )
@@ -529,28 +531,44 @@ private fun SwatchControl(selected: Int, rowFocused: Boolean) {
     }
 }
 
-/** 滑块:11 档(0–100 步 10)。轨道 + 已填充段 + 百分比;行聚焦时填充段亮香槟,与分段控件选中态同色。 */
+/**
+ * 滑块:11 档,每档 10%。轨道 + 已填充段 + 百分比;行聚焦时填充段亮香槟,与分段控件选中态同色。
+ * [zeroAt] = 代表 0 的档位:单向滑块为 0(填充从左端起),双向亮度滑块为 5(填充从正中画到当前档,
+ * 文字带正负号,0 档显示 0%)。
+ */
 @Composable
-private fun SliderControl(selected: Int, count: Int, rowFocused: Boolean) {
-    val fraction = if (count <= 1) 0f else selected.toFloat() / (count - 1)
-    val percent = Math.round(fraction * 100)
+private fun SliderControl(selected: Int, count: Int, rowFocused: Boolean, zeroAt: Int = 0) {
+    val trackWidth = 220.dp
+    fun at(i: Int) = if (count <= 1) 0f else i.toFloat() / (count - 1)
+    val value = (selected - zeroAt) * 10
+    val lo = minOf(at(selected), at(zeroAt))
+    val hi = maxOf(at(selected), at(zeroAt))
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(
             Modifier
-                .width(220.dp)
+                .width(trackWidth)
                 .height(8.dp)
                 .clip(RoundedCornerShape(4.dp))
                 .background(Theme.UnfocusedSurface),
         ) {
             Box(
                 Modifier
+                    .padding(start = trackWidth * lo)
                     .fillMaxHeight()
-                    .fillMaxWidth(fraction)
+                    .width(trackWidth * (hi - lo))
                     .background(if (rowFocused) Theme.Champagne else Theme.Champagne.copy(alpha = 0.22f)),
+            )
+            // 双向滑块的零点刻度:细竖线,让人一眼看出中点就是原片
+            if (zeroAt > 0) Box(
+                Modifier
+                    .padding(start = trackWidth * at(zeroAt) - 1.dp)
+                    .fillMaxHeight()
+                    .width(2.dp)
+                    .background(Theme.EmphasisText.copy(alpha = 0.55f)),
             )
         }
         BasicText(
-            text = "$percent%",
+            text = if (zeroAt > 0 && value > 0) "+$value%" else "$value%",
             style = TextStyle(
                 fontFamily = Theme.Sans,
                 color = if (rowFocused) Theme.EmphasisText else Theme.SecondaryText,

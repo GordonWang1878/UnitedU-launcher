@@ -337,3 +337,11 @@ spec 状态行已改为「已实施(commit `8cc5134`),待真机验」(T6 时为 
 - **T9 收口**:Gordon 定默认 = 原片(模糊 0%、压暗 0%)——就是现有默认值,不改代码。追问「能不能提亮」→ 设计取舍待定(见下一节)。
 - **M4 真机全过**;长按时长从「第一个重复事件(≈0.4 s)」改为**按时长判 ≥ 600 ms**(`LONG_PRESS_MS`):首次重复延迟与重复频率由固件定,按时长跨设备一致;未满时长松手仍是普通点击。模拟器验证法:`settings put secure long_press_timeout 700` 后 `input keyevent --longpress`(该命令只注入一次 repeatCount=1、eventTime=downTime+long_press_timeout 的重复事件,默认 500 ms 不到阈值、不出菜单——正好证明阈值生效)。
 - **僵尸卡(Gordon 真机发现)**:从长按菜单卸载应用后首页卡片消失(`buildRows` 过滤未安装包),但「编辑桌面」原位留着一张暗红「未安装 com.dangbei.dbmusic.sonyos.tab」——`layout.json` 从没被清理,编辑页按 `Layout.read` 原样画。修法:**只在真正卸载事件上清**(`PACKAGE_FULLY_REMOVED`,更新不发它):`Layout.withoutPackage`(纯函数,`LayoutTest`)→ `Layout.removePackage` + 顺手删 `titles.json` 里的自定义标题(`pruneUninstalled`);桌面活着时 `MainActivity` 的动态接收器**清完再** `revision++`(先 bump 编辑页会按旧文件重载),桌面进程不在时清单注册的 `PackageRemovedReceiver`(该广播在隐式广播白名单里)起进程落盘。**绝不按「未安装」在读取时清理**:默认布局里没装的包装上就该自动出现,更新过程中包也会短暂不存在。模拟器验证:桌面运行中 `pm uninstall --user 0 YouTube` → layout 里没了;桌面退到后台被 `am kill` 后再卸载 → `ActivityManager: Start proc … for broadcast …PackageRemovedReceiver`,同样清掉。**验证方法论**:`am force-stop` 之后的应用处于 stopped 状态,系统**不给它发任何隐式广播**,用它模拟「进程不在」会得出假阴性——要用 HOME 退后台 + `am kill`。Gordon 电视上已有的那条僵尸记录用 pull/改/push `layout.json` 手工清掉(A95L 的 shell 能读写 `/sdcard/Android/data/<pkg>/`)。
+
+## 2026-09-16 · 「压暗」改「亮度」双向滑块(Gordon 真机调参后的追问:能提亮吗)
+
+- 决策(Gordon,三选一):**一根「亮度」滑块 −50…+50%,10% 一档,0 居中 = 原片**(不做 ±100/20% 档,也不另加一根提亮滑块)。默认 0/0 = 原片就是他定的 T9 默认值,代码默认未动。
+- 机制:压暗本来就是 RGB 整体乘 (1 − dim);提亮是同一个乘法系数 >1,超白由 `ColorMatrix` 应用时截断——同一条管线、同一个矩阵(`wallpaperColorMatrix(themed, accentRgb, brightness)`,k = 1 + b/100)。
+- 存储:`Settings.wallpaperBrightness`(−50…50 步 10)取代 `wallpaperDim`;旧文件只有 `wallpaperDim` 时读入换算成 −min(dim, 50),两键并存以新键为准,写盘只写新键(`SettingsTest.legacyWallpaperDimMigratesToNegativeBrightness`)。缓存键版本 v1 → **v2**:第 7 段数字含义反了(50 压暗 vs +50 提亮),不升版旧缓存会被错配。
+- 设置页:控件 6 变双向滑块(`Ctrl.zeroAt = 5`):填充段从正中画到当前档、中点一道刻度、文字带正负号;控件下标不变,焦点账本不动。
+- 文档:DESIGN §主题化壁纸开关、M3 spec(决策表 / §3 / 控件表 / 防抖)同步改。

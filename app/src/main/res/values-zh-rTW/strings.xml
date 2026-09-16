@@ -127,7 +127,7 @@
     <string name="settings_rotate_daily">每天</string>
     <string name="settings_wallpaper_themed">主題化桌布</string>
     <string name="settings_wallpaper_blur">模糊</string>
-    <string name="settings_wallpaper_dim">壓暗</string>
+    <string name="settings_wallpaper_brightness">亮度</string>
     <string name="settings_card_size">卡片大小</string>
     <string name="settings_card_large">大</string>
     <string name="settings_card_medium">中</string>

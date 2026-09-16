@@ -129,7 +129,7 @@ class SettingsTest {
         assertEquals(0L, s.wallpaperRotatedAt)
         assertFalse(s.wallpaperThemed)
         assertEquals(0, s.wallpaperBlur)
-        assertEquals(0, s.wallpaperDim)
+        assertEquals(0, s.wallpaperBrightness)
     }
 
     @Test fun wallpaperFileRejectsPathEscapes() {
@@ -160,8 +160,21 @@ class SettingsTest {
         assertEquals(100, parseSettings("""{"wallpaperBlur": 250}""").wallpaperBlur)
         assertEquals(50, parseSettings("""{"wallpaperBlur": 54}""").wallpaperBlur)
         assertEquals(60, parseSettings("""{"wallpaperBlur": 55}""").wallpaperBlur)
-        assertEquals(100, parseSettings("""{"wallpaperDim": 96}""").wallpaperDim)
-        assertEquals(0, parseSettings("""{"wallpaperDim": "x"}""").wallpaperDim)
+        assertEquals(50, parseSettings("""{"wallpaperBrightness": 96}""").wallpaperBrightness)
+        assertEquals(-50, parseSettings("""{"wallpaperBrightness": -70}""").wallpaperBrightness)
+        assertEquals(-20, parseSettings("""{"wallpaperBrightness": -24}""").wallpaperBrightness)
+        assertEquals(30, parseSettings("""{"wallpaperBrightness": 25}""").wallpaperBrightness)
+        assertEquals(0, parseSettings("""{"wallpaperBrightness": "x"}""").wallpaperBrightness)
+    }
+
+    @Test fun legacyWallpaperDimMigratesToNegativeBrightness() {
+        // M3 的 settings.json 只有 wallpaperDim(0–100 压暗);升级后换算成负亮度,超过 50 的压暗夹到 −50
+        assertEquals(-30, parseSettings("""{"wallpaperDim": 30}""").wallpaperBrightness)
+        assertEquals(-50, parseSettings("""{"wallpaperDim": 70}""").wallpaperBrightness)
+        assertEquals(0, parseSettings("""{"wallpaperDim": 0}""").wallpaperBrightness)
+        // 两个键都在:新键为准
+        assertEquals(20, parseSettings("""{"wallpaperDim": 70, "wallpaperBrightness": 20}""").wallpaperBrightness)
+        assertFalse(Settings(wallpaperBrightness = -10).toJson().contains("wallpaperDim"))
     }
 
     @Test fun wallpaperFieldsRoundTrip() {
@@ -171,7 +184,7 @@ class SettingsTest {
             wallpaperRotatedAt = 1_700_000_000_000L,
             wallpaperThemed = true,
             wallpaperBlur = 30,
-            wallpaperDim = 70,
+            wallpaperBrightness = -30,
         )
         assertEquals(s, parseSettings(s.toJson()))
     }

@@ -46,27 +46,32 @@ class WallpaperMathTest {
             0f, 0f, 1f, 0f, 0f,
             0f, 0f, 0f, 1f, 0f,
         )
-        assertArrayEquals(identity, wallpaperColorMatrix(themed = false, accentRgb = 0, dim = 0), 1e-6f)
+        assertArrayEquals(identity, wallpaperColorMatrix(themed = false, accentRgb = 0, brightness = 0), 1e-6f)
     }
 
-    @Test fun colorMatrixDimScalesRgbDiagonalOnly() {
-        val m = wallpaperColorMatrix(themed = false, accentRgb = 0, dim = 50)
+    @Test fun colorMatrixBrightnessScalesRgbDiagonalOnly() {
+        val m = wallpaperColorMatrix(themed = false, accentRgb = 0, brightness = -50)
         assertEquals(0.5f, m[0], 1e-6f)
         assertEquals(0.5f, m[6], 1e-6f)
         assertEquals(0.5f, m[12], 1e-6f)
         assertEquals(1f, m[18], 1e-6f)   // alpha 不动
+        val up = wallpaperColorMatrix(themed = false, accentRgb = 0, brightness = 50)
+        assertEquals(1.5f, up[0], 1e-6f)
+        assertEquals(1.5f, up[12], 1e-6f)
+        assertEquals(1f, up[18], 1e-6f)
+        assertEquals(1.5f, wallpaperColorMatrix(themed = false, accentRgb = 0, brightness = 90)[0], 1e-6f)   // 夹到 +50
     }
 
     @Test fun colorMatrixThemedMapsWhiteToAccent() {
         // 白 (1,1,1) 经去色 = 亮度 1,再染色 → 恰好等于主题色
-        val m = wallpaperColorMatrix(themed = true, accentRgb = 0xC0A73A, dim = 0)
+        val m = wallpaperColorMatrix(themed = true, accentRgb = 0xC0A73A, brightness = 0)
         assertEquals(0xC0 / 255f, m[0] + m[1] + m[2], 1e-4f)
         assertEquals(0xA7 / 255f, m[5] + m[6] + m[7], 1e-4f)
         assertEquals(0x3A / 255f, m[10] + m[11] + m[12], 1e-4f)
     }
 
     @Test fun colorMatrixThemedUsesRec709LumaLikeAndroidSetSaturation() {
-        val m = wallpaperColorMatrix(themed = true, accentRgb = 0xFFFFFF, dim = 0)
+        val m = wallpaperColorMatrix(themed = true, accentRgb = 0xFFFFFF, brightness = 0)
         assertEquals(0.213f, m[0], 1e-6f)
         assertEquals(0.715f, m[1], 1e-6f)
         assertEquals(0.072f, m[2], 1e-6f)
@@ -84,6 +89,7 @@ class WallpaperMathTest {
             wallpaperCacheKey("/a.jpg", 1L, 2L, true, 0xC0A73A, 0, 0),
             wallpaperCacheKey("/a.jpg", 1L, 2L, false, 0, 10, 0),
             wallpaperCacheKey("/a.jpg", 1L, 2L, false, 0, 0, 10),
+            wallpaperCacheKey("/a.jpg", 1L, 2L, false, 0, 0, -10),
         )
         for (k in variants) assertNotEquals(base, k)
     }

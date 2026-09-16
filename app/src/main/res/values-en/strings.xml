@@ -127,7 +127,7 @@
     <string name="settings_rotate_daily">Daily</string>
     <string name="settings_wallpaper_themed">Themed Wallpaper</string>
     <string name="settings_wallpaper_blur">Blur</string>
-    <string name="settings_wallpaper_dim">Dim</string>
+    <string name="settings_wallpaper_brightness">Brightness</string>
     <string name="settings_card_size">Card Size</string>
     <string name="settings_card_large">Large</string>
     <string name="settings_card_medium">Medium</string>

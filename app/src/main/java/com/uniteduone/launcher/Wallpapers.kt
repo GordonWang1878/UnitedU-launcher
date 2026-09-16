@@ -176,7 +176,7 @@ object Wallpapers {
     fun processed(ctx: Context, src: File, spec: WallpaperSpec): Bitmap? {
         val key = wallpaperCacheKey(
             src.absolutePath, src.lastModified(), src.length(),
-            spec.themed, spec.accentRgb, spec.blur, spec.dim,
+            spec.themed, spec.accentRgb, spec.blur, spec.brightness,
         )
         val dir = Paths.wallpaperCacheDir(ctx)
         val cached = File(dir, "$key.jpg")
@@ -195,7 +195,7 @@ object Wallpapers {
             .getOrNull() ?: return null
         // 日志放在 writeCache 之后:压缩 + fsync + 清理也在这条阻塞路径上,漏掉就低估了真实耗时。
         writeCache(dir, cached, bmp)
-        Log.i(TAG, "壁纸处理 ${src.name} blur=${spec.blur} dim=${spec.dim} themed=${spec.themed} 用时 ${System.currentTimeMillis() - t0}ms")
+        Log.i(TAG, "壁纸处理 ${src.name} blur=${spec.blur} brightness=${spec.brightness} themed=${spec.themed} 用时 ${System.currentTimeMillis() - t0}ms")
         return bmp
     }
 
@@ -208,7 +208,7 @@ object Wallpapers {
         val decoded = Apps.decodeScaled(src.absolutePath, OUT_W, OUT_H)
         if (decoded == null) { Log.w(TAG, "壁纸源图解不出来 ${src.name}"); return null }
         val targetW = blurTargetWidth(spec.blur, OUT_W)
-        val matrix = wallpaperColorMatrix(spec.themed, spec.accentRgb, spec.dim)
+        val matrix = wallpaperColorMatrix(spec.themed, spec.accentRgb, spec.brightness)
         // blur=0:裁剪 + 缩放 + 上色一次 draw 完事,decoded 之外只多分配这一张 1920×1080。
         if (targetW >= OUT_W) return cropScale(decoded, OUT_W, OUT_H, matrix)
         val full = cropScale(decoded, OUT_W, OUT_H, null)

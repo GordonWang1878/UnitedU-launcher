@@ -38,8 +38,8 @@ data class Settings(
     val wallpaperThemed: Boolean = false,
     /** 模糊 0–100,步 10。 */
     val wallpaperBlur: Int = 0,
-    /** 压暗 0–100,步 10。 */
-    val wallpaperDim: Int = 0,
+    /** 亮度 −50…+50,步 10:0 = 原片,负 = 压暗,正 = 提亮(2026-09-16 Gordon 定,取代原 0–100「压暗」)。 */
+    val wallpaperBrightness: Int = 0,
     /** 上次打开「添加应用」列表的时刻(epoch ms);firstInstallTime 晚于它的应用算「新」。0 = 未初始化(首启时写成当时)。 */
     val newAppsSeenAt: Long = 0L,
 )
@@ -59,6 +59,10 @@ private fun clampPercentStep10(v: Int?, default: Int): Int =
     if (v == null) default else ((v.coerceIn(0, 100) + 5) / 10) * 10
 
 private fun clampEpoch(v: Long?): Long = (v ?: 0L).coerceAtLeast(0L)
+
+/** −50..50 夹取后四舍五入到 10 的倍数(双向滑块 11 档);解析不出 → 默认。 */
+private fun clampBrightnessStep10(v: Int?, default: Int): Int =
+    if (v == null) default else Math.round(v.coerceIn(-50, 50) / 10f) * 10
 
 /**
  * 壁纸文件名只能指向 library/wallpapers/ 里的一个条目:含路径分隔符或 `..` 的一律当没写。
@@ -136,7 +140,11 @@ fun parseSettings(json: String): Settings {
             wallpaperRotatedAt = clampEpoch(extractLong(json, "wallpaperRotatedAt")),
             wallpaperThemed = extractBoolean(json, "wallpaperThemed") ?: d.wallpaperThemed,
             wallpaperBlur = clampPercentStep10(extractInt(json, "wallpaperBlur"), d.wallpaperBlur),
-            wallpaperDim = clampPercentStep10(extractInt(json, "wallpaperDim"), d.wallpaperDim),
+            // 旧文件只有 wallpaperDim(0–100 压暗)时换算成负亮度(超过 50 的压暗夹到 −50);新键在场以新键为准。
+            wallpaperBrightness = clampBrightnessStep10(
+                extractInt(json, "wallpaperBrightness") ?: extractInt(json, "wallpaperDim")?.let { -it },
+                d.wallpaperBrightness,
+            ),
             newAppsSeenAt = clampEpoch(extractLong(json, "newAppsSeenAt")),
         )
     } catch (e: Throwable) {
@@ -166,7 +174,7 @@ fun Settings.toJson(): String {
         append("  \"wallpaperRotatedAt\": $wallpaperRotatedAt,\n")
         append("  \"wallpaperThemed\": $wallpaperThemed,\n")
         append("  \"wallpaperBlur\": $wallpaperBlur,\n")
-        append("  \"wallpaperDim\": $wallpaperDim,\n")
+        append("  \"wallpaperBrightness\": $wallpaperBrightness,\n")
         append("  \"newAppsSeenAt\": $newAppsSeenAt\n")
         append("}\n")
     }
