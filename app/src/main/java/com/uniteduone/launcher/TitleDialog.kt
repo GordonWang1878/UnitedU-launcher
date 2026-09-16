@@ -56,6 +56,7 @@ fun TitleDialog(ref: CardRef, current: String, onSave: (String) -> Unit, onCance
     val fr = remember { FocusRequester() }
     var focused by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
+    val highlight = LocalThemeColors.current.highlight   // 标题、光标、聚焦底色都跟主题 highlight
     androidx.activity.compose.BackHandler { onCancel() }
     LaunchedEffect(nonce, focused) {
         if (focused) { keyboard?.show(); return@LaunchedEffect }
@@ -75,7 +76,7 @@ fun TitleDialog(ref: CardRef, current: String, onSave: (String) -> Unit, onCance
         ) {
             BasicText(
                 text = stringResource(R.string.title_dialog_title),
-                style = TextStyle(fontFamily = Theme.Sans, fontWeight = FontWeight.Medium, color = Theme.Champagne, fontSize = 16.sp),
+                style = TextStyle(fontFamily = Theme.Sans, fontWeight = FontWeight.Medium, color = highlight, fontSize = 16.sp),
             )
             Spacer(Modifier.height(6.dp))
             BasicText(
@@ -89,7 +90,7 @@ fun TitleDialog(ref: CardRef, current: String, onSave: (String) -> Unit, onCance
                 onValueChange = { text = truncateTitle(it) },
                 singleLine = true,
                 textStyle = TextStyle(fontFamily = Theme.Sans, color = Theme.EmphasisText, fontSize = 16.sp),
-                cursorBrush = SolidColor(Theme.Champagne),
+                cursorBrush = SolidColor(highlight),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { onSave(text) }),
                 modifier = Modifier
@@ -118,7 +119,7 @@ fun TitleDialog(ref: CardRef, current: String, onSave: (String) -> Unit, onCance
                     }
                     .onFocusChanged { focused = it.isFocused }
                     .clip(RoundedCornerShape(8.dp))
-                    .background(if (focused) Theme.Champagne.copy(alpha = 0.16f) else Theme.UnfocusedSurface)
+                    .background(if (focused) highlight.copy(alpha = 0.16f) else Theme.UnfocusedSurface)
                     .padding(horizontal = 12.dp, vertical = 10.dp),
             )
             Spacer(Modifier.height(12.dp))

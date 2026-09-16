@@ -125,7 +125,6 @@
     <string name="settings_group_wallpaper">壁纸</string>
     <string name="settings_wallpaper_rotate">轮播间隔</string>
     <string name="settings_rotate_daily">每天</string>
-    <string name="settings_wallpaper_themed">主题化壁纸</string>
     <string name="settings_wallpaper_blur">模糊</string>
     <string name="settings_wallpaper_brightness">亮度</string>
     <string name="settings_card_size">卡片大小</string>

@@ -1,6 +1,7 @@
 # M3 设计:壁纸轮播 + 主题化管线 + 内置壁纸
 
-> **状态:已实施(commit 8de1950 起),待 Task 9 真机调参回填。**
+> **状态:已实施(commit 8de1950 起);T9 真机调参回填:默认 = 原片。**
+> **2026-09-16 真机第二轮:「主题化壁纸」整条删除**(Gordon:用户要的是原图;与「跟随壁纸主色」并存易混淆)。本文涉及 themed / accent / followColor 的段落已按现状改写(改写处标 2026-09-16),历史版本见 git。
 > 上游:`docs/DESIGN-unitedu-open-source.md` §3(壁纸/主题)、§5(内置壁纸)、§11 M3 行;M2 决策「默认背景固定中性暗、主题色不染背景」。
 > 焦点铁律:`CLAUDE.md` 七条。
 
@@ -9,10 +10,10 @@
 | 决策 | 结论 | 理由 |
 |---|---|---|
 | 内置 6 张壁纸来源 | **程序生成抽象图**(1 中性暗底 + 5 同系变体) | 零版权、每张 ~50 KB、我全程可做、与「沉稳」主题一致 |
-| 主题化管线参数 | **我定默认,Gordon 真机用滑块调**,调完把满意值改成默认 | 电脑管线数值在 Hub(SSH 不通);滑块让默认值不再关键 |
+| 主题化管线参数 | ~~我定默认,Gordon 真机用滑块调~~ → **2026-09-16 整条删除**:壁纸不再染主题色 | 用户要的是原图(内置图本来就按预设色生成);与「跟随壁纸主色」并存易混淆 |
 | 模糊/亮度控件 | **真滑块条**:左右键每步 10%,模糊 0–100% 共 11 档;亮度 −50…+50% 共 11 档(0 居中 = 原片,负压暗、正提亮;2026-09-16 Gordon 真机后把「压暗 0–100」改成双向亮度),带进度条 | 忠于设计 §3「两个滑块」;分段档位调不细 |
 
-**做**:壁纸轮播(关/5 分/30 分/每天)、主题化壁纸开关、模糊/压暗滑块、CPU 离线处理 + 缓存、内置 6 张生成壁纸、替换 M1 金色默认底为中性暗底、设置页新增「壁纸」分组。
+**做**:壁纸轮播(关/5 分/30 分/每天)、~~主题化壁纸开关~~(2026-09-16 删)、模糊/亮度滑块、CPU 离线处理 + 缓存、内置 6 张生成壁纸、替换 M1 金色默认底为中性暗底、设置页新增「壁纸」分组。
 **不做**(带去向):齿轮菜单四项归并(M7)、上传页删图(M6)、DreamService(M5)、恢复默认(M7)、壁纸 Ken Burns(不做)、取色器(v1 排除)。
 
 **技术约束**:`minSdk 28`,`RenderEffect` 需 API 31 → 管线走 CPU 离线处理,产物缓存文件,**不做实时 GPU 处理**。
@@ -26,9 +27,9 @@
 | `wallpaperFile` | `String = ""` | `library/wallpapers/` 内**文件名**;空 = 未指定。含 `/`、`\`、`..` 或为空白 → 视为 `""`(settings.json 用户可手改,堵路径逃逸) |
 | `wallpaperRotateMs` | `Long = 0` | `VALID_WALLPAPER_ROTATE_MS = [0, 300_000, 1_800_000, 86_400_000]`(关 / 5 分 / 30 分 / 每天);不在表内 → 0 |
 | `wallpaperRotatedAt` | `Long = 0` | 上次轮换的 epoch ms;负数 → 0 |
-| `wallpaperThemed` | `Boolean = false` | 默认**关**,守住 M2「默认背景不随主题」 |
+| ~~`wallpaperThemed`~~ | — | 2026-09-16 删除;旧文件里残留的键按未知键忽略(`SettingsTest.legacyWallpaperThemedKeyIsIgnored`) |
 | `wallpaperBlur` | `Int = 0` | 夹到 0..100,四舍五入到 10 的倍数 |
-| `wallpaperDim` | `Int = 0` | 同上 |
+| `wallpaperBrightness` | `Int = 0` | 夹到 −50..50,四舍五入到 10 的倍数;旧键 `wallpaperDim`(0–100)读入换算成 −min(dim, 50) |
 
 **不变量:默认全零 ⇒ 首页壁纸观感与今日逐位一致(含 RGBA_F16 HDR 解码路径)。**
 
@@ -71,23 +72,22 @@ LaunchedEffect(homeSettings.wallpaperRotateMs, homeSettings.wallpaperRotatedAt, 
 - 待机/屏保盖在壁纸上时轮播照常,只是看不见;不额外暂停。
 
 ### 2.5 显示层(`Wallpaper(ctx, spec)` 从 `HomeScreen.kt` 搬到 `Wallpapers.kt`)
-- `WallpaperSpec(file, themed, accentRgb, followColor, blur, dim)` 由 `homeSettings` + **预设** accent 组装;`themed && follow` 时 `followColor = true`、`accentRgb = 0`(`load` 自己取 Palette,见下);`themed && !follow` 时 accent = 预设;`!themed` 时 accent 恒 0——所以换预设、开关跟随都不会触发无谓重处理。
+- `WallpaperSpec(file, blur, brightness)` 只由 `homeSettings` 组装,**不带任何主题色**(2026-09-16 起):换预设、开关跟随、取色落地都不会让 spec 变,不触发无谓重处理(`WallpaperMathTest.specKnowsIdentityAndIgnoresThemeFields`)。
 - `produceState(key = spec)`(`settingsRevision` 只用来重读 settings 组装出新的 spec,不直接当 key):IO 线程 `prepare` → `resolveSource` → 参数全零走原路径(`decodeScaled` RGBA_F16),否则走 §3 管线;都失败回落 APK 内置。`prepare` 刚写进的 `wallpaperFile` 若 spec 里还是空,`load` 补读一次 settings。
 - 换图用 `Crossfade`(`Theme.WallpaperCrossfadeMs = 1500`),新图未就绪前旧图原样留着(与 `revision` 不强制重建的既有原则一致)。
 - 仍住在 `MainActivity.setContent` 顶层,不随编辑页重建。
-- **跟随主色时 spec 不带 accent(`followColor = true`),`load` 自己取 Palette 再染;主色只影响四处强调**——spec 若带 accent 就要等异步取色,每换一张图会先用旧主色渲一遍、取色落地后再渲一遍(终审 F2)。spec 的 `remember` key 因此用 `presetColors` 而非 `themeColors`。
+- 跟随壁纸主色只影响界面强调色(`MainActivity.wallpaperThemeColors` → `LocalThemeColors`,2026-09-16 起全部界面),壁纸本身不染色;spec 的 `remember` key 只有 `homeSettings`。(历史:主题化管线在时,spec 曾靠 `followColor` 标志让 `load` 就地取 Palette,以免每张图渲两遍——终审 F2;管线删除后这一整套随之消失。)
 - **`prepare` 写了 settings 会通过 `onSettingsChanged` 让 `settingsRevision++`**(终审 F3):`load` 返回 `Loaded(bitmap, settingsChanged)`,`Wallpaper` 回到主线程后调用它,`homeSettings` 当场重读——否则首启/从 M2 升级的这一次会话里 `wallpaperFile` 一直是旧的空值。
 
 ## 3. 处理管线与缓存(`Wallpapers.process`,IO 线程)
 
 ### 3.1 顺序与数学
-设计 §3:开 = 去色 → 染主题色 → 模糊 → 亮度;关 = 原图 + 模糊、亮度(亮度 = 整体乘 1 + b/100,b ∈ [−50, 50])。三步颜色运算合成**一个 ColorMatrix**(纯函数 `wallpaperColorMatrix(themed, accentRgb, brightness): FloatArray(20)`,可单测):
+管线 = 原图 + 模糊 + 亮度(亮度 = 整体乘 1 + b/100,b ∈ [−50, 50])。颜色运算只剩一个对角 ColorMatrix(纯函数 `wallpaperColorMatrix(brightness): FloatArray(20)`,可单测):
 
 ```
-M = Scale(1 - dim/100) × [themed ? Tint(accent) × Saturation(0) : I]
-Saturation(0):Rec.709 权重 (0.213, 0.715, 0.072),与 android ColorMatrix.setSaturation(0) 同值
-Tint(accent):diag(a.r, a.g, a.b, 1)  —— 即「黑 → 主题色」的渐变映射,与金雾底同一手法
+M = diag(k, k, k, 1),k = 1 + b/100
 ```
+(2026-09-16 前还有「开 = 去色 → 染主题色」一步:`Saturation(0)`(Rec.709 权重)× `Tint(accent)`;随「主题化壁纸」一起删除。)
 颜色运算与模糊都是线性算子,**顺序可交换**,所以先缩小再套矩阵:矩阵作用在小图上,几乎免费。
 
 ### 3.2 模糊 = 缩小 → 放大
@@ -100,30 +100,32 @@ Tint(accent):diag(a.r, a.g, a.b, 1)  —— 即「黑 → 主题色」的渐变�
 ### 3.3 输入输出
 - 输入:`Apps.decodeScaled(path, 1920, 1080, ARGB_8888)` 后中心裁剪到恰好 1920×1080(缓存尺寸固定)。
 - 输出:同一个 IO 块里 **既返回 Bitmap 直接显示,也写缓存**:`(externalCacheDir ?: cacheDir)/wallpapers/<key>.jpg`(外置 cache 优先:adb 能看、卸载即清),JPEG q90,tmp → rename。
-- `key = sha1("$path|$mtime|$size|$themed|$accentHex|$blur|$dim|v1")`。下次同键直接解码缓存。
+- `key = sha1("$path|$mtime|$size|$blur|$brightness|v3")`。下次同键直接解码缓存。版本号:v1 压暗 → v2 亮度(同一段数字含义反了)→ v3 删掉 themed / accent 两段(2026-09-16,键形状变了;旧 v2 缓存永不命中,由 LRU 淘汰)。
 - 清理:每次写入后只保留最新 **12** 个(按 lastModified;命中时刷新 mtime,即真正的 LRU)。**T5 评审纠正**:原定 4 个小于内置 6 张,轮播永远不命中;且按写入时间淘汰会把每次开机都读的那张挤掉。
 - 内存:中心裁剪 + 缩放(+ blur=0 时的矩阵)合成**一次 `Canvas.drawBitmap(src, srcRect, dstRect, paint)`**,只分配一张输出——原设计的 `createBitmap` 裁剪会让非 16:9 源图(手机照片)同时活着三张全分辨率位图(30–66 MB 瞬时)。
 - **参数全零 → 完全绕开管线**:不解码两次、不写缓存、保留 F16。
-- 跟随壁纸主色:取色一律从 `resolveSource()` 的**原图**走 `Wallpapers.paletteAccent()`(今日读死 `Paths.wallpaper`)——不成环。**跟随主色时 spec 不带 accent(`followColor = true`),`load` 自己取 Palette 再染;主色只影响四处强调**(齿轮 / 时钟 / 光晕 / 行标题,由 `wallpaperThemeColors()` 走同一个取色函数)。终审 F2 纠正:原先让 spec 带上异步到达的 accent,结果每张图渲两遍、缓存永不命中;现在 `load` 把取到的主色填进 `spec.copy(accentRgb = …, followColor = false)` 再进 `processed`,缓存键照样带着实际主色。取不到色回落 `Theme.ChampagneGold`。
+- 跟随壁纸主色:取色一律从 `resolveSource()` 的**原图**走 `Wallpapers.paletteAccent()`(模糊 / 亮度处理过的图取出的色会跟着滑块漂)。结果只喂界面强调色(`wallpaperThemeColors()` → `LocalThemeColors`,2026-09-16 起全部界面),壁纸本身不染色;取不到色回落所选预设。(历史:主题化管线在时 `load` 曾就地取色再染,见终审 F2;已随管线删除。)
 
 ## 4. 设置页:「壁纸」分组 + SLIDER 控件 + 实时预览
 
 ### 4.1 分组与行(插在「布局」与「主题」之间;`order` / `controls` 同步扩,索引全部后移)
+2026-09-16 起三行(控件下标 3..5,`WALLPAPER_CTRLS = 3..5`;「主题化壁纸」开关删除后其后控件全部前移一位,设置页共 11 个可聚焦控件 0..10):
+
 | 行 | 控件 | 取值 |
 |---|---|---|
 | 轮播间隔 | SEGMENTED | 关 / 5 分 / 30 分 / 每天(`VALID_WALLPAPER_ROTATE_MS` 顺序) |
-| 主题化壁纸 | TOGGLE | 关 / 开 |
+| ~~主题化壁纸~~ | ~~TOGGLE~~ | 2026-09-16 删除 |
 | 模糊 | **SLIDER** | 0–100,步 10 |
 | 亮度 | **SLIDER** | −50…+50,步 10;旧 `wallpaperDim` 读入时换算成 −min(dim,50) |
 
 ### 4.2 SLIDER 控件
 - 数据上就是 `count = 11` 的 `Ctrl`,复用 `SettingRow.step(±1)` 与「左右键全消费、焦点不横移」的既有语义,**不引入新的焦点行为**;行高仍 `H_CTRL`,位移账本不变。
-- 渲染:轨道(`Theme.UnfocusedSurface`)+ 已填充段(行聚焦 `Theme.Champagne`,否则其 0.22 alpha,与分段控件选中态同色)+ 右侧百分比文字。
-- 字符串:`settings_group_wallpaper` 壁纸 / `settings_wallpaper_rotate` 轮播间隔 / `settings_rotate_daily` 每天 / `settings_wallpaper_themed` 主题化壁纸 / `settings_wallpaper_blur` 模糊 / `settings_wallpaper_dim` 压暗;「关」「%1$d 分」复用现有 key。三语(`values` / `values-en` / `values-zh-rTW`)。
+- 渲染:轨道(`Theme.UnfocusedSurface`)+ 已填充段(行聚焦 = 主题 highlight(`LocalThemeColors.current.highlight`,金预设即 `Theme.Champagne`),否则其 0.22 alpha,与分段控件选中态同色)+ 右侧百分比文字。
+- 字符串:`settings_group_wallpaper` 壁纸 / `settings_wallpaper_rotate` 轮播间隔 / `settings_rotate_daily` 每天 / `settings_wallpaper_blur` 模糊 / `settings_wallpaper_brightness` 亮度(`settings_wallpaper_themed` 2026-09-16 删);「关」「%1$d 分」复用现有 key。三语(`values` / `values-en` / `values-zh-rTW`)。
 
 ### 4.3 实时预览(没有它,真机调参是盲调)
-- 设置页浮层今日是不透明 `Theme.EditScreenBackground`。**焦点落在壁纸分组四行之一时**,浮层背景动画到 `Theme.SettingsPreviewScrim`(黑 0.35 alpha),壁纸从 640dp 内容列两侧与底下透出;离开该分组恢复不透明。
-- `SettingsScreen` 新增参数 `onWallpaperParamsChanged: () -> Unit`;主题化/模糊/亮度任一改动后 **300 ms 防抖**再调用;`MainActivity` 实现为 `settingsRevision++`(重读 settings → spec 变 → 重处理 → Crossfade)。防抖用「上次通知过的值」比对,不用一次性布尔闩(铁律 7)。
+- 设置页浮层今日是不透明 `Theme.EditScreenBackground`。**焦点落在壁纸分组三行之一时**(2026-09-16 前四行),浮层背景动画到 `Theme.SettingsPreviewScrim`(黑 0.35 alpha),壁纸从 640dp 内容列两侧与底下透出;离开该分组恢复不透明。
+- `SettingsScreen` 新增参数 `onWallpaperParamsChanged: () -> Unit`;模糊/亮度任一改动后 **300 ms 防抖**再调用(`previewKey = Pair(blur, brightness)`);`MainActivity` 实现为 `settingsRevision++`(重读 settings → spec 变 → 重处理 → Crossfade)。防抖用「上次通知过的值」比对,不用一次性布尔闩(铁律 7)。
 - 轮播间隔改动不触发实时预览(无可视效果),照旧 `leaveSettings()` 时生效。
 
 ## 5. 内置壁纸与默认底
@@ -141,19 +143,19 @@ Tint(accent):diag(a.r, a.g, a.b, 1)  —— 即「黑 → 主题色」的渐变�
 
 ### 6.2 单元测试(纯 JVM,不碰 android 类)
 - `SettingsTest` 扩:6 字段 parse / toJson 往返、缺失回默认、`wallpaperFile` 路径逃逸清洗、`rotateMs` 表外回 0、`blur/dim` 夹取与 10 的倍数。
-- 新 `WallpapersTest`:`nextWallpaper()`(循环、当前不在列表、空表、单张)、`rotationDelayMs()`(过期→0、未来→夹到一个间隔)、`wallpaperColorMatrix()`(themed=false/dim=0 为单位阵;dim=50 对角 0.5;themed 时用 Rec.601 权重与 accent 对角)、`blurTargetWidth()` 11 档单调、`cacheKey()` 参数任一变则键变。
+- 新 `WallpaperMathTest`:`nextWallpaper()`(循环、当前不在列表、空表、单张)、`rotationDelayMs()`(过期→0、未来→夹到一个间隔)、`wallpaperColorMatrix()`(brightness=0 为单位阵;−50 对角 0.5、+50 对角 1.5、非对角全零——2026-09-16 起没有 themed 用例)、`blurTargetWidth()` 11 档单调、`cacheKey()` 参数任一变则键变、spec 不受主题字段影响。
 
 ### 6.3 模拟器验收(`unitedu-tv`)
 1. 全零参数:首页截图与 M2 收官截图**像素一致**(零回归)。
 2. 首次启动:`library/wallpapers/` 出现 6 张 `unitedu-*.jpg` + `.seeded`,`settings.json` 的 `wallpaperFile = unitedu-00-neutral.jpg`,首页为中性暗底。
 3. 旧根目录 `wallpaper.jpg` 迁移:push 一张到根 → 启动后出现在 library、根文件消失、首页显示它。
-4. 主题化开/关、模糊 50、压暗 50 各一张截图;`cacheDir/wallpapers/` 出现对应缓存且 ≤ 12 个。
+4. 模糊 50、亮度 ±50 各一张截图(主题化项 2026-09-16 删);`cacheDir/wallpapers/` 出现对应缓存且 ≤ 12 个。
 5. 轮播:间隔设 5 分,`adb shell` 把 `wallpaperRotatedAt` 改成 0 → 回首页即换下一张(Crossfade),`rotatedAt` 更新;单张 library 不换图但 `rotatedAt` 刷新。
-6. 设置页:壁纸分组四行上下左右全程焦点不丢(铁律回归);聚焦滑块时壁纸透出、松手 300 ms 内首页壁纸跟着变。
-7. 跟随壁纸主色开 + 主题化开:换预设不改壁纸主色来源(取原图),齿轮色跟原图主色、壁纸被该色染。
+6. 设置页:壁纸分组三行上下左右全程焦点不丢(铁律回归);聚焦滑块时壁纸透出、松手 300 ms 内首页壁纸跟着变。
+7. 跟随壁纸主色开:齿轮与各界面强调色跟原图主色;壁纸本身不染色(主题化 2026-09-16 删)。
 
 ### 6.4 真机(A95L,Gordon)
-用滑块把主题化默认观感调到满意 → 我把值改成 `Settings` 默认(单独一个小 commit)。这是 M3 唯一需要 Gordon 肉眼的步骤。
+T9 回填(2026-09-16):Gordon 定默认 = 原片(模糊 0 / 亮度 0,就是代码默认值,不改);随后第二轮定「主题化壁纸」整条删除。
 
 ## 7. 文件清单
 

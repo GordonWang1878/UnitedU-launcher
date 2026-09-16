@@ -65,7 +65,7 @@ fun GearMenu(items: List<MenuItem>, onDismiss: () -> Unit, nonce: Int = 0, title
                 style = TextStyle(
                     fontFamily = Theme.Sans,
                     fontWeight = FontWeight.Medium,
-                    color = Theme.Champagne,
+                    color = LocalThemeColors.current.highlight,
                     fontSize = 16.sp,
                     letterSpacing = 1.sp,
                 ),
@@ -109,6 +109,7 @@ private fun MenuRow(
     isLast: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val highlight = LocalThemeColors.current.highlight
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -123,7 +124,7 @@ private fun MenuRow(
             .background(
                 if (focused) Brush.horizontalGradient(
                     listOf(
-                        Theme.Champagne.copy(alpha = 0.12f),
+                        highlight.copy(alpha = 0.12f),
                         Color.Transparent,
                     )
                 )
@@ -141,7 +142,7 @@ private fun MenuRow(
                     .width(2.5.dp)
                     .height(28.dp)
                     .clip(RoundedCornerShape(1.dp))
-                    .background(Theme.Champagne)
+                    .background(highlight)
             )
             Spacer(Modifier.width(12.dp))
         }

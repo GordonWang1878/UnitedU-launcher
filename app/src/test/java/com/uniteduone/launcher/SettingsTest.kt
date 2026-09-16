@@ -127,7 +127,6 @@ class SettingsTest {
         assertEquals("", s.wallpaperFile)
         assertEquals(0L, s.wallpaperRotateMs)
         assertEquals(0L, s.wallpaperRotatedAt)
-        assertFalse(s.wallpaperThemed)
         assertEquals(0, s.wallpaperBlur)
         assertEquals(0, s.wallpaperBrightness)
     }
@@ -182,11 +181,19 @@ class SettingsTest {
             wallpaperFile = "sea.jpg",
             wallpaperRotateMs = 1_800_000L,
             wallpaperRotatedAt = 1_700_000_000_000L,
-            wallpaperThemed = true,
             wallpaperBlur = 30,
             wallpaperBrightness = -30,
         )
         assertEquals(s, parseSettings(s.toJson()))
+    }
+
+    @Test fun legacyWallpaperThemedKeyIsIgnored() {
+        // 2026-09-16 删掉「主题化壁纸」:升级前的 settings.json 里还带着 wallpaperThemed 键。
+        // 扁平 tokenizer 只认列出的字段,这个键按未知键忽略,其余字段照常解析,写盘也不再带它。
+        val s = parseSettings("""{"wallpaperThemed": true, "wallpaperBlur": 20, "wallpaperBrightness": -10}""")
+        assertEquals(Settings(wallpaperBlur = 20, wallpaperBrightness = -10), s)
+        assertFalse(s.toJson().contains("wallpaperThemed"))
+        assertEquals(Settings(), parseSettings("""{"wallpaperThemed": false}"""))
     }
 
     @Test fun newAppsSeenAtDefaultsToZeroAndNeverNegative() {

@@ -13,7 +13,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -154,7 +153,7 @@ object Wallpapers {
      * 解一张 320×180 的缩略图(够 Palette 取色又不占内存)再跑 [androidx.palette.graphics.Palette]。
      *
      * 取色优先级:vibrant(有活力的主色)→ 落空再用 dominant(占面积最大的色)。
-     * 读原图不读处理后的缓存——否则主题化开着时会自己染自己,一轮轮收敛成单色。
+     * 读原图不读处理后的缓存——模糊 / 亮度处理过的图取出的主色会跟着滑块漂。
      * 用默认 ARGB_8888 而非 RGBA_F16:Palette 不吃 F16。任何一步落空都只返回 null,绝不抛。
      */
     fun paletteAccent(ctx: Context, src: File): Int? = runCatching {
@@ -174,10 +173,7 @@ object Wallpapers {
 
     /** 处理后的位图:先查缓存,没有就渲染并写缓存。任何一步失败返回 null,调用方退回原图。IO 线程。 */
     fun processed(ctx: Context, src: File, spec: WallpaperSpec): Bitmap? {
-        val key = wallpaperCacheKey(
-            src.absolutePath, src.lastModified(), src.length(),
-            spec.themed, spec.accentRgb, spec.blur, spec.brightness,
-        )
+        val key = wallpaperCacheKey(src.absolutePath, src.lastModified(), src.length(), spec.blur, spec.brightness)
         val dir = Paths.wallpaperCacheDir(ctx)
         val cached = File(dir, "$key.jpg")
         if (cached.isFile) {
@@ -195,7 +191,7 @@ object Wallpapers {
             .getOrNull() ?: return null
         // 日志放在 writeCache 之后:压缩 + fsync + 清理也在这条阻塞路径上,漏掉就低估了真实耗时。
         writeCache(dir, cached, bmp)
-        Log.i(TAG, "壁纸处理 ${src.name} blur=${spec.blur} brightness=${spec.brightness} themed=${spec.themed} 用时 ${System.currentTimeMillis() - t0}ms")
+        Log.i(TAG, "壁纸处理 ${src.name} blur=${spec.blur} brightness=${spec.brightness} 用时 ${System.currentTimeMillis() - t0}ms")
         return bmp
     }
 
@@ -208,7 +204,7 @@ object Wallpapers {
         val decoded = Apps.decodeScaled(src.absolutePath, OUT_W, OUT_H)
         if (decoded == null) { Log.w(TAG, "壁纸源图解不出来 ${src.name}"); return null }
         val targetW = blurTargetWidth(spec.blur, OUT_W)
-        val matrix = wallpaperColorMatrix(spec.themed, spec.accentRgb, spec.brightness)
+        val matrix = wallpaperColorMatrix(spec.brightness)
         // blur=0:裁剪 + 缩放 + 上色一次 draw 完事,decoded 之外只多分配这一张 1920×1080。
         if (targetW >= OUT_W) return cropScale(decoded, OUT_W, OUT_H, matrix)
         val full = cropScale(decoded, OUT_W, OUT_H, null)
@@ -331,15 +327,7 @@ object Wallpapers {
         // 参数全零完全绕开管线:不解码两次、不写缓存、保留 F16(零回归路径)。
         // 处理失败退回原图而不是黑屏。
         if (!spec.isIdentity) {
-            // 跟随壁纸主色:主色在这里就地取,不由 spec 从外面带进来——spec 里带的话,
-            // 取色是异步到达的,每张图都会先用上一张的旧色渲一遍(外加一份没人命中的缓存)。
-            // 取不到色就回落香槟金(与预设同色),绝不因为取色失败而不渲染。
-            val effective =
-                if (spec.followColor) spec.copy(
-                    accentRgb = paletteAccent(ctx, src) ?: (Theme.ChampagneGold.toArgb() and 0xFFFFFF),
-                    followColor = false,
-                ) else spec
-            processed(ctx, src, effective)?.let { return Loaded(it, settingsChanged) }
+            processed(ctx, src, spec)?.let { return Loaded(it, settingsChanged) }
         }
         // RGBA_F16 保留 Ultra HDR gain map(与 M1 同);decodeScaled 在 F16 失败时自动回落 8888。
         val bmp = runCatching { Apps.decodeScaled(src.absolutePath, OUT_W, OUT_H, Bitmap.Config.RGBA_F16) }
