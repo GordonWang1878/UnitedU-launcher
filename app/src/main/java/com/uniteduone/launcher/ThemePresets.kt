@@ -60,6 +60,39 @@ fun ThemePreset.colors(): ThemeColors = ThemeColors(color, highlight)
  */
 fun highlightFrom(accent: Color): Color = lerp(accent, Color.White, 0.55f)
 
+/**
+ * 壁纸取色当强调色前先「提亮到可读」。内置壁纸都是深色沉稳底,`paletteAccent` 取出的主色往往很暗、很灰
+ * (M3 实测蓝底 ≈ (14,22,29));主题色现在流到每个界面,深色文字压在 #0A0A0A 上直接看不见(分组标题成一片黑)。
+ * 做法:HSL 下把**亮度**抬到 ≥ 0.62 的地板,色相始终不动;**饱和度**只在原本就有色相时(s ≥ 0.08)抬到 ≥ 0.45——
+ * 纯灰壁纸保持中性浅灰,不凭噪声硬造出一个红色。纯函数,JVM 单测在 [ThemeColorTest]。
+ */
+fun usableAccent(rgb: Int): Int {
+    val r = ((rgb shr 16) and 0xFF) / 255f
+    val g = ((rgb shr 8) and 0xFF) / 255f
+    val b = (rgb and 0xFF) / 255f
+    val mx = maxOf(r, g, b); val mn = minOf(r, g, b); val d = mx - mn
+    val l = (mx + mn) / 2f
+    val s = if (d == 0f) 0f else d / (1f - kotlin.math.abs(2f * l - 1f))
+    var h = when {
+        d == 0f -> 0f
+        mx == r -> 60f * ((((g - b) / d) % 6f + 6f) % 6f)
+        mx == g -> 60f * (((b - r) / d) + 2f)
+        else -> 60f * (((r - g) / d) + 4f)
+    }
+    if (h < 0f) h += 360f
+    val nl = l.coerceAtLeast(0.62f)
+    val ns = if (s < 0.08f) s else s.coerceAtLeast(0.45f)
+    val c = (1f - kotlin.math.abs(2f * nl - 1f)) * ns
+    val x = c * (1f - kotlin.math.abs((h / 60f) % 2f - 1f))
+    val m = nl - c / 2f
+    val (r2, g2, b2) = when {
+        h < 60f -> Triple(c, x, 0f); h < 120f -> Triple(x, c, 0f); h < 180f -> Triple(0f, c, x)
+        h < 240f -> Triple(0f, x, c); h < 300f -> Triple(x, 0f, c); else -> Triple(c, 0f, x)
+    }
+    fun ch(v: Float) = Math.round((v + m).coerceIn(0f, 1f) * 255f)
+    return (ch(r2) shl 16) or (ch(g2) shl 8) or ch(b2)
+}
+
 object ThemePresets {
     /** 默认预设 id,与 [Settings] 的默认值一致。 */
     const val DEFAULT_ID = "gold"

@@ -660,6 +660,8 @@ private fun wallpaperThemeColors(ctx: android.content.Context, wallpaperFile: St
     Wallpapers.resolveSource(ctx, wallpaperFile)
         ?.let { Wallpapers.paletteAccent(ctx, it) }
         ?.let { rgb ->
-            val accent = androidx.compose.ui.graphics.Color(rgb or 0xFF000000.toInt())
+            // 壁纸主色可能很暗 / 很灰,先提亮到可读地板再当强调色(见 usableAccent);
+            // 否则深色主题色压在 #0A0A0A 的设置页上,分组标题等文字直接消失。
+            val accent = androidx.compose.ui.graphics.Color(usableAccent(rgb) or 0xFF000000.toInt())
             ThemeColors(accent, highlightFrom(accent))
         }
