@@ -15,7 +15,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.*
 import androidx.lifecycle.lifecycleScope
@@ -149,14 +148,9 @@ class MainActivity : ComponentActivity() {
             val themeColors =
                 if (homeSettings.followWallpaperColor) wallpaperColors ?: presetColors
                 else presetColors
-            // 壁纸渲染输入:文件名 + 主题化参数;accent 只在主题化时参与(见 wallpaperSpecOf)。
-            // key 用 **presetColors 而不是 themeColors**:跟随壁纸主色时 spec 不带 accent
-            // (followColor = true,由 Wallpapers.load 自己取 Palette 再染),所以 spec 不能
-            // 依赖异步到达的 wallpaperColors——否则换一张图会先用旧主色渲一遍、取色落地后再渲一遍,
-            // 每次轮播两次全量渲染 + 一份永不命中的缓存。
-            val wallpaperSpec = remember(homeSettings, presetColors) {
-                wallpaperSpecOf(homeSettings, presetColors.accent.toArgb() and 0xFFFFFF)
-            }
+            // 壁纸渲染输入:文件名 + 模糊 + 亮度,**不带主题色**(「主题化壁纸」2026-09-16 整个删掉,
+            // 壁纸不再染色)。所以换预设、开关跟随、壁纸取色落地都不会让 spec 变,壁纸不会被无谓地重处理。
+            val wallpaperSpec = remember(homeSettings) { wallpaperSpecOf(homeSettings) }
             val touched = lastInput
             // **编辑界面和菜单开着时不进入待机。**淡出只做在首页那一层,而吞掉唤醒键是
             // Activity 级的 —— 两头不占的结果是:编辑界面画面全亮(看着醒着),
@@ -659,9 +653,7 @@ class MainActivity : ComponentActivity() {
  * accent 用取到的色,highlight 由 [highlightFrom] 混白 55% 推得 —— 与非金预设 highlight 同一手法。
  * 任何一步落空(没壁纸、解不出、Palette 抽不到色)返回 null,调用方回落到选中预设,绝不崩、绝不留黑。
  *
- * **这里只管强调色,不再决定壁纸怎么染**:壁纸那边的主色由 [Wallpapers.load] 在同一趟 IO 里
- * 自己取(`spec.followColor`),两边取色函数同一个,结果一致;分开之后 spec 不再等这个异步值,
- * 一张图只渲一次。
+ * 取到的色只喂界面强调色,壁纸本身**不染色**(「主题化壁纸」2026-09-16 删掉,壁纸管线不再认识主题色)。
  */
 private fun wallpaperThemeColors(ctx: android.content.Context, wallpaperFile: String): ThemeColors? =
     Wallpapers.resolveSource(ctx, wallpaperFile)

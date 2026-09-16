@@ -64,7 +64,8 @@ private val BOTTOM_KEEPOUT = 22.dp
 private const val LOG_TAG = "UnitedU"
 
 // 壁纸分组的控件下标区间(与 order 里的 ControlElem 编号一致):聚焦在这几行时浮层变半透明做实时预览。
-private val WALLPAPER_CTRLS = 3..6
+// 2026-09-16 删掉「主题化壁纸」开关后是 轮播间隔 / 模糊 / 亮度 三行(3..5),其后的控件全部前移一位。
+private val WALLPAPER_CTRLS = 3..5
 
 private enum class CtrlKind { SEGMENTED, TOGGLE, SWATCH, SLIDER }
 
@@ -118,10 +119,10 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0, onWallpaperParamsCha
         }
     }
 
-    // 主题化/模糊/压暗改动后 300ms 防抖通知首页重读(实时预览)。轮播间隔无可视效果,不通知。
+    // 模糊/亮度改动后 300ms 防抖通知首页重读(实时预览)。轮播间隔无可视效果,不通知。
     // 用「上次通知过的值」比对,不用一次性布尔闩(铁律 7):首次组合两者相等不发;
     // 改回原值也会再发一次(与上次通知值不同),预览不会卡在旧参数上。
-    val previewKey = Triple(s.wallpaperThemed, s.wallpaperBlur, s.wallpaperBrightness)
+    val previewKey = Pair(s.wallpaperBlur, s.wallpaperBrightness)
     var lastNotified by remember { mutableStateOf(previewKey) }
     LaunchedEffect(previewKey) {
         if (previewKey == lastNotified) return@LaunchedEffect
@@ -130,7 +131,9 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0, onWallpaperParamsCha
         onWallpaperParamsChanged()
     }
 
-    // ---- 12 个可聚焦控件的描述,顺序即 ctrlIndex(0..11),看门狗/位移都按它索引 ----
+    // ---- 11 个可聚焦控件的描述,顺序即 ctrlIndex(0..10),看门狗/位移都按它索引 ----
+    // (2026-09-16 删掉「主题化壁纸」开关:12 → 11。下标只在这份列表、order 与 WALLPAPER_CTRLS 三处出现,
+    //  其余——ctrlCount / rowFocus / controlTop / upReq / downReq / 看门狗的落点——全由它们派生,不另存字面量。)
     val onLabels = listOf(stringResource(R.string.settings_off), stringResource(R.string.settings_on))
     val cardSizeLabels = listOf(
         stringResource(R.string.settings_card_large),
@@ -177,43 +180,38 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0, onWallpaperParamsCha
             options = rotateLabels, count = 4,
             selected = VALID_WALLPAPER_ROTATE_MS.indexOf(s.wallpaperRotateMs).let { if (it < 0) 0 else it },
             onSelect = { i -> update { it.copy(wallpaperRotateMs = VALID_WALLPAPER_ROTATE_MS[i]) } }),
-        // 4 主题化壁纸
-        Ctrl(R.string.settings_wallpaper_themed, CtrlKind.TOGGLE,
-            options = onLabels, count = 2,
-            selected = if (s.wallpaperThemed) 1 else 0,
-            onSelect = { i -> update { it.copy(wallpaperThemed = i == 1) } }),
-        // 5 模糊 0–100 步 10(11 档滑块;selected = 档位下标)
+        // 4 模糊 0–100 步 10(11 档滑块;selected = 档位下标)
         Ctrl(R.string.settings_wallpaper_blur, CtrlKind.SLIDER,
             options = emptyList(), count = 11,
             selected = s.wallpaperBlur / 10,
             onSelect = { i -> update { it.copy(wallpaperBlur = i * 10) } }),
-        // 6 亮度 −50…+50 步 10(11 档双向滑块,档位 5 = 0 = 原片;2026-09-16 取代 0–100 压暗)
+        // 5 亮度 −50…+50 步 10(11 档双向滑块,档位 5 = 0 = 原片;2026-09-16 取代 0–100 压暗)
         Ctrl(R.string.settings_wallpaper_brightness, CtrlKind.SLIDER,
             options = emptyList(), count = 11,
             selected = (s.wallpaperBrightness + 50) / 10,
             onSelect = { i -> update { it.copy(wallpaperBrightness = i * 10 - 50) } },
             zeroAt = 5),
-        // 7 主题色 swatch
+        // 6 主题色 swatch
         Ctrl(R.string.settings_theme_color, CtrlKind.SWATCH,
             options = emptyList(), count = ThemePresets.all.size,
             selected = ThemePresets.indexOf(s.themePresetId),
             onSelect = { i -> update { it.copy(themePresetId = ThemePresets.all[i].id) } }),
-        // 8 跟随壁纸主色
+        // 7 跟随壁纸主色
         Ctrl(R.string.settings_follow_wallpaper, CtrlKind.TOGGLE,
             options = onLabels, count = 2,
             selected = if (s.followWallpaperColor) 1 else 0,
             onSelect = { i -> update { it.copy(followWallpaperColor = i == 1) } }),
-        // 9 显示日期
+        // 8 显示日期
         Ctrl(R.string.settings_show_date, CtrlKind.TOGGLE,
             options = onLabels, count = 2,
             selected = if (s.showDate) 1 else 0,
             onSelect = { i -> update { it.copy(showDate = i == 1) } }),
-        // 10 待机时长 关/1/3/5/10 分
+        // 9 待机时长 关/1/3/5/10 分
         Ctrl(R.string.settings_idle_after, CtrlKind.SEGMENTED,
             options = idleAfterLabels, count = 5,
             selected = VALID_IDLE_AFTER_MS.indexOf(s.idleAfterMs).let { if (it < 0) 2 else it },
             onSelect = { i -> update { it.copy(idleAfterMs = VALID_IDLE_AFTER_MS[i]) } }),
-        // 11 待机显示 时钟/全黑/不淡出
+        // 10 待机显示 时钟/全黑/不淡出
         Ctrl(R.string.settings_idle_content, CtrlKind.SEGMENTED,
             options = idleContentLabels, count = 3,
             selected = IdleContent.entries.indexOf(s.idleContent).coerceAtLeast(0),
@@ -229,13 +227,13 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0, onWallpaperParamsCha
             HeaderElem(R.string.settings_group_layout),
             ControlElem(0), ControlElem(1), ControlElem(2),
             HeaderElem(R.string.settings_group_wallpaper),
-            ControlElem(3), ControlElem(4), ControlElem(5), ControlElem(6),
+            ControlElem(3), ControlElem(4), ControlElem(5),
             HeaderElem(R.string.settings_group_theme),
-            ControlElem(7), ControlElem(8),
+            ControlElem(6), ControlElem(7),
             HeaderElem(R.string.settings_group_clock),
-            ControlElem(9),
+            ControlElem(8),
             HeaderElem(R.string.settings_group_standby),
-            ControlElem(10), ControlElem(11),
+            ControlElem(9), ControlElem(10),
         )
     }
     // 每个控件的顶部 Y(dp),从 order 折出来 —— 与渲染同源。
@@ -286,7 +284,7 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0, onWallpaperParamsCha
     // 常开回调后注册,浮层在时优先接管;关闭后 MainActivity 会 focusNonce++ 让首页重新拿回焦点。
     androidx.activity.compose.BackHandler { onExit() }
 
-    // 内容可能高于屏幕(12 控件 + 5 标题 + 标题栏 ≈ 758dp,超过 540dp 的屏)。**绝不加滚动容器**,
+    // 内容可能高于屏幕(11 控件 + 5 标题 + 标题栏 ≈ 712dp,超过 540dp 的屏)。**绝不加滚动容器**,
     // 自己算纵向位移:焦点行底部快贴屏幕底时,整体上移刚好让它留在可视区(HomeScreen 同一招)。
     val screenH = LocalConfiguration.current.screenHeightDp.dp
     val fRow = focusedRow.coerceIn(0, ctrlCount - 1)

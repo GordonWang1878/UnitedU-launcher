@@ -27,15 +27,14 @@ data class Settings(
     val showDate: Boolean = true,
     val idleAfterMs: Long = 180_000L,
     val idleContent: IdleContent = IdleContent.CLOCK_ONLY,
-    // ---- M3 壁纸(spec §1)。默认全零/空/关 ⇒ 首页观感与 M2 逐位一致 ----
+    // ---- M3 壁纸(spec §1)。默认全零/空 ⇒ 首页观感与 M2 逐位一致 ----
+    // (「主题化壁纸」开关 wallpaperThemed 2026-09-16 整个删掉:壁纸不再染色;旧文件里的键按未知键忽略。)
     /** library/wallpapers/ 里的文件名;空 = 未指定(解析顺序见 Wallpapers.resolveSource)。 */
     val wallpaperFile: String = "",
     /** 轮播间隔 ms;0 = 关。合法值见 [VALID_WALLPAPER_ROTATE_MS]。 */
     val wallpaperRotateMs: Long = 0L,
     /** 上次轮换的 epoch ms;「每天」档靠它跨重启续等。 */
     val wallpaperRotatedAt: Long = 0L,
-    /** 主题化壁纸(去色→染主题色);默认关,守住 M2「默认背景不随主题」。 */
-    val wallpaperThemed: Boolean = false,
     /** 模糊 0–100,步 10。 */
     val wallpaperBlur: Int = 0,
     /** 亮度 −50…+50,步 10:0 = 原片,负 = 压暗,正 = 提亮(2026-09-16 Gordon 定,取代原 0–100「压暗」)。 */
@@ -138,7 +137,8 @@ fun parseSettings(json: String): Settings {
             wallpaperFile = sanitizeWallpaperFileName(extractString(json, "wallpaperFile")),
             wallpaperRotateMs = snapRotateMs(extractLong(json, "wallpaperRotateMs")),
             wallpaperRotatedAt = clampEpoch(extractLong(json, "wallpaperRotatedAt")),
-            wallpaperThemed = extractBoolean(json, "wallpaperThemed") ?: d.wallpaperThemed,
+            // 旧文件里可能还有 "wallpaperThemed"(2026-09-16 删掉的开关):这里不读它,扁平 tokenizer 只认列出的键,
+            // 未知键自然被忽略(SettingsTest.legacyWallpaperThemedKeyIsIgnored 钉住这一点)。
             wallpaperBlur = clampPercentStep10(extractInt(json, "wallpaperBlur"), d.wallpaperBlur),
             // 旧文件只有 wallpaperDim(0–100 压暗)时换算成负亮度(超过 50 的压暗夹到 −50);新键在场以新键为准。
             wallpaperBrightness = clampBrightnessStep10(
@@ -172,7 +172,6 @@ fun Settings.toJson(): String {
         append("  \"wallpaperFile\": \"${esc(wallpaperFile)}\",\n")
         append("  \"wallpaperRotateMs\": $wallpaperRotateMs,\n")
         append("  \"wallpaperRotatedAt\": $wallpaperRotatedAt,\n")
-        append("  \"wallpaperThemed\": $wallpaperThemed,\n")
         append("  \"wallpaperBlur\": $wallpaperBlur,\n")
         append("  \"wallpaperBrightness\": $wallpaperBrightness,\n")
         append("  \"newAppsSeenAt\": $newAppsSeenAt\n")
