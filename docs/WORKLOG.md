@@ -365,3 +365,29 @@ spec 状态行已改为「已实施(commit `8cc5134`),待真机验」(T6 时为 
 - **回落底改边缘色**:纯图标卡的回落底从「整图 Palette 主色」改成「图标最外一圈均色」(`edgeColor`)——Palette 常挑到 logo 图形色,铺底和图标边缘割裂像硬包一圈;边缘色则与图标融为一块。透明边(有效像素 < ¼)返回 null 回落到占位底。`EdgeColorTest` 3 项。
 - 单测 63 → 71(+8);`assembleRelease` 绿;模拟器截图 off/on-gold/on-blue 见 scratchpad。分支 `theme-cards`,待 Gordon 真机看过再并 main。
 - **回落底透明 bug(真机第四轮,自引入自修)**:网易云这类没横幅的应用,补做的红底透出了壁纸、不连续。根因是 `edgeColor` 返回时 `and 0xFFFFFF` 把 alpha 抹成 0,首页 `Color(fallbackColor)` 按 ARGB 解成**全透明**——AVD 深壁纸看不出,亮壁纸暴露。改成返回不透明 ARGB(`0xFF shl 24 or rgb`)。另外:透明边的 logo(网易云的 `loadLogo` 宽高比过关但四周透明)以前被当横幅原样画、留一圈透明;新增「边缘不透明占比 ≥ 0.8 才算真横幅」(`opaqueFraction`),否则判回图标路补底。`CardColorTest`/`OpaqueFractionTest` 覆盖;真机实测网易云已是连续红底 16:9 卡。单测 71 → 74。
+
+## 2026-09-16 · 归档收尾(明日续 M7)
+
+本地 `main` = `04d5842`,领先 `origin/main` **11 个 commit,全部未推送**(theme-cleanup 7 + theme-cards 3 + M7 spec/plan 文档;更早的 M3/M6/M4 已在此前推送过)。构建 + 74 单测绿。
+
+### 今日已完成(均已并入本地 main)
+- M5 spike 真机通过(A95L 屏保列表列出 UnitedU,DreamService 路线可行);M6 上传服务真机验(list/upload/CSRF);M4 长按 0.6s、中文名、卸载僵尸卡等真机回填修复。
+- 「压暗」→ 双向「亮度」滑块(−50…+50,0=原片)。
+- 删「主题化壁纸」;主题色经 `LocalThemeColors` 全面接线到每个界面;跟随壁纸主色加 `usableAccent` 亮度地板。
+- 主题色一致性:首页分栏标题/图标改用饱和 accent(与齿轮一致)。
+- 新「主题化卡片」开关(去色染主题色)。
+- 纯图标卡回落底改「图标边缘色」(`edgeColor`,不透明 ARGB),透明边 logo(网易云)判回图标路补连续底;横幅需边缘不透明才算数(`opaqueFraction`)。
+
+### 仓库状态
+- 分支只剩 `main` 与 `worktree-agent-a21dcfb91b5103162`(M5 spike,4f184b7,未并入——DreamService 留给 M7/M5 正式实现;spike APK 在 `.superpowers/spike-m5/`)。其余里程碑分支与 agent worktree 已清理。
+- `.claude/` 已进 `.gitignore`(session scratch)。
+
+### 明日续(M7,spec+plan 已就绪,未开工)
+- Spec:`docs/superpowers/specs/2026-09-16-m7-settings-design.md`(含 §10.5 不变量:普通主题色不进卡片中间)。
+- Plan:`docs/superpowers/plans/2026-09-16-m7-settings.md`(12 任务:分层叠加骨架 → 两栏设置页 + 透明叠加实时预览 → 恢复默认 / 语言 / 待机接线 / 关于+检查更新 / 首次引导 / 发布脚本+README)。
+- Gordon 定:预览用透明叠加(首页留底层、面板半透明、左深右浅渐变);恢复默认只恢复设置;设置页左右两栏;更新通道 COS 主 GitHub 备;首次引导只铺分类表命中的已装应用。
+- 另记:Gordon 计划在 M7 之后加一轮**纯主观美化**,拿成品 UI 试过再给具体调法。
+
+### 待 Gordon
+- 推送:11 个 commit 未推 origin(等美化那轮或随时说「推」)。
+- M7 开工前的真机对照仍走 A95L 无线调试(端口以电视页面为准;`No route to host` 先 `adb kill-server`)。
