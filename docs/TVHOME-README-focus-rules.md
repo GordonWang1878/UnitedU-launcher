@@ -146,7 +146,7 @@ licenses 目录里手写了 `android-sdk-license` 的三个 hash,否则 AGP 认�
 
 APK 内置 `assets/wallpapers/*.jpg`;首次启动铺进 `library/wallpapers/`(标记 `.seeded`,只铺一次),`settings.json` 的 `wallpaperFile` 指向当前壁纸;M1/M2 的根目录 `wallpaper.jpg` 首次启动自动迁入 library 为 `legacy-wallpaper.jpg`。
 
-**换图方式**:壁纸和卡片图用内置 D-pad 选择器(`ImagePicker.kt`),扫描 `library/wallpapers/` 或 `library/cards/` 目录,全键盘导航,不跳外部应用。图片通过 `adb push` 预先放到对应的 `library/` 子目录。屏保图片也用 `adb push` 放到 `library/screensavers/`,该目录里的所有图片自动参与轮播。**轮播列表在每次进入待机那一刻重扫**(2026-09-13 起):推完/删完图,下次待机即生效,不用重启桌面。之前是进程启动时扫一次的快照,同步删掉的图会以「只剩壁纸」的形式留在轮播里各占 30 秒(FEASIBILITY §6.50)。旧版单文件 `screensaver.jpg`/`.png` 会在首次加载时自动迁移到 `library/screensavers/`。轮播、主题化、模糊、压暗在「UnitedU 设置 → 壁纸」调;处理结果缓存在 `externalCacheDir/wallpapers/`(最多 12 张)。
+**换图方式**:壁纸和卡片图用内置 D-pad 选择器(`ImagePicker.kt`),扫描 `library/wallpapers/` 或 `library/cards/` 目录,全键盘导航,不跳外部应用。图片通过 `adb push` 预先放到对应的 `library/` 子目录。屏保图片也用 `adb push` 放到 `library/screensavers/`,该目录里的所有图片自动参与轮播。**轮播列表在每次进入待机那一刻重扫**(2026-09-13 起):推完/删完图,下次待机即生效,不用重启桌面。之前是进程启动时扫一次的快照,同步删掉的图会以「只剩壁纸」的形式留在轮播里各占 30 秒(FEASIBILITY §6.50)。旧版单文件 `screensaver.jpg`/`.png` 会在首次加载时自动迁移到 `library/screensavers/`。轮播、模糊、亮度在「UnitedU 设置 → 壁纸」调(「主题化壁纸」2026-09-16 已删,壁纸不染主题色);处理结果缓存在 `externalCacheDir/wallpapers/`(最多 12 张)。
 
 ## 实测数据(2026-09-11)
 
@@ -174,7 +174,7 @@ adb -s 192.168.1.50:5555 shell cmd package set-home-activity --user 0 com.dangbe
 | 菜单项 | 作用 |
 |---|---|
 | 编辑桌面 | 三行 + 每行末尾加号;选中卡片弹「往左移 / 往右移 / 换卡片图 / 从这一行移出」;加号打开应用选择器。改动即时写回 `layout.json`,退出后首页立即生效 |
-| 换壁纸 | 内置选择器,从 `library/wallpapers/` 选一张,只把文件名写进 `settings.json` 的 `wallpaperFile`(M3 起不再复制、不再 recreate);轮播/主题化/模糊/压暗在「UnitedU 设置 → 壁纸」调 |
+| 换壁纸 | 内置选择器,从 `library/wallpapers/` 选一张,只把文件名写进 `settings.json` 的 `wallpaperFile`(M3 起不再复制、不再 recreate);轮播/模糊/亮度在「UnitedU 设置 → 壁纸」调 |
 | 屏保图库 | 缩略图网格预览 `library/screensavers/` 里的**全部**图片(2026-09-13 起不再封顶 9 张,网格纵向滚动,DOWN/UP 焦点带着滚,§6.53),按确定键全屏预览(HDR + Ken Burns,和真实屏保一致),← → 切换,返回退出;所有图片自动参与轮播(30 秒一张,2 秒交叉淡入),HDR gain map 保留 |
 | 系统设置 | 打开电视的 Android 设置 |
 | 设置默认桌面 | 先弹一张 United UI 风格的引导卡(`HomeSettingsCard`):显示当前默认桌面的图标+名称 + 「在系统设置中更改」按钮 + 说明。按钮跳系统主屏幕应用设置页(`android.settings.HOME_SETTINGS`,实测解析到 `com.android.permissioncontroller/.role.ui.DefaultAppActivity`)。**应用无权限直接改 HOME 角色,切换必须在系统页完成,这张卡只是把它包在一次明确点击之后**(§6.54) |
