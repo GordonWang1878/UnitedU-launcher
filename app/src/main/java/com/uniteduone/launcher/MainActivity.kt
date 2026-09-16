@@ -99,6 +99,19 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * 应用内语言切换的接线点:Activity(重)建时读一次 settings.json 里的 `language`,
+     * 用它派生出的 Context 包住 base——之后 `getString`/`stringResource` 等全部读到目标语言的资源
+     * (机制见 `LocaleOverride.kt`)。[AppLocale.current] 也在此同步写入,供 [Clock] 这类
+     * 直接用 `Locale` 而非走资源系统的代码读取。
+     * 这里必须用 `base` 而不是 `this` 去读设置——此时 Activity 自己的 Context 链还没建好。
+     */
+    override fun attachBaseContext(base: android.content.Context) {
+        val lang = SettingsStore.read(base).language
+        AppLocale.current = localeFor(lang)
+        super.attachBaseContext(base.withLanguage(lang))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.colorMode = ActivityInfo.COLOR_MODE_HDR
@@ -421,6 +434,18 @@ class MainActivity : ComponentActivity() {
      */
     private fun leaveSettings() {
         if (settings) { settings = false; focusNonce++; revision++; homeInitialTarget = null }
+    }
+
+    /**
+     * 语言切换入口(设置页接线见 T8)。写盘后只在 Locale 真的变了才 `recreate()`——
+     * 比如从 `zh-CN` 切到 `zh-TW`(都不是 `localeFor` 所在的等价类)才需要重建,
+     * 避免同语言重复选择也整个重建一次(黑闪 + 焦点打回第一张卡)。
+     * `recreate()` 会重新触发 [attachBaseContext],新语言由那里接管;
+     * 重建后的位置还原是 T8 设置页的职责(`onSaveInstanceState`),这里不管。
+     */
+    private fun applyLanguage(language: String) {
+        SettingsStore.update(this) { it.copy(language = language) }
+        if (localeFor(language) != AppLocale.current) recreate()
     }
 
     override fun onResume() {

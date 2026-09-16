@@ -19,7 +19,8 @@ import java.util.Locale
  * 右上角时钟。格式照 v4 屏幕上的实际样子:`<时间> EEE yyyy/M/d`。design §3:
  * 12/24 小时跟系统的「使用24小时格式」开关走,星期跟系统语言走(比如中文系统显示"周一"),
  * [showDate] 关掉时只留时间,星期和 `yyyy/M/d` 一起隐藏。
- * Locale 用 [Locale.getDefault]——不再像早期版本那样固定 ENGLISH。
+ * Locale 优先用 [AppLocale.current](应用内语言切换,见 `LocaleOverride.kt`),
+ * 未覆盖(跟随系统)时落回 [Locale.getDefault]——不再像早期版本那样固定 ENGLISH。
  */
 @Composable
 fun Clock(
@@ -61,7 +62,7 @@ fun Clock(
         if (showDate) "$timePart EEE yyyy/M/d" else timePart
     }
     // tzTick 作为 key:SimpleDateFormat 出生时就把时区绑死了,换时区后必须重建。
-    val fmt = remember(tzTick, pattern) { SimpleDateFormat(pattern, Locale.getDefault()) }
+    val fmt = remember(tzTick, pattern) { SimpleDateFormat(pattern, AppLocale.current ?: Locale.getDefault()) }
     BasicText(
         text = fmt.format(now),
         modifier = modifier,
