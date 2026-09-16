@@ -43,6 +43,14 @@ data class Settings(
     val wallpaperBrightness: Int = 0,
     /** 上次打开「添加应用」列表的时刻(epoch ms);firstInstallTime 晚于它的应用算「新」。0 = 未初始化(首启时写成当时)。 */
     val newAppsSeenAt: Long = 0L,
+    /** 界面语言;合法值见 [VALID_LANGUAGES]。`"system"` = 跟随系统语言。 */
+    val language: String = "system",
+    /**
+     * 是否已过完引导流程——三态:`null` = 文件里压根没写这个键(老用户,§8 靠它和
+     * `false`(新用户走过引导但中途没走完/明确重置)区分);`true` = 走完了。
+     * 三态靠"缺省"表达,见 [toJson] 只在非 null 时写这个键。
+     */
+    val onboardingDone: Boolean? = null,
 )
 
 // `internal`(而非 `private`):这两张表是 cardsPerRow / idleAfterMs 的唯一合法取值集合,
@@ -51,6 +59,7 @@ data class Settings(
 internal val VALID_CARDS_PER_ROW = intArrayOf(5, 6, 8)
 internal val VALID_IDLE_AFTER_MS = longArrayOf(0L, 60_000L, 180_000L, 300_000L, 600_000L)
 internal val VALID_WALLPAPER_ROTATE_MS = longArrayOf(0L, 300_000L, 1_800_000L, 86_400_000L)
+internal val VALID_LANGUAGES = listOf("system", "zh-CN", "zh-TW", "en")
 
 private fun snapRotateMs(v: Long?): Long =
     if (v != null && VALID_WALLPAPER_ROTATE_MS.contains(v)) v else 0L
@@ -149,6 +158,11 @@ fun parseSettings(json: String): Settings {
                 d.wallpaperBrightness,
             ),
             newAppsSeenAt = clampEpoch(extractLong(json, "newAppsSeenAt")),
+            language = extractString(json, "language")
+                ?.takeIf { VALID_LANGUAGES.contains(it) } ?: d.language,
+            // 三态:extractBoolean 解析不出(缺键、或值不是 true/false)时本来就是 null,
+            // 直接透传即可——和其它布尔字段不同,这里"缺失"不该回落到某个默认布尔。
+            onboardingDone = extractBoolean(json, "onboardingDone"),
         )
     } catch (e: Throwable) {
         // 理论上上面每一步都已经用 ?: 兜底、不会抛,这层 catch 只是和 Layout 保持同一套
@@ -178,10 +192,20 @@ fun Settings.toJson(): String {
         append("  \"wallpaperRotatedAt\": $wallpaperRotatedAt,\n")
         append("  \"wallpaperBlur\": $wallpaperBlur,\n")
         append("  \"wallpaperBrightness\": $wallpaperBrightness,\n")
+        append("  \"language\": \"${esc(language)}\",\n")
+        onboardingDone?.let { append("  \"onboardingDone\": $it,\n") }
         append("  \"newAppsSeenAt\": $newAppsSeenAt\n")
         append("}\n")
     }
 }
+
+/**
+ * 「恢复默认」纯函数:除了 `newAppsSeenAt`(传入 [nowMs],否则「新应用」判定会把恢复前
+ * 装的所有应用瞬间打成"新")和 `onboardingDone`(引导流程不是外观设置,恢复默认不该让
+ * 老用户重新走一遍引导)之外,其余字段全部回落到 [Settings] 的构造默认值。
+ */
+fun restoredDefaults(current: Settings, nowMs: Long): Settings =
+    Settings().copy(newAppsSeenAt = nowMs, onboardingDone = current.onboardingDone)
 
 /**
  * 粗略判断一段文本是不是"至少语法完整、且只有一个"的 JSON 对象(花括号/引号配平,
