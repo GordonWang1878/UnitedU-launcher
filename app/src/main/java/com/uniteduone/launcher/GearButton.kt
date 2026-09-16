@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.foundation.Image
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -24,10 +23,10 @@ import androidx.compose.ui.unit.dp
 fun GearButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    /** accent 主题色。默认今日的 [Theme.ChampagneGold],未接线的调用点保持原样。 */
-    accent: Color = Theme.ChampagneGold,
     onFocusChange: (Boolean) -> Unit = {},
 ) {
+    // 齿轮色 = 主题 accent,读全局主题色。
+    val accent = LocalThemeColors.current.accent
     var focused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(if (focused) 1.18f else 1f, label = "gearScale")
     val angle by animateFloatAsState(if (focused) 30f else 0f, label = "gearAngle")

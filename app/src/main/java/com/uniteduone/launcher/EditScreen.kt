@@ -277,7 +277,7 @@ fun EditScreen(
             BasicText(
                 text = stringResource(R.string.edit_title),
                 modifier = Modifier.padding(start = Theme.SidePadding, bottom = 4.dp),
-                style = TextStyle(fontFamily = Theme.Sans, color = Theme.Champagne, fontSize = 20.sp),
+                style = TextStyle(fontFamily = Theme.Sans, color = LocalThemeColors.current.highlight, fontSize = 20.sp),
             )
             BasicText(
                 text = stringResource(R.string.edit_hint),
@@ -463,6 +463,7 @@ private fun AddCard(
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val highlight = LocalThemeColors.current.highlight
     // 卡片聚焦会放大 1.31 倍并起光晕,加号原来只换个底色,暗背景下看不出「我选中的是它」
     val addScale by androidx.compose.animation.core.animateFloatAsState(
         if (focused) 1.12f else 1f, label = "addScale",
@@ -472,7 +473,7 @@ private fun AddCard(
             .size(metrics.cardWidth, metrics.cardHeight)
             .scale(addScale)
             .clip(RoundedCornerShape(metrics.cardCorner))
-            .background(if (focused) Theme.Champagne.copy(alpha = 0.30f) else Theme.AddCardBackground)
+            .background(if (focused) highlight.copy(alpha = 0.30f) else Theme.AddCardBackground)
             .focusProperties {
                 right = FocusRequester.Cancel          // 行尾锁在这里,别跳到下一行
                 if (isRowStart) left = FocusRequester.Cancel   // 空行时它就是行首
@@ -483,7 +484,7 @@ private fun AddCard(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        BasicText("＋", style = TextStyle(fontFamily = Theme.Sans, color = Theme.Champagne, fontSize = 26.sp))
+        BasicText("＋", style = TextStyle(fontFamily = Theme.Sans, color = highlight, fontSize = 26.sp))
     }
 }
 
@@ -628,7 +629,7 @@ private fun AppPicker(
             BasicText(
                 stringResource(R.string.edit_add_app_title),
                 modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
-                style = TextStyle(fontFamily = Theme.Sans, color = Theme.Champagne, fontSize = 16.sp),
+                style = TextStyle(fontFamily = Theme.Sans, color = LocalThemeColors.current.highlight, fontSize = 16.sp),
             )
             if (candidates == null) {
                 BasicText(
@@ -676,11 +677,12 @@ private fun PickerRow(
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val highlight = LocalThemeColors.current.highlight
     Column(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(if (focused) Theme.Champagne.copy(alpha = 0.16f) else Color.Transparent)
+            .background(if (focused) highlight.copy(alpha = 0.16f) else Color.Transparent)
             // 四向显式锁住边界。
             // **注意:这不是在修一个已复现的故障。**静态复审推断「这里按左右或越界会整棵树失焦」,
             // 2026-09-11 真机实测**四个方向全部原地停住**,推断没有成立——大概率是外层的
@@ -705,12 +707,12 @@ private fun PickerRow(
                 // weight(fill = false):名字很长时先挤自己(换行),不把「新」标推出对话框右边缘;
                 // fill = false 保证短名字仍然紧挨着标,不会中间空一大段。
                 modifier = Modifier.weight(1f, fill = false),
-                style = TextStyle(fontFamily = Theme.Sans, color = if (focused) Theme.Champagne else Theme.DialogBodyText, fontSize = 14.sp),
+                style = TextStyle(fontFamily = Theme.Sans, color = if (focused) highlight else Theme.DialogBodyText, fontSize = 14.sp),
             )
             if (isNew) Box(
-                Modifier.clip(RoundedCornerShape(4.dp)).background(Theme.Champagne.copy(alpha = 0.22f)).padding(horizontal = 6.dp, vertical = 1.dp),
+                Modifier.clip(RoundedCornerShape(4.dp)).background(highlight.copy(alpha = 0.22f)).padding(horizontal = 6.dp, vertical = 1.dp),
             ) {
-                BasicText(text = stringResource(R.string.edit_badge_new), style = TextStyle(fontFamily = Theme.Sans, color = Theme.Champagne, fontSize = 10.sp))
+                BasicText(text = stringResource(R.string.edit_badge_new), style = TextStyle(fontFamily = Theme.Sans, color = highlight, fontSize = 10.sp))
             }
         }
         BasicText(

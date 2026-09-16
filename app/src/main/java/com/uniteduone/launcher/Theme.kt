@@ -59,11 +59,14 @@ object Theme {
         ),
     )
 
-    /** 香槟白:Projectivy 里是金格 (1,5) 亮度 +80,取到的近似色。用于光晕与时钟。 */
+    /** 香槟白:Projectivy 里是金格 (1,5) 亮度 +80,取到的近似色。
+     *  **= 金预设的 highlight 原值**(ThemePresets.kt)。2026-09-16 起界面代码不再直接引它——
+     *  高亮一律读 `LocalThemeColors.current.highlight`(跟着所选预设 / 壁纸主色走);这里只留作标定记录。 */
     val Champagne = Color(0xFFFFF5DC)
 
-    /** 香槟金:状态栏齿轮。复审取参考图齿轮前 1% 像素的中位色 #BEA438、去模糊后约 #C0A73A;
-     *  原来的 #D9B970 蓝通道 112,参考只有 56 —— 偏白偏冷了一档。 */
+    /** 香槟金:复审取参考图齿轮前 1% 像素的中位色 #BEA438、去模糊后约 #C0A73A;
+     *  原来的 #D9B970 蓝通道 112,参考只有 56 —— 偏白偏冷了一档。
+     *  **= 金预设的 accent 原值**;同上,界面代码读 `LocalThemeColors.current.accent`,这里只留作标定记录。 */
     val ChampagneGold = Color(0xFFC0A73A)
 
     val RowTitle = Color(0xFFFFFFFF)

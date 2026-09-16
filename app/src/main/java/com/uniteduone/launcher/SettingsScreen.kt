@@ -353,7 +353,7 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0, onWallpaperParamsCha
                             style = TextStyle(
                                 fontFamily = Theme.Sans,
                                 fontWeight = FontWeight.Medium,
-                                color = Theme.ChampagneGold,
+                                color = LocalThemeColors.current.accent,   // 分组标题 = 主题 accent(原香槟金的位置)
                                 fontSize = 12.sp,
                                 letterSpacing = 1.5.sp,
                             ),
@@ -395,6 +395,7 @@ private fun SettingRow(
     onFocusChange: (Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val highlight = LocalThemeColors.current.highlight
 
     fun step(delta: Int) {
         val next = (ctrl.selected + delta).coerceIn(0, ctrl.count - 1)
@@ -428,7 +429,7 @@ private fun SettingRow(
                 .clip(RoundedCornerShape(10.dp))
                 .background(
                     if (focused) Brush.horizontalGradient(
-                        listOf(Theme.Champagne.copy(alpha = 0.12f), Color.Transparent),
+                        listOf(highlight.copy(alpha = 0.12f), Color.Transparent),
                     ) else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent)),
                 )
                 .padding(horizontal = 12.dp),
@@ -440,7 +441,7 @@ private fun SettingRow(
                     .width(2.5.dp)
                     .height(26.dp)
                     .clip(RoundedCornerShape(1.dp))
-                    .background(if (focused) Theme.Champagne else Color.Transparent),
+                    .background(if (focused) highlight else Color.Transparent),
             )
             Spacer(Modifier.width(12.dp))
             BasicText(
@@ -467,19 +468,20 @@ private fun SettingRow(
     }
 }
 
-/** 分段选择器 / 开关(开关就是两段「关|开」)。选中项高亮;行聚焦时选中项更亮(香槟底)。 */
+/** 分段选择器 / 开关(开关就是两段「关|开」)。选中项高亮;行聚焦时选中项更亮(主题 highlight 底)。 */
 @Composable
 private fun SegmentedControl(options: List<String>, selected: Int, rowFocused: Boolean) {
+    val highlight = LocalThemeColors.current.highlight
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         options.forEachIndexed { i, opt ->
             val isSel = i == selected
             val bg = when {
-                isSel && rowFocused -> Theme.Champagne
-                isSel -> Theme.Champagne.copy(alpha = 0.22f)
+                isSel && rowFocused -> highlight
+                isSel -> highlight.copy(alpha = 0.22f)
                 else -> Theme.UnfocusedSurface
             }
             val fg = when {
-                isSel && rowFocused -> Theme.Background   // 亮香槟底上用深色字
+                isSel && rowFocused -> Theme.Background   // 亮高亮底上用深色字
                 isSel -> Theme.EmphasisText
                 else -> Theme.SecondaryText
             }
@@ -504,9 +506,10 @@ private fun SegmentedControl(options: List<String>, selected: Int, rowFocused: B
     }
 }
 
-/** 主题色 swatch:6 个色点,选中项加环;行聚焦时环变香槟色(焦点 + 选中都清楚)。 */
+/** 主题色 swatch:6 个色点,选中项加环;行聚焦时环变主题 highlight 色(焦点 + 选中都清楚)。 */
 @Composable
 private fun SwatchControl(selected: Int, rowFocused: Boolean) {
+    val highlight = LocalThemeColors.current.highlight
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         ThemePresets.all.forEachIndexed { i, preset ->
             val isSel = i == selected
@@ -519,7 +522,7 @@ private fun SwatchControl(selected: Int, rowFocused: Boolean) {
                         .then(
                             if (isSel) Modifier.border(
                                 width = if (rowFocused) 3.dp else 2.dp,
-                                color = if (rowFocused) Theme.Champagne else Theme.EmphasisText,
+                                color = if (rowFocused) highlight else Theme.EmphasisText,
                                 shape = CircleShape,
                             ) else Modifier,
                         ),
@@ -530,12 +533,13 @@ private fun SwatchControl(selected: Int, rowFocused: Boolean) {
 }
 
 /**
- * 滑块:11 档,每档 10%。轨道 + 已填充段 + 百分比;行聚焦时填充段亮香槟,与分段控件选中态同色。
+ * 滑块:11 档,每档 10%。轨道 + 已填充段 + 百分比;行聚焦时填充段亮主题 highlight 色,与分段控件选中态同色。
  * [zeroAt] = 代表 0 的档位:单向滑块为 0(填充从左端起),双向亮度滑块为 5(填充从正中画到当前档,
  * 文字带正负号,0 档显示 0%)。
  */
 @Composable
 private fun SliderControl(selected: Int, count: Int, rowFocused: Boolean, zeroAt: Int = 0) {
+    val highlight = LocalThemeColors.current.highlight
     val trackWidth = 220.dp
     fun at(i: Int) = if (count <= 1) 0f else i.toFloat() / (count - 1)
     val value = (selected - zeroAt) * 10
@@ -554,7 +558,7 @@ private fun SliderControl(selected: Int, count: Int, rowFocused: Boolean, zeroAt
                     .padding(start = trackWidth * lo)
                     .fillMaxHeight()
                     .width(trackWidth * (hi - lo))
-                    .background(if (rowFocused) Theme.Champagne else Theme.Champagne.copy(alpha = 0.22f)),
+                    .background(if (rowFocused) highlight else highlight.copy(alpha = 0.22f)),
             )
             // 双向滑块的零点刻度:细竖线,让人一眼看出中点就是原片
             if (zeroAt > 0) Box(

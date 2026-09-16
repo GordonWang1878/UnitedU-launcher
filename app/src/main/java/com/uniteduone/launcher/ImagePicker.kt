@@ -154,7 +154,7 @@ private fun EmptyState(title: String, nonce: Int, onDismiss: () -> Unit) {
     ) {
         BasicText(
             text = title,
-            style = TextStyle(fontFamily = Theme.Sans, color = Theme.Champagne, fontSize = 16.sp),
+            style = TextStyle(fontFamily = Theme.Sans, color = LocalThemeColors.current.highlight, fontSize = 16.sp),
         )
         BasicText(
             text = stringResource(R.string.picker_no_images),
@@ -232,7 +232,7 @@ private fun PickerGrid(
     ) {
         BasicText(
             text = title,
-            style = TextStyle(fontFamily = Theme.Sans, color = Theme.Champagne, fontSize = 16.sp),
+            style = TextStyle(fontFamily = Theme.Sans, color = LocalThemeColors.current.highlight, fontSize = 16.sp),
             modifier = Modifier.padding(bottom = 4.dp),
         )
 
@@ -312,12 +312,13 @@ private fun ThumbCard(
         is PickerItem.Original -> stringResource(R.string.picker_restore_original)
         is PickerItem.Library -> item.file.nameWithoutExtension
     }
+    val highlight = LocalThemeColors.current.highlight
 
     Column(
         modifier = modifier
             .width(thumbWidth)
             .clip(RoundedCornerShape(8.dp))
-            .background(if (focused) Theme.Champagne.copy(alpha = 0.16f) else Theme.UnfocusedSurface)
+            .background(if (focused) highlight.copy(alpha = 0.16f) else Theme.UnfocusedSurface)
             .padding(6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -347,7 +348,7 @@ private fun ThumbCard(
             text = label,
             style = TextStyle(
                 fontFamily = Theme.Sans,
-                color = if (focused) Theme.Champagne else Theme.ThumbLabelText,
+                color = if (focused) highlight else Theme.ThumbLabelText,
                 fontSize = 10.sp,
                 textAlign = TextAlign.Center,
             ),
@@ -430,7 +431,7 @@ private fun PoolEmptyState(nonce: Int, onDismiss: () -> Unit) {
     ) {
         BasicText(
             text = stringResource(R.string.picker_screensaver_title),
-            style = TextStyle(fontFamily = Theme.Sans, color = Theme.Champagne, fontSize = 16.sp),
+            style = TextStyle(fontFamily = Theme.Sans, color = LocalThemeColors.current.highlight, fontSize = 16.sp),
         )
         BasicText(
             text = stringResource(R.string.picker_no_screensavers),

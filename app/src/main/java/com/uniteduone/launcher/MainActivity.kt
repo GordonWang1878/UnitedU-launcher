@@ -128,7 +128,7 @@ class MainActivity : ComponentActivity() {
             // 这里不能显式写 Settings 类型名,本文件已经 `import android.provider.Settings`,
             // 裸写 Settings 会撞上那个系统类;靠类型推断绕开,只取用到的字段(showDate)。
             val homeSettings = remember(revision, settingsRevision) { SettingsStore.read(this@MainActivity) }
-            // 主题色:选中预设的 accent(齿轮)+ highlight(时钟/光晕/行标题)。
+            // 主题色:选中预设的 accent + highlight,经下面的 LocalThemeColors 供给**每个界面**(2026-09-16 全面接线)。
             // followWallpaperColor 打开时,accent 改从当前壁纸主色提取、highlight 由它混白推得
             // (与非金预设同一算法);解不出色或没壁纸就回落到预设。壁纸解码放 IO 线程,
             // key 带上 followWallpaperColor、wallpaperFile 与 revision:换壁纸(handlePick 只
@@ -185,6 +185,8 @@ class MainActivity : ComponentActivity() {
             // revision 只喂给读数据的 produceState,新数据到达前旧画面原样留着。
             // 壁纸与黑底常驻在这一层:进出编辑界面只换上面那一层,
             // 壁纸不会被重建,也就不会每次退出编辑都重新解码 + 黑闪一下。
+            // 主题色只此一条线:这里提供一次,下面每个界面都读 LocalThemeColors.current(见 ThemePresets.kt)。
+            CompositionLocalProvider(LocalThemeColors provides themeColors) {
             Box(
                 Modifier
                     .fillMaxSize()
@@ -270,8 +272,6 @@ class MainActivity : ComponentActivity() {
                     showTitles = homeSettings.showTitles,
                     showInputRow = homeSettings.showInputRow,
                     newAppsSeenAt = homeSettings.newAppsSeenAt,
-                    accent = themeColors.accent,
-                    highlight = themeColors.highlight,
                     onFocusedCard = { focusedCard = it },
                     cardMenu = cardMenu,
                     cardMenuItems = remember(cardMenu) { cardMenu?.let { cardMenuItems(it) } ?: emptyList() },
@@ -282,6 +282,7 @@ class MainActivity : ComponentActivity() {
                     initialTarget = homeInitialTarget,
                     onInitialTargetConsumed = { homeInitialTarget = null },
                 )
+            }
             }
             }
         }
@@ -647,7 +648,7 @@ class MainActivity : ComponentActivity() {
 }
 
 /**
- * followWallpaperColor 打开时,从当前壁纸主色推导**四处强调色**(齿轮 / 时钟 / 光晕 / 行标题)。
+ * followWallpaperColor 打开时,从当前壁纸主色推导界面强调色(经 LocalThemeColors 供给每个界面)。
  * **必须在 IO 线程调用**:取色会解一张缩略图并跑 Palette(实现见 [Wallpapers.paletteAccent])。
  *
  * accent 用取到的色,highlight 由 [highlightFrom] 混白 55% 推得 —— 与非金预设 highlight 同一手法。

@@ -144,6 +144,7 @@ fun ImportScreen(onExit: () -> Unit, focusNonce: Int = 0) {
 
     val fr = remember { FocusRequester() }
     var focused by remember { mutableStateOf(false) }
+    val highlight = LocalThemeColors.current.highlight   // 地址与提示文字跟主题 highlight
     androidx.activity.compose.BackHandler { onExit() }
     LaunchedEffect(focusNonce, focused) {
         if (focused) return@LaunchedEffect
@@ -183,7 +184,7 @@ fun ImportScreen(onExit: () -> Unit, focusNonce: Int = 0) {
                 qr?.let { Image(bitmap = it.asImageBitmap(), contentDescription = null, modifier = Modifier.size(300.dp)) }
                 BasicText(
                     text = url ?: "",
-                    style = TextStyle(fontFamily = Theme.Sans, fontWeight = FontWeight.Medium, color = Theme.Champagne, fontSize = 28.sp),
+                    style = TextStyle(fontFamily = Theme.Sans, fontWeight = FontWeight.Medium, color = highlight, fontSize = 28.sp),
                 )
                 val last = lastName
                 BasicText(
@@ -194,7 +195,7 @@ fun ImportScreen(onExit: () -> Unit, focusNonce: Int = 0) {
                 val n = notice
                 if (n != null) BasicText(
                     text = stringResource(n),
-                    style = TextStyle(fontFamily = Theme.Sans, color = Theme.Champagne, fontSize = 15.sp),
+                    style = TextStyle(fontFamily = Theme.Sans, color = highlight, fontSize = 15.sp),
                 )
             }
             BasicText(

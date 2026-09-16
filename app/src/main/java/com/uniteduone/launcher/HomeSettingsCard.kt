@@ -59,6 +59,7 @@ fun HomeSettingsCard(
     val fr = remember { FocusRequester() }
     var landed by remember { mutableStateOf(false) }
     var btnFocused by remember { mutableStateOf(false) }
+    val highlight = LocalThemeColors.current.highlight
 
     androidx.activity.compose.BackHandler { onDismiss() }
 
@@ -81,7 +82,7 @@ fun HomeSettingsCard(
                 style = TextStyle(
                     fontFamily = Theme.Sans,
                     fontWeight = FontWeight.Medium,
-                    color = Theme.Champagne,
+                    color = highlight,
                     fontSize = 16.sp,
                     letterSpacing = 1.sp,
                 ),
@@ -140,10 +141,10 @@ fun HomeSettingsCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
-                    .background(if (btnFocused) Theme.Champagne.copy(alpha = 0.16f) else Theme.UnfocusedSurface)
+                    .background(if (btnFocused) highlight.copy(alpha = 0.16f) else Theme.UnfocusedSurface)
                     .then(
                         if (btnFocused) Modifier.border(
-                            BorderStroke(1.dp, Theme.Champagne.copy(alpha = 0.7f)),
+                            BorderStroke(1.dp, highlight.copy(alpha = 0.7f)),
                             RoundedCornerShape(10.dp),
                         ) else Modifier
                     )
@@ -162,7 +163,7 @@ fun HomeSettingsCard(
                     style = TextStyle(
                         fontFamily = Theme.Sans,
                         fontWeight = FontWeight.Medium,
-                        color = if (btnFocused) Theme.Champagne else Theme.ButtonText,
+                        color = if (btnFocused) highlight else Theme.ButtonText,
                         fontSize = 14.sp,
                     ),
                 )

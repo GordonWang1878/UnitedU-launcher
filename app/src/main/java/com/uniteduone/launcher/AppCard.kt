@@ -60,9 +60,6 @@ fun AppCard(
     modifier: Modifier = Modifier,
     /** 当前卡片档位的尺寸(卡宽/高/圆角/光晕)。默认中档,保证未接线的调用点仍与今日一致。 */
     metrics: CardMetrics = Theme.cardMetrics(6),
-    /** 呼吸光晕的颜色(highlight 主题色)。默认今日的 [Theme.Champagne] —— 编辑页的卡片不接线,
-     *  保持原样;首页把选中预设的 highlight 穿进来。 */
-    glowColor: Color = Theme.Champagne,
     onFocusChange: (Boolean) -> Unit = {},
     /** 行首/行末:到边界后左右键不再跳到别的行(Compose 默认会按几何位置找最近的可聚焦项,
      *  表现就是「按右键从第一行末尾跳进了第二行」,Projectivy 不会这样)。 */
@@ -86,6 +83,9 @@ fun AppCard(
     fallbackColor: Color? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
+    // 呼吸光晕的颜色 = 主题 highlight,直接读全局主题色——首页与编辑页的卡片一起跟着走,
+    // 不再有「未接线的调用点用今日常量」这种第二来源(2026-09-16)。
+    val glowColor = LocalThemeColors.current.highlight
     // 呼吸动画只在聚焦时存在:放在外面的话每张卡片都会一直跑,待机后也停不下来。
     // 返回的是 State 而不是 Float,**必须在 drawBehind 里读**:在组合期读会让
     // 聚焦卡片按刷新率整片重组(Image、渐变全跟着重跑),而真正需要重来的只有绘制。
