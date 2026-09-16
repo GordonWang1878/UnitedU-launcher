@@ -27,7 +27,7 @@ adb emu kill                                     # 关闭
 
 改 settings.json 单个字段验证用:pull → 正则替换 → push → force-stop → HOME(见 M3 计划 Task 5 的 setjson.sh)。
 
-真机(Sony A95L,`192.168.1.50:5555`)只在 M8 验收用;开发全程走模拟器。
+真机(Sony A95L)只在里程碑真机验收用;开发全程走模拟器。真机 adb 走「无线调试」配对码(**不是** 5555):电视「开发者选项 → 无线调试 → 使用配对码配对设备」拿码,`printf '<码>\n' | adb pair <IP:配对端口>`(管道喂码,参数形式会 protocol fault),再 `adb connect <IP:连接端口>`——**连接端口以电视「无线调试」主页面显示的为准**(2026-09-16:mDNS 广播的端口是休眠前的过期记录,端口扫描也扫不到真端口;mDNS 发现要 `ADB_MDNS_OPENSCREEN=1`)。IP 走 DHCP(当前 192.168.1.22)。配对不跨会话保留,`offline` = 配对失效,重配即可。
 
 ## 文档分流(每轮工作收尾前必查同步)
 

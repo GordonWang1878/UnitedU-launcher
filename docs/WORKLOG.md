@@ -323,3 +323,9 @@ spec 状态行已改为「已实施(commit `8cc5134`),待真机验」(T6 时为 
 3. **T9 真机调参**(M3):设置页「壁纸」组用滑块调模糊/压暗到满意,报我数值改成默认。
 4. **M6 手机扫码**:齿轮 → 导入图片 → 手机扫码 → 传一张壁纸/删一张,看电视端计数与首页壁纸。
 5. **M4 真机手感**:长按 0.4 s 是否合适;索尼输入法改名输中文;IME 收起后确定键保存;改名时 IME 的返回键要按几次;卸载走系统确认页是否正常。
+
+## 2026-09-16 · M5 spike 真机结果(通过)+ 电视 adb 通道
+
+- **M5 spike 通过**:把 M2 版 launcher 加一个最小 `DreamService`(`UnitedUDream`,分支 `worktree-agent-a21dcfb91b5103162` 4f184b7)装到 A95L 后,系统「设置 → 屏保」的选择列表出现 **UnitedU**(与 睡眠/万花筒/BRAVIA屏保/咪视界/生活空间装饰 并列;`pm query-services -a android.service.dreams.DreamService` 也列出 `com.uniteduone.launcher/.UnitedUDream`)。**M5 可以按 DreamService 路线做**,不需要绕开 Sony 的屏保框架。未测「立即启动」渲染(spike 只画一屏,留 M5 实作时验)。
+- **电视 adb 通道**(本次踩坑,已写进 CLAUDE.md):配对成功后 `adb connect` 一直 `offline`,原因是端口——mDNS 广播的 39055 是休眠前的过期记录,全端口扫描扫出的 20 个开放端口没有一个是 adbd;最终以电视「无线调试」页显示的 38673 一次连上。结论:**连接端口只信电视页面显示**。
+- UnitedU 不是这台电视的当前桌面(`com.gordonwang.tvhome` 是),spike 覆盖安装不影响使用;随后用合并后的 main 构建覆盖回去做 T9/M6/M4 真机项。
