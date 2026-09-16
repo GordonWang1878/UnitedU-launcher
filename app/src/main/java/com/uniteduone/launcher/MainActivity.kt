@@ -271,6 +271,7 @@ class MainActivity : ComponentActivity() {
                     cardsPerRow = homeSettings.cardsPerRow,
                     showTitles = homeSettings.showTitles,
                     showInputRow = homeSettings.showInputRow,
+                    themedCards = homeSettings.themedCards,
                     newAppsSeenAt = homeSettings.newAppsSeenAt,
                     onFocusedCard = { focusedCard = it },
                     cardMenu = cardMenu,

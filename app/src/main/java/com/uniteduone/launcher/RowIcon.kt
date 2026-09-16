@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
  * (胶片画成了横向描边矩形、电视画成了开口盒子加天线、音符的旗是细线)。
  */
 @Composable
-fun RowIcon(name: String, kind: RowKind = RowKind.APPS) {
+fun RowIcon(name: String, kind: RowKind = RowKind.APPS, tint: androidx.compose.ui.graphics.Color = Theme.RowTitle) {
     // 输入源行的标题是本地化文字(「输入源」/「Inputs」),按 name 匹配跨语言不可靠 ——
     // 用 kind 判定,不看标题文字。
     val icon = if (kind == RowKind.INPUTS) {
@@ -33,7 +33,7 @@ fun RowIcon(name: String, kind: RowKind = RowKind.APPS) {
     Image(
         imageVector = icon,
         contentDescription = name,
-        colorFilter = ColorFilter.tint(Theme.RowTitle),
+        colorFilter = ColorFilter.tint(tint),
         // Material 的矢量图标只填满外框的 24/32,所以框要给到 24dp 才等于参考里的 36px 字形
         modifier = Modifier.size(24.dp),
     )

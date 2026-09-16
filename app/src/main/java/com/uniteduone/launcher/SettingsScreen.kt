@@ -131,9 +131,9 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0, onWallpaperParamsCha
         onWallpaperParamsChanged()
     }
 
-    // ---- 11 个可聚焦控件的描述,顺序即 ctrlIndex(0..10),看门狗/位移都按它索引 ----
-    // (2026-09-16 删掉「主题化壁纸」开关:12 → 11。下标只在这份列表、order 与 WALLPAPER_CTRLS 三处出现,
-    //  其余——ctrlCount / rowFocus / controlTop / upReq / downReq / 看门狗的落点——全由它们派生,不另存字面量。)
+    // ---- 12 个可聚焦控件的描述,顺序即 ctrlIndex(0..11),看门狗/位移都按它索引 ----
+    // (2026-09-16 删「主题化壁纸」后剩 11,同日加「主题化卡片」回到 12。下标只在这份列表、order 与
+    //  WALLPAPER_CTRLS 三处出现,其余——ctrlCount / rowFocus / controlTop / upReq / downReq / 看门狗落点——全由它们派生。)
     val onLabels = listOf(stringResource(R.string.settings_off), stringResource(R.string.settings_on))
     val cardSizeLabels = listOf(
         stringResource(R.string.settings_card_large),
@@ -201,17 +201,22 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0, onWallpaperParamsCha
             options = onLabels, count = 2,
             selected = if (s.followWallpaperColor) 1 else 0,
             onSelect = { i -> update { it.copy(followWallpaperColor = i == 1) } }),
-        // 8 显示日期
+        // 8 主题化卡片(去色→染主题色)
+        Ctrl(R.string.settings_themed_cards, CtrlKind.TOGGLE,
+            options = onLabels, count = 2,
+            selected = if (s.themedCards) 1 else 0,
+            onSelect = { i -> update { it.copy(themedCards = i == 1) } }),
+        // 9 显示日期
         Ctrl(R.string.settings_show_date, CtrlKind.TOGGLE,
             options = onLabels, count = 2,
             selected = if (s.showDate) 1 else 0,
             onSelect = { i -> update { it.copy(showDate = i == 1) } }),
-        // 9 待机时长 关/1/3/5/10 分
+        // 10 待机时长 关/1/3/5/10 分
         Ctrl(R.string.settings_idle_after, CtrlKind.SEGMENTED,
             options = idleAfterLabels, count = 5,
             selected = VALID_IDLE_AFTER_MS.indexOf(s.idleAfterMs).let { if (it < 0) 2 else it },
             onSelect = { i -> update { it.copy(idleAfterMs = VALID_IDLE_AFTER_MS[i]) } }),
-        // 10 待机显示 时钟/全黑/不淡出
+        // 11 待机显示 时钟/全黑/不淡出
         Ctrl(R.string.settings_idle_content, CtrlKind.SEGMENTED,
             options = idleContentLabels, count = 3,
             selected = IdleContent.entries.indexOf(s.idleContent).coerceAtLeast(0),
@@ -229,11 +234,11 @@ fun SettingsScreen(onExit: () -> Unit, focusNonce: Int = 0, onWallpaperParamsCha
             HeaderElem(R.string.settings_group_wallpaper),
             ControlElem(3), ControlElem(4), ControlElem(5),
             HeaderElem(R.string.settings_group_theme),
-            ControlElem(6), ControlElem(7),
+            ControlElem(6), ControlElem(7), ControlElem(8),
             HeaderElem(R.string.settings_group_clock),
-            ControlElem(8),
+            ControlElem(9),
             HeaderElem(R.string.settings_group_standby),
-            ControlElem(9), ControlElem(10),
+            ControlElem(10), ControlElem(11),
         )
     }
     // 每个控件的顶部 Y(dp),从 order 折出来 —— 与渲染同源。

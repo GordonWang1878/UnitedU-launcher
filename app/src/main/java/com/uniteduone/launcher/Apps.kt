@@ -105,14 +105,20 @@ object Apps {
         }.getOrNull()?.takeIf { it.width.toFloat() / it.height.coerceAtLeast(1) in 1.4f..2.2f }
         val bmp = custom ?: banner ?: runCatching { drawableOf(ri.loadIcon(pm)) }.getOrNull()
         val icon = if (custom == null && banner == null) bmp else null
-        // 无横幅回落:图标主色铺 16:9 底(design §2.3)。Palette 在 IO 线程跑(load 本来就在 IO)。
-        // 取不到主色/取色抛异常时(纯色或极简图标常见)不能留 null——那样这张卡会透回黑底,
-        // 和「没取到色」与「isWide=true 本就不该铺底」两种情况混在一起分不清,所以兜底到
-        // Theme.IconPlaceholderBackground:只在 icon != null(确实要铺底)时才生效。
+        // 无横幅回落:铺 16:9 底(design §2.3)。底色用**图标最外一圈的均色**(edgeColor),不是整图 Palette 主色——
+        // 主色常挑到 logo 图形色,铺成底和图标边缘割裂、像硬包一圈(2026-09-16 Gordon 真机指出);边缘色则与图标融为一块。
+        // 图标本就透明边(edgeColor 返回 null)/ 取色抛异常时兜底到 Theme.IconPlaceholderBackground:
+        // 不能留 null——那样这张卡会透回黑底,和「isWide=true 本就不该铺底」两种情况混在一起分不清。IO 线程(load 本就在 IO)。
         val fallbackColor = icon?.let { b ->
-            runCatching { androidx.palette.graphics.Palette.from(b).generate() }.getOrNull()?.let { p ->
-                p.getDominantColor(0).takeIf { it != 0 } ?: p.getVibrantColor(0).takeIf { it != 0 }
-            } ?: Theme.IconPlaceholderBackground.toArgb()
+            runCatching {
+                val w = b.width; val h = b.height
+                if (w < 2 || h < 2) return@runCatching null
+                val top = IntArray(w).also { b.getPixels(it, 0, w, 0, 0, w, 1) }
+                val bottom = IntArray(w).also { b.getPixels(it, 0, w, 0, h - 1, w, 1) }
+                val left = IntArray(h).also { b.getPixels(it, 0, 1, 0, 0, 1, h) }
+                val right = IntArray(h).also { b.getPixels(it, 0, 1, w - 1, 0, 1, h) }
+                edgeColor(top + bottom + left + right)
+            }.getOrNull() ?: Theme.IconPlaceholderBackground.toArgb()
         }
         val firstInstall = runCatching { pm.getPackageInfo(pkg, 0).firstInstallTime }.getOrDefault(0L)
         return AppEntry(

@@ -135,6 +135,7 @@
     <string name="settings_show_input_row">輸入源行</string>
     <string name="settings_theme_color">主題色</string>
     <string name="settings_follow_wallpaper">跟隨桌布主色</string>
+    <string name="settings_themed_cards">主題化卡片</string>
     <string name="settings_show_date">顯示日期</string>
     <string name="settings_idle_after">待機時間</string>
     <string name="settings_idle_off">關</string>

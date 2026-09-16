@@ -357,3 +357,10 @@ spec 状态行已改为「已实施(commit `8cc5134`),待真机验」(T6 时为 
 - **发现(未改,待 Gordon 定)**:`paletteAccent`(vibrant → dominant)对暗底壁纸给出的主色**很暗**——M3 验收时蓝图取到 (14,22,29) 也是近黑,当时只影响四处所以没显眼;现在它铺到整套界面,「跟随壁纸主色」开着时设置页分组标题 #181808 压在 #0A0A0A 底上几乎看不见。取色算法本身没动。可选修法:优先 `getLightVibrantColor`,或对 accent 做明度下限。
 - 单测 62 → 59(删 4 条主题化用例,加 1 条旧键忽略);`gradle --no-daemon testReleaseUnitTest assembleRelease` 三个提交都绿。文档:DESIGN §3、M3 spec、TVHOME-README 同步(历史实施计划 `plans/2026-09-15-m3-wallpaper.md` 不改写)。
 - **接线后立刻暴露的老问题(本波顺手修)**:「跟随壁纸主色」从内置深色壁纸取出的主色近黑(蓝底 ≈(14,22,29)),主题色一流到每个界面,设置页分组标题等深色文字压在 #0A0A0A 上直接消失。加 `usableAccent`(HSL 亮度地板 0.62;仅在原本有色相 s≥0.08 时把饱和度抬到 0.45,纯灰壁纸保持中性浅灰不凭噪声造色,色相始终不动),只用在跟随壁纸这条路,预设不动。`ThemeColorTest` 4 项;模拟器跟随蓝底实测分组标题为可读浅蓝(见截图)。
+
+## 2026-09-16 · 主题色一致性修复 + 主题化卡片 + 回落底改边缘色(Gordon 真机第三轮)
+
+- **A 一致性(bug)**:换预设时齿轮变色、首页分栏标题却「没变」——根因是两个角色色:标题/分栏图标用的是 `highlight`(accent 混 55% 白,六个预设都接近白,肉眼几乎无差),齿轮用的是饱和 `accent`;分栏图标更是写死 `Theme.RowTitle` 白、根本没接线。跟随壁纸主色时 highlight 带色调,于是「跟随会变、换预设不变」两种效果不一致。修:分栏标题 + `RowIcon` 都改读 `accent`(与齿轮同色);卡片聚焦呼吸光晕仍用 highlight(要浅不刺眼)。**注意这对默认金预设不是零回归**:标题从近白 #FFF5DC 变成金 #C0A73A,是 Gordon 要的一致性,非回归。
+- **B 主题化卡片(新开关)**:`Settings.themedCards`,设置页「主题」组第 3 行。开启后所有应用卡片去色→染 accent(`cardTintMatrix` = 删掉的壁纸管线同一手法,卡片图小、用 `ColorFilter.colorMatrix` GPU 现染不走缓存;有图的卡再统一铺 `accent α0.20` 底)。编辑页不染(要认应用)。`CardColorTest` 4 项。
+- **回落底改边缘色**:纯图标卡的回落底从「整图 Palette 主色」改成「图标最外一圈均色」(`edgeColor`)——Palette 常挑到 logo 图形色,铺底和图标边缘割裂像硬包一圈;边缘色则与图标融为一块。透明边(有效像素 < ¼)返回 null 回落到占位底。`EdgeColorTest` 3 项。
+- 单测 63 → 71(+8);`assembleRelease` 绿;模拟器截图 off/on-gold/on-blue 见 scratchpad。分支 `theme-cards`,待 Gordon 真机看过再并 main。
