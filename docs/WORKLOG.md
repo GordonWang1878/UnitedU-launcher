@@ -364,3 +364,4 @@ spec 状态行已改为「已实施(commit `8cc5134`),待真机验」(T6 时为 
 - **B 主题化卡片(新开关)**:`Settings.themedCards`,设置页「主题」组第 3 行。开启后所有应用卡片去色→染 accent(`cardTintMatrix` = 删掉的壁纸管线同一手法,卡片图小、用 `ColorFilter.colorMatrix` GPU 现染不走缓存;有图的卡再统一铺 `accent α0.20` 底)。编辑页不染(要认应用)。`CardColorTest` 4 项。
 - **回落底改边缘色**:纯图标卡的回落底从「整图 Palette 主色」改成「图标最外一圈均色」(`edgeColor`)——Palette 常挑到 logo 图形色,铺底和图标边缘割裂像硬包一圈;边缘色则与图标融为一块。透明边(有效像素 < ¼)返回 null 回落到占位底。`EdgeColorTest` 3 项。
 - 单测 63 → 71(+8);`assembleRelease` 绿;模拟器截图 off/on-gold/on-blue 见 scratchpad。分支 `theme-cards`,待 Gordon 真机看过再并 main。
+- **回落底透明 bug(真机第四轮,自引入自修)**:网易云这类没横幅的应用,补做的红底透出了壁纸、不连续。根因是 `edgeColor` 返回时 `and 0xFFFFFF` 把 alpha 抹成 0,首页 `Color(fallbackColor)` 按 ARGB 解成**全透明**——AVD 深壁纸看不出,亮壁纸暴露。改成返回不透明 ARGB(`0xFF shl 24 or rgb`)。另外:透明边的 logo(网易云的 `loadLogo` 宽高比过关但四周透明)以前被当横幅原样画、留一圈透明;新增「边缘不透明占比 ≥ 0.8 才算真横幅」(`opaqueFraction`),否则判回图标路补底。`CardColorTest`/`OpaqueFractionTest` 覆盖;真机实测网易云已是连续红底 16:9 卡。单测 71 → 74。

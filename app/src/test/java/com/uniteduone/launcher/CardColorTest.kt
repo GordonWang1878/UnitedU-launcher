@@ -40,7 +40,7 @@ class EdgeColorTest {
     @Test fun averagesOpaqueEdgePixels() {
         // 全是纯红边 → 红
         val red = IntArray(40) { 0xFFFF0000.toInt() }
-        assertEquals(0xFF0000, edgeColor(red))
+        assertEquals(0xFFFF0000.toInt(), edgeColor(red))
     }
 
     @Test fun ignoresTransparentEdge() {
@@ -52,6 +52,23 @@ class EdgeColorTest {
     @Test fun mixedMostlyOpaqueAverages() {
         // 一半纯蓝一半透明,有效过半 → 蓝
         val px = IntArray(40) { if (it % 2 == 0) 0xFF0000FF.toInt() else 0 }
-        assertEquals(0x0000FF, edgeColor(px))
+        assertEquals(0xFF0000FF.toInt(), edgeColor(px))
+    }
+}
+
+class OpaqueFractionTest {
+    @Test fun fullBleedBannerIsMostlyOpaque() {
+        val px = IntArray(100) { 0xFF123456.toInt() }
+        org.junit.Assert.assertTrue(opaqueFraction(px) >= 0.8f)
+    }
+
+    @Test fun transparentEdgedLogoIsMostlyClear() {
+        // 只有中间不透明,四边透明 → 低占比
+        val px = IntArray(100) { if (it in 40..59) 0xFFFF0000.toInt() else 0 }
+        org.junit.Assert.assertTrue(opaqueFraction(px) < 0.8f)
+    }
+
+    @Test fun emptyIsZero() {
+        org.junit.Assert.assertEquals(0f, opaqueFraction(IntArray(0)), 1e-6f)
     }
 }

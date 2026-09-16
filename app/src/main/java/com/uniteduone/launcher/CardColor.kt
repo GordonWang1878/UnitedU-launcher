@@ -34,5 +34,19 @@ fun edgeColor(edgePixels: IntArray): Int? {
         rs += (p shr 16) and 0xFF; gs += (p shr 8) and 0xFF; bs += p and 0xFF; n++
     }
     if (n < edgePixels.size / 4) return null   // 有效边缘太少 = 图标本就透明边,别硬造底色
-    return (((rs / n).toInt()) shl 16) or (((gs / n).toInt()) shl 8) or (bs / n).toInt()
+    // **必须带满 alpha**:回落底存进 AppEntry.fallbackColor(Int),首页用 `Color(it)` 按 ARGB 解——
+    // 少了 0xFF alpha 就是全透明,铺底会透出壁纸(2026-09-16 网易云在亮壁纸上暴露过)。
+    return (0xFF shl 24) or (((rs / n).toInt()) shl 16) or (((gs / n).toInt()) shl 8) or (bs / n).toInt()
+}
+
+/**
+ * 边缘不透明占比:判断一张候选横幅是不是**真的铺满**(TV 横幅是不透明的 16:9 图,四边基本不透明),
+ * 还是一张四周透明的 logo(如网易云的 loadLogo)。后者当横幅会浮在壁纸上、留一圈透明,
+ * 应改当图标处理、补一块边缘色底。入参是候选图的四边像素(ARGB)。纯函数,单测在 [CardColorTest]。
+ */
+fun opaqueFraction(edgePixels: IntArray): Float {
+    if (edgePixels.isEmpty()) return 0f
+    var opaque = 0
+    for (p in edgePixels) if ((p ushr 24 and 0xFF) >= 128) opaque++
+    return opaque.toFloat() / edgePixels.size
 }

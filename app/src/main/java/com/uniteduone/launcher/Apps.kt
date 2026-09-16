@@ -98,11 +98,14 @@ object Apps {
         val custom = Paths.iconFor(ctx, pkg).takeIf { it.exists() }
             ?.let { runCatching { decodeScaled(it.absolutePath, CARD_W, CARD_H) }.getOrNull() }
             ?.let { shrink(it, CARD_W, CARD_H) }
-        // 横幅只有在接近 16:9 时才用来铺满;比例不对的(如咪咕)当图标处理,
-        // 否则 Crop 会把它裁出白边。
+        // 横幅只有在接近 16:9 **且真的铺满(边缘基本不透明)**时才当横幅铺满;比例不对的(如咪咕)、
+        // 或四周透明的 logo(如网易云的 loadLogo,宽高比过关但边是透明的)一律当图标处理,补一块边缘色底——
+        // 否则那种「透明边 logo」会被原样画成浮在壁纸上的一块、留一圈透明,不是连续的卡(2026-09-16 Gordon 真机指出)。
         val banner = runCatching {
             drawableOf(ri.activityInfo.loadBanner(pm) ?: ri.activityInfo.loadLogo(pm))
-        }.getOrNull()?.takeIf { it.width.toFloat() / it.height.coerceAtLeast(1) in 1.4f..2.2f }
+        }.getOrNull()
+            ?.takeIf { it.width.toFloat() / it.height.coerceAtLeast(1) in 1.4f..2.2f }
+            ?.takeIf { opaqueFraction(edgePixelsOf(it)) >= 0.8f }
         val bmp = custom ?: banner ?: runCatching { drawableOf(ri.loadIcon(pm)) }.getOrNull()
         val icon = if (custom == null && banner == null) bmp else null
         // 无横幅回落:铺 16:9 底(design §2.3)。底色用**图标最外一圈的均色**(edgeColor),不是整图 Palette 主色——
@@ -110,15 +113,7 @@ object Apps {
         // 图标本就透明边(edgeColor 返回 null)/ 取色抛异常时兜底到 Theme.IconPlaceholderBackground:
         // 不能留 null——那样这张卡会透回黑底,和「isWide=true 本就不该铺底」两种情况混在一起分不清。IO 线程(load 本就在 IO)。
         val fallbackColor = icon?.let { b ->
-            runCatching {
-                val w = b.width; val h = b.height
-                if (w < 2 || h < 2) return@runCatching null
-                val top = IntArray(w).also { b.getPixels(it, 0, w, 0, 0, w, 1) }
-                val bottom = IntArray(w).also { b.getPixels(it, 0, w, 0, h - 1, w, 1) }
-                val left = IntArray(h).also { b.getPixels(it, 0, 1, 0, 0, 1, h) }
-                val right = IntArray(h).also { b.getPixels(it, 0, 1, w - 1, 0, 1, h) }
-                edgeColor(top + bottom + left + right)
-            }.getOrNull() ?: Theme.IconPlaceholderBackground.toArgb()
+            runCatching { edgeColor(edgePixelsOf(b)) }.getOrNull() ?: Theme.IconPlaceholderBackground.toArgb()
         }
         val firstInstall = runCatching { pm.getPackageInfo(pkg, 0).firstInstallTime }.getOrDefault(0L)
         return AppEntry(
@@ -177,6 +172,17 @@ object Apps {
      * 不做这件事时整机 PSS 约 197MB(Projectivy 是 87MB),图形内存 104MB——
      * 应用横幅按原尺寸解码是主因。
      */
+    /** 一张位图最外一圈的像素(上下两行 + 左右两列),喂给 [edgeColor] / [opaqueFraction]。空/过小 → 空数组。 */
+    private fun edgePixelsOf(b: Bitmap): IntArray {
+        val w = b.width; val h = b.height
+        if (w < 2 || h < 2) return IntArray(0)
+        val top = IntArray(w).also { b.getPixels(it, 0, w, 0, 0, w, 1) }
+        val bottom = IntArray(w).also { b.getPixels(it, 0, w, 0, h - 1, w, 1) }
+        val left = IntArray(h).also { b.getPixels(it, 0, 1, 0, 0, 1, h) }
+        val right = IntArray(h).also { b.getPixels(it, 0, 1, w - 1, 0, 1, h) }
+        return top + bottom + left + right
+    }
+
     private fun drawableOf(d: Drawable?): Bitmap? {
         if (d == null) return null
         (d as? BitmapDrawable)?.bitmap?.let { return shrink(it, CARD_W, CARD_H) }
