@@ -272,7 +272,9 @@ object Theme {
     val ShadowDy = 21.75.dp      // 屏幕上约 +57px
     val ShadowColor = Color(0x60000000)
 
-    /** 待机:3 分钟无按键,除时钟外淡出。 */
+    /** 待机默认时长(3 分钟),与 [Settings.idleAfterMs] 的默认值一致。
+     *  实际计时已改由 MainActivity 读 homeSettings.idleAfterMs 驱动(0 = 永不待机、
+     *  可在设置页调整),这个常量只留作默认值参考,不再被计时逻辑直接读取。 */
     const val IdleAfterMs = 3 * 60 * 1000L
 
     /** 屏保轮播:每张图显示多久。 */

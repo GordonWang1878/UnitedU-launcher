@@ -42,12 +42,17 @@ import androidx.compose.ui.unit.sp
 
 /**
  * 首页:壁纸层 + 三行卡片 + 右上角时钟。
- * 待机由 [MainActivity] 通过 [idle] 传进来:除时钟外全部淡出。
+ * 待机由 [MainActivity] 通过 [idle] 传进来,内容由 [idleContent] 定(Task 3):
+ * [IdleContent.CLOCK_ONLY](默认)卡片/行标题淡出、时钟留着;[IdleContent.BLACK] 同上但
+ * 时钟也淡出(配合 MainActivity 叠加的黑屏,整屏全黑);[IdleContent.NO_FADE] 这里的
+ * `contentAlpha` 恒为 1、什么都不淡出。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun HomeScreen(
     idle: Boolean,
+    /** 待机时屏幕上显示什么(design 待机 §,Task 3);默认与老行为一致。 */
+    idleContent: IdleContent = IdleContent.CLOCK_ONLY,
     menuItems: List<MenuItem>,
     menuOpen: Boolean,
     onMenuOpenChange: (Boolean) -> Unit,
@@ -354,10 +359,18 @@ fun HomeScreen(
 
         // 待机用 alpha 淡出,不用 AnimatedVisibility——后者自带裁剪,会把超出屏幕的
         // 第三行整块切掉(实测 MUSIC 行因此始终不可见)。
+        // NO_FADE(Task 3):恒 1,卡片/行标题/齿轮都不淡出——M5 之前的行为,什么都不发生。
         val contentAlpha by animateFloatAsState(
-            targetValue = if (idle) 0f else 1f,
+            targetValue = if (idle && idleContent != IdleContent.NO_FADE) 0f else 1f,
             animationSpec = tween(if (idle) 1200 else 400),
             label = "contentAlpha",
+        )
+        // 时钟默认待机也留着(CLOCK_ONLY/NO_FADE);只有 BLACK 时钟才跟着淡出,
+        // 配合 MainActivity 在 Screensaver 之上叠的黑色蒙版,整屏才会真正全黑。
+        val clockAlpha by animateFloatAsState(
+            targetValue = if (idle && idleContent == IdleContent.BLACK) 0f else 1f,
+            animationSpec = tween(if (idle) 1200 else 400),
+            label = "clockAlpha",
         )
         // 待机用 alpha 淡出而**不移除节点**:移除会连带销毁焦点,醒来后按键落空。
         // 同理也不能用 canFocus 把它们关掉,理由见下面 focusProperties 那段。
@@ -471,7 +484,7 @@ fun HomeScreen(
                     },
                 onFocusChange = { got -> report(-1, -1, got) },
             )
-            Clock(showDate = showDate)
+            Clock(modifier = Modifier.alpha(clockAlpha), showDate = showDate)
         }
 
         if (menuOpen) {

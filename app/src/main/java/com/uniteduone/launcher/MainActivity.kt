@@ -11,6 +11,8 @@ import android.widget.Toast
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -174,10 +176,16 @@ class MainActivity : ComponentActivity() {
             // 根本到不了 dispatchKeyEvent,lastInput 在打字期间不会刷新;不让路的话三分钟后卡片淡出、
             // 屏保从蒙版后面渐入,下一个按键还被当唤醒吞掉。与 menuOpen 完全同一处理:既是 key 也是守卫(铁律 6)。
             val homeOverlay = cardMenu != null || renameTarget != null
-            LaunchedEffect(touched, editing, menuOpen, settings, importing, homeOverlay) {
+            // 待机时长/内容改由设置页驱动(Task 3):idleAfterMs 既是 key 也是守卫(铁律 6)——
+            // 用户把它从「关」改成别的值(或反过来)时,这条 effect 必须以新 key 重启,
+            // 否则「关」之后再打开待机,要等到下一次别的 key 变化才会生效。
+            val idleAfterMs = homeSettings.idleAfterMs
+            LaunchedEffect(touched, editing, menuOpen, settings, importing, homeOverlay, idleAfterMs) {
                 idle = false
                 if (editing || menuOpen || settings || importing || homeOverlay) return@LaunchedEffect
-                delay(Theme.IdleAfterMs)
+                // 0 = 关,永不待机。
+                if (idleAfterMs == 0L) return@LaunchedEffect
+                delay(idleAfterMs)
                 idle = true
             }
             // 壁纸轮播。守卫读的两个量就是 key(铁律 6):rotate() 写盘后 settingsRevision++ 重读 settings,
@@ -209,7 +217,28 @@ class MainActivity : ComponentActivity() {
             // 是在此之前读的;不重读的话,从 M2 升上来、开着「跟随壁纸主色」的用户整个首次会话
             // 都看不到壁纸主色(见 Wallpapers.prepare 的 KDoc)。
             Wallpaper(this@MainActivity, wallpaperSpec, onSettingsChanged = { settingsRevision++ })
-            Screensaver(this@MainActivity, idle)
+            // NO_FADE(Task 3):干脆不组合 Screensaver——M5 之前待机不淡出时就是「什么都不发生」
+            // (spec §6),屏保图片一张都不该解码,不只是不显示。
+            if (homeSettings.idleContent != IdleContent.NO_FADE) {
+                Screensaver(this@MainActivity, idle)
+            }
+            // BLACK(Task 3):在屏保之上叠一层纯黑,随 idle 淡入淡出;配合 HomeScreen 里
+            // 时钟自己的 clockAlpha 一起淡出,才是「整屏全黑」而不是黑底衬着屏保/时钟。
+            // Box 只要选了 BLACK 就常驻组合(不额外拿 idle 当 if 条件),这样 animateFloatAsState
+            // 才能从上一次的值平滑动画过去;若只在 idle 时才组合它,首帧会直接从目标值起跳,
+            // 表现为黑屏瞬间弹出而不是 1200ms 淡入。
+            if (homeSettings.idleContent == IdleContent.BLACK) {
+                val blackAlpha by animateFloatAsState(
+                    targetValue = if (idle && homeSettings.idleContent == IdleContent.BLACK) 1f else 0f,
+                    animationSpec = tween(if (idle) 1200 else 400),
+                    label = "blackAlpha",
+                )
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = blackAlpha))
+                )
+            }
             val pt = pickerTarget
             if (pt == PICK_WALLPAPER) {
                 WallpaperPicker(
@@ -274,6 +303,7 @@ class MainActivity : ComponentActivity() {
             } else {
                 HomeScreen(
                     idle = idle,
+                    idleContent = homeSettings.idleContent,
                     menuItems = menu,
                     menuOpen = menuOpen,
                     onMenuOpenChange = { if (it) { menuFromGear = true; menuOpen = true } else closeMenu() },
