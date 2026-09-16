@@ -75,12 +75,24 @@ class MainActivity : ComponentActivity() {
     /** 「移动位置」兜底:进编辑页时定位到这张卡。**(layout.json 行号, 包名)** ——
      *  列号不能带:编辑页按 layout.json 排,里面还有装不到的包占位,渲染列号对不上。 */
     private var editTarget by mutableStateOf<Pair<Int, String>?>(null)
-    /** 图片选择器关掉、首页重新组合时,把焦点记忆种回这张卡 (渲染行, 列)。
-     *  选择器会把首页整棵树移除,`remember` 的焦点记忆一并没了,不种就落回第一张卡。 */
-    private var homeInitialTarget by mutableStateOf<Pair<Int, Int>?>(null)
+    /** 「关于与检查更新」浮层(T7 接线)。**本任务只是占位,永远是 false**——
+     *  先声明是为了让 [overlayOpen] 与长按的 `homeBare` 一次写全,T7 只需把它置真。 */
+    private var about by mutableStateOf(false)
+    /** 首次引导浮层(T9 接线)。同 [about]:本任务只占位,永远是 false。 */
+    private var onboarding by mutableStateOf(false)
     /** 长按识别:记下那次按压的 downTime,同一次按压之后的事件(含 UP)全吞——clickable 在 UP 才触发,不会顺带启动应用。 */
     private var longPressDownTime = -1L
     private val LONG_PRESS_MS = 600L
+
+    /**
+     * **首页之上盖着整屏浮层没有**(M7 T4 分层叠加)。写成派生属性而不是各处重算:
+     * 这个判据有三个消费者 —— 首页的 `previewing`、长按识别的 `homeBare`、待机效果的
+     * key 与守卫 —— 少判一个成员就是一处「浮层开着时底下的首页还在抢焦点 / 还在计待机」。
+     * 四个成员里 [about] / [onboarding] 本任务恒为 false(见各自 KDoc)。
+     * 读的全是 `mutableStateOf` 字段,在 `setContent` 里读它照样是响应式的。
+     */
+    private val overlayOpen: Boolean
+        get() = settings || pickerTarget != null || about || onboarding
 
     /**
      * 装了新应用或卸载了应用后,桌面和「添加应用」列表都要能跟上。
@@ -171,7 +183,11 @@ class MainActivity : ComponentActivity() {
             // Activity 级的 —— 两头不占的结果是:编辑界面画面全亮(看着醒着),
             // 第一下按键却被当唤醒吃掉,症状就是「按了没反应」。
             // 长时间停在这两个界面由电视自己的系统屏保接管(实测存在 DreamActivity)。
-            val importing = pickerTarget == VIEW_IMPORT
+            // **整屏浮层开着时不进入待机**(M7 T4:原来只挡了导入页)。选择器现在叠在常驻首页之上,
+            // 底下那层照旧在计时;不挡的话在「换壁纸」里挑图挑够三分钟,首页会在选择器的半透明
+            // 蒙版底下淡出、屏保渐入,而下一个按键还要被 dispatchKeyEvent 当唤醒吞掉。
+            // 与 menuOpen 同一处理:既是 key 也是守卫(铁律 6)。
+            val overlay = overlayOpen
             // 长按卡片菜单与「修改标题」对话框同理(终审 Important #3):输入法显示着时每个按键都被它先吃掉,
             // 根本到不了 dispatchKeyEvent,lastInput 在打字期间不会刷新;不让路的话三分钟后卡片淡出、
             // 屏保从蒙版后面渐入,下一个按键还被当唤醒吞掉。与 menuOpen 完全同一处理:既是 key 也是守卫(铁律 6)。
@@ -180,9 +196,9 @@ class MainActivity : ComponentActivity() {
             // 用户把它从「关」改成别的值(或反过来)时,这条 effect 必须以新 key 重启,
             // 否则「关」之后再打开待机,要等到下一次别的 key 变化才会生效。
             val idleAfterMs = homeSettings.idleAfterMs
-            LaunchedEffect(touched, editing, menuOpen, settings, importing, homeOverlay, idleAfterMs) {
+            LaunchedEffect(touched, editing, menuOpen, overlay, homeOverlay, idleAfterMs) {
                 idle = false
-                if (editing || menuOpen || settings || importing || homeOverlay) return@LaunchedEffect
+                if (editing || menuOpen || overlay || homeOverlay) return@LaunchedEffect
                 // 0 = 关,永不待机。
                 if (idleAfterMs == 0L) return@LaunchedEffect
                 delay(idleAfterMs)
@@ -239,52 +255,18 @@ class MainActivity : ComponentActivity() {
                         .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = blackAlpha))
                 )
             }
+            // **分层叠加**(M7 T4,plan §Architecture)。选择器 / 导入页 / 默认桌面卡不再「替换」
+            // 首页,而是**叠在常驻的首页之上**:首页留在组合里 = `tgtRow`/`tgtIdx` 那份焦点记忆
+            // 天然保留,不必再由 MainActivity 用种子(`homeInitialTarget`,已删)种回去;
+            // 而且上面那层的半透明蒙版底下就是真正的首页,M7 的「实时预览」靠的正是这一点。
+            // 代价:底下那棵树继续被组合,所以它必须彻底让路 —— `previewing = overlayOpen`
+            // 让首页不可聚焦、不收按键、冻结焦点记忆(见 HomeScreen.previewing 的 KDoc)。
+            //
+            // 两个例外:
+            // - **编辑页仍然独占那一层**:它是首页的编辑态(同一批卡片的另一种摆法),不是盖在首页上的浮层;
+            // - **设置页本任务先按旧方式替换**,T5 改成叠加(届时它自己也要接 `covered`)。
             val pt = pickerTarget
-            if (pt == PICK_WALLPAPER) {
-                WallpaperPicker(
-                    directory = Paths.wallpaperLibrary(this@MainActivity),
-                    title = stringResource(R.string.picker_wallpaper_title),
-                    nonce = focusNonce,
-                    onSelect = { file -> handlePick(file) },
-                    onDismiss = { pickerTarget = null; focusNonce++ },
-                )
-            } else if (pt == VIEW_SCREENSAVER_POOL) {
-                ScreensaverPoolViewer(
-                    directory = Paths.screensaverLibrary(this@MainActivity),
-                    nonce = focusNonce,
-                    onDismiss = { pickerTarget = null; focusNonce++ },
-                )
-            } else if (pt == VIEW_IMPORT) {
-                ImportScreen(
-                    onExit = { pickerTarget = null; focusNonce++ },
-                    focusNonce = focusNonce,
-                )
-            } else if (pt == VIEW_HOME_SETTINGS) {
-                val pm = packageManager
-                val info = remember(revision) {
-                    pm.resolveActivity(
-                        Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),
-                        PackageManager.MATCH_DEFAULT_ONLY,
-                    )
-                }
-                val unknownAppLabel = stringResource(R.string.home_settings_unknown)
-                HomeSettingsCard(
-                    currentLabel = remember(info) { info?.loadLabel(pm)?.toString() ?: unknownAppLabel },
-                    currentPkg = remember(info) { info?.activityInfo?.packageName },
-                    onOpenSystem = { switchHome() },
-                    onDismiss = { pickerTarget = null; focusNonce++ },
-                    nonce = focusNonce,
-                )
-            } else if (pt != null) {
-                IconPicker(
-                    directory = Paths.cardLibrary(this@MainActivity),
-                    originalIcon = remember(pt) { Apps.originalIcon(this@MainActivity, pt) },
-                    nonce = focusNonce,
-                    onSelect = { file -> handlePick(file) },
-                    onRestoreOriginal = { restoreOriginalIcon(pt) },
-                    onDismiss = { pickerTarget = null; focusNonce++ },
-                )
-            } else if (editing) {
+            if (editing) {
                 EditScreen(
                     onPickIcon = { pickIcon(it) },
                     onExit = ::leaveEdit,
@@ -302,6 +284,7 @@ class MainActivity : ComponentActivity() {
                 )
             } else {
                 HomeScreen(
+                    previewing = overlayOpen,
                     idle = idle,
                     idleContent = homeSettings.idleContent,
                     menuItems = menu,
@@ -323,9 +306,54 @@ class MainActivity : ComponentActivity() {
                     renameTarget = renameTarget,
                     onRenameSave = ::onRenameSave,
                     onRenameCancel = { renameTarget = null; focusNonce++ },
-                    initialTarget = homeInitialTarget,
-                    onInitialTargetConsumed = { homeInitialTarget = null },
                 )
+                // 叠在首页之上的那一层。用 `when` 而不是继续 if/else 链:分支是同一个量的取值,
+                // `null -> Unit` 必须显式写出来,漏了编译器当场指出,不会悄悄多盖一层。
+                when (pt) {
+                    PICK_WALLPAPER -> WallpaperPicker(
+                        directory = Paths.wallpaperLibrary(this@MainActivity),
+                        title = stringResource(R.string.picker_wallpaper_title),
+                        nonce = focusNonce,
+                        onSelect = { file -> handlePick(file) },
+                        onDismiss = { pickerTarget = null; focusNonce++ },
+                    )
+                    VIEW_SCREENSAVER_POOL -> ScreensaverPoolViewer(
+                        directory = Paths.screensaverLibrary(this@MainActivity),
+                        nonce = focusNonce,
+                        onDismiss = { pickerTarget = null; focusNonce++ },
+                    )
+                    VIEW_IMPORT -> ImportScreen(
+                        onExit = { pickerTarget = null; focusNonce++ },
+                        focusNonce = focusNonce,
+                    )
+                    VIEW_HOME_SETTINGS -> {
+                        val pm = packageManager
+                        val info = remember(revision) {
+                            pm.resolveActivity(
+                                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),
+                                PackageManager.MATCH_DEFAULT_ONLY,
+                            )
+                        }
+                        val unknownAppLabel = stringResource(R.string.home_settings_unknown)
+                        HomeSettingsCard(
+                            currentLabel = remember(info) { info?.loadLabel(pm)?.toString() ?: unknownAppLabel },
+                            currentPkg = remember(info) { info?.activityInfo?.packageName },
+                            onOpenSystem = { switchHome() },
+                            onDismiss = { pickerTarget = null; focusNonce++ },
+                            nonce = focusNonce,
+                        )
+                    }
+                    null -> Unit
+                    // 其余取值都是包名 = 换这张卡的图。
+                    else -> IconPicker(
+                        directory = Paths.cardLibrary(this@MainActivity),
+                        originalIcon = remember(pt) { Apps.originalIcon(this@MainActivity, pt) },
+                        nonce = focusNonce,
+                        onSelect = { file -> handlePick(file) },
+                        onRestoreOriginal = { restoreOriginalIcon(pt) },
+                        onDismiss = { pickerTarget = null; focusNonce++ },
+                    )
+                }
             }
             }
             }
@@ -385,7 +413,9 @@ class MainActivity : ComponentActivity() {
             // 不再用 `repeatCount == 1`(≈0.4 s):首次重复延迟与重复频率都由固件定,按时长判才跨设备一致;
             // Gordon 2026-09-16 A95L 真机试过 0.4 s 后定为 0.6 s。未满时长的重复事件走下面的「照吞」分支,
             // 松手仍是一次普通点击。
-            val homeBare = !editing && !settings && !menuOpen && pickerTarget == null && cardMenu == null && renameTarget == null
+            // 「首页光着」= 上面什么都没盖着。整屏浮层一律走 [overlayOpen](M7 T4:原来只列了
+            // settings / pickerTarget,about 与 onboarding 接线后会漏掉),内嵌的两层单列。
+            val homeBare = !editing && !overlayOpen && !menuOpen && cardMenu == null && renameTarget == null
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount > 0 && homeBare
                 && event.eventTime - event.downTime >= LONG_PRESS_MS
             ) {
@@ -451,9 +481,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun leaveEdit() {
-        // homeInitialTarget 也要清:编辑页退出照旧把焦点交给首页自己的还原逻辑,
-        // 留着旧种子会把焦点按在「上次换图那张卡」上,那不是这条路该有的行为。
-        if (editing) { editing = false; revision++; editTarget = null; homeInitialTarget = null }
+        if (editing) { editing = false; revision++; editTarget = null }
     }
 
     /**
@@ -463,7 +491,7 @@ class MainActivity : ComponentActivity() {
      * settingsRevision。
      */
     private fun leaveSettings() {
-        if (settings) { settings = false; focusNonce++; revision++; homeInitialTarget = null }
+        if (settings) { settings = false; focusNonce++; revision++ }
     }
 
     /**
@@ -548,11 +576,9 @@ class MainActivity : ComponentActivity() {
             }
             CardAction.CHANGE_ICON -> MenuItem(getString(R.string.card_menu_icon), getString(R.string.card_menu_icon_desc)) {
                 closeCardMenu()
-                // 选择器会把首页整棵树移除,焦点记忆随 remember 一起没;把落点记下来,
-                // 回来时 HomeScreen 用它当初值(**渲染坐标**,种的是焦点不是盘上的位置)。
-                // **只在选择器真的打开时才种**(终审 Minor #6):存储没就绪时 pickIcon 只弹 toast、首页原地不动,
-                // 提前种下的坐标会一直留到下一次从别的浮层回来时误种——那几条路焦点原本在齿轮上。
-                if (pickIcon(ref.pkg)) homeInitialTarget = ref.rowIndex to ref.colIndex
+                // 不再记落点(M7 T4):选择器改成叠在常驻首页之上,首页那棵树不会被移除,
+                // `tgtRow`/`tgtIdx` 在 `previewing` 期间冻着,关掉选择器就原样还原到这张卡。
+                pickIcon(ref.pkg)
             }
             CardAction.MOVE -> MenuItem(getString(R.string.card_menu_move), getString(R.string.card_menu_move_desc)) {
                 // 带**包名**而不是列号:编辑页按 layout.json 排,里面还留着装不到的包,
@@ -589,29 +615,24 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun pickWallpaper() {
-        // 从齿轮菜单进来,焦点原本在齿轮上——不清的话会被 CHANGE_ICON 留下的旧种子带偏(T4 review item A)。
-        homeInitialTarget = null
         if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
         closeMenu()
         pickerTarget = PICK_WALLPAPER
     }
 
     private fun openImport() {
-        homeInitialTarget = null
         if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
         closeMenu()
         pickerTarget = VIEW_IMPORT
     }
 
     private fun openScreensaverPool() {
-        homeInitialTarget = null
         if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
         closeMenu()
         pickerTarget = VIEW_SCREENSAVER_POOL
     }
 
     private fun openHomeSettings() {
-        homeInitialTarget = null
         closeMenu()
         pickerTarget = VIEW_HOME_SETTINGS
     }
