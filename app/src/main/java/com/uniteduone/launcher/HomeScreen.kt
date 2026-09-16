@@ -62,6 +62,8 @@ fun HomeScreen(
     /** 输入源行开关(design §2,默认关)。开着且真机枚举到硬件输入时,在应用行**上方**
      *  多渲染一行输入源;它以普通行的身份加进纵向焦点账本,种类差异只影响点击行为与行图标。 */
     showInputRow: Boolean = false,
+    /** 主题化卡片开关(design 2026-09-16):开着时所有卡片去色→染主题 accent。 */
+    themedCards: Boolean = false,
     /** 上次打开「添加应用」列表的时刻(design §4);默认「什么都不算新」,未接线的调用点零回归。 */
     newAppsSeenAt: Long = Long.MAX_VALUE,
     /** 当前聚焦的卡(得到时上报,失去时报 null)——MainActivity 长按时据此弹菜单。 */
@@ -396,6 +398,7 @@ fun HomeScreen(
                     row = row,
                     metrics = metrics,
                     showTitles = showTitles,
+                    themedCards = themedCards,
                     titles = titles,
                     firstCard = if (rowIndex == 0) firstCard else null,
                     active = rowIndex == activeRowSafe,
@@ -515,6 +518,7 @@ private fun CategoryRow(
     metrics: CardMetrics,
     /** 卡片标题全局开关 + 自定义标题表(design §2);输入源行不受它影响,见下方 AppCard 调用。 */
     showTitles: Boolean,
+    themedCards: Boolean,
     titles: Map<String, String>,
     firstCard: FocusRequester?,
     active: Boolean,
@@ -526,8 +530,10 @@ private fun CategoryRow(
     onFocusChange: (Int, Boolean) -> Unit,
 ) {
     val ctx = LocalContext.current
-    // 行标题文字色 = 主题 highlight,读全局主题色(卡片光晕由 AppCard 自己读同一个 local)。
-    val highlight = LocalThemeColors.current.highlight
+    // 行标题文字 + 行图标 = 主题 **accent**(与齿轮同一个饱和色),换预设时和齿轮一起明显变色。
+    // 早先用的是 highlight(accent 混 55% 白后近白),六个预设的近白值肉眼几乎无差,看着「换了预设也没变」
+    // (2026-09-16 Gordon 真机指出);卡片聚焦的呼吸光晕仍读 highlight,那处要浅色不刺眼。
+    val accent = LocalThemeColors.current.accent
     // 记住聚焦在第几张,用来算这一行的横向位移(超出右边界就整行左移)
     var focusedIndex by remember { mutableStateOf(0) }
     val rowAlpha by animateFloatAsState(
@@ -544,14 +550,13 @@ private fun CategoryRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            RowIcon(row.name, row.kind)
+            RowIcon(row.name, row.kind, tint = accent)
             BasicText(
                 text = row.name,
                 style = TextStyle(
                 fontFamily = Theme.Sans,
-                    // 行标题跟主题色走(design §3 四处之一)。金预设下 highlight=#FFF5DC,
-                    // 相比今日的纯白 #FFFFFF 是约 5% 的暖移(见任务报告的零回归说明)。
-                    color = highlight, fontSize = 15.5.sp, fontWeight = FontWeight.Medium,
+                    // 行标题跟主题 accent 走(与齿轮同色)。
+                    color = accent, fontSize = 15.5.sp, fontWeight = FontWeight.Medium,
                 ),
             )
         }
@@ -590,6 +595,7 @@ private fun CategoryRow(
                     // 标题开关为全局(design §2.2):输入源行不显示,自定义标题也一样受它约束。
                     title = if (showTitles && row.kind == RowKind.APPS) (titles[app.packageName] ?: app.label) else null,
                     fallbackColor = app.fallbackColor?.let { Color(it) },
+                    themed = themedCards,
                     onClick = {
                         // 唯一按种类分流的地方:应用行启动包,输入源行切信号源
                         //(packageName 里存的是输入 id)。其余焦点/渲染全部与种类无关。

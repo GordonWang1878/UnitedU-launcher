@@ -122,6 +122,13 @@ class SettingsTest {
         assertFalse(isWellFormedJsonObject("""{"a": "unterminated"""))
     }
 
+    @Test fun themedCardsDefaultsFalseAndRoundTrips() {
+        assertFalse(parseSettings("{}").themedCards)
+        assertTrue(parseSettings("""{"themedCards": true}""").themedCards)
+        assertTrue(Settings(themedCards = true).toJson().contains("\"themedCards\": true"))
+        assertEquals(Settings(themedCards = true), parseSettings(Settings(themedCards = true).toJson()))
+    }
+
     @Test fun wallpaperFieldsDefaultWhenAbsent() {
         val s = parseSettings("{}")
         assertEquals("", s.wallpaperFile)

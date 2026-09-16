@@ -81,11 +81,18 @@ fun AppCard(
     title: String? = null,
     /** 无横幅回落卡的底色(图标主色);null 或有横幅时不铺底,保持透明。 */
     fallbackColor: Color? = null,
+    /** 主题化卡片:去色→染主题 accent(design 2026-09-16)。默认关,未接线的调用点原样。 */
+    themed: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
     // 呼吸光晕的颜色 = 主题 highlight,直接读全局主题色——首页与编辑页的卡片一起跟着走,
     // 不再有「未接线的调用点用今日常量」这种第二来源(2026-09-16)。
     val glowColor = LocalThemeColors.current.highlight
+    val accent = LocalThemeColors.current.accent
+    // 主题化卡片:整图去色→染 accent 的 ColorFilter(卡片图小,GPU 现染,不走离线缓存)。
+    val cardTint = if (themed) androidx.compose.ui.graphics.ColorFilter.colorMatrix(
+        androidx.compose.ui.graphics.ColorMatrix(cardTintMatrix(accent.toArgb() and 0xFFFFFF)),
+    ) else null
     // 呼吸动画只在聚焦时存在:放在外面的话每张卡片都会一直跑,待机后也停不下来。
     // 返回的是 State 而不是 Float,**必须在 drawBehind 里读**:在组合期读会让
     // 聚焦卡片按刷新率整片重组(Image、渐变全跟着重跑),而真正需要重来的只有绘制。
@@ -151,7 +158,14 @@ fun AppCard(
                 // 我先前按资源表的 default_icon_bg 加了 #333333 是错的——那个资源存在,
                 // 但不用在这个位置(资源存在 ≠ 在这里生效)。
                 // 无横幅回落卡:图标主色作底(design §2.3);有横幅/自定义图仍透明。
-                .background(if (fallbackColor != null && app.card != null && !app.isWide) fallbackColor else Color.Transparent)
+                .background(
+                    when {
+                        // 主题化:所有有图的卡统一铺一层深 accent 底(横幅卡的留白与图标卡的底都统一成主题色)
+                        themed && app.card != null -> accent.copy(alpha = 0.20f)
+                        fallbackColor != null && app.card != null && !app.isWide -> fallbackColor
+                        else -> Color.Transparent
+                    },
+                )
                 .focusProperties {
                     if (isRowStart) left = FocusRequester.Cancel
                     if (isRowEnd) right = FocusRequester.Cancel
@@ -173,6 +187,7 @@ fun AppCard(
                     // 聚焦卡 331.9 而我们 334.8;而**高度只差 0.14px**——缩放会同时改两者,
                     // 只有填充方式不会,所以差的是裁切方式。
                     contentScale = ContentScale.Fit,
+                    colorFilter = cardTint,
                     modifier = Modifier.size(metrics.cardWidth, metrics.cardHeight),
                 )
             } else if (bmp != null) {
@@ -180,6 +195,7 @@ fun AppCard(
                 Image(
                     bitmap = bmp.asImageBitmap(),
                     contentDescription = app.label,
+                    colorFilter = cardTint,
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.size(metrics.cardHeight),
                 )

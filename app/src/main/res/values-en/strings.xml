@@ -135,6 +135,7 @@
     <string name="settings_show_input_row">Input Source Row</string>
     <string name="settings_theme_color">Theme Color</string>
     <string name="settings_follow_wallpaper">Follow Wallpaper Color</string>
+    <string name="settings_themed_cards">Themed Cards</string>
     <string name="settings_show_date">Show Date</string>
     <string name="settings_idle_after">Standby Timeout</string>
     <string name="settings_idle_off">Off</string>
