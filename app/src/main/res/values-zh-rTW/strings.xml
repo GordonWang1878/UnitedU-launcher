@@ -146,6 +146,16 @@
     <string name="settings_idle_nofade">不淡出</string>
     <string name="settings_on">開</string>
     <string name="settings_off">關</string>
+    <!-- 以下為 M7 兩欄設定頁新增的分組與行(語言 / 其他) -->
+    <string name="settings_group_language">語言</string>
+    <string name="settings_group_other">其他</string>
+    <string name="settings_language">語言</string>
+    <string name="settings_lang_system">跟隨系統</string>
+    <string name="settings_lang_zh_cn">简体</string>
+    <string name="settings_lang_zh_tw">繁體</string>
+    <string name="settings_lang_en">English</string>
+    <string name="settings_action_restore_defaults">恢復預設</string>
+    <string name="settings_action_restore_defaults_desc">分欄、標題、卡片圖和圖片庫都不會變</string>
 
     <!-- preset_* : 主題色預設名(門 2「沉穩」一套) -->
     <string name="preset_gold">金</string>

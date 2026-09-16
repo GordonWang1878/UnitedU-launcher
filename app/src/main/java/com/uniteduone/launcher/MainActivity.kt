@@ -41,15 +41,32 @@ class MainActivity : ComponentActivity() {
     private var focusNonce by mutableStateOf(0)
     private var menuOpen by mutableStateOf(false)
     private var editing by mutableStateOf(false)
-    /** UnitedU 设置页浮层是否打开(与 [editing] 同构:全屏替换首页那一层)。 */
+    /** UnitedU 设置页浮层是否打开。**M7 T5 起它叠在常驻首页之上**(不再替换),首页在底下做实时预览。 */
     private var settings by mutableStateOf(false)
+    /**
+     * 设置页上次停在哪一格(pane/group/row)。切语言要 `recreate()`(spec §5),
+     * 那一趟整棵树都会重建,设置页得按这个位置种回去 —— 由 T8 接 `onSaveInstanceState`。
+     * **不是 `mutableStateOf`**:它只在设置页挂载的那一刻被读一次(喂给 `remember` 的初值),
+     * 做成状态只会让每次上报都触发一次无谓的重组。
+     */
+    private var settingsPos: SettingsPos? = null
     /** 换过图/改过布局后 +1,用来强制界面重新读取 */
     private var revision by mutableStateOf(0)
     /**
-     * 只重读 settings.json、**不重建首页行**的计数器。壁纸选图 / 轮播 / 滑块实时预览走它:
-     * 这些事每 5 分钟就来一次,若走 revision 会连 layout.json 与全部卡片图一起重读一遍。
+     * 只重读 settings.json、**不重建首页行**的计数器。壁纸选图 / 轮播 / 设置页每一次改动走它:
+     * 这些事很频繁,若走 revision 会连 layout.json 与全部卡片图一起重读一遍。
      */
     private var settingsRevision by mutableStateOf(0)
+    /**
+     * **壁纸渲染参数(模糊 / 亮度)的落地计数**,与 [settingsRevision] 分开的第二颗计数器。
+     *
+     * 两件事频率差一个数量级:改一格滑块要让设置页与首页立刻看到新数值(settingsRevision,每格一次,
+     * 只是重读一个几百字节的 json),但**解码 + 模糊一张 1920×1080 是几十到几百毫秒的 IO 活**,
+     * 一格一次会把按住方向键变成一串全量重处理。所以壁纸管线只认这颗:设置页里模糊 / 亮度
+     * 停手 300ms 后(`onWallpaperParamsChanged`)才 ++ 一次,中途那些档位一格都不进管线。
+     * 见 `wallpaperSpec` 的 remember key(M7 T5 复审 Important #1)。
+     */
+    private var wallpaperParams by mutableStateOf(0)
     /** 内置图片选择器:null=隐藏, [PICK_WALLPAPER]=选壁纸, 其他=选该包的卡片图。
      *  X-plore 的 GET_CONTENT 不响应 D-pad(2026-09-11 真机确认),所以换壁纸/换图标
      *  改为用内置选择器,图片通过 adb push 到 files/library/ 预先放好。 */
@@ -149,6 +166,24 @@ class MainActivity : ComponentActivity() {
         setContent {
             // 菜单项列表不必每次重组都新建,否则整棵树都不可跳过
             val menu = remember { menuItems() }
+            // 设置页里那几条「只有 Activity 做得了」的动作(spec §2.2 的动作行 + 切语言)。
+            // 四个子界面复用现成的入口函数 —— 它们只置 `pickerTarget`,**不碰 `settings`**,
+            // 于是选择器叠在设置页之上(`covered = pickerTarget != null`),关掉后焦点由设置页接回同一行。
+            val settingsActions = remember {
+                SettingsActions(
+                    pickWallpaper = { pickWallpaper() },
+                    openImport = { openImport() },
+                    setDefaultHome = { openHomeSettings() },
+                    // T7 换成「恢复默认」确认框(spec §4);在那之前只给一句提示,不做任何事。
+                    restoreDefaults = { toast("恢复默认:待 T7") },
+                    // **本任务只写字段、不重建**(T8 才接 `applyLanguage` 的 `recreate()` + 位置还原):
+                    // 现在就重建的话,设置页会连同它的焦点账本一起没,而还原那一半还没写。
+                    applyLanguage = { lang ->
+                        SettingsStore.update(this@MainActivity) { it.copy(language = lang) }
+                        settingsRevision++
+                    },
+                )
+            }
             // 设置页关闭时 leaveSettings() 会让 revision++,壁纸选图 / 轮播 / 滑块预览走的是
             // 专用的 settingsRevision(见其字段 KDoc,只重读 settings、不重建首页行)——
             // 两颗计数器都能让这里重读 settings.json,首页拿到的就是最新设置。注意:
@@ -177,7 +212,18 @@ class MainActivity : ComponentActivity() {
                 else presetColors
             // 壁纸渲染输入:文件名 + 模糊 + 亮度,**不带主题色**(「主题化壁纸」2026-09-16 整个删掉,
             // 壁纸不再染色)。所以换预设、开关跟随、壁纸取色落地都不会让 spec 变,壁纸不会被无谓地重处理。
-            val wallpaperSpec = remember(homeSettings) { wallpaperSpecOf(homeSettings) }
+            //
+            // **key 里故意没有模糊 / 亮度**(M7 T5 复审 Important #1)。写成 `remember(homeSettings)`
+            // 时,设置页每动一格滑块都 `settingsRevision++` → homeSettings 换新 → spec 换新 →
+            // `Wallpaper` 的 produceState 以新 key 重启 → 解码 + 模糊整跑一趟:**按住方向键就是每格一次全量重处理**,
+            // 而 300ms 防抖那一下 300ms 后才到、那时缓存早已被逐格填满,防抖形同虚设。
+            // 现在 spec 只在三种情况下重算:①`revision`(重扫);②`wallpaperFile` 变(选图 / 轮播);
+            // ③`wallpaperParams`——**只有防抖后的那一下**才 ++。滑到中途的那些档位一格都不会进管线。
+            // 重算时读的是**当时最新的** homeSettings(逐格的 settingsRevision 已经把它更到了终值),
+            // 所以防抖落地时拿到的就是用户松手时的那个值。
+            val wallpaperSpec = remember(revision, wallpaperParams, homeSettings.wallpaperFile) {
+                wallpaperSpecOf(homeSettings)
+            }
             val touched = lastInput
             // **编辑界面和菜单开着时不进入待机。**淡出只做在首页那一层,而吞掉唤醒键是
             // Activity 级的 —— 两头不占的结果是:编辑界面画面全亮(看着醒着),
@@ -262,9 +308,8 @@ class MainActivity : ComponentActivity() {
             // 代价:底下那棵树继续被组合,所以它必须彻底让路 —— `previewing = overlayOpen`
             // 让首页不可聚焦、不收按键、冻结焦点记忆(见 HomeScreen.previewing 的 KDoc)。
             //
-            // 两个例外:
-            // - **编辑页仍然独占那一层**:它是首页的编辑态(同一批卡片的另一种摆法),不是盖在首页上的浮层;
-            // - **设置页本任务先按旧方式替换**,T5 改成叠加(届时它自己也要接 `covered`)。
+            // 唯一的例外:**编辑页仍然独占那一层** —— 它是首页的编辑态(同一批卡片的另一种摆法),
+            // 不是盖在首页上的浮层。设置页 M7 T5 起也是叠加,见下面。
             val pt = pickerTarget
             if (editing) {
                 EditScreen(
@@ -275,12 +320,6 @@ class MainActivity : ComponentActivity() {
                     cardsPerRow = homeSettings.cardsPerRow,
                     showTitles = homeSettings.showTitles,
                     initialTarget = editTarget,
-                )
-            } else if (settings) {
-                SettingsScreen(
-                    onExit = ::leaveSettings,
-                    focusNonce = focusNonce,
-                    onWallpaperParamsChanged = { settingsRevision++ },
                 )
             } else {
                 HomeScreen(
@@ -307,6 +346,26 @@ class MainActivity : ComponentActivity() {
                     onRenameSave = ::onRenameSave,
                     onRenameCancel = { renameTarget = null; focusNonce++ },
                 )
+                // **设置页叠在首页之上**(M7 T5,spec §3.1):首页留在底下继续组合,
+                // 半透明渐变遮罩底下看到的就是真正的首页 —— 改卡片大小 / 标题 / 主题色当场可见。
+                // 每次改动 `settingsRevision++`(不防抖):首页据此重读 settings.json,
+                // 而模糊 / 亮度另走设置页里 300 ms 防抖的那条,壁纸不必每按一下就重处理一遍。
+                // 写在选择器 `when` **之前**:从设置页里打开的换壁纸 / 导入图片 / 默认桌面卡要盖在它上面,
+                // 同时设置页收到 `covered` 让路(焦点归那一层管,铁律 3)。
+                if (settings) {
+                    SettingsScreen(
+                        onExit = ::leaveSettings,
+                        actions = settingsActions,
+                        focusNonce = focusNonce,
+                        covered = pt != null,
+                        // 每次改动:只重读 settings.json,首页当场按新值重组(布局 / 主题 / 时钟都靠它)。
+                        onSettingsChanged = { settingsRevision++ },
+                        // 停手 300ms 之后的那一下:**壁纸管线的唯一入口**,见 wallpaperParams 的 KDoc。
+                        onWallpaperParamsChanged = { wallpaperParams++ },
+                        initialPos = settingsPos,
+                        onPosChanged = { settingsPos = it },
+                    )
+                }
                 // 叠在首页之上的那一层。用 `when` 而不是继续 if/else 链:分支是同一个量的取值,
                 // `null -> Unit` 必须显式写出来,漏了编译器当场指出,不会悄悄多盖一层。
                 when (pt) {
@@ -485,13 +544,27 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * 关设置页**只有这一条路**。关掉后 focusNonce++ 让首页重新拿回焦点(与各选择器 onDismiss 同理);
-     * revision++ 让首页跟着重读 settings.json——Task G 起首页开始消费 Settings(先接时钟的
-     * showDate,E/F/H 陆续接其余字段),复用换布局图那颗计数器,不必再单独维护一份
-     * settingsRevision。
+     * 关设置页**只有这一条路**。关掉后 focusNonce++ 让首页把焦点还原到进入设置前那一格
+     * (与各选择器 onDismiss 同理;首页常驻,`previewing` 期间目标是冻着的)。
+     *
+     * **不再 `revision++`**(M7 T5):设置页每改一下就 `settingsRevision++`,首页早就读到新值了;
+     * `revision` 那颗计数器会连 layout.json 与全部卡片图一起重读一遍(冷启动级别的重活),
+     * 而这里没有任何东西需要重扫 —— 唯一会改变行数据的「输入源行」开关,本身就是首页
+     * 那个 `produceState` 的 key,开关一变它自己就重建了。
      */
     private fun leaveSettings() {
-        if (settings) { settings = false; focusNonce++; revision++ }
+        // 位置记忆只为 `recreate()`(切语言)那一趟服务 —— 那时页面**还开着**,重建后必须回到同一行。
+        // 用户自己按返回关掉页面则是另一回事:下次再进应该落在左栏第一组(spec §2.1「默认布局」),
+        // 所以这条路上把种子清掉。两条路各自清楚,种子不会变成一份「永远过期不掉」的状态(铁律 7)。
+        if (!settings) return
+        settings = false
+        settingsPos = null
+        focusNonce++
+        // **防抖的补课**:滑块的 300ms 防抖住在设置页的效果里,「动一格就立刻按返回」会把那次
+        // 通知连同协程一起取消掉,壁纸就会停在旧参数上,直到下次换图/重扫才追上。这里补一次。
+        // 参数没变时也没有代价:`WallpaperSpec` 是 data class,重算出来的新实例与旧的相等,
+        // `Wallpaper` 的 produceState 按 key 的 equals 比对,不会重启、不会重新解码。
+        wallpaperParams++
     }
 
     /**

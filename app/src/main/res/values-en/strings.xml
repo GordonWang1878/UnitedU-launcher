@@ -146,6 +146,16 @@
     <string name="settings_idle_nofade">No Fade</string>
     <string name="settings_on">On</string>
     <string name="settings_off">Off</string>
+    <!-- Added by M7 two-pane settings page (Language / Other groups) -->
+    <string name="settings_group_language">Language</string>
+    <string name="settings_group_other">Other</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_lang_system">System</string>
+    <string name="settings_lang_zh_cn">简体</string>
+    <string name="settings_lang_zh_tw">繁體</string>
+    <string name="settings_lang_en">English</string>
+    <string name="settings_action_restore_defaults">Restore Defaults</string>
+    <string name="settings_action_restore_defaults_desc">Rows, titles, card images and your gallery stay as they are</string>
 
     <!-- preset_* : theme color preset names (gate 2 "subdued" set) -->
     <string name="preset_gold">Gold</string>
