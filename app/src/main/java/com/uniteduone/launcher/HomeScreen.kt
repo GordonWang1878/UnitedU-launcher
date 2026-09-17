@@ -36,7 +36,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -271,18 +270,21 @@ fun HomeScreen(
     // 哪一行是「当前行」——决定其它行压暗;跟着焦点走。
     var activeRow by remember { mutableStateOf(0) }
 
-    // 垂直位置自己算,不用 verticalScroll:实测系统的 bringIntoView 会在**水平**移动焦点时
-    // 也带动垂直滚动(按一次右键整体上移 158px),把 v4 的顶部留白吃掉。
-    val screenH = LocalConfiguration.current.screenHeightDp.dp
-    // 同理:整行被 filter 摘掉后 activeRow 会越界,内容会整块多上移一个 RowPitch
+    // 垂直位置自己算,不用 verticalScroll(铁律 1)。M8:焦点行**锚定**在下三分之一(spec §2.2)——
+    // 内容整块上移 activeRow 个行距,第 0 行时 hero 完整;不再是「溢出才上移」。
+    val screenH = LocalConfiguration.current.screenHeightDp.toFloat()
     val activeRowSafe = activeRow.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
-    // 标题开着时卡片下面还挂一行字(titleHeight),焦点行的「底」要连这行字一起算,
-    // 否则标题开关打开时,焦点落在最后一行会让标题的放大后半截探出屏幕底边(见 M4 Task 2 复审)。
-    val overflow = metrics.firstCardTop + metrics.rowPitch * activeRowSafe +
-        metrics.cardHeight + metrics.titleHeight + Theme.BottomKeepout - screenH
+    val anchorTop = HomeLayout.anchorTop(screenH).dp
     val shift by animateDpAsState(
-        targetValue = if (overflow > 0.dp) -overflow else 0.dp,
+        targetValue = HomeLayout.shift(activeRowSafe, cardsPerRow, showTitles).dp,
+        animationSpec = tween(Theme.MotionInMs, easing = Theme.MotionEasing),
         label = "rowShift",
+    )
+    // hero 主体第 1 行起淡出(spec §2.3);待机时无条件回到 1(spec §2.4)——Task 6 的 HeroClock 读它。
+    val heroAlpha by animateFloatAsState(
+        targetValue = if (idle || demoIdle != null) 1f else HomeLayout.heroAlpha(activeRowSafe),
+        animationSpec = tween(Theme.MotionInMs, easing = Theme.MotionEasing),
+        label = "heroAlpha",
     )
     // **焦点看门狗。**判据取自真机日志:根节点的 onFocusChanged 里
     //   hasFocus=true && !isFocused  → 某个子节点持有焦点(正常)
@@ -418,6 +420,23 @@ fun HomeScreen(
             animationSpec = tween(if (effectiveIdle) 1200 else 400),
             label = "clockAlpha",
         )
+        // scrim(spec §2.1):#1C1B1F α0 → α0.8;顶边 = 锚点上方 60dp 再加 shift,底边固定屏底——行往上推时它变高,
+        // 下方新露出的行始终在暗层里。待机时随内容一起淡出。
+        val scrimTop = anchorTop - HomeLayout.SCRIM_LEAD.dp + shift
+        val surface = androidx.tv.material3.MaterialTheme.colorScheme.surface
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .offset(y = scrimTop)
+                .height((screenH.dp - scrimTop).coerceAtLeast(0.dp))
+                .alpha(contentAlpha)
+                .background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        0f to surface.copy(alpha = 0f), 1f to surface.copy(alpha = 0.8f),
+                    ),
+                ),
+        )
+
         // 待机用 alpha 淡出而**不移除节点**:移除会连带销毁焦点,醒来后按键落空。
         // 同理也不能用 canFocus 把它们关掉,理由见下面 focusProperties 那段。
         Column(
@@ -436,8 +455,8 @@ fun HomeScreen(
                 // MainActivity.dispatchKeyEvent 吞掉第一下按键来实现,焦点全程不动。
                 .focusProperties { canFocus = !covered }
                 .offset(y = shift)
-                .padding(top = Theme.TopPadding),
-            verticalArrangement = Arrangement.spacedBy(Theme.RowSpacing),
+                .padding(top = anchorTop),
+            verticalArrangement = Arrangement.spacedBy(HomeLayout.ROW_GAP.dp),
         ) {
             // 配置里的应用一个都装不到时,屏幕上只剩时钟和齿轮,看着像坏了。
             // 给一句话告诉用户怎么自救(实测:此时齿轮菜单仍可用)。
@@ -450,7 +469,7 @@ fun HomeScreen(
                     modifier = Modifier.padding(start = Theme.SidePadding),
                     style = TextStyle(
                         fontFamily = Theme.Sans,
-                        color = Theme.RowTitle.copy(alpha = 0.75f),
+                        color = androidx.tv.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
                         fontSize = 15.sp,
                     ),
                 )
@@ -463,7 +482,6 @@ fun HomeScreen(
                     themedCards = themedCards,
                     titles = titles,
                     firstCard = if (rowIndex == 0) firstCard else null,
-                    active = rowIndex == activeRowSafe,
                     rowRequester = rowFocus.getOrNull(rowIndex),
                     isLastRow = rowIndex == rows.lastIndex,
                     // 上下移动落到相邻行「记住的那一格」——每行的 requester 就挂在那一格上
@@ -583,7 +601,6 @@ private fun CategoryRow(
     themedCards: Boolean,
     titles: Map<String, String>,
     firstCard: FocusRequester?,
-    active: Boolean,
     rowRequester: FocusRequester?,
     isLastRow: Boolean,
     upTarget: FocusRequester?,
@@ -598,28 +615,17 @@ private fun CategoryRow(
     val accent = LocalThemeColors.current.accent
     // 记住聚焦在第几张,用来算这一行的横向位移(超出右边界就整行左移)
     var focusedIndex by remember { mutableStateOf(0) }
-    val rowAlpha by animateFloatAsState(
-        targetValue = if (active) 1f else Theme.InactiveRowAlpha,
-        animationSpec = tween(180),
-        label = "rowAlpha",
-    )
-    Column(
-        modifier = Modifier.alpha(rowAlpha),
-        verticalArrangement = Arrangement.spacedBy(Theme.RowTitleGap),
-    ) {
+    Column(verticalArrangement = Arrangement.spacedBy(HomeLayout.ROW_TITLE_GAP.dp)) {
         Row(
-            modifier = Modifier.padding(start = Theme.SidePadding),
+            modifier = Modifier.padding(start = Theme.SidePadding).height(HomeLayout.ROW_TITLE_LINE.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             RowIcon(row.name, row.kind, tint = accent)
             BasicText(
                 text = row.name,
-                style = TextStyle(
-                fontFamily = Theme.Sans,
-                    // 行标题跟主题 accent 走(与齿轮同色)。
-                    color = accent, fontSize = 15.5.sp, fontWeight = FontWeight.Medium,
-                ),
+                // 行标题 = titleMedium 16sp Medium(spec §1.4),颜色 accent(spec §0「accent 落点」)
+                style = androidx.tv.material3.MaterialTheme.typography.titleMedium.copy(color = accent),
             )
         }
         // **绝不能用 LazyRow / horizontalScroll**:任何可滚动容器都会挡住纵向焦点外出。
@@ -634,6 +640,7 @@ private fun CategoryRow(
         val overRight = focusRight + Theme.SidePadding - LocalConfiguration.current.screenWidthDp.dp
         val xShift by animateDpAsState(
             targetValue = if (overRight > 0.dp) -overRight else 0.dp,
+            animationSpec = tween(Theme.MotionInMs, easing = Theme.MotionEasing),
             label = "rowXShift",
         )
         Row(
@@ -648,7 +655,7 @@ private fun CategoryRow(
                 // 内容早在测量阶段就被砍掉了尾巴。纵向的 wrapContentHeight 是同一招。
                 .wrapContentWidth(Alignment.Start, unbounded = true)
                 .offset(x = xShift)
-                .padding(start = Theme.SidePadding, top = Theme.RowVerticalPad, bottom = Theme.RowVerticalPad),
+                .padding(start = Theme.SidePadding, top = metrics.rowVerticalPad, bottom = metrics.rowVerticalPad),
         ) {
             row.apps.forEachIndexed { index, app ->
                 AppCard(

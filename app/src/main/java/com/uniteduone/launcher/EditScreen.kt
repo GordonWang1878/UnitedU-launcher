@@ -293,8 +293,8 @@ fun EditScreen(
             )
             rows.forEachIndexed { ri, (name, pkgs) ->
                 Column(
-                    Modifier.padding(bottom = Theme.RowSpacing),
-                    verticalArrangement = Arrangement.spacedBy(Theme.RowTitleGap),
+                    Modifier.padding(bottom = Theme.EditRowSpacing),
+                    verticalArrangement = Arrangement.spacedBy(Theme.EditRowTitleGap),
                 ) {
                     BasicText(
                         text = name,
@@ -317,7 +317,7 @@ fun EditScreen(
                             // 它一消失,这一行 UI 内再也加不进任何应用。
                             .wrapContentWidth(Alignment.Start, unbounded = true)
                             .offset(x = dx)
-                            .padding(start = Theme.SidePadding, top = Theme.RowVerticalPad, bottom = Theme.RowVerticalPad),
+                            .padding(start = Theme.SidePadding, top = metrics.rowVerticalPad, bottom = metrics.rowVerticalPad),
                     ) {
                         pkgs.forEachIndexed { pi, pkg ->
                             val app = all?.get(pkg)
