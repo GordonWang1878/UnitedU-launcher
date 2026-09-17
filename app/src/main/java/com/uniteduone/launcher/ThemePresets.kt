@@ -5,7 +5,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 
 /**
- * 6 个主题色预设(门 2 Gordon 定「沉稳」一套,强调色低饱和;金保持 #C0A73A)。
+ * 7 个主题色预设(M8 加 Material 紫为默认)(门 2 Gordon 定「沉稳」一套,强调色低饱和;金保持 #C0A73A)。
  * 只在这里定义一次:设置页用它画 swatch + 持久化 [Settings.themePresetId];
  * 选中的颜色经 [LocalThemeColors] 驱动**每个界面**的强调色(2026-09-16 全面接线,原先只接首页四处)。
  *
@@ -95,10 +95,13 @@ fun usableAccent(rgb: Int): Int {
 
 object ThemePresets {
     /** 默认预设 id,与 [Settings] 的默认值一致。 */
-    const val DEFAULT_ID = "gold"
+    const val DEFAULT_ID = "material"
 
     /** 顺序即 swatch 的从左到右排列顺序;换顺序会改变左右键的移动方向,别随手动。 */
     val all: List<ThemePreset> = listOf(
+        // Material 紫:tv-material darkColorScheme 的 primary #D0BCFF 原值(spec §0);highlight = 混白 55%。
+        // 放最前 = swatch 最左 = 默认在最左(左右键方向随之,有意的)。
+        ThemePreset("material", R.string.preset_material, Color(0xFFD0BCFF), Color(0xFFE8DCFF)),
         // 金:highlight = 今日 Theme.Champagne #FFF5DC 原值,金预设逐位复现今日观感。
         ThemePreset("gold", R.string.preset_gold, Color(0xFFC0A73A), Color(0xFFFFF5DC)),
         // 以下 5 个 highlight = accent 混白 55%(highlightFrom 的结果),写成显式 hex 以便微调。

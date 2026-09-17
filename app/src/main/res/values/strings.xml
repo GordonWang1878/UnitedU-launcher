@@ -192,6 +192,7 @@
     <string name="onb_none">没有找到可自动放置的应用</string>
 
     <!-- preset_* : 主题色预设名(门 2「沉稳」一套) -->
+    <string name="preset_material">Material 紫</string>
     <string name="preset_gold">金</string>
     <string name="preset_champagne">香槟</string>
     <string name="preset_blue">蓝</string>
