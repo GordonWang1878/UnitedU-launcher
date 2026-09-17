@@ -14,14 +14,13 @@ import androidx.compose.ui.unit.times
 /**
  * 一档卡片布局的全部尺寸(随「每行张数」变化的那些)。
  * 中档(6/行)= [Theme] 里像素标定的原始常量原样;5/8 档由「可见跨度守恒」推导(见 [Theme.cardMetrics])。
- * 不随档位变的量(FocusScale、SidePadding、RowVerticalPad、Shadow* 等)仍直接读 [Theme],不进这里。
+ * 不随档位变的量(SidePadding、RowVerticalPad 等)仍直接读 [Theme],不进这里。
  */
 data class CardMetrics(
     val cardWidth: Dp,
     val cardHeight: Dp,
     val cardCorner: Dp,
     val cardSpacing: Dp,
-    val glowRadius: Dp,
     /** 卡顶到下一行卡顶的间距,只用于「焦点行会不会掉出屏幕」的位移计算(见 HomeScreen 的 overflow)。 */
     val rowPitch: Dp,
     /** 第一行卡片顶到内容顶的距离,同样只用于 overflow 计算。 */
@@ -159,7 +158,7 @@ object Theme {
     val RowTitleGap = 2.3.dp
     /** 卡片标题(design §2,Gordon 定放卡片下方):卡底到文字的间距、一行文字的高度、字号。
      *  这三个是**中档基准值**——实际渲染读 [CardMetrics.titleGap]/[titleLine]/[titleSize],
-     *  在 [cardMetrics] 里按 f 跨档缩放(同 CardCorner/GlowRadius 那一套),这里不再重复读。 */
+     *  在 [cardMetrics] 里按 f 跨档缩放(同 CardCorner 那一套),这里不再重复读。 */
     val CardTitleGap = 6.dp
     val CardTitleLine = 18.dp
     val CardTitleSize = 13.sp
@@ -193,8 +192,8 @@ object Theme {
      * - **5 / 8 档由「可见跨度守恒」推导**:当前 6 张卡的可见跨度
      *   `S = 6*CardWidth + 5*CardSpacing`;换成 N 张时保持同一个 S、且 [CardSpacing] 不变,
      *   于是 `cardWidth(N) = (S - (N-1)*CardSpacing) / N`。再用比例 `f = cardWidth(N)/CardWidth`
-     *   缩放随卡宽变的量:高、圆角、光晕、标题(卡底间距/行高/字号,design §2.2)。
-     *   [FocusScale] 与 [CardSpacing] 跨档不变。
+     *   缩放随卡宽变的量:高、圆角、标题(卡底间距/行高/字号,design §2.2)。
+     *   [CardSpacing] 跨档不变。
      *   → 5 张更大、8 张更小、6 张不变。
      * - **纵向**:行距 [RowPitch] 里只有卡高一项随档变(标题、间隙、留白、行间距都不变),
      *   所以 `rowPitch(N) = RowPitch + (cardHeight(N) - CardHeight)`。
@@ -210,7 +209,6 @@ object Theme {
                 cardHeight = CardHeight,
                 cardCorner = CardCorner,
                 cardSpacing = CardSpacing,
-                glowRadius = GlowRadius,
                 rowPitch = RowPitch + titleHeight,
                 firstCardTop = FirstCardTop,
                 titleHeight = titleHeight,
@@ -233,7 +231,6 @@ object Theme {
             cardHeight = cardHeight,
             cardCorner = CardCorner * f,
             cardSpacing = CardSpacing,                        // 跨档不变
-            glowRadius = GlowRadius * f,
             rowPitch = RowPitch + (cardHeight - CardHeight) + titleHeight,  // 只有卡高随档变
             firstCardTop = FirstCardTop,                      // 卡顶位置与卡高无关
             titleHeight = titleHeight,
@@ -243,36 +240,8 @@ object Theme {
         )
     }
 
-    /**
-     * 聚焦卡片放大比例:v4 实测,同一张卡片未聚焦时高 143px、聚焦时 187px,187/143 ≈ 1.31。
-     * 第一版拍脑袋写 1.06,屏幕上几乎看不出放大——这是「凭感觉设参数」的典型代价。
-     */
-    const val FocusScale = 1.31f
-    /**
-     * 光晕半径。注意 LazyRow 会裁剪超出行边界的绘制,半径设得比行内留白还大时
-     * 光晕会被整块裁掉、屏幕上几乎看不见(第一版 34dp 就是这样)。
-     * 现在的值配合 RowVerticalPad 20dp 刚好落在可见区域内。
-     */
-    val GlowRadius = 6.8.dp   // 复审用无模型拟合:参考光晕比原来窄 37%、亮 18%
     // 邻居压暗的数值写在 AppCard 的 shade 里,以那里为准(左邻居 0.09、隔一张 0.06、
     // 右邻居 0.05)。这里不再复述——注释抄一份就会各自漂移,先前就漂成了 0.17/0.09/0.04。
-    const val GlowPeriodMs = 2500    // v4 实测周期 2.50 s
-
-    /**
-     * 聚焦卡片投在邻居身上的**投影**。参考图里这层压暗是二维的:邻居顶部几乎不暗(5%),
-     * 底部最深 18%,且左邻居的亏损是右邻居的 3 倍 —— 光源在右上、影子落向左下。
-     * 先前做成了 `Brush.horizontalGradient`,任何 y 上都一模一样,是最大的一处可见差异
-     * (最深处差 31/255)。它同时解释了光晕的上下不对称:参考图上重下轻 43%,
-     * 正是因为下方光晕被这层投影吃掉了 —— **所以不要去调光晕的 alpha 或半径**。
-     */
-    // 参数是按实测反解的,不是拍脑袋:第一版 dy 只有 3.5dp,投影整片盖住邻居
-    // (实测左邻居顶 213 / 底 205,几乎均匀),而参考是 243 / 212 —— **上下差 3.6 倍**。
-    // 要的是「影子的上边缘正好落在邻居中部」,所以 dy 必须与卡片高同量级。
-    // 注意这些值在**卡片自身坐标系**里,聚焦时整体还会被放大 1.31 倍。
-    val ShadowRadius = 12.5.dp   // 屏幕上约 33px
-    val ShadowDx = (-4).dp       // 屏幕上约 -10.5px,影子偏左
-    val ShadowDy = 21.75.dp      // 屏幕上约 +57px
-    val ShadowColor = Color(0x60000000)
 
     /** 待机默认时长(3 分钟),与 [Settings.idleAfterMs] 的默认值一致。
      *  实际计时已改由 MainActivity 读 homeSettings.idleAfterMs 驱动(0 = 永不待机、
