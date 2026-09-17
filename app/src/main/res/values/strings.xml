@@ -95,6 +95,7 @@
     <!-- home_* : 首页与默认桌面设置卡 -->
     <string name="home_empty_apps_hint">没有可显示的应用\n右上角的齿轮已选中,按「确定」打开菜单,选「编辑分栏」添加</string>
     <string name="home_new_apps">有 %1$d 个新应用</string>
+    <string name="home_screensaver_button">屏保</string>
     <string name="home_input_row_title">输入源</string>
     <string name="home_settings_title">默认桌面</string>
     <string name="home_settings_current_label">当前</string>

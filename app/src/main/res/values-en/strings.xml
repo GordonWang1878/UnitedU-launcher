@@ -97,6 +97,7 @@
     <!-- home_* : home screen and default-home settings card -->
     <string name="home_empty_apps_hint">No apps to show\nThe gear icon in the top right is selected — press OK to open the menu, then choose “Edit Rows” to add some</string>
     <string name="home_new_apps">%1$d new app(s)</string>
+    <string name="home_screensaver_button">Screensaver</string>
     <string name="home_input_row_title">Inputs</string>
     <string name="home_settings_title">Default Home</string>
     <string name="home_settings_current_label">Current</string>

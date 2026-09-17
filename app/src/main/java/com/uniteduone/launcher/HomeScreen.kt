@@ -40,7 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * 首页:壁纸层 + 三行卡片 + 右上角时钟。
+ * 首页:壁纸层 + hero 大字时钟 + 锚定在下三分之一的卡片行 + 右上 pill 组(设置 / 屏保)。
  * 待机由 [MainActivity] 通过 [idle] 传进来,内容由 [idleContent] 定(Task 3):
  * [IdleContent.CLOCK_ONLY](默认)卡片/行标题淡出、时钟留着;[IdleContent.BLACK] 同上但
  * 时钟也淡出(配合 MainActivity 叠加的黑屏,整屏全黑);[IdleContent.NO_FADE] 这里的
@@ -62,6 +62,7 @@ fun HomeScreen(
     menuItems: List<MenuItem>,
     menuOpen: Boolean,
     onMenuOpenChange: (Boolean) -> Unit,
+    onScreensaver: () -> Unit = {},
     focusNonce: Int,
     revision: Int = 0,
     menuFromGear: Boolean = true,
@@ -90,7 +91,7 @@ fun HomeScreen(
     /**
      * **预览态**(M7 T4 分层叠加):选择器 / 导入页这类整屏浮层现在**叠在首页之上**,
      * 首页不再被移除,而是退到底下当背景(设置页 T5 起同理)。为真时首页交出一切交互:
-     * - **不可聚焦**:所有 [AppCard] / [GearButton] `canFocus = false` —— 与 `anyOverlay`
+     * - **不可聚焦**:所有 [AppCard] / [TopPills] `canFocus = false` —— 与 `anyOverlay`
      *   合成 `covered` 一个量,上面那层拿焦点,底下这层绝不抢(铁律 4 的推论)。
      * - **不处理任何按键**:首页自己没有 `onKeyEvent`,卡片的点击挂在 `clickable` 上,
      *   不可聚焦就一个按键都收不到;长按识别在 `MainActivity.dispatchKeyEvent` 里,
@@ -332,8 +333,9 @@ fun HomeScreen(
         restoring = true
         var frames = 0
         if (tgtGear || focusNonce == gearNonce) {
-            // 退出条件同样只信控件自报(铁律 2):齿轮拿到焦点会 report(-1, -1, true)。
-            while (frames < 60 && focusedCell != (-1 to -1)) {
+            // 退出条件同样只信控件自报(铁律 2):设置 / 屏保两个 pill 都会 report(-1, col, true),
+            // 两者都算「回到顶栏」——按 focusedCell?.first 判,不钉死某一列(col 0/1 都算数)。
+            while (frames < 60 && focusedCell?.first != -1) {
                 withFrameNanos { }
                 runCatching { gearFocus.requestFocus() }
                 frames++
@@ -509,56 +511,34 @@ fun HomeScreen(
             }
         }
 
-        // 时钟常驻,待机时也留着
-        Row(
+        // 顶栏(spec §1.5):右上 pill 组 + 其下的「有 N 个新应用」。不随 shift 走;待机随内容淡出。
+        // 节点只淡出不移除:移除会连带销毁停在按钮上的焦点,醒来第一下按键落空。
+        Column(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                // 右边距经三轮复审确认正确(1790.6 vs 1789.3)。顶部:复审实测参考里齿轮中心
-                // 93.63px、时钟中心 93.15px,我们是 99.5/99.0,整条状态栏低了约 6px。
-                .padding(top = 32.dp, end = 64.dp)
-                // 菜单开着时齿轮也不能被聚焦。GearMenu 的 focusGroup 只保证「组内优先」,
-                // 找不到候选会冒泡到根继续找;卡片那一列已经被 canFocus 关掉,
-                // 但齿轮不在那一列里 —— 于是菜单里按右键焦点会落到蒙版后面的齿轮上,
-                // 高亮消失、上下左右都没反应,而这个菜单里装着「切回 Projectivy」这条退路。
-                .focusProperties { canFocus = !covered },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),   // 复审实测参考 36.2px,17dp 给出 42.2px
+                .padding(top = HomeLayout.PILL_TOP.dp, end = Theme.SidePadding)
+                .alpha(contentAlpha),
+            horizontalAlignment = Alignment.End,
         ) {
-            // 「有 N 个新应用」:状态栏里、齿轮左边的小字(design §4 的最终落位)。
-            // **住在这一行是为了永不被卡片盖住**:左上角那版会在焦点落到最后一行、
-            // 内容整块上移(`offset(y = shift)`)时被升上来的第一行盖掉半截(2026-09-16 实测);
-            // 左下角那版会撞底行的卡片标题。右上角这条带子是屏幕上唯一永远没有卡片的地方。
-            // 只是一行字,不可聚焦 —— 外层那个 canFocus 管的是齿轮,与它无关。
+            TopPills(
+                gearFocus = gearFocus,
+                canFocus = !covered,
+                rowsEmpty = rows.isEmpty(),
+                downTarget = rowFocus.getOrNull(tgtRow.coerceIn(0, rowFocus.lastIndex)),
+                onSettings = { onMenuOpenChange(true) },
+                onScreensaver = onScreensaver,
+                onFocusChange = { col, got -> report(-1, col, got) },
+            )
             val newCount = loaded?.third ?: 0
             if (newCount > 0) {
                 BasicText(
                     text = stringResource(R.string.home_new_apps, newCount),
-                    modifier = Modifier.alpha(contentAlpha),
-                    style = TextStyle(fontFamily = Theme.Sans, color = Theme.FooterHintText, fontSize = 12.sp),
+                    modifier = Modifier.padding(top = 6.dp),
+                    style = androidx.tv.material3.MaterialTheme.typography.labelSmall.copy(
+                        color = androidx.tv.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
                 )
             }
-            // 齿轮同样用 alpha 而不是 AnimatedVisibility:待机时若把节点移除,
-            // 恰好停在齿轮上的焦点会被销毁,醒来第一下按键落空。
-            GearButton(
-                onClick = { onMenuOpenChange(true) },
-                // 齿轮的上、左、右都是空的(时钟不可聚焦),不锁的话按这三个方向焦点会整棵树消失
-                modifier = Modifier
-                    .alpha(contentAlpha)
-                    .focusRequester(gearFocus)
-                    .focusProperties {
-                        up = FocusRequester.Cancel
-                        left = FocusRequester.Cancel
-                        right = FocusRequester.Cancel
-                        // 空桌面时下方一张卡都没有,不锁的话按下键焦点会消失再被看门狗捞回来,
-                        // 高亮闪一下 —— 而这正是唯一的自救界面。
-                        if (rows.isEmpty()) down = FocusRequester.Cancel
-                        // 非空时按下回到「记住的那一格」。走几何搜索的话,齿轮在右上角,
-                        // 最近的永远是第一行最右那张 —— 与上下行的列记忆不一致。
-                        else rowFocus.getOrNull(tgtRow.coerceIn(0, rowFocus.lastIndex))
-                            ?.let { down = it }
-                    },
-                onFocusChange = { got -> report(-1, -1, got) },
-            )
         }
 
         if (menuOpen) {
