@@ -169,6 +169,7 @@
     <string name="about_latest">已是最新版本</string>
     <string name="about_found">發現新版本 %1$s</string>
     <string name="about_download">下載並安裝</string>
+    <string name="about_ready_install">安裝更新</string>
     <string name="about_downloading">下載中 %1$d%%</string>
     <string name="about_downloading_unknown">下載中…</string>
     <string name="about_verifying">驗證中…</string>

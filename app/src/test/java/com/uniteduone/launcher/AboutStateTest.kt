@@ -33,6 +33,14 @@ class AboutStateTest {
         }
     }
 
+    @Test fun readyToInstallWaitsForAPressAndIsNotCancellable() {
+        // review Important 2:校验结束时 Activity 不在前台 → 停在这里,等用户按键;返回键 = 关页(关页会删文件)。
+        val ready = AboutState.ReadyToInstall(info, java.io.File("update-x.apk"))
+        assertEquals(AboutAction.INSTALL, ready.action)
+        assertEquals(false, ready.cancellable)
+        assertEquals(info, ready.info)
+    }
+
     @Test fun checkStatesCarryNoUpdate() {
         listOf(AboutState.Idle, AboutState.Checking, AboutState.Latest, AboutState.Failed(CheckFailure.NETWORK))
             .forEach { assertNull(it.toString(), it.info) }

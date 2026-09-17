@@ -43,22 +43,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.withStarted
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.io.File
 
-/** 关于页那颗唯一按钮此刻按下去做什么。 */
-enum class AboutAction { CHECK, DOWNLOAD, NONE }
+/** 关于页那颗唯一按钮此刻按下去做什么。INSTALL = 把已校验的文件交给安装器(不再下载)。 */
+enum class AboutAction { CHECK, DOWNLOAD, INSTALL, NONE }
 
 /**
  * 关于页的状态机(spec §7.3):
  * `Idle → Checking → Latest | Failed(reason) | Found(info)`,
- * `Found → Downloading(p) → Verifying → Installing | VerifyFailed`,
+ * `Found → Downloading(p) → Verifying → Installing | ReadyToInstall | VerifyFailed`,
+ * `ReadyToInstall →(按键)→ Installing`,
  * 另有三个下载/安装结局 `DownloadFailed` / `NeedsPermission` / `InstallFailed`。
  *
  * 每个状态自带两件事,界面与返回键只读这两个量、不再自己 `when` 一遍:
@@ -107,6 +108,16 @@ sealed class AboutState {
         override val cancellable get() = true
     }
 
+    /**
+     * 已下载并通过全部校验,但校验结束时 Activity 不在前台(review Important 2):
+     * 停在这里等用户按「安装更新」,**绝不在回到前台时自动弹安装器**。[file] 在登记簿里登记着
+     * (清扫不碰);关页([AboutController.reset])时删除。返回键 = 关页。
+     */
+    data class ReadyToInstall(override val info: LatestInfo, val file: File) : AboutState() {
+        override val action get() = AboutAction.INSTALL
+    }
+
+    /** 哈希不符或更新包身份不对(见 `checkUpdateApk`),文件已删。 */
     data class VerifyFailed(override val info: LatestInfo) : AboutState() {
         override val action get() = AboutAction.DOWNLOAD
     }
@@ -131,7 +142,7 @@ sealed class AboutState {
 
 /**
  * 关于页状态机的持有者。MainActivity 只做接线:把 [state] 喂给 [AboutScreen],
- * 按钮接 [check] / [downloadAndInstall],返回键接 [cancelIfBusy],关页接 [reset]。
+ * 按钮接 [check] / [downloadAndInstall] / [installReady],返回键接 [cancelIfBusy],关页接 [reset]。
  *
  * **异步结果怎么不写错地方**:所有异步工作写回 [state] 之前,先比对启动时记下的 [session]。
  * 每次开始新动作、取消、关页都 `session++`,旧工作的结果自然作废——比对的是一个只增不减的
@@ -140,10 +151,14 @@ sealed class AboutState {
  * 经 [main] 投递回主线程后才比对;进度还额外要求「当前仍是 Downloading」——
  * 投递顺序与协程续体顺序不保证一致,晚到的进度不能把「校验中 / 已交给安装器」改回「下载中」。
  *
- * **两次下载不会同时碰 `update.apk`**:「下载 → 校验 → 交给安装器」整段持有进程级的
- * [Update.fileLock]。被取消的上一次下载要等它 `finally` 里的清理做完才放锁,新下载拿到锁时
- * 旧的已彻底结束;另一个 MainActivity 实例(见 fileLock 的 KDoc)的下载同样排在这把锁后面。
- * 检查更新不碰文件,不拿锁,取消后也不等它(阻塞中的 DNS / 连接可能要等到超时)。
+ * **文件与并发(review Important 2)**:每次下载尝试预留一个独占文件([Update.reserveApk]),
+ * 一路把**这个文件**交给安装器;登记簿([UpdateFiles])的锁只包住改名与清扫,下载、校验、
+ * 等用户按键都不持锁——同进程里另一个 MainActivity 实例的更新流程与这里互不阻塞,
+ * 它 `onCreate` 的清扫也碰不到这里登记着的文件。
+ *
+ * **绝不自动弹安装器**:校验结束的那一刻若 Activity 不在前台(STARTED 以下),停在
+ * [AboutState.ReadyToInstall] 等用户按键;不存在任何「等回到前台再装」的挂起。于是关页(包括
+ * HOME 经 `onNewIntent` 关页)之后再也不会冒出安装器。
  */
 class AboutController(
     private val activity: ComponentActivity,
@@ -181,34 +196,28 @@ class AboutController(
     }
 
     /**
-     * 下载 → SHA-256 校验 → 交给系统安装器(复用 M6 的 [ApkInstaller],权限引导与
-     * `RelaunchAfterUpdate` 一并沿用)。校验不符删文件、提示「校验失败」;
-     * 被取消(返回键 / 关页)时,半截的临时文件由 [Update.download] 删,
-     * 已改名但还没校验完的 `update.apk` 由 [downloadVerifyInstall] 的 `finally` 删——
-     * 只有校验通过的文件才留给安装器。整段持有 [Update.fileLock](见类 KDoc);
-     * 排队等锁期间按钮显示不带数字的「下载中…」,返回键照样能取消。
-     *
-     * 安装一步包在 `withStarted` 里:下载途中电视进了系统屏保(本 Activity 停在后台),
-     * 此刻去 `startActivity` 可能被后台启动限制悄悄拦下;等用户回到前台再交给安装器。
+     * 下载 → 校验(SHA-256 + 包名 / 版本 / 签名,见 [Update.verify])→ 交给系统安装器
+     * (复用 M6 的 [ApkInstaller] 权限引导与 `RelaunchAfterUpdate`)。任何一项校验不过:删文件、
+     * 提示「校验失败」。被取消(返回键 / 关页)时,半截的临时文件由 [Update.download] 删,
+     * 目标文件由 [downloadVerifyInstall] 的 `finally` 删——只有全部校验通过的文件才会留下。
      */
     fun downloadAndInstall() {
         val info = state.info ?: return
         if (state.action != AboutAction.DOWNLOAD) return
         val my = begin(AboutState.Downloading(info, null))
-        downloadJob = activity.lifecycleScope.launch {
-            Update.fileLock.withLock { downloadVerifyInstall(info, my) }
-        }
+        downloadJob = activity.lifecycleScope.launch { downloadVerifyInstall(info, my) }
     }
 
     /**
-     * [downloadAndInstall] 持锁执行的那一整段。[my] 是启动时的会话号:每一步写回 [state] 之前
-     * 都先比对,不等就说明已被取消 / 关页,直接收手(`finally` 照样清理)。
+     * [downloadAndInstall] 的那一整段。[my] 是启动时的会话号:每一步写回 [state] 之前都先比对,
+     * 不等就说明已被取消 / 关页,直接收手(`finally` 照样清理)。
      */
     private suspend fun downloadVerifyInstall(info: LatestInfo, my: Int) {
-        val file = Update.apkFile(activity)
-        var verified = false
+        // 只在内存里预留并登记名字(不碰磁盘),紧接着进 try:任何出口都经 finally 处理。
+        val file = Update.reserveApk(activity)
+        var keep = false
         try {
-            val ok = Update.download(info.apkUrl, file) { p ->
+            val ok = Update.download(activity, info.apkUrl, file) { p ->
                 main.post {
                     val s = state
                     if (my == session && s is AboutState.Downloading) state = s.copy(percent = p)
@@ -220,34 +229,70 @@ class AboutController(
                 return
             }
             state = AboutState.Verifying(info)
-            val actual = withContext(Dispatchers.IO) { runCatching { sha256Hex(file) }.getOrNull() }
+            // 哈希 + 解析 APK + 读本应用签名,全在 IO 线程(解析不上主线程)。
+            val rejection = withContext(Dispatchers.IO) { Update.verify(activity, file, info) }
             if (my != session) return
-            if (actual != info.sha256) {
+            if (rejection != null) {
                 // 当场删(不等 finally),日志里记的是删除的真实结果。
-                val deleted = withContext(Dispatchers.IO) { file.delete() }
-                Log.w(TAG, "update sha256 mismatch: expected ${info.sha256}, got $actual; deleted=$deleted")
+                val gone = withContext(Dispatchers.IO) { Update.files(activity).release(file) }
+                Log.w(TAG, "update ${info.versionName} (${info.versionCode}) rejected: $rejection; file deleted=$gone")
                 state = AboutState.VerifyFailed(info)
                 return
             }
-            verified = true
-            // 仍在锁内:校验过的文件在交给安装器之前不会被另一个实例的下载覆盖。
-            val result = activity.lifecycle.withStarted { ApkInstaller.install(activity, file) }
-            Log.i(TAG, "update ${info.versionName} (${info.versionCode}) verified; installer: $result")
-            if (my != session) return
-            state = when (result) {
-                ApkInstaller.Result.STARTED -> AboutState.Installing(info)
-                ApkInstaller.Result.NEEDS_PERMISSION -> AboutState.NeedsPermission(info)
-                ApkInstaller.Result.INVALID, ApkInstaller.Result.BACKGROUND -> AboutState.InstallFailed(info)
-            }
+            // 从这里到 handOver 结束没有挂起点,取消插不进来:文件的去留由 handOver 决定。
+            keep = true
+            handOver(info, file)
         } finally {
             // 取消路径上这里的挂起调用必须 NonCancellable,否则删文件那一步本身会被取消掉。
-            if (!verified) withContext(NonCancellable + Dispatchers.IO) { file.delete() }
+            if (!keep) withContext(NonCancellable + Dispatchers.IO) { Update.files(activity).release(file) }
         }
     }
 
     /**
-     * 返回键:下载中 / 校验中 → 取消这次下载,回到「发现新版本」(文件由上面两处 `finally` 删),
-     * 返回 true;其它状态什么都不做、返回 false,调用方照常关页。
+     * 「安装更新」按钮([AboutState.ReadyToInstall]):先在 IO 线程确认文件还在(缓存可能被系统清掉),
+     * 再交给安装器。按键期间 Activity 必在前台;万一此刻已不在,[handOver] 会让它继续停在 ReadyToInstall。
+     */
+    fun installReady() {
+        val ready = state as? AboutState.ReadyToInstall ?: return
+        val my = ++session
+        downloadJob = activity.lifecycleScope.launch {
+            val present = withContext(Dispatchers.IO) { ready.file.isFile }
+            if (my != session) return@launch
+            if (!present) {
+                Log.w(TAG, "verified update file vanished before install: ${ready.file.name}")
+                Update.discard(activity, ready.file)
+                state = AboutState.DownloadFailed(ready.info)
+                return@launch
+            }
+            handOver(ready.info, ready.file)
+        }
+    }
+
+    /**
+     * 主线程。前台判断与 `startActivity` 在同一个主线程回合里,中间插不进生命周期变化:
+     * 不在前台 → 停在 [AboutState.ReadyToInstall](文件留着、仍登记);在前台 → 交给安装器。
+     * 交出去的文件**不再注销**(安装器异步读它,见 [UpdateFiles]);没交出去的(需要授权 / 失败)删掉,
+     * 重试时重新下载。
+     */
+    private fun handOver(info: LatestInfo, file: File) {
+        if (!activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+            Log.i(TAG, "update ${info.versionName} (${info.versionCode}) verified while in background; waiting for the user")
+            state = AboutState.ReadyToInstall(info, file)
+            return
+        }
+        val result = ApkInstaller.launch(activity, file)
+        Log.i(TAG, "update ${info.versionName} (${info.versionCode}) verified; installer: $result (${file.name})")
+        state = when (result) {
+            ApkInstaller.Result.STARTED -> AboutState.Installing(info)
+            ApkInstaller.Result.NEEDS_PERMISSION -> AboutState.NeedsPermission(info)
+            ApkInstaller.Result.INVALID, ApkInstaller.Result.BACKGROUND -> AboutState.InstallFailed(info)
+        }
+        if (result != ApkInstaller.Result.STARTED) Update.discard(activity, file)
+    }
+
+    /**
+     * 返回键:下载中 / 校验中 → 取消这次下载,回到「发现新版本」(文件由上面的 `finally` 删),
+     * 返回 true;其它状态(包括 ReadyToInstall)什么都不做、返回 false,调用方照常关页。
      */
     fun cancelIfBusy(): Boolean {
         val s = state
@@ -258,9 +303,17 @@ class AboutController(
         return true
     }
 
-    /** 关页(返回 / MENU / HOME 任何一条路):取消进行中的一切,回到初始态,下次打开从头开始。 */
+    /**
+     * 关页(返回 / MENU / HOME 任何一条路):取消进行中的一切(包括等着用户按「安装」的那一份——
+     * 它的文件在这里删掉),回到初始态,下次打开从头开始。
+     */
     fun reset() {
+        val ready = (state as? AboutState.ReadyToInstall)?.file
         begin(AboutState.Idle)
+        if (ready != null) {
+            Log.i(TAG, "about closed; discarding verified update ${ready.name} (not installed)")
+            Update.discard(activity, ready)
+        }
     }
 
     /** 新会话:作废旧工作的结果、取消旧工作(不等它结束)、切到 [next]。返回新会话号。 */
@@ -292,6 +345,8 @@ class AboutController(
  *   焦点当场被清掉(与 `MainActivity.dispatchKeyEvent` KDoc 里 `canFocus = !idle` 那次是
  *   同一个坑),而且清掉之后请求循环也落不下,遥控器全死。
  *
+ * 按钮按 [AboutState.action] 分派:CHECK → [onCheck],DOWNLOAD → [onDownload](下载 + 校验 + 安装),
+ * INSTALL → [onInstall](把已校验的文件交给安装器)。
  * [onBack] 是返回键:由调用方决定「取消下载」还是「关页」(见 [AboutController.cancelIfBusy])。
  */
 @OptIn(ExperimentalComposeUiApi::class)
@@ -301,6 +356,7 @@ fun AboutScreen(
     versionCode: Int,
     state: AboutState,
     onCheck: () -> Unit,
+    onDownload: () -> Unit,
     onInstall: () -> Unit,
     onBack: () -> Unit,
     nonce: Int,
@@ -377,7 +433,8 @@ fun AboutScreen(
                     .clickable {
                         when (state.action) {
                             AboutAction.CHECK -> onCheck()
-                            AboutAction.DOWNLOAD -> onInstall()
+                            AboutAction.DOWNLOAD -> onDownload()
+                            AboutAction.INSTALL -> onInstall()
                             AboutAction.NONE -> Unit
                         }
                     }
@@ -478,8 +535,9 @@ private fun buttonLabel(state: AboutState): String = when (state) {
     is AboutState.Verifying -> stringResource(R.string.about_verifying)
     else -> when (state.action) {
         AboutAction.DOWNLOAD -> stringResource(R.string.about_download)
+        AboutAction.INSTALL -> stringResource(R.string.about_ready_install)
         // CHECK;NONE 只出现在上面三个忙碌态里,这里不会走到,给它同一个文案兜底。
-        else -> stringResource(R.string.about_check)
+        AboutAction.CHECK, AboutAction.NONE -> stringResource(R.string.about_check)
     }
 }
 

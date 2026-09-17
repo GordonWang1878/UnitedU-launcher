@@ -224,8 +224,8 @@ class MainActivity : ComponentActivity() {
             SettingsStore.update(this) { it.copy(newAppsSeenAt = System.currentTimeMillis()) }
         }
         // 上一条命留下的更新包 / 半截下载(装成功后进程被替换、或下载中途被杀)。
-        // 另一个 MainActivity 实例若正在下载,sweepStale 拿不到锁就跳过(见 Update.fileLock)。
-        lifecycleScope.launch { Update.sweepStale(this@MainActivity) }
+        // 本进程登记在案的文件(另一个 MainActivity 实例正在用的)一律跳过,见 UpdateFiles。
+        lifecycleScope.launch(Dispatchers.IO) { Update.sweepStale(this@MainActivity) }
         // T8:上一趟若是切语言(或恢复默认连带切语言)触发的 recreate(),把「设置页开着」
         // 和当时停在哪一格从 Bundle 种回来(spec §5)。必须在这里、`setContent` 之前赋值——
         // 两个都是普通字段,`setContent` 首次组合时读到的就是当下的值,不需要额外触发重组。
@@ -544,7 +544,8 @@ class MainActivity : ComponentActivity() {
                         versionCode = BuildConfig.VERSION_CODE,
                         state = aboutFlow.state,
                         onCheck = aboutFlow::check,
-                        onInstall = aboutFlow::downloadAndInstall,
+                        onDownload = aboutFlow::downloadAndInstall,
+                        onInstall = aboutFlow::installReady,
                         onBack = ::onAboutBack,
                         nonce = focusNonce,
                     )
@@ -706,7 +707,8 @@ class MainActivity : ComponentActivity() {
 
     /**
      * 关「关于」页**只有这一条路**(与 closeMenu 同构):返回键([onAboutBack])、MENU 键分支、
-     * HOME(onNewIntent)都调它。`aboutFlow.reset()` 取消进行中的检查 / 下载(半截文件随之删掉),
+     * HOME(onNewIntent)都调它。`aboutFlow.reset()` 取消进行中的检查 / 下载(半截文件随之删掉)
+     * 以及「等用户按安装」的那一份(文件删掉,之后绝不会自己弹出安装器),
      * 下次打开从「检查更新」重新开始;`focusNonce++` 让常驻的首页按它在 previewing 期间冻结的
      * 目标把焦点还原(与其它整屏浮层的 onDismiss 同理;T9 模拟器实测:三条杠键打开的关于页,
      * 返回 / 三条杠 / HOME 关掉后焦点都回到原来那张卡)。
@@ -1031,6 +1033,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         runCatching { unregisterReceiver(packageChanges) }
+        // 关于页不跨 Activity 重建(`about` 不进 Bundle):这个实例一走,它等着用户按「安装」的
+        // 那份已校验文件就再没人用了,在这里丢掉;进行中的检查 / 下载本来就随 lifecycleScope 取消。
+        aboutFlow.reset()
         super.onDestroy()
     }
 

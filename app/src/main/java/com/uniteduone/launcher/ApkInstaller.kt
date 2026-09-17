@@ -22,8 +22,17 @@ object ApkInstaller {
         return info.packageName to (info.versionName ?: "")
     }
 
+    /** 导入页用:先确认是个 APK(解析在调用线程上做),再 [launch]。 */
     fun install(ctx: Context, file: File): Result {
         if (archiveInfo(ctx, file) == null) return Result.INVALID
+        return launch(ctx, file)
+    }
+
+    /**
+     * 只做「权限引导 + 交给系统安装器」,**不解析文件**:调用方已在 IO 线程上核对过
+     * (关于页:哈希 + 包名 + 版本 + 签名,见 `Update.verify`)。主线程调用。
+     */
+    fun launch(ctx: Context, file: File): Result {
         if (!ctx.packageManager.canRequestPackageInstalls()) {
             // 「允许安装未知应用」只能用户自己在系统页点;我们跳过去,电视端与手机端各提示一句。
             // 跳转本身要兜住:国行定制 TV 固件不一定有这个设置页(ActivityNotFoundException),

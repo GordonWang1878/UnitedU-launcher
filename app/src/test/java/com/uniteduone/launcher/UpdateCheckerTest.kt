@@ -159,6 +159,76 @@ class UpdateCheckerTest {
         }
     }
 
+    @Test fun sha256OfBytes() {
+        assertEquals("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", sha256Hex(ByteArray(0)))
+        assertEquals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", sha256Hex("abc".toByteArray()))
+    }
+
+    // ---- 更新包身份核对(review Important 1):哈希只证明「包 = latest.json 说的那个」,不证明「包是我们的」 ----
+
+    private val pkg = "com.uniteduone.launcher"
+    private val releaseKey = "a".repeat(64)
+    private val debugKey = "b".repeat(64)
+    private val installed = ApkIdentity(pkg, 2, setOf(releaseKey))
+    private val goodArchive = ApkIdentity(pkg, 3, setOf(releaseKey))
+
+    @Test fun samePackageNewerVersionSameSignerIsAccepted() {
+        assertNull(checkUpdateApk(goodArchive, installed, expectedVersionCode = 3))
+    }
+
+    @Test fun unreadableArchiveOrInstalledInfoIsRejected() {
+        assertEquals(UpdateRejection.UNREADABLE, checkUpdateApk(null, installed, 3))
+        assertEquals(UpdateRejection.UNREADABLE, checkUpdateApk(goodArchive, null, 3))
+    }
+
+    @Test fun otherPackageIsRejectedEvenWhenEverythingElseMatches() {
+        assertEquals(
+            UpdateRejection.WRONG_PACKAGE,
+            checkUpdateApk(goodArchive.copy(packageName = "com.example.other"), installed, 3),
+        )
+    }
+
+    @Test fun versionMustEqualLatestJsonAndExceedInstalled() {
+        assertEquals(UpdateRejection.WRONG_VERSION, checkUpdateApk(goodArchive.copy(versionCode = 2), installed, 3))
+        assertEquals(UpdateRejection.WRONG_VERSION, checkUpdateApk(goodArchive.copy(versionCode = 4), installed, 3))
+        assertEquals(UpdateRejection.NOT_NEWER, checkUpdateApk(goodArchive, installed.copy(versionCode = 3), 3))
+        assertEquals(UpdateRejection.NOT_NEWER, checkUpdateApk(goodArchive, installed.copy(versionCode = 5), 3))
+    }
+
+    @Test fun missingSignersFailClosed() {
+        assertEquals(UpdateRejection.UNSIGNED, checkUpdateApk(goodArchive.copy(signers = emptySet()), installed, 3))
+        assertEquals(UpdateRejection.UNSIGNED, checkUpdateApk(goodArchive, installed.copy(signers = emptySet()), 3))
+    }
+
+    @Test fun signerSetsMustBeEqual() {
+        assertEquals(UpdateRejection.WRONG_SIGNER, checkUpdateApk(goodArchive.copy(signers = setOf(debugKey)), installed, 3))
+        // 多签名:多一个、少一个都不行;顺序无关
+        assertEquals(
+            UpdateRejection.WRONG_SIGNER,
+            checkUpdateApk(goodArchive.copy(signers = setOf(releaseKey, debugKey)), installed, 3),
+        )
+        assertEquals(
+            UpdateRejection.WRONG_SIGNER,
+            checkUpdateApk(goodArchive, installed.copy(signers = setOf(releaseKey, debugKey)), 3),
+        )
+        assertNull(
+            checkUpdateApk(
+                goodArchive.copy(signers = linkedSetOf(debugKey, releaseKey)),
+                installed.copy(signers = linkedSetOf(releaseKey, debugKey)),
+                3,
+            ),
+        )
+    }
+
+    // ---- cacheDir/apk 里哪些文件算「更新文件」(清扫只碰这些) ----
+
+    @Test fun updateFileNames() {
+        listOf("update.apk", "update-1b2c.apk", "update-1b2c.part", "update-.apk")
+            .forEach { assertTrue(it, isUpdateFileName(it)) }
+        listOf("upload.apk", "update.apk.bak", "update-1.txt", "notupdate-1.apk", "update", "update.part", "")
+            .forEach { assertFalse(it, isUpdateFileName(it)) }
+    }
+
     // ---- 通道地址规则(check 与 parseLatest 共用同一条) ----
 
     @Test fun allowedUpdateUrls() {

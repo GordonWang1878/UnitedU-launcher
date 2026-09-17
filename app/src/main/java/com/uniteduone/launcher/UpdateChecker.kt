@@ -179,7 +179,6 @@ private const val HEX_DIGITS = "0123456789abcdef"
 
 /**
  * 文件的 SHA-256,64 位小写 hex(与 `shasum -a 256` 输出一致)。分块读,百兆文件也不整读进内存。
- * 不用 `"%02x".format`:`String.format` 走默认 Locale,查表拼接与语言设置无关。
  * **阻塞 IO,调用方负责放到 IO 线程。**
  */
 fun sha256Hex(file: File): String {
@@ -192,13 +191,74 @@ fun sha256Hex(file: File): String {
             md.update(buf, 0, n)
         }
     }
-    val sb = StringBuilder(64)
-    for (b in md.digest()) {
+    return hex(md.digest())
+}
+
+/** 一段字节的 SHA-256(签名证书指纹用)。 */
+fun sha256Hex(bytes: ByteArray): String = hex(MessageDigest.getInstance("SHA-256").digest(bytes))
+
+/** 不用 `"%02x".format`:`String.format` 走默认 Locale,查表拼接与语言设置无关。 */
+private fun hex(digest: ByteArray): String {
+    val sb = StringBuilder(digest.size * 2)
+    for (b in digest) {
         val v = b.toInt() and 0xFF
         sb.append(HEX_DIGITS[v ushr 4]).append(HEX_DIGITS[v and 0x0F])
     }
     return sb.toString()
 }
+
+/**
+ * 一个 APK(或已装应用)的身份:包名、`longVersionCode`、签名证书指纹集合
+ * (每张证书 DER 编码的 SHA-256 hex,见 [sha256Hex])。由 Update.kt 从 PackageManager 读出。
+ */
+data class ApkIdentity(val packageName: String, val versionCode: Long, val signers: Set<String>)
+
+/** 下载下来的更新包为什么不能交给安装器。任何一种都按「校验失败」处理并删文件。 */
+enum class UpdateRejection {
+    /** 文件的 SHA-256 与 latest.json 不符(传输损坏或被替换)。 */
+    HASH_MISMATCH,
+    /** 解析不出包信息(不是 APK),或读不到本应用自己的包信息——两头缺一都不放行。 */
+    UNREADABLE,
+    /** 不是本应用的包。 */
+    WRONG_PACKAGE,
+    /** 包里的版本号与 latest.json 声称的不一致。 */
+    WRONG_VERSION,
+    /** 不比已装的新。 */
+    NOT_NEWER,
+    /** 任一方读不到签名证书。 */
+    UNSIGNED,
+    /** 签名证书集合与已装应用不同。 */
+    WRONG_SIGNER,
+}
+
+/**
+ * 哈希通过之后的身份核对(review Important 1)。
+ *
+ * **为什么光有哈希不够**:SHA-256 与 `apkUrl` 写在同一份 latest.json 里,哈希只证明
+ * 「下到的包就是 latest.json 指的那个」,不证明「那是我们的包」。平台的「同签名才能覆盖安装」
+ * 只保护**同包名**的更新——一个包名不同的 APK 会被当成新应用,用户在安装器里点一下就装上了。
+ * 所以交给安装器之前必须自己确认:包名 = 本应用;版本号 = latest.json 所说、且比已装的新;
+ * 签名证书集合 = 已装应用的(只认完全相同,顺序无关)。任何一方信息缺失一律拒绝(fail closed)。
+ *
+ * 已知限制:签名轮换(APK Signature Scheme v3 的 lineage)会被拒——真要换签名密钥时,
+ * 这里要改成「已装的当前证书在新包的证书历史里」。
+ */
+fun checkUpdateApk(archive: ApkIdentity?, installed: ApkIdentity?, expectedVersionCode: Int): UpdateRejection? = when {
+    archive == null || installed == null -> UpdateRejection.UNREADABLE
+    archive.packageName != installed.packageName -> UpdateRejection.WRONG_PACKAGE
+    archive.versionCode != expectedVersionCode.toLong() -> UpdateRejection.WRONG_VERSION
+    archive.versionCode <= installed.versionCode -> UpdateRejection.NOT_NEWER
+    archive.signers.isEmpty() || installed.signers.isEmpty() -> UpdateRejection.UNSIGNED
+    archive.signers != installed.signers -> UpdateRejection.WRONG_SIGNER
+    else -> null
+}
+
+/**
+ * `cacheDir/apk/` 里哪些文件归检查更新管(清扫只碰这些):每次尝试的 `update-<唯一名>.apk` /
+ * `update-<唯一名>.part`,以及上一版固定文件名留下的 `update.apk`。M6 的 `upload.apk` 不归这里管。
+ */
+fun isUpdateFileName(name: String): Boolean =
+    name == "update.apk" || (name.startsWith("update-") && (name.endsWith(".apk") || name.endsWith(".part")))
 
 /**
  * 下载进度百分比。**只有 `Content-Length` 已知(> 0)才给数字**,否则 null → 界面显示
