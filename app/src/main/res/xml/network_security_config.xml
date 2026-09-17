@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  网络安全配置(M7 T9)。整体保持平台缺省:targetSdk ≥ 28 一律禁止明文 HTTP,
+  检查更新的真实通道(COS / GitHub)只走 https。
+
+  唯一的例外是本机回环 127.0.0.1:模拟器验证「检查更新」时,本地假服务经
+  `adb reverse tcp:8123 tcp:8123` 映射到设备的 127.0.0.1:8123,流量不出设备
+  (Controller ruling R4;App 里对应的地址规则见 UpdateChecker.kt 的 isAllowedUpdateUrl)。
+  没有这一段,HttpURLConnection 会直接抛 "CLEARTEXT communication … not permitted"。
+  正式构建的通道里没有回环地址,这一段对它们不起作用。
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>

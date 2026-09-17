@@ -11,6 +11,22 @@ val releaseProps = Properties().apply {
     if (f.exists()) f.inputStream().use { load(it) }
 }
 
+/**
+ * 检查更新的通道(spec §7.3),按顺序尝试,逗号分隔。来源:Gradle 属性 `unitedu.updateUrls`
+ * (写在 gradle.properties 或命令行 `-Punitedu.updateUrls=…`)。COS 桶地址由 Gordon 自己在
+ * gradle.properties 里补上,放在 GitHub 前面;**源码与本文件都不写死任何 COS 地址**。
+ * 缺省只有 GitHub Release 这一条。这里不做校验:App 运行时由 UpdateChecker.kt 的
+ * `isAllowedUpdateUrl` 把关(只认 https,外加模拟器验证用的 `http://127.0.0.1`),不合规的地址跳过并记日志。
+ */
+val updateUrls: String = providers.gradleProperty("unitedu.updateUrls").orNull?.takeIf { it.isNotBlank() }
+    ?: "https://github.com/GordonWang1878/UnitedU-launcher/releases/latest/download/latest.json"
+
+/**
+ * 版本号。发布版固定 2(1.0.0-beta,spec §9);`-PversionCodeOverride=3` 只给模拟器上验证
+ * 「发现新版本 → 下载 → 安装」时出一个更高版本号的包用,不进任何配置文件。
+ */
+val appVersionCode: Int = providers.gradleProperty("versionCodeOverride").orNull?.toInt() ?: 2
+
 android {
     namespace = "com.uniteduone.launcher"
     compileSdk = 35
@@ -22,8 +38,14 @@ android {
         applicationId = "com.uniteduone.launcher"
         minSdk = 28
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1"
+        versionCode = appVersionCode
+        versionName = "1.0.0-beta"
+        // 进 Java 字符串字面量:反斜杠与引号先转义(地址里本不该有,防手误把整个构建弄坏)。
+        buildConfigField(
+            "String",
+            "UPDATE_URLS",
+            "\"" + updateUrls.replace("\\", "\\\\").replace("\"", "\\\"") + "\"",
+        )
     }
 
     signingConfigs {
@@ -58,7 +80,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        // 关于页读 BuildConfig.VERSION_NAME / VERSION_CODE / UPDATE_URLS(AGP 8 起默认不生成)。
+        buildConfig = true
+    }
 }
 
 dependencies {

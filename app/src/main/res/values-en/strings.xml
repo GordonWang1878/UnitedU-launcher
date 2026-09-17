@@ -161,6 +161,26 @@
     <string name="restore_body">Rows, titles, card images and your gallery stay as they are</string>
     <string name="restore_ok">Restore</string>
     <string name="dialog_cancel">Cancel</string>
+    <!-- about_* : About page and manual update check (T9, spec §7) -->
+    <string name="about_title">About UnitedU</string>
+    <string name="about_version">Version %1$s (%2$d)</string>
+    <string name="about_check">Check for Updates</string>
+    <string name="about_checking">Checking…</string>
+    <string name="about_latest">You\'re up to date</string>
+    <string name="about_found">New version %1$s available</string>
+    <string name="about_download">Download and Install</string>
+    <string name="about_downloading">Downloading %1$d%%</string>
+    <string name="about_downloading_unknown">Downloading…</string>
+    <string name="about_verifying">Verifying…</string>
+    <string name="about_verify_failed">Verification failed</string>
+    <string name="about_download_failed">Download failed, try again later</string>
+    <string name="about_install_failed">This update package can\'t be installed</string>
+    <string name="about_needs_permission">Allow “Install unknown apps” on the TV, then try again</string>
+    <string name="about_net_failed">Couldn\'t check for updates, try again later</string>
+    <string name="about_bad_json">Couldn\'t read the update information</string>
+    <string name="about_license_title">Licenses</string>
+    <string name="about_license">UnitedU is released under Apache-2.0. Third-party: DM Sans (OFL 1.1), Material Icons (Apache-2.0), NanoHTTPD (BSD-3-Clause), ZXing (Apache-2.0). Built-in wallpapers are procedurally generated.</string>
+    <string name="about_repo">Project: github.com/GordonWang1878/UnitedU-launcher</string>
 
     <!-- preset_* : theme color preset names (gate 2 "subdued" set) -->
     <string name="preset_gold">Gold</string>

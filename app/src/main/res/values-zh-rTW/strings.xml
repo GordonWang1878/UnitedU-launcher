@@ -161,6 +161,26 @@
     <string name="restore_body">分欄、標題、卡片圖和圖片庫都不會變</string>
     <string name="restore_ok">恢復</string>
     <string name="dialog_cancel">取消</string>
+    <!-- about_* : 關於頁與手動檢查更新(T9,spec §7) -->
+    <string name="about_title">關於 UnitedU</string>
+    <string name="about_version">版本 %1$s (%2$d)</string>
+    <string name="about_check">檢查更新</string>
+    <string name="about_checking">檢查中…</string>
+    <string name="about_latest">已是最新版本</string>
+    <string name="about_found">發現新版本 %1$s</string>
+    <string name="about_download">下載並安裝</string>
+    <string name="about_downloading">下載中 %1$d%%</string>
+    <string name="about_downloading_unknown">下載中…</string>
+    <string name="about_verifying">驗證中…</string>
+    <string name="about_verify_failed">驗證失敗</string>
+    <string name="about_download_failed">下載失敗,請稍後再試</string>
+    <string name="about_install_failed">這個更新套件無法安裝</string>
+    <string name="about_needs_permission">請在電視上允許「安裝未知應用程式」,然後重試</string>
+    <string name="about_net_failed">檢查失敗,請稍後再試</string>
+    <string name="about_bad_json">無法解析更新資訊</string>
+    <string name="about_license_title">授權聲明</string>
+    <string name="about_license">本專案以 Apache-2.0 授權發布。第三方元件:DM Sans(OFL 1.1)、Material Icons(Apache-2.0)、NanoHTTPD(BSD-3-Clause)、ZXing(Apache-2.0)。內建桌布為程式產生。</string>
+    <string name="about_repo">專案網址 github.com/GordonWang1878/UnitedU-launcher</string>
 
     <!-- preset_* : 主題色預設名(門 2「沉穩」一套) -->
     <string name="preset_gold">金</string>

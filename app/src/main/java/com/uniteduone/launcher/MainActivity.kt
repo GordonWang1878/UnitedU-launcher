@@ -14,29 +14,10 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicText
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.*
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
@@ -159,10 +140,14 @@ class MainActivity : ComponentActivity() {
     /** 「移动位置」兜底:进编辑页时定位到这张卡。**(layout.json 行号, 包名)** ——
      *  列号不能带:编辑页按 layout.json 排,里面还有装不到的包占位,渲染列号对不上。 */
     private var editTarget by mutableStateOf<Pair<Int, String>?>(null)
-    /** 「关于」浮层。**本任务(T6)接了齿轮菜单第四项**,给它一个占位页(标题「关于」+ 返回关闭)——
-     *  T9 换成正式的 AboutScreen(版本号 + 检查更新)。 */
+    /** 「关于」浮层(齿轮菜单第四项,spec §7):版本号 + 手动检查更新,见 AboutScreen.kt。 */
     private var about by mutableStateOf(false)
-    /** 首次引导浮层(T9 接线)。同 [about] 曾经的占位状态:本任务只声明,永远是 false。 */
+    /**
+     * 关于页的状态机(检查 / 下载 / 校验 / 安装)。页面关掉时 [closeAbout] 调 `reset()`
+     * 取消进行中的一切,所以它的寿命可以跟 Activity 走——构造时只存引用,不碰 Context。
+     */
+    private val aboutFlow = AboutController(this, BuildConfig.VERSION_CODE, Update.configuredUrls())
+    /** 首次引导浮层(T10 接线)。目前只声明,永远是 false。 */
     private var onboarding by mutableStateOf(false)
     /**
      * 待机演示(spec §3.2):设置页「待机内容」行拿着焦点时,`SettingsScreen` 经 `onDemoIdle`
@@ -181,7 +166,7 @@ class MainActivity : ComponentActivity() {
      * **首页之上盖着整屏浮层没有**(M7 T4 分层叠加)。写成派生属性而不是各处重算:
      * 这个判据有三个消费者 —— 首页的 `previewing`、长按识别的 `homeBare`、待机效果的
      * key 与守卫 —— 少判一个成员就是一处「浮层开着时底下的首页还在抢焦点 / 还在计待机」。
-     * 四个成员里 [onboarding] 本任务恒为 false(T9 接线);[about] 本任务起会真的置真。
+     * 四个成员里 [onboarding] 目前恒为 false(T10 接线)。
      * 读的全是 `mutableStateOf` 字段,在 `setContent` 里读它照样是响应式的。
      */
     private val overlayOpen: Boolean
@@ -238,6 +223,9 @@ class MainActivity : ComponentActivity() {
         if (SettingsStore.read(this).newAppsSeenAt == 0L) {
             SettingsStore.update(this) { it.copy(newAppsSeenAt = System.currentTimeMillis()) }
         }
+        // 上一条命留下的更新包 / 半截下载(装成功后进程被替换、或下载中途被杀)。
+        // 另一个 MainActivity 实例若正在下载,sweepStale 拿不到锁就跳过(见 Update.fileLock)。
+        lifecycleScope.launch { Update.sweepStale(this@MainActivity) }
         // T8:上一趟若是切语言(或恢复默认连带切语言)触发的 recreate(),把「设置页开着」
         // 和当时停在哪一格从 Bundle 种回来(spec §5)。必须在这里、`setContent` 之前赋值——
         // 两个都是普通字段,`setContent` 首次组合时读到的就是当下的值,不需要额外触发重组。
@@ -547,11 +535,19 @@ class MainActivity : ComponentActivity() {
                         onDismiss = { pickerTarget = null; focusNonce++ },
                     )
                 }
-                // 齿轮菜单第四项「关于」(spec §1)。**本任务只是占位页**(T9 换成正式内容),
-                // 画在最后 = 叠在设置页 / 选择器之上,与它们同属 [overlayOpen] 的整屏浮层家族,
-                // 首页早已因 previewing 让路。
+                // 齿轮菜单第四项「关于」(spec §1、§7)。画在最后 = 叠在设置页 / 选择器之上,
+                // 与它们同属 [overlayOpen] 的整屏浮层家族,首页早已因 previewing 让路;
+                // 焦点由页面自己的请求循环负责(铁律 3)。状态机在 aboutFlow 里,这里只接线。
                 if (about) {
-                    AboutPlaceholder(nonce = focusNonce, onDismiss = ::closeAbout)
+                    AboutScreen(
+                        versionName = BuildConfig.VERSION_NAME,
+                        versionCode = BuildConfig.VERSION_CODE,
+                        state = aboutFlow.state,
+                        onCheck = aboutFlow::check,
+                        onInstall = aboutFlow::downloadAndInstall,
+                        onBack = ::onAboutBack,
+                        nonce = focusNonce,
+                    )
                 }
             }
             }
@@ -611,7 +607,7 @@ class MainActivity : ComponentActivity() {
             if (confirmRestore) { confirmRestore = false; return true }
             if (editing) { leaveEdit(); return true }
             if (settings) { leaveSettings(); return true }
-            // 「关于」占位页开着时同理:三条杠键只负责关它,不能在它底下叠出齿轮菜单——
+            // 「关于」页开着时同理:三条杠键只负责关它(下载中也一并取消),不能在它底下叠出齿轮菜单——
             // 不判的话会摸到下面 `menuOpen` 那一支,在关于页蒙版后面悄悄开出一层齿轮菜单。
             if (about) { closeAbout(); return true }
             window.decorView.playSoundEffect(SoundEffectConstants.NAVIGATION_DOWN)
@@ -709,14 +705,26 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * 关「关于」占位页**只有这一条路**(与 closeMenu 同构):它自己的 BackHandler、
-     * MENU 键分支、installBackHandler 的兜底分支都调它,焦点由首页看门狗接回齿轮
-     * (与其它整屏浮层的 onDismiss 同理)。
+     * 关「关于」页**只有这一条路**(与 closeMenu 同构):返回键([onAboutBack])、MENU 键分支、
+     * HOME(onNewIntent)都调它。`aboutFlow.reset()` 取消进行中的检查 / 下载(半截文件随之删掉),
+     * 下次打开从「检查更新」重新开始;`focusNonce++` 让常驻的首页按它在 previewing 期间冻结的
+     * 目标把焦点还原(与其它整屏浮层的 onDismiss 同理;T9 模拟器实测:三条杠键打开的关于页,
+     * 返回 / 三条杠 / HOME 关掉后焦点都回到原来那张卡)。
      */
     private fun closeAbout() {
         if (!about) return
+        aboutFlow.reset()
         about = false
         focusNonce++
+    }
+
+    /**
+     * 关于页的返回键(页面自己的 BackHandler 与 [installBackHandler] 的兜底共用这一处):
+     * 下载 / 校验进行中 → 只取消这次下载、页面留着(spec §7:下载中 BACK = 取消下载并删文件);
+     * 其它状态 → 关页。
+     */
+    private fun onAboutBack() {
+        if (!aboutFlow.cancelIfBusy()) closeAbout()
     }
 
     /**
@@ -1038,6 +1046,9 @@ class MainActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 when {
+                    // 「关于」页画在最上层,兜底也最先判(AboutScreen 自带的 BackHandler 正常会先接管)。
+                    // 它开着时下面几种浮层都不可能同时在场(只能从首页齿轮菜单打开,打开时菜单已收起)。
+                    about -> onAboutBack()
                     menuOpen -> closeMenu()
                     // 与 menuOpen 同理的兜底:GearMenu 自带的 BackHandler 组合时挂得更晚、正常会先接管,
                     // 但这一层不能是空的 —— 万一那条路没接住,返回键就会落进「桌面根状态什么都不做」,
@@ -1051,9 +1062,6 @@ class MainActivity : ComponentActivity() {
                     confirmRestore -> confirmRestore = false
                     editing -> leaveEdit()
                     settings -> leaveSettings()
-                    // 同理:AboutPlaceholder 自带的 BackHandler 正常会先接管,这里是同一种兜底,
-                    // 万一没接住,「关于」占位页不能是一个按返回也退不出去的死角。
-                    about -> closeAbout()
                     // 桌面根状态:什么都不做,绝不 finish
                 }
             }
@@ -1079,66 +1087,3 @@ private fun wallpaperThemeColors(ctx: android.content.Context, wallpaperFile: St
             val accent = androidx.compose.ui.graphics.Color(usableAccent(rgb) or 0xFF000000.toInt())
             ThemeColors(accent, highlightFrom(accent))
         }
-
-/**
- * 「关于」占位页(spec §1、§7:T9 换成正式的 AboutScreen,含版本号 + 检查更新)。
- * 与 GearMenu / TitleDialog 同一份焦点账本手法:
- * - 整屏浮层至少要有**一个**可聚焦节点(铁律 1 的姊妹坑:一个都没有的话 D-pad 在这棵树里
- *   找不到候选,焦点会整个消失,之后关掉这一层时首页看门狗会先经历一帧「树里没有任何焦点」);
- * - 焦点落没落下只信自报 `focused`(铁律 2/4),`nonce` 变化就重新请求一轮(铁律 3);
- * - 上下左右在这个节点上全锁 `Cancel`:占位页只有一块内容,没有任何方向可以移动出去。
- * 返回键走 `BackHandler`(与焦点无关,由 OnBackPressedDispatcher 按注册顺序接管),
- * `MainActivity` 另有一条同构的兜底(见 `installBackHandler`)。
- */
-@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
-@Composable
-private fun AboutPlaceholder(nonce: Int, onDismiss: () -> Unit) {
-    val fr = remember { FocusRequester() }
-    var focused by remember { mutableStateOf(false) }
-    androidx.activity.compose.BackHandler { onDismiss() }
-    LaunchedEffect(nonce, focused) {
-        if (focused) return@LaunchedEffect
-        var frames = 0
-        while (!focused && frames < 60) {
-            withFrameNanos { }
-            runCatching { fr.requestFocus() }
-            frames++
-        }
-    }
-    Box(
-        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.72f)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            Modifier
-                .clip(RoundedCornerShape(14.dp))
-                .background(Theme.DialogSurface)
-                .width(360.dp)
-                .focusRequester(fr)
-                .focusProperties {
-                    up = FocusRequester.Cancel
-                    down = FocusRequester.Cancel
-                    left = FocusRequester.Cancel
-                    right = FocusRequester.Cancel
-                }
-                .onFocusChanged { focused = it.isFocused }
-                .focusable()
-                .padding(24.dp),
-        ) {
-            BasicText(
-                text = stringResource(R.string.menu_about),
-                style = TextStyle(
-                    fontFamily = Theme.Sans,
-                    fontWeight = FontWeight.Medium,
-                    color = Theme.EmphasisText,
-                    fontSize = 18.sp,
-                ),
-            )
-            Spacer(Modifier.height(8.dp))
-            BasicText(
-                text = stringResource(R.string.menu_back_to_close),
-                style = TextStyle(fontFamily = Theme.Sans, color = Theme.FooterHintText, fontSize = 11.sp),
-            )
-        }
-    }
-}

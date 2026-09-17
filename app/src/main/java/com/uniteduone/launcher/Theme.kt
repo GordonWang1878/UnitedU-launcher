@@ -120,6 +120,8 @@ object Theme {
     val ThumbLabelText = Color(0xFFAAAAAA)
     /** 编辑页「未安装」卡片提示文字。 */
     val MissingCardText = Color(0xFFB08080)
+    /** 关于页检查更新的失败提示(网络 / 格式 / 下载 / 校验 / 安装失败)。与上一行撞色,用途不同分开命名。 */
+    val StatusErrorText = Color(0xFFB08080)
     /** 齿轮菜单条目标题(未聚焦)。 */
     val MenuItemText = Color(0xFFB0B0B0)
     /** 默认桌面卡片主按钮文字(未聚焦)。 */
