@@ -1,6 +1,6 @@
 # M7 设计:设置体系重做(两栏 + 实时预览)+ 恢复默认 + 语言 + 待机接线 + 关于/检查更新 + 首次引导 + README
 
-状态:已实施(分支 `m7-settings`,`e6c3519..68f645b`),待终审与真机验收(2026-09-17)。基线 = main + `theme-cleanup` 分支(删主题化壁纸、主题色全面接线)合并之后。
+状态:已实施(分支 `m7-settings`,`e6c3519..68f645b`);终审修复波已完成(`bd47de4..da01eb8` + 文档提交,见 WORKLOG「终审修复波」),待真机验收(2026-09-17)。基线 = main + `theme-cleanup` 分支(删主题化壁纸、主题色全面接线)合并之后。
 
 ## 0. 决策(Gordon,2026-09-16 真机第二轮之后)
 
@@ -109,6 +109,8 @@
 
 ### 7.4 发布脚本 `scripts/release.sh`
 `assembleRelease` → 计算 APK SHA-256 → 生成 `latest.json` → `gh release create v<版本> APK latest.json`(GitHub)→ `coscli cp` 两个文件到 COS `unitedu/`(凭据来自 Gordon 本地 `~/.cos.yaml`,不进仓库)。脚本由 Gordon 在本机运行。
+- 发布说明(终审 I3):只认 `--notes` 或 `dist/notes-<版本>.txt`(每版一份),脚本不回写任何说明文件;正式发布两者都没有就中止,`--dry-run` 才用默认文案并警告。
+- 签名(终审 I4):构建带 `-PrequireReleaseKey=true`(缺 `~/.unitedu/release.jks` 即构建失败,不回落 debug keystore);构建后 `apksigner verify --print-certs` 核对 APK 证书 SHA-256 = release 证书摘要(公开值,写在脚本里),不一致就中止。
 
 ## 8. 首次启动引导(三步)
 
