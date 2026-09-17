@@ -2,6 +2,7 @@ package com.uniteduone.launcher
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -208,5 +209,29 @@ class SettingsTest {
         assertEquals(0L, parseSettings("""{"newAppsSeenAt": -1}""").newAppsSeenAt)
         val s = Settings(newAppsSeenAt = 1_700_000_000_000L)
         assertEquals(s, parseSettings(s.toJson()))
+    }
+
+    @Test fun languageParsesAndDefaults() {
+        assertEquals("system", parseSettings("{}").language)
+        assertEquals("zh-TW", parseSettings("""{"language": "zh-TW"}""").language)
+        assertEquals("system", parseSettings("""{"language": "fr"}""").language)
+        assertEquals("system", parseSettings("""{"language": 5}""").language)
+    }
+
+    @Test fun onboardingDoneIsTriState() {
+        assertNull(parseSettings("{}").onboardingDone)
+        assertEquals(true, parseSettings("""{"onboardingDone": true}""").onboardingDone)
+        assertFalse(Settings().toJson().contains("onboardingDone"))
+        assertTrue(Settings(onboardingDone = false).toJson().contains("\"onboardingDone\": false"))
+    }
+
+    @Test fun restoredDefaultsKeepsOnlyBaselineAndOnboarding() {
+        val cur = Settings(cardsPerRow = 8, showTitles = true, language = "en", wallpaperBlur = 50,
+            newAppsSeenAt = 1L, onboardingDone = true)
+        val r = restoredDefaults(cur, 999L)
+        assertEquals(Settings().cardsPerRow, r.cardsPerRow); assertFalse(r.showTitles)
+        assertEquals("system", r.language); assertEquals(0, r.wallpaperBlur)
+        assertEquals(999L, r.newAppsSeenAt); assertEquals(true, r.onboardingDone)
+        assertEquals(r, parseSettings(r.toJson()))
     }
 }

@@ -10,6 +10,7 @@ release.properties
 app/release/
 .superpowers/
 .kotlin/
+dist/
 
 # Claude Code session scratch (worktrees, SDD ledgers) — never commit
 .claude/

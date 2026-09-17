@@ -67,7 +67,8 @@
 UnitedU 设置   ← 行数/卡片大小/标题开关/输入源行/壁纸/主题色/待机/屏保/时钟/语言
                  + 导入图片 + 设为默认桌面(现有引导卡)+ 恢复默认
 系统设置
-关于           ← 版本号 + 检查更新(手动;先查腾讯云 COS 镜像再查 GitHub,失败静默)+ 许可声明
+关于           ← 版本号 + 检查更新(手动;先查腾讯云 COS 镜像再查 GitHub,任何结果都会显示——
+                 已是最新/发现新版本/网络失败/格式错误/校验失败,不静默)+ 许可声明
 ```
 
 遥控器:菜单键打开齿轮菜单,其余键不做映射。
@@ -82,7 +83,7 @@ UnitedU 设置   ← 行数/卡片大小/标题开关/输入源行/壁纸/主题
 
 - **独立项目、独立机器**:在 Core 上新建仓库,远程 GitHub(公开;这是产品仓库,与「Smart Home 永不设远程」无关)。**不从 Smart Home 拆历史**,需要的代码(焦点处理、ImagePicker、Screensaver、HomeSettingsCard 等)与资源逐文件复制;`launcher/README.md` 的七条焦点铁律复制进新仓库的 CLAUDE.md。TvHome 在 Smart Home 里原样不动。
 - **Core 工具链**:JDK 17 / Gradle 8.14.5 / Android SDK 三样在 Core 手装一遍(Hub 的装法与 `dl-ssl.google.com` 绕法同样适用,Core 也在 VLAN 1 经 Surge)。Core 能直连电视 adb(`192.168.1.50:5555`,局域网口),但 Core 的 adb 密钥要在电视上再「一律允许」一次。Hub→Core 无 SSH 通道,Core→Hub 有:设计文档等资料由 Core 侧 `scp hub:…` 拉取。
-- **更新通道(Q23)**:发布脚本把 `latest.json`(版本号、更新说明、APK 地址、SHA-256)与 APK **双发**到 GitHub Release 和**腾讯云 COS 公共读桶**(默认域名免备案)。应用内「检查更新」手动触发,先查 COS 再查 GitHub;下载后调系统安装器,需声明 `REQUEST_INSTALL_PACKAGES`,用户在系统设置给 UnitedU 一次「允许安装未知应用」。**兜底:上传页支持传 APK 安装**,手机从任何渠道拿到 APK 都能装。
+- **更新通道(Q23)**:发布脚本把 `latest.json`(版本号、更新说明、APK 地址、SHA-256)与 APK **双发**到 GitHub Release 和**腾讯云 COS 公共读桶**(默认域名免备案)。**两份 `latest.json` 不是同一份文件的两次拷贝**:各自的 `apkUrl` 指回**自己那条通道**的 APK(COS 桶里的 `latest.json` 指 COS 的 APK,GitHub Release 里的 `latest.json` 指 GitHub 的 APK),这样走 COS 查到更新的用户下载也留在 COS、不会因为跨到 GitHub 的地址而被墙。应用内「检查更新」手动触发,先查 COS 再查 GitHub;下载后调系统安装器,需声明 `REQUEST_INSTALL_PACKAGES`,用户在系统设置给 UnitedU 一次「允许安装未知应用」。**兜底:上传页支持传 APK 安装**,手机从任何渠道拿到 APK 都能装。
 - **签名**:新 release keystore。密码 Gordon 写本地文件、我只读路径;不进仓库、不进聊天。
 - **去 adb 依赖**:`RelaunchAfterUpdate` 检测 `SYSTEM_ALERT_WINDOW` appop 未授权时静默跳过;权限声明保留。
 - **文案**:全部抽到 `strings.xml`,简 / 繁 / 英三份(现在中英混写在 Kotlin 里)。

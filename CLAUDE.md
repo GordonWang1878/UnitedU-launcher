@@ -19,13 +19,25 @@ source scripts/env.sh
 emulator -avd unitedu-tv -no-snapshot -no-audio -gpu swiftshader_indirect &   # 启动
 adb wait-for-device && adb shell 'while [ "$(getprop sys.boot_completed)" != 1 ]; do sleep 2; done'
 adb install -r app/build/outputs/apk/release/app-release.apk
-adb shell cmd package set-home-activity --user 0 com.uniteduone.launcher/.MainActivity
-adb shell input keyevent KEYCODE_HOME
+adb shell cmd package set-home-activity com.uniteduone.launcher/.MainActivity   # 不带 --user 0
+adb shell am start -n com.uniteduone.launcher/.MainActivity                     # 不用 HOME 键,见下
 adb exec-out screencap -p > /tmp/home.png        # 截图
 adb emu kill                                     # 关闭
 ```
 
-改 settings.json 单个字段验证用:pull → 正则替换 → push → force-stop → HOME(见 M3 计划 Task 5 的 setjson.sh)。
+改 settings.json 单个字段验证用:pull → 正则替换 → push → force-stop → `am start -n`(见 M3 计划 Task 5 的 setjson.sh)。
+
+**模拟器验证的坑**(M7 实测,细节见 WORKLOG 2026-09-17):
+- `KEYCODE_HOME` 不认 `set-home-activity`(原厂 Google TV 桌面照抢)→ 一律 `am start -n` 拉起;`set-home-activity` 带 `--user 0` 会返回 Success 却不生效。
+- 真机是被 HOME 拉起的:`am start -a android.intent.action.MAIN -c android.intent.category.HOME -n com.uniteduone.launcher/.MainActivity`。依赖启动 intent 的 bug 在 `am start -n` 下藏得住(`recreate()` 沿用原 intent)。
+- 按不住键:`settings put secure long_press_timeout 700` 后 `input keyevent --longpress KEYCODE_DPAD_CENTER`(注入的重复事件时间戳 = downTime + 该值,越过 600 ms 阈值;测完改回 400);或装 `LONG_PRESS_MS = 0` 的探针 APK。
+- HOME 角色进程受保护:`am kill` 无效,`am crash` 连任务带状态一起丢,`always_finish_activities` 不生效 ——「进程死后带 Bundle 重建」这台 AVD 造不出来。
+- `pm clear` 连数据带 HOME 角色一起清(卸载同样退回原厂桌面),之后重设。
+- 系统设置是半透明侧边面板:盖着时本应用仍是 STARTED,不能拿它当「退到后台」。
+- 测「从别的应用回来焦点还在不在」时,回来要按 BACK:对活着的实例 `am start -n …MainActivity` 走 `onNewIntent`(= HOME 语义),所有浮层当场收掉,测不出焦点记忆。
+- 抓动画过程:`settings put global animator_duration_scale 10`(Compose 动画照这个倍率放慢,screencap 每帧约 0.5 s 也采得到),测完 `settings delete global animator_duration_scale`。
+- 注入按键之间留 ~0.4 s:零间隔连发会跑在 Compose 异步焦点效果前面。
+- uiautomator 不报全透明节点(真待机时 `focused="true"` 为 0,焦点其实还在);TV 设置应用卡片的 content-desc 也是「Settings」,与齿轮同名 —— 脚本按 bounds 区分,且确定键之前先断言焦点文案,否则会启动卡片对应的应用。
 
 真机(Sony A95L)只在里程碑真机验收用;开发全程走模拟器。真机 adb 走「无线调试」配对码(**不是** 5555):电视「开发者选项 → 无线调试 → 使用配对码配对设备」拿码,`printf '<码>\n' | adb pair <IP:配对端口>`(管道喂码,参数形式会 protocol fault),再 `adb connect <IP:连接端口>`——**连接端口以电视「无线调试」主页面显示的为准**(2026-09-16:mDNS 广播的端口是休眠前的过期记录,端口扫描也扫不到真端口;mDNS 发现要 `ADB_MDNS_OPENSCREEN=1`)。IP 走 DHCP(当前 192.168.1.22)。配对不跨会话保留,`offline` = 配对失效,重配即可。
 
@@ -78,11 +90,14 @@ adb emu kill                                     # 关闭
 
    | 界面 / 浮层 | 恢复责任方 |
    |---|---|
-   | 首页卡片/齿轮 | HomeScreen 看门狗(+ 从选择器回来的 initialTarget 种子) |
+   | 首页卡片/齿轮 | HomeScreen 看门狗 + 还原效果(选择器、设置页等整屏浮层都叠在常驻首页上,`covered` 期间冻结 `tgtRow/tgtIdx/tgtGear`,关掉后按它还原;编辑页仍整体替换首页,回来落 (0,0)) |
    | 齿轮菜单 / 长按卡片菜单 | GearMenu 自己的初始焦点循环(nonce) |
    | 修改标题对话框 | TitleDialog(nonce + focused,四向 Cancel) |
-   | 设置页 | SettingsScreen 看门狗 |
-   | 编辑页 | EditScreen 看门狗 + 显式重定位 |
+   | 设置页两栏 | SettingsScreen 看门狗(二维账本 pane/group/rowOf,`covered` 让路,`reloadNonce` 重读;`ON_PAUSE` 起冻结目标,回到前台才放开) |
+   | 确认框(恢复默认) | ConfirmDialog(nonce + focusedBtn) |
+   | 关于页 | AboutScreen(nonce + focused,四向 Cancel) |
+   | 首次引导 | Onboarding(每步 nonce + 逐项 requester + 看门狗;`ON_PAUSE` 起冻结目标) |
+   | 编辑页 | EditScreen 看门狗 + 显式重定位。「换卡片图」的选择器**替换**编辑页(开着时 EditScreen 不在组合里,它没有 `covered` 让路开关);关掉后编辑页重建,由 MainActivity 的 `editTarget`(layout 行号, 包名)种子定位回同一张卡 |
    | 添加应用列表 | AppPicker(逐项 requester) |
    | 图片选择器 / 屏保图库 / 默认桌面卡 / 导入图片页 | 各自的初始焦点循环(nonce) |
 

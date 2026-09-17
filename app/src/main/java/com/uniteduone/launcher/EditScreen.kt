@@ -39,12 +39,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * 编辑桌面。范围按设计文档 Q5:只管应用的**进出与行内排序**,外加换卡片图。
+ * 编辑分栏(原「编辑桌面」)。范围按设计文档 Q5:只管应用的**进出与行内排序**,外加换卡片图。
  * 三行的名字是固定的,不在这里改。
  */
 @Composable
 fun EditScreen(
-    onPickIcon: (String) -> Unit,
+    /**
+     * 「换卡片图」:(layout.json 行号, 包名)。**选择器会替换本页**(M7 终审 C1):选择器开着时本页不在组合里,
+     * 关掉后整页重建、所有 `remember` 归零——调用方必须把这两个值原样当 [initialTarget] 喂回来,
+     * 焦点才回得到这张卡。行号就是本页 `rows` 的下标(本页按 `Layout.read` 原样排,与 layout.json 一致)。
+     */
+    onPickIcon: (row: Int, pkg: String) -> Unit,
     onExit: () -> Unit,
     focusNonce: Int = 0,
     revision: Int = 0,
@@ -53,7 +58,8 @@ fun EditScreen(
      *  编辑时看得见名字更好认。 */
     showTitles: Boolean = false,
     /**
-     * 首页长按菜单「移动位置」带进来的 **(layout.json 行号, 包名)**;null = 正常进入,不定位。
+     * 首页长按菜单「移动位置」、或本页「换卡片图」的选择器关掉之后(见 [onPickIcon])带进来的
+     * **(layout.json 行号, 包名)**;null = 正常进入,不定位。
      *
      * 用包名而不是列号:首页那边 `buildRows` 把装不到的包丢掉了,编辑页这边是
      * `Layout.read` 的原样(缺的包也占一格,画成暗红的「未安装」)—— 两边的列号对不上。
@@ -144,7 +150,8 @@ fun EditScreen(
 
     // 「移动位置」兜底:从首页带着 (layout 行号, 包名) 进来,数据到位后定位一次。
     // 用「已应用的目标」比对,不用一次性布尔闩(铁律 7):同一个 initialTarget 只应用一次,
-    // 换了新值自然再应用。
+    // 换了新值自然再应用。本页被「换卡片图」的选择器替换、关掉后重建时,appliedTarget 随整页
+    // 归零,同一颗种子会再应用一次——这正是要的:焦点回到刚才换图的那张卡(M7 终审 C1)。
     var appliedTarget by remember { mutableStateOf<Pair<Int, String>?>(null) }
     LaunchedEffect(initialTarget, all) {
         val t = initialTarget ?: return@LaunchedEffect
@@ -414,7 +421,9 @@ fun EditScreen(
                         acting = null
                     })
                     add(MenuItem(stringResource(R.string.edit_change_image), stringResource(R.string.edit_change_image_desc)) {
-                        acting = null; retarget(ri, pi); onPickIcon(pkg)
+                        // retarget 只服务「选择器没打开」(存储没就绪、已 toast)那条路:本页留在原地,焦点回这张卡。
+                        // 打开了的话本页随即被选择器替换,回来时由调用方把 (ri, pkg) 当 initialTarget 喂回来。
+                        acting = null; retarget(ri, pi); onPickIcon(ri, pkg)
                     })
                     add(MenuItem(stringResource(R.string.edit_remove), stringResource(R.string.edit_remove_desc)) {
                         rows = rows.mapIndexed { i, r ->

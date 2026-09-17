@@ -80,8 +80,8 @@ object Theme {
     val DialogSurface = Color(0xFF141414)
     /** 编辑页整屏背景。 */
     val EditScreenBackground = Color(0xFF0A0A0A)
-    /** 设置页聚焦在壁纸分组时的浮层底色:黑 35%,让壁纸透出来做实时预览。 */
-    val SettingsPreviewScrim = Color(0x59000000)
+    // (SettingsPreviewScrim 已随「壁纸组才半透明」那套分组切换一起删掉:M7 T5 起设置页
+    //  恒为左深右浅的水平渐变遮罩、任何分组都一样,底下的首页全程可见,见 SettingsScreen。)
     /** 默认桌面卡片里「当前默认桌面」信息行背景。 */
     val InfoRowBackground = Color(0xFF1E1E1E)
     /** 未聚焦的交互面:图片选择器缩略图卡片、默认桌面卡片主按钮共用。 */
@@ -120,6 +120,8 @@ object Theme {
     val ThumbLabelText = Color(0xFFAAAAAA)
     /** 编辑页「未安装」卡片提示文字。 */
     val MissingCardText = Color(0xFFB08080)
+    /** 关于页检查更新的失败提示(网络 / 格式 / 下载 / 校验 / 安装失败)。与上一行撞色,用途不同分开命名。 */
+    val StatusErrorText = Color(0xFFB08080)
     /** 齿轮菜单条目标题(未聚焦)。 */
     val MenuItemText = Color(0xFFB0B0B0)
     /** 默认桌面卡片主按钮文字(未聚焦)。 */
@@ -272,7 +274,9 @@ object Theme {
     val ShadowDy = 21.75.dp      // 屏幕上约 +57px
     val ShadowColor = Color(0x60000000)
 
-    /** 待机:3 分钟无按键,除时钟外淡出。 */
+    /** 待机默认时长(3 分钟),与 [Settings.idleAfterMs] 的默认值一致。
+     *  实际计时已改由 MainActivity 读 homeSettings.idleAfterMs 驱动(0 = 永不待机、
+     *  可在设置页调整),这个常量只留作默认值参考,不再被计时逻辑直接读取。 */
     const val IdleAfterMs = 3 * 60 * 1000L
 
     /** 屏保轮播:每张图显示多久。 */

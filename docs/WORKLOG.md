@@ -391,3 +391,166 @@ spec 状态行已改为「已实施(commit `8cc5134`),待真机验」(T6 时为 
 ### 待 Gordon
 - 推送:11 个 commit 未推 origin(等美化那轮或随时说「推」)。
 - M7 开工前的真机对照仍走 A95L 无线调试(端口以电视页面为准;`No route to host` 先 `adb kill-server`)。
+
+## 2026-09-17 · M7 收官(设置两栏 + 实时预览 + 恢复默认 + 语言 + 待机接线 + 关于/检查更新 + 首次引导 + 发布脚本)
+
+分支 `m7-settings`(base = main `e6c3519`;T1–T11 共 16 个 commit,`e6c3519..68f645b`;本节随收官提交 `docs(m7): closeout`)。子代理驱动 + 每任务评审:T5/T7/T8/T9/T11 各 1 轮修复后 clean,其余一次过审。单测 74 → **159**,`testReleaseUnitTest assembleRelease` 绿。未推送、未发布(`scripts/release.sh` 只跑过 `--dry-run`)。台账、逐任务报告与截图在 `.superpowers/sdd/2026-09-16-m7-settings/`(不入库)。
+
+### 交付
+- **T1 字段**(`e6c3519..573f2a7`):`Settings.language`(白名单 system / zh-CN / zh-TW / en,非法值回落 system)+ 三态 `onboardingDone: Boolean?`(null = 文件里没有这个键,是「老用户」判定的唯一依据,所以解析时不套默认值)+ 纯函数 `restoredDefaults(current, now)` = 出厂值,只留 `newAppsSeenAt = now` 与 `onboardingDone`。
+- **T2 应用内语言**(`573f2a7..3a0ad3a`):`attachBaseContext` 用 `createConfigurationContext(setLocales)` 包一层(不引 AppCompat);`AppLocale.current` 供直接用 `Locale` 的 `Clock` 读;`applyLanguage` = 写盘 + 语言真变了才 `recreate()`。
+- **T3 待机接线**(`3a0ad3a..6c5be6e`):计时读 `idleAfterMs`(0 = 永不;它同时是待机效果的 key 和守卫,铁律 6);`idleContent` 三态——CLOCK_ONLY 卡片淡出留时钟,BLACK 连时钟一起全黑,NO_FADE 什么都不发生(连屏保层都不组合)。
+- **T4 分层叠加**(`6c5be6e..93f00aa`):选择器 / 导入页 / 默认桌面卡改为叠在常驻 `HomeScreen` 上;首页在 `previewing`(= 任一整屏浮层开着)下不可聚焦,看门狗与还原效果让路,`tgtRow/tgtIdx` 冻结——记忆不再随首页销毁,`initialTarget` 种子整套退役。计划外两处实测驱动的修复:冻结目标 `tgtGear`(浮层链每关一层都 `focusNonce++`,只靠 `gearNonce` 比对会被冲掉、回不到齿轮);`loaded != null` 守卫(冷启动首帧齿轮是唯一可聚焦节点,那次落点不是用户意图)。
+- **T5 两栏设置页**(`93f00aa..a9212ec`):`SettingsModel`(纯 Kotlin;7 组,行数 [3,5,3,2,1,1,2];每行只 `copy` 自己的字段)+ `SettingsScreen` 二维焦点账本(`pane/group/rowOf[group]`,控件自报,逐项 requester,`covered` 让路)叠在首页上,水平渐变遮罩 α 0.60 → 0.25。右栏左键 = 上一档,**已在最左档才回左栏**。修复轮:模糊 / 亮度也经 `onSettingsChanged` 逐格触发重解码,改由独立计数器 `wallpaperParams` 喂 `wallpaperSpec`,300 ms 防抖才真正生效。
+- **T6 齿轮四项 + 待机演示**(`a9212ec..2dfb05a`):菜单归并为 编辑分栏 / UnitedU 设置 / 系统设置 / 关于;换壁纸、导入图片、设为默认桌面从菜单撤下(T5 已在设置页建好对应动作行,回来落同一行);焦点停在「待机显示」行时底层按所选值演示,演示值由 `settings` 派生(`activeDemoIdle`),关页即失效,不会闩住。
+- **T7 恢复默认**(`2dfb05a..8312d1a`):确认框(默认焦点「取消」)→ IO 上写 `restoredDefaults` + 清壁纸缓存 → 写完才 `confirmRestore = false`、`settingsRevision++`、`wallpaperParams++`、`settingsReloadNonce++` → toast;语言被恢复成 system 且与当前不同时走 `applyLanguage`。修复轮:设置页重读从 `covered` 改挂 `reloadNonce`(见「发现」)。
+- **T8 语言行 + 位置还原**(`8312d1a..d94fd69`):语言行接真 `applyLanguage`;`onSaveInstanceState` 存 `pane/group/row` 与 `selfTriggeredRecreate`,`onCreate` 经 `shouldRestoreSettingsFromBundle` 只在我们自己触发的 recreate 之后把设置页种回去。
+- **T9 关于 + 检查更新**(`d94fd69..3e55d80`):关于页(版本、唯一按钮「检查更新」、许可、项目地址);`resolveLatest` 按 `BuildConfig.UPDATE_URLS` 顺序逐个通道尝试(COS 在前、GitHub 在后,各 8 s),手动检查必落「已是最新 / 发现新版 / 失败」之一;下载后先比 SHA-256,再核包名 = 已装、versionCode = 清单且更高、签名证书集合相等;每次尝试独占一个 `update-<uuid>` 文件(`UpdateFiles` 进程内唯一登记表),后台校验完停在「安装更新」等用户按键,绝不自己弹安装器。版本号改为 `1.0.0-beta`(versionCode 2)。
+- **T10 首次引导**(`3e55d80..b03ad04`):`onCreate` 最先做三态判定(null + 有 layout.json → 老用户,写 true;null + 无 → 新装,写 false 并显示);三步 语言 / 铺应用(`plannedLayout` = 默认三行按已装过滤,只减不加;「跳过」= 三行留着、apps 清空)/ 设默认桌面;每步一份 `StepFocus`;引导期间 MENU 无效、不进待机;任意结束路径先写 `onboardingDone = true`。
+- **T11 发布**(`b03ad04..68f645b`):`scripts/release.sh`——构建 → `aapt2` 从 APK 读包名 / 版本 / minSdk 并核对 → 两份 latest.json(各自的 apkUrl 指回自己那条通道)→ `gh release create --latest` → 可选 COS;`--dry-run` 对脏树只警告;`gh auth` 与远端 tag 预检放在打 tag 之前,push / release 失败打印恢复步骤。面向用户的 README 重写。
+
+**旧延后项的去向**:M3 / M4 备案的「选择器(换壁纸、改图标等)整体替换首页、回来落 (0,0)」以及 M4 终审「架构跟进」里的设置页 / 导入页回来落 (0,0)——T4 / T5 起首页常驻,已解决;M4 备案「设置页能改待机但没人消费」——T3 已解决。**仍开着**:编辑页照旧整体替换首页,「编辑分栏 → 返回」与「移动位置 → 编辑页 → 返回」都落 (0,0)(T12 遍历实测)。
+
+### 验收(spec §10,`unitedu-tv` 模拟器)
+
+| # | 项 | 结论 | 证据 |
+|---|---|---|---|
+| 1 | 齿轮四项、系统设置跳转 | PASS | T6;T12 遍历「齿轮菜单」19 步 |
+| 2 | 两栏七组遍历、切栏、动作行进出,焦点不丢 | 模拟器 PASS / 待真机 | T5 37 步;T12「设置页七组」65 步 +「动作行」39 步,全部 focused = 1 |
+| 3 | 每组预览即时可见 | PASS(输入源行待真机) | T5 截图(卡片大小、标题、亮度、主题色);T12 待机演示三态截图;AVD 没有硬件输入源,输入源行看不出 |
+| 4 | 恢复默认按 §4 逐项、默认焦点「取消」 | PASS | T7 16 项(settings.json 逐字段、`newAppsSeenAt` 重置、`onboardingDone` 保留、titles / icons / library md5 不变、缓存清空、写盘途中关框的竞态);T12 取消路径复跑 |
+| 5 | 语言四档、回到语言行、星期随之变 | PASS | T8(含 HOME intent 拉起);T12 六次 recreate 每次落回语言行,时钟 周四 / 週四 / Thu |
+| 6 | 待机 1 分钟、三种内容、关 = 永不 | PASS | T3 四组(关档等 3.5 分钟);T12 1 分钟档实测两轮 + 演示三态 |
+| 7 | 检查更新三种结果、通道顺序与超时 | 模拟器 PASS / 真实通道待真机 | T9 本地假服务:已是最新 / 下载安装 vc2 → vc3 / 校验失败,另有 WRONG_SIGNER / WRONG_PACKAGE / WRONG_VERSION;顺序由 `resolveLatest` 单测钉住,8 s 读超时实测;GitHub 尚无 Release,COS 桶未配 |
+| 8 | 引导三步、只铺已装命中、老用户不出现 | PASS | T10 A–K(桩 APK 做非空计划);T12:vc1 → vc2 升级不出现引导 + 强制引导遍历 34 步 |
+| 9 | 零回归 | PASS | 见下 |
+| 10 | 真机遍历 1–8 | 待真机 | 见「待真机」 |
+
+**零回归(§10-9)**:`git archive e6c3519` 解到 scratchpad 构建基线(versionCode 1),与 M7(versionCode 2,同一 release 密钥)先后装进同一 AVD——卸载 → 装基线 → 首启 → 推入真实三行布局夹具 → 焦点放到齿轮 → 等到整分钟开头截图 → `install -r` 升级(数据保留;`layout.json` 在,引导不出现,`onboardingDone` 被写成 true)→ 焦点放到齿轮 → 同一分钟内截图。`pixdiff.py before.png after.png --exclude 1300,30,1600,160` 的 stdout 原样:
+```
+diff bbox: None
+differing pixels outside excludes: 0
+PASS
+```
+两张截图摄于 17:37:01 / 17:37:19,逐像素相同(不排除时钟区也是 0)。设置页结构已变,不做像素对比:七组逐组 uiautomator dump,`SettingsModel` 的全部行文案(默认 locale 英文)、页标题与左栏七个组名全部在场。
+
+**全量焦点遍历(T12,268 步)**:每键之后等 0.4 s 再 dump,数 `focused="true"`;每次确定键之前先断言焦点文案。
+
+| 段 | 步数 | ≠ 1 | 覆盖 |
+|---|---|---|---|
+| 齿轮菜单 | 19 | 0 | 四项上下 + 两端锁定;编辑分栏进出;系统设置进(TV 设置侧板)/ BACK 回齿轮;MENU 开 / 关 |
+| 设置页七组 | 65 | 0 | 每组进右栏逐行走、上下边界、最左档与动作行左键回左栏、每组记住离开的行、左栏上下边界;途中被改的「显示日期」按原值改回 |
+| 文案核对 | 11 | 0 | 见上 |
+| 动作行 + 确认框 | 39 | 0 | 换壁纸 / 导入图片 / 设为默认桌面 进出都回同一行;确认框默认「取消」、左右切换、上下锁定,BACK / 取消 / MENU 三条关闭路径都回「恢复默认」行 |
+| 待机演示 + 真待机 | 56 | 2 | 演示三态截图;1 分钟档实测两轮:72 s 后已淡出,第一键唤醒且焦点仍在齿轮,第二键正常移到卡片;时长改回 3 分钟 |
+| 语言 | 18 | 0 | 系统 → 简体 → 繁體 → English → 繁體 → 简体 → 系统,六次 recreate 每次落回语言行 |
+| 关于页 | 17 | 0 | 焦点在「检查更新」、四向锁定,BACK / MENU 关闭后回齿轮 |
+| 首次引导 | 34 | 0 | 写 `onboardingDone: false` 强制出现;步 1 四个语言钮 + 继续 / 跳过 + MENU 无效;步 2、步 3 的方向键与 BACK;「步 3 跳过」「步 1 BACK」两条结束路径;两个文件事先备份、事后还原 |
+| 长按阈值 | 9 | 0 | `long_press_timeout` 700 → 卡片菜单;400 → 普通点击(打开该应用) |
+
+两处 ≠ 1 都是真待机当中的 dump(0 个):卡片与齿轮 alpha = 0,Compose 不把全透明节点放进无障碍树,焦点本身没丢(唤醒后同一齿轮、同一 bounds)。逐步明细(268 条:键、焦点数、焦点文案、bounds)在 `.superpowers/sdd/2026-09-16-m7-settings/shots/task-12/trav-1.jsonl` + `trav-2.jsonl`,脚本 `trav.py` / `zr.sh` 与截图同目录。
+
+### 决策与裁定
+
+Gordon(spec §0):
+- 范围:六项全进 M7(齿轮菜单归并、设置页实时预览、恢复默认、待机接线、关于 / 检查更新、首次引导 + README / 发布脚本)。
+- 预览版面:透明叠加——首页留在底层不可聚焦,面板半透明,遮罩左深右浅。
+- 恢复默认:只恢复 settings.json + 确认框;分栏、标题、卡片图、图片库保留。
+- 设置页:左右两栏(左分组、右当前组的行)。
+- 分组清单:按 spec §2 表通过。
+- 更新通道:COS 公共读桶为主、GitHub Release 为备。
+- 引导第 2 步:只铺分类表命中的已装应用。
+- 主题化壁纸 / 主题色:已另行落地(删主题化壁纸;主题色经 `LocalThemeColors` 全面接线)。
+
+控制器台账(`Ruling:` 逐条):
+- 裁定:T2 的 `applyLanguage` = 写盘 + `recreate()`;T5 先把语言行接成只写字段的 lambda,T8 再换成真的 — 理由:计划写明 T8 之前语言行只写不重建,没有位置还原的 `recreate()` 会在中途把人甩回首页 — 若错的代价:T8 改一行接线。
+- 裁定:T4 先把 `about` / `onboarding` 声明成恒 false 的占位状态,让 `overlayOpen` / `homeBare` 能编译,T6 / T10 再赋予行为 — 理由:T4 的伪代码已经引用它们 — 若错的代价:两个任务周期里多两个空变量。
+- 裁定:主题组 3 行(主题色 / 跟随壁纸主色 / 主题化卡片),T5 行数测试 = [3,5,3,2,1,1,2] — 理由:`themedCards` 是 spec 定稿后才上 main 的(本文件 09-16 第三轮),删掉在用的设置是 spec 没要求的回归 — 若错的代价:删一行。
+- 裁定:更新地址只收 https,外加 `http://127.0.0.1` 回环供模拟器测试 — 理由:「仅 https」针对真实通道,adb reverse 回环不出设备、没有网络暴露 — 若错的代价:删一条前缀判断(实现是整段匹配 + 只对 127.0.0.1 放开明文的 network security config;要不要用 Gradle 开关剔出发布包见「延后」)。
+- 裁定:保留现有文案「待机显示」,不改成 spec 的「待机内容」 — 理由:纯措辞,不涉行为 — 若错的代价:三语各改一条字符串。
+- 裁定:标签列 `LABEL_W` 150 → 190dp 追认 — 理由:行高固定,英文「Follow Wallpaper Color」在 150dp 下折行溢出,右栏 640dp 仍有余量 — 若错的代价:控件区窄 40dp。
+- 裁定:T8 起提交尾注按各实施子代理自己的 harness 署名(T1–T7 Fable 5.1,T8 / T11 Sonnet 5,T9 / T10 Opus 5),不再作为评审发现 — 理由:署名随模型而变,为它开修复轮没有收益 — 若错的代价:合并前若要统一尾注,做一次只改提交信息的 rebase。
+- 裁定(T8 初版,已被下一条取代):保留 Bundle 还原(进程死后从系统设置 BACK 也该回到设置行),修复轮先用 `am kill` 复现「进程死后按 HOME」,设置页真的重开才加最小修复 — 理由:AOSP 会在恢复出的 `onCreate` 之后经 `onNewIntent` 递送挂起的 intent,该场景可能根本不发生 — 若错的代价:低内存电视进程死后按 HOME 会重新弹出设置页。
+- 裁定(取代上一条):只有我们自己在 `applyLanguage` 里置了 `selfTriggeredRecreate` 才从 Bundle 还原设置页,其它任何重建都落纯首页 — 理由:重建出来的 Activity 沿用原启动 intent,真机上就是 HOME,`onCreate` 分不出 HOME 与 BACK;spec §5 只要求语言重建后还原 — 若错的代价:桌面被系统销毁后从系统设置按 BACK,落首页而不是设置行。
+- 裁定:终审修复范围定为 C1/I1/I2/I3/I4 加 M1–M7 一次修完;「恢复」忙碌态与「versionCode 等于已发布 latest.json 告警」延后 — 理由:C1/I1/I2 是焦点这个最高风险区的回归,I3/I4 必须赶在第一次正式发布前落地,M1–M7 都只是一行改动 — 若错的代价:修复 diff 略微变大。
+- 裁定:终审复审遗留的两处文字问题(README:76 错误描述、`UpdateCheckerTest.kt` 与 WORKLOG 里的原始控制字符)不单开第二轮修复波终审,并入合并时一起改掉(Gordon 2026-09-17 选择本地合并)— 理由:两处都是零行为影响的纯文本改动,不需要为它们重跑一轮全分支终审 — 若错的代价:main 上多留一个只改文字的小提交。
+- 裁定:`.superpowers/sdd/2026-09-16-m7-settings/` 保留不删,worktree 移除前先拷进主 checkout — 理由:WORKLOG 引用了这份目录里的验证证据,前几个里程碑也都保留了各自的 SDD 工作区 — 若错的代价:本地多留约 70 MB 草稿文件。
+
+### 发现(机制)
+- **`recreate()` 沿用原启动 intent**:电视上桌面是被 CATEGORY_HOME 拉起的,切语言 `recreate()` 之后 `intent.categories` 仍是 `{HOME}`,所以靠 intent 分不出「我们自己的重建」和「用户按了 HOME」;设置页只在 `selfTriggeredRecreate`(随 Bundle 带过去)为真时还原。模拟器用 `am start -n` 拉起时 intent 里没有 HOME,这个坑完全看不见——T8 第一版判据就是这样过了自测、又被 HOME intent 拉起的复测推翻的。
+- **两个 MainActivity 可以同时存在**:同一个 `singleTask` Activity 同时声明 LEANBACK_LAUNCHER 与 HOME,API 29+ 上 HOME 启动进的是专门的 home 根任务,不复用先由普通任务拉起的那个实例。推论:凡是「进程里只该有一份」的东西(更新下载文件、启动清扫)都不能靠单个 Activity 的状态保护——T9 改成每次尝试一个独占文件名 + 进程内唯一登记表,锁只包住改名 / 注销 / 清扫这几个瞬时操作。
+- **哈希不是身份**:SHA-256 与 `apkUrl` 出自同一份 latest.json,哈希只证明「下到的就是清单说的那个文件」;平台「同签名才能覆盖」只保护同包名更新,异包名 APK 在安装器里点一下就成了新装应用。所以哈希之后还要在 IO 线程核包名、versionCode、签名证书集合。代价:签名密钥轮换(v3 lineage)会被拒。
+- **GitHub `releases/latest` 跳过 pre-release**:`1.0.0-beta` 若标成 pre-release,默认通道直接 404——`release.sh` 用 `--latest`,不打 pre-release 标记。
+- **壁纸 spec 的 key 故意不含模糊 / 亮度**(它们走 300 ms 防抖的 `wallpaperParams`),所以任何绕过防抖改这两个值的路径都必须自己 `wallpaperParams++`——恢复默认就是一例,漏了壁纸会停在旧参数上。
+- **异步写盘后的重读挂专用 nonce**:恢复默认的写盘在 IO 上,确认框有五条关闭路径;挂 `covered` 的重读会在写盘落地前触发、读到旧值,之后再没有翻转,该页一直显示旧档位直到重进。改为写盘完成后才递增的 `settingsReloadNonce`;也不能复用 `settingsRevision`——本页每次改动都会递增它,写盘失败时会把内存里保住的改动覆盖回盘上旧值。
+- **`input keyevent --longpress` 的重复事件时间戳 = downTime + `long_press_timeout`**(API 34;`dumpsys input` RecentQueue 里 DOWN / 重复 / UP 的 age 为 824 / 424 / 824 ms,本机该值 400)。所以把 `long_press_timeout` 设成 700 就能在正式 APK 上越过 600 ms 阈值(T12 实测出菜单),400 时松手就是普通点击。T4 报告里「重复事件 eventTime 与 downTime 相同、只能用探针 APK」与此实测不符(那次没有提到改过这个值)。
+- **uiautomator 不报全透明节点**:真待机时 dump 里 `focused="true"` 为 0,焦点其实还在;TV 设置应用卡片的 content-desc 也是「Settings」,与齿轮同名,自动化脚本要按 bounds 区分。
+- **编辑页仍整体替换首页**:返回后首页重建、焦点落 (0,0);T4 只把选择器和设置页改成了叠加。
+
+### 延后(待终审分拣)
+来源为台账里的 minor / out-of-scope 条目;已被后续任务顺手解决的不再列(T5 占位 toast 由 T7 删除;T6 的 `AboutPlaceholder`、`closeAbout` KDoc、兜底 `when` 中 `about` 的次序由 T9 解决;CLAUDE.md 缺关于页一行由本次补上)。
+- **设置 / 模型**:`onboardingDone=false` 与非法 `language` 的 `parseSettings(toJson())` 往返无单测;`Theme.IdleAfterMs` 已是死常量(默认值另写了一遍 180_000L 字面量);`rowReq` 写死 `List(8)`(有「≤ 8 行」单测兜着)、`optionArgs` 缺长度不变量断言;Bundle 键 `pane/group/row` 没有 settings 前缀;~~`SettingsRestorePolicy.kt:14` 笔误 `{HOME}}`~~(终审修复波已修);`MainActivity.kt:246-247` 注释夸大了两次 intent 判据被实机否定的程度;`SettingsRestorePolicy.kt:25` 注释暗示只有活实例才收 `onNewIntent`;~~`ConfirmDialog.kt:42` KDoc 仍引用已删除的 `AboutPlaceholder`(T12 新发现)~~(终审修复波已修)。
+- **首页焦点**:`gearNonce` 几乎已被 `tgtGear` 取代(`HomeScreen.kt` ~325 / 370;要么写明它仍然必要的那条路,要么退役);~322 注释给错了 `tgtGear/gearNonce` 不进 key 的理由(真实理由是中途重启会打断还原循环);`loaded != null` 守卫依赖 `produceState` 无 key(null → 非 null 只发生一次),应注明;空桌面装上应用后焦点留在齿轮(以前落 (0,0)),行为变化未记入文档;`pickIcon()` 的 Boolean 返回值在 CHANGE_ICON 处没人用;编辑页返回落 (0,0)(见「发现」)。
+- **待机演示 / 确认框**:~~BLACK 演示层只在 demo == BLACK 时组合,所以是「弹出」不是淡入~~(终审修复波已修,见下);`ConfirmDialog` 复用共享 `focusNonce`(靠 `focusedBtn` key 才成立,应加注释);确定键无忙碌态,连按会把幂等 IO 再跑一遍。
+- **关于 / 更新**:发布包带着只放行 127.0.0.1 的明文 NSC 与回环地址规则(建议 Gradle 开关 `ALLOW_LOOPBACK_UPDATES` + manifestPlaceholders);~~`UpdateChecker.kt:151` / `Update.kt:218` 有原始 U+000C / U+FEFF 字符~~(终审修复波已修);只有逐次连接 / 读超时,没有整体时限;解析器测试缺口(缺 apkUrl、数字字符串、Int 溢出、minSdk ≤ 0,截断测试偏弱),100 MB 上限与短正文无证据;versionName 长度无上限、无 maxLines;关于页初始焦点循环 60 帧后放弃;`AboutScreen.kt`(572 行)UI 与控制器混写;交给安装器的 `update-*.apk` 每次重试多留约 2.8 MB,直到进程死;半透明浮层算 STARTED,安装器会弹在电视侧板上;API 28 签名路径模拟器没跑过;密钥轮换会被严格的证书相等判据拒绝。
+- **引导**:~~语言重建后若 `onboardingDone` 因写盘失败仍未决,引导与设置页可能同时开着~~(终审修复波已修:引导在场时不从 Bundle 还原设置页);当前桌面查询把 ResolverActivity(包名 android)当真桌面、也不看 RoleManager;`languageButtonsMapOneToOneOntoValidLanguages` 只查了数量与互异;`writeOnboardingLayout` 把所有异常都报成「存储未就绪」;`Onboarding.kt`(544 行)UI 与数据接线混写;`MainActivity.kt` 1182 行。
+- **发布脚本 / README**:~~README 说星期语言跟随系统,实际跟随应用语言设置;`--notes ""` 与不传无法区分~~(终审修复波已修:README 已改;空白 `--notes` 直接报错);`dist/` 开跑不清空(失败后旧 latest.json 会留在新 APK 旁边);`git ls-remote` 把 stderr 混进 stdout(可能误拦,但失败方向安全);`set -e` 下裸 `git tag` 失败没有恢复提示(只在竞态下发生)。
+- **既有问题(非 M7 引入,建议另开任务)**:`MainActivity` 同时挂 LEANBACK_LAUNCHER 与 HOME → API 29+ 双实例(建议跳板 Activity);冷启动首次开齿轮菜单无焦点(T9 报告;T10、T12 都没复现,T12 每次打开都落在第 0 项);~~英文 `import_apk_needs_permission` 的直双引号被 aapt 吃掉~~(终审修复波已修,`web_apk_hint` 同病一并修);没有任何浮层消费指针输入(飞鼠点击会穿过遮罩落到首页卡片);~~英文 `home_empty_apps_hint` 仍写「Edit Home Screen」~~(终审修复波已修,三语一起);**指针输入(飞鼠 / 触摸)会清空 Compose 焦点且看门狗补不回来**,下一次按键落到第一个可聚焦节点并改写目标(终审修复波实测,见下)。
+
+### 待真机(A95L)
+- 真遥控器长按 600 ms 的手感(阈值逻辑模拟器已证:700 出菜单、400 普通点击)。
+- 切语言后回到语言行——真机实例是被 HOME 拉起的(模拟器 T8 已用 HOME intent 复现通过)。
+- 引导第 3 步「当前默认桌面」文案与初始焦点(AVD 上解析给 Android TV Home,系统页却勾着 UnitedU)。
+- 待机三态(演示 + 实际)观感;输入源行预览(AVD 没有硬件输入源);遮罩 0.60 / 0.25 下左栏文字的可读性。
+- 关于 → 检查更新:GitHub 上有了正式 Release(非 pre-release,带 latest.json)后跑一次;COS 桶填进 `gradle.properties` 后再验通道顺序与 8 s 超时。
+- API 28 签名校验路径——只在目标电视里有 Android 9 时才需要。
+- 半透明的电视设置面板盖着时,后台校验完成会直接弹安装器(应用可见即算前台),看真机面板是否同样半透明。
+- spec §10-10:按 1–8 全量遍历一遍。
+- 终审 C1:编辑分栏 → 选中卡片 → 换卡片图:选择器出现;左右 / 返回、选图、恢复原图之后焦点都在同一张卡;MENU 与返回键照常退出编辑页。
+- 终审 I1:设置页停在非首项(如「其他」第 2 行)、引导第 1 步停在「繁體」时,按电源键熄屏再亮、切到别的应用再按返回回来,焦点仍在原处。**模拟器上修复前的包也不丢焦点**,这一项只有真机能判。
+- 终审 M3:「待机显示」行上时钟 ↔ 全黑来回切、停在全黑时按上下离开这一行:黑层渐入渐出,不闪。
+
+### 注记
+- 模拟器方法论(已提炼进 CLAUDE.md「模拟器验证的坑」):HOME 键不认 `set-home-activity` → `am start -n`;模拟真机启动用 `am start -a android.intent.action.MAIN -c android.intent.category.HOME -n …`;`set-home-activity` 不带 `--user 0`;按不住键 → `long_press_timeout` 700 + `--longpress`,或 `LONG_PRESS_MS = 0` 探针 APK;HOME 角色进程受保护,「进程死后带 Bundle 重建」造不出来;`pm clear` / 卸载会清掉 HOME 角色;系统设置是半透明侧板,不能当「退到后台」;注入按键间隔 ~0.4 s。
+- T12 遍历脚本第一次跑时漏了一处断言:编辑页返回后焦点落在 YouTube 卡上,下一下确定键启动了 YouTube(模拟器上只显示「设备不支持」,已 force-stop,无副作用)。此后所有确定键之前都先断言焦点文案,齿轮另按 bounds(顶栏 y = 17)识别——TV 设置卡片同名「Settings」。
+- 基线 APK 用 `git archive e6c3519` 解到 scratchpad 构建,不碰 git 状态;两包同一 release 密钥,`install -r` 升级保留数据。
+- 模拟器收尾状态:M7 构建(versionCode 2)、引导已完成、HOME 角色 = UnitedU 且在前台、语言跟随系统、`settings.json` 与升级那一刻的快照逐字节相同(遍历中改过的「显示日期」「待机时长」都按原值改回)、`layout.json` = 会话前的三行夹具、`long_press_timeout` = 400。
+- 同步改动:M7 spec 状态行改为「已实施(分支 `m7-settings`,`e6c3519..68f645b`),待终审与真机验收」;M4 spec §1「选择器回来的焦点」加注已由 M7 T4 退役;CLAUDE.md 焦点责任表补设置页两栏 / 确认框 / 关于页 / 首次引导四行、改写首页一行,模拟器一节补「模拟器验证的坑」。
+
+### 终审修复波(2026-09-17)
+
+整分支终审(`e6c3519..bd47de4`)结论「修完可合」:1 Critical + 4 Important + 7 Minor,本波一次修完,代码四个提交 `05074fc` `92b9773` `97ab6eb` `da01eb8`,文档随后一提交。单测 159 → **161**,`testReleaseUnitTest assembleRelease` 绿(两个中间提交用 `git archive` 解出来单独跑过:159 / 160 全绿);`scripts/release.sh` 过 `bash -n` 与 `--dry-run 1.0.0-beta`(签名核对通过)。按裁定留待以后:M8(「恢复」无忙碌态)、「versionCode 等于已发布值时告警」。
+
+| # | 问题 | 机制 | 修法 | 提交 |
+|---|---|---|---|---|
+| C1 | 编辑页「换卡片图」画面不变、MENU 失灵,按返回退出编辑页后选择器才出现在首页上 | T4 把整段 `when (pickerTarget)` 挪进了「非编辑」分支:编辑态下 `pickerTarget` 置上却没人画,`overlayOpen` 为真,MENU 被 `pickerTarget != null` 吞掉 | 编辑态下选择器**替换** EditScreen(回到 `e6c3519` 语义——EditScreen 没有 `covered` 让路开关,不能压在底下);选择器抽成 `PickerLayer` 两处共用;`onPickIcon(行, 包名)`,选择器真打开了才写 `editTarget`,重建的编辑页按这颗种子回到同一张卡(铁律 5);BACK 兜底先关选择器,再轮到编辑页 / 设置页 | `05074fc` |
+| I1 | 设置页 / 引导熄屏再亮、切应用回来,可能落回第一项 | 目标只在定位循环里冻结;`ON_PAUSE` 到 `onResume` 重启定位之间,Compose 抢先给第一个可聚焦节点的那次上报会改写目标(首页、编辑页早就从 `ON_PAUSE` 冻结,这两处漏了) | 两处都加 `ON_PAUSE` 观察者;定位效果末尾**只在 RESUMED 时**放开——暂停期间跑完就继续冻着,回前台必经 `focusNonce++` 重跑,不是闩 | `92b9773` |
+| I2 | 引导与设置页可能同时开着,两套焦点账本互相抢 | 引导按 settings.json 判、设置页按 Bundle 还原,两条路互不知情;`endOnboarding` 写盘失败也照样收起引导 | `shouldRestoreSettingsFromBundle(…, onboardingOpen)`(单测);`SettingsScreen.covered` 加 `onboarding` 兜底 | `92b9773` |
+| I3 | 下一次发布悄悄沿用上一版的说明 | 旧脚本把解析出的说明回写共用的 `dist/notes.txt`,而 `dist/` 不入库、一直留着 | 只认 `--notes` 或 `dist/notes-<版本>.txt`,什么都不回写,`gh` 直接吃 `--notes`;正式发布缺说明在**构建之前**中止并给出两种给法,dry-run 用默认文案并警告;空白 `--notes` 报错;残留的 `dist/notes.txt` 提示「不再读取」 | `da01eb8` |
+| I4 | 缺密钥时静默产出 debug 签名包 | Gradle 回落 debug keystore 只打一行 warning,脚本不看签名;装着 beta 的用户会被系统以 WRONG_SIGNER 拒绝,只能卸载重装 | `-PrequireReleaseKey=true`(release.sh 总带)把回落变成构建错误;aapt2 核对之后 `apksigner verify --print-certs`,要求唯一签名者的 SHA-256 = release 证书 `bdec5923…199b`(公开值;脚本只读 APK,不碰 keystore 与密码) | `da01eb8` |
+| M1 | 三条文案还叫「编辑桌面」 | 菜单改名时漏改 | 三语 `edit_title` / `card_menu_move_desc` / `home_empty_apps_hint` 改名;空桌面提示改成「按确定打开菜单,选编辑分栏」(那才是入口) | `97ab6eb` |
+| M2 | README 多处与代码不符 | — | 星期文字跟随应用语言;设置页按键写对(上下移动、左右改值、最左档左键回左栏、动作行确定键);adb 装包不问未知来源,「安装未知应用」只和应用内装包有关;编辑分栏只能行内排序;设默认桌面先出卡片;更新通道按构建配置、下载后核对包名 / 版本 / 证书 | 文档提交 |
+| M3 | 全黑演示弹出 / 弹回 | 动画状态住在按条件组合的那段里,条件一翻转状态就重建,初值即目标值 | 动画值常驻组合,Box 只在 alpha > 0 时组合(`derivedStateOf` 门控,透明度在 `drawBehind` 里读,淡入淡出期间不逐帧重组) | `97ab6eb` |
+| M4 | 源码里有看不见的 U+000C / U+FEFF | — | 写成 `'\u000C'` / `"\uFEFF"`;补控制字符转义的解析单测 | `97ab6eb` |
+| M5 | 「UnitedU 设置」描述缺组 | — | 六组都列;英文一行 521 px,聚焦时只剩 515 px(焦点竖条占位),会只在聚焦时折行、整个菜单跳一下 → 固定两行 | `97ab6eb` |
+| M6 | 两处注释 | — | `{HOME}}` 笔误;ConfirmDialog KDoc 改指 AboutScreen | `92b9773` / `97ab6eb` |
+| M7 | 英文直双引号被吃掉 | aapt 把未转义的 `"` 当成引用符 | 改弯引号;`web_apk_hint` 同病一并修 | `97ab6eb` |
+
+**C1 的来历**:计划 T4 的伪代码本身就这样写(选择器分支整段放进 `else`),T4 实施与复审、T12 的 268 步遍历都没走「编辑页 → 换卡片图」这条路,终审读代码才发现。遍历清单缺的是「浮层 × 宿主」组合:图片选择器有三个宿主(首页、设置页、编辑页),之前只测了前两个。
+
+**验证**(模拟器,脚本与截图在 `.superpowers/sdd/2026-09-16-m7-settings/shots/final-fix/`,每步 dump 焦点数 = 1,确定键前先断言焦点文案):
+- C1:编辑页第 2 行第 3 张(YouTube,与第 1 行首卡同包——行号错了会被 bounds 抓到)→ 选择器出现 → 左右 + 返回、选图、恢复原图三条路都回到同一节点 `[677,429][1013,617]`;之后 MENU、BACK 都能退出编辑页;首页长按「更改图标」照旧叠在首页上、返回回原卡。修复前同一脚本复现了三个症状。编辑页上选择器开着时来一次 `onNewIntent`(HOME 语义;对最上层实例 `am start -n`):编辑页收掉,选择器留下、改叠在首页上且焦点在它里面,BACK 回首页、焦点数 1——与「HOME 只收导入页、其余选择器不管」的既定语义一致。(用 HOME intent 拉起会另开一个 home 任务里的实例——既有的双实例问题——测不到这条路。)
+- I1:设置页「其他」第 2 行与「语言」行、引导第 1 步「繁體」,分别经 SLEEP → 3 s → WAKEUP、TV 设置侧板 + BACK、Play Store + BACK,焦点都在原节点,之后的导航仍会更新目标(证明冻结放开了)。**修复前的包在这台 AVD 上同样不丢**——这些路径在模拟器上不会让 Compose 重新落焦,本项在模拟器上只能证明不回归,已列入待真机。
+- I2:语言行切简体再切回,`am start -n` 与 HOME intent 两种拉起方式都回到语言行。
+- M3:`animator_duration_scale 10` 下逐帧量壁纸右侧亮度:修复前 Black → Clock 第一帧就是 7.2(弹回),修复后 0 → 0.9 → 4.1 → 5.8 → 6.8 → 7.2;Clock → Black 两个包都是渐变(修复前是碰巧:`settingsRevision` 先到、演示值晚一帧,那段先以目标 0 被组合出来)。
+- M1 / M5:三语菜单截图;「UnitedU 设置」项聚焦前后高度一致(en 153 px,zh / tw 132 px);空桌面提示实测(layout.json 事先备份、事后逐字节还原)。
+- I3 / I4:按标记抽出 `release-checks` 段单独 source(不运行 release.sh 本身):release 包 rc=0,debug 签名包 rc=1 且点名 `CN=Android Debug`,非 APK rc=1;说明来源六种情形(缺说明中止、旧 `notes.txt` 不读、dry-run 默认文案、空文件不算、按版本文件、`--notes` 优先),sandbox 里没有任何文件被写。scratch 副本把密钥路径指到不存在的文件:普通构建打出回落 warning、产出 debug 签名包;带 `-PrequireReleaseKey=true` 构建失败。
+
+**新发现(机制)**:
+- **指针输入会清空 Compose 焦点,看门狗补不回来**:`input tap` 之后焦点数为 0(touch mode 下 `requestFocus` 落不下),下一次按键由系统把焦点交给第一个可聚焦节点(设置页 = 布局组),目标随之被改写。飞鼠遥控器上会发生;与「浮层不消费指针输入」同源,已进延后清单。
+- **对活着的实例 `am start -n` 走 `onNewIntent`(HOME 语义)**,所有浮层当场收掉;测「回来之后焦点还在不在」要按 BACK 返回(已进 CLAUDE.md「模拟器验证的坑」)。
+- **Compose 动画服从 `animator_duration_scale`**:放慢 10 倍后,约 0.5 s 一帧的 screencap 也能量出淡入淡出曲线(同上)。
+- 刚装包并启动约 4 s 时按 MENU,齿轮菜单打开但焦点数为 0,第一下 DOWN 才落到第 1 项——T9 报过的冷启动问题,本波复现一次,未修。
+- 进编辑页的初始焦点落在第 1 行行尾「＋」而不是第 1 张卡(修复前后一致,T12 的记录也是如此),未追查。
+- 模拟器收尾状态:本波最终构建、引导已完成、UnitedU 为 HOME 且在前台、语言跟随系统、`settings.json` / `layout.json` 与本波开始时相同、`long_press_timeout` = 400、`animator_duration_scale` 未设置;临时推入的 `library/cards/card-red.png` 与自定义卡片图已删除。
+- 同步改动:M7 spec §7.4 补发布说明与签名核对两条、状态行改为「终审修复波已完成」;CLAUDE.md 焦点责任表的设置页 / 引导 / 编辑页三行更新,「模拟器验证的坑」补两条。

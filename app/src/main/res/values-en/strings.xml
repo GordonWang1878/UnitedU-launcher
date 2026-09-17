@@ -5,16 +5,18 @@
     <!-- menu_* : gear menu and its items -->
     <string name="menu_settings_title">Settings</string>
     <string name="menu_back_to_close">Press Back to close</string>
-    <string name="menu_edit">Edit Home Screen</string>
+    <string name="menu_edit">Edit Rows</string>
     <string name="menu_edit_desc">Add, remove, reorder apps, or change card art</string>
     <string name="menu_settings">UnitedU Settings</string>
-    <string name="menu_settings_desc">Cards, theme color, clock, standby</string>
+    <!-- Deliberate line break: on one line (521 px of DM Sans at 11sp) this only fits while unfocused (544 px);
+         the focus bar leaves 515 px, so it wrapped on focus and the whole menu jumped. Two fixed lines keep the height stable. -->
+    <string name="menu_settings_desc">Layout, wallpaper, theme,\nstandby, clock and language</string>
     <string name="menu_wallpaper">Change Wallpaper</string>
     <string name="menu_wallpaper_desc">Pick an image to replace the background</string>
-    <string name="menu_screensaver">Screensaver Gallery</string>
-    <string name="menu_screensaver_desc">View the screensaver slideshow images</string>
     <string name="menu_system_settings">System Settings</string>
     <string name="menu_system_settings_desc">Open the TV\'s Android settings</string>
+    <string name="menu_about">About</string>
+    <string name="menu_about_desc">Version and check for updates</string>
     <string name="menu_set_default_home">Set Default Home</string>
     <string name="menu_set_default_home_desc">Choose which launcher opens on the Home button</string>
     <!-- card_menu_* : long-press card menu on the home screen -->
@@ -27,7 +29,7 @@
     <string name="card_menu_icon">Change Image</string>
     <string name="card_menu_icon_desc">Pick a 16:9 image from the library</string>
     <string name="card_menu_move">Move</string>
-    <string name="card_menu_move_desc">Open Edit Home Screen at this card</string>
+    <string name="card_menu_move_desc">Open Edit Rows at this card</string>
     <string name="card_menu_remove">Remove from This Row</string>
     <string name="card_menu_remove_desc">The app itself is not uninstalled</string>
     <!-- title_dialog_* : the "Rename Card" dialog -->
@@ -46,7 +48,7 @@
     <string name="import_hint_back">Press Back to close and stop the service</string>
     <string name="import_error_no_network">The TV is not connected to a network. Connect Wi-Fi or Ethernet and try again</string>
     <string name="import_error_port">Ports 8090–8099 are all in use. Try again later</string>
-    <string name="import_apk_needs_permission">Allow "Install unknown apps" on the TV, then retry on your phone</string>
+    <string name="import_apk_needs_permission">Allow “Install unknown apps” on the TV, then retry on your phone</string>
     <string name="import_apk_started">Handed to the system installer</string>
 
     <!-- web_* : phone upload page (injected by the server; %s/%d replaced by the page's JS) -->
@@ -67,15 +69,15 @@
     <string name="web_rejected_decode">Image could not be decoded</string>
     <string name="web_rejected_name">Invalid file name</string>
     <string name="web_rejected_write">Could not write to TV storage</string>
-    <string name="web_apk_hint">After you pick an APK the TV shows the system installer. The first time, allow "Install unknown apps" on the TV.</string>
+    <string name="web_apk_hint">After you pick an APK the TV shows the system installer. The first time, allow “Install unknown apps” on the TV.</string>
     <string name="web_apk_install">Pick an APK and install on the TV</string>
     <string name="web_apk_needs_permission">Allow installing unknown apps on the TV first, then retry</string>
     <string name="web_apk_invalid">Not a valid APK file</string>
     <string name="web_apk_size">APK larger than 100 MB</string>
     <string name="web_apk_background">The TV\'s import page is not in the foreground. Return to it and retry</string>
 
-    <!-- edit_* : edit home screen -->
-    <string name="edit_title">Edit Home Screen</string>
+    <!-- edit_* : Edit Rows screen -->
+    <string name="edit_title">Edit Rows</string>
     <string name="edit_hint">Select an app and press OK to reorder, change art, or remove it. The plus sign at the end of each row adds apps. Press Back to exit.</string>
     <string name="edit_toast_order_not_saved">The order couldn\'t be saved and will reset after restart</string>
     <string name="edit_move_left">Move Left</string>
@@ -93,7 +95,7 @@
     <string name="edit_badge_new">NEW</string>
 
     <!-- home_* : home screen and default-home settings card -->
-    <string name="home_empty_apps_hint">No apps to show\nThe gear icon in the top right is selected — press OK to open “Edit Home Screen” and add some</string>
+    <string name="home_empty_apps_hint">No apps to show\nThe gear icon in the top right is selected — press OK to open the menu, then choose “Edit Rows” to add some</string>
     <string name="home_new_apps">%1$d new app(s)</string>
     <string name="home_input_row_title">Inputs</string>
     <string name="home_settings_title">Default Home</string>
@@ -146,6 +148,50 @@
     <string name="settings_idle_nofade">No Fade</string>
     <string name="settings_on">On</string>
     <string name="settings_off">Off</string>
+    <!-- Added by M7 two-pane settings page (Language / Other groups) -->
+    <string name="settings_group_language">Language</string>
+    <string name="settings_group_other">Other</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_lang_system">System</string>
+    <string name="settings_lang_zh_cn">简体</string>
+    <string name="settings_lang_zh_tw">繁體</string>
+    <string name="settings_lang_en">English</string>
+    <string name="settings_action_restore_defaults">Restore Defaults</string>
+    <string name="settings_action_restore_defaults_desc">Rows, titles, card images and your gallery stay as they are</string>
+    <!-- restore_* / dialog_cancel : restore-defaults confirm dialog (T7, spec §4) -->
+    <string name="restore_title">Restore default settings?</string>
+    <string name="restore_body">Rows, titles, card images and your gallery stay as they are</string>
+    <string name="restore_ok">Restore</string>
+    <string name="dialog_cancel">Cancel</string>
+    <!-- about_* : About page and manual update check (T9, spec §7) -->
+    <string name="about_title">About UnitedU</string>
+    <string name="about_version">Version %1$s (%2$d)</string>
+    <string name="about_check">Check for Updates</string>
+    <string name="about_checking">Checking…</string>
+    <string name="about_latest">You\'re up to date</string>
+    <string name="about_found">New version %1$s available</string>
+    <string name="about_download">Download and Install</string>
+    <string name="about_ready_install">Install Update</string>
+    <string name="about_downloading">Downloading %1$d%%</string>
+    <string name="about_downloading_unknown">Downloading…</string>
+    <string name="about_verifying">Verifying…</string>
+    <string name="about_verify_failed">Verification failed</string>
+    <string name="about_download_failed">Download failed, try again later</string>
+    <string name="about_install_failed">This update package can\'t be installed</string>
+    <string name="about_needs_permission">Allow “Install unknown apps” on the TV, then try again</string>
+    <string name="about_net_failed">Couldn\'t check for updates, try again later</string>
+    <string name="about_bad_json">Couldn\'t read the update information</string>
+    <string name="about_license_title">Licenses</string>
+    <string name="about_license">UnitedU is released under Apache-2.0. Third-party: DM Sans (OFL 1.1), Material Icons (Apache-2.0), NanoHTTPD (BSD-3-Clause), ZXing (Apache-2.0). Built-in wallpapers are procedurally generated.</string>
+    <string name="about_repo">Project: github.com/GordonWang1878/UnitedU-launcher</string>
+    <!-- onb_* : first-run guide (T10, spec §8); step 1 language buttons reuse settings_lang_* -->
+    <string name="onb_step1_title">Choose a language</string>
+    <string name="onb_step2_title">Put your installed apps on the home screen</string>
+    <string name="onb_step2_body">Only the apps below will be added; you can add others later in Edit Rows.</string>
+    <string name="onb_step3_title">Make UnitedU your default home screen</string>
+    <string name="onb_next">Continue</string>
+    <string name="onb_skip">Skip</string>
+    <string name="onb_none">No apps found to place automatically</string>
 
     <!-- preset_* : theme color preset names (gate 2 "subdued" set) -->
     <string name="preset_gold">Gold</string>
@@ -165,4 +211,5 @@
     <string name="toast_icon_restored">Original icon restored</string>
     <string name="toast_opened_stock_launcher">Opened the stock launcher; to switch permanently, change the default home app in System Settings</string>
     <string name="toast_stock_launcher_not_found">Stock launcher not found</string>
+    <string name="toast_restored">Defaults restored</string>
 </resources>

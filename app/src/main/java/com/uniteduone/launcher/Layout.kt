@@ -6,34 +6,45 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
+ * 内置分类表(= 缺省布局):三行,每行是「国行电视上常见、我们认得出该归哪一类」的包。
+ *
+ * **顶层 `internal`,不藏在 [Layout] 里**(M7 T10):首次引导第 2 步的纯函数
+ * (`plannedLayout` / `skippedLayout`,见 OnboardingPure.kt)要拿它当输入,在 JVM 单元测试里
+ * 直接读它;放在 `object Layout` 里也能读,但那样纯函数就平白依赖了一个会碰 `Log` / `org.json`
+ * 的对象。它仍然只有这一份:[Layout.read] 的三处回落、引导的「按已装过滤」读的都是它。
+ */
+internal val DEFAULT_LAYOUT: List<Pair<String, List<String>>> = listOf(
+    "VIDEO" to listOf(
+        "com.ktcp.tvvideo", "com.gitvdemo.video", "com.cibn.tv",
+        "com.starcor.mango", "com.xiaodianshi.tv.yst",
+    ),
+    "LIVE" to listOf("com.newtv.cboxtv", "com.huya.nftv", "cn.miguvideo.migutv"),
+    "MUSIC" to listOf(
+        "com.dangbei.dbmusic.sonyos.tab", "com.netease.cloudmusic.tv",
+        "com.tencent.qqmusictv",
+    ),
+)
+
+/**
  * layout.json 形如:
  *   {"rows":[{"name":"VIDEO","apps":["com.a","com.b"]}, ...]}
- * 缺失或损坏时回落到内置默认,并把默认写回磁盘,方便 adb 拉下来改。
+ * 缺失或损坏时回落到内置默认([DEFAULT_LAYOUT]),并把默认写回磁盘,方便 adb 拉下来改。
+ *
+ * **「文件缺失就写默认」是首次引导三态判定的前提**(spec §8):任何跑过旧版本的用户都一定有
+ * layout.json,所以 `MainActivity.onCreate` 必须赶在任何人调 [read] 之前看一眼它在不在。
  */
 object Layout {
     private const val TAG = "UnitedU"
 
-    private val DEFAULT = listOf(
-        "VIDEO" to listOf(
-            "com.ktcp.tvvideo", "com.gitvdemo.video", "com.cibn.tv",
-            "com.starcor.mango", "com.xiaodianshi.tv.yst",
-        ),
-        "LIVE" to listOf("com.newtv.cboxtv", "com.huya.nftv", "cn.miguvideo.migutv"),
-        "MUSIC" to listOf(
-            "com.dangbei.dbmusic.sonyos.tab", "com.netease.cloudmusic.tv",
-            "com.tencent.qqmusictv",
-        ),
-    )
-
     fun read(ctx: Context): List<Pair<String, List<String>>> {
         if (Paths.baseOrNull(ctx) == null) {
             Log.w(TAG, "外部存储没挂上,这次用内存里的默认布局,不写盘")
-            return DEFAULT
+            return DEFAULT_LAYOUT
         }
         val f = Paths.layoutJson(ctx)
         if (!f.exists()) {
-            write(ctx, DEFAULT)
-            return DEFAULT
+            write(ctx, DEFAULT_LAYOUT)
+            return DEFAULT_LAYOUT
         }
         // catch Throwable:超大文件时 readText 抛的是 OutOfMemoryError,那是 Error 不是 Exception
         return try {
@@ -55,8 +66,8 @@ object Layout {
             // 用户只看到「我排的顺序又没了」,却不知道文件是坏的。
             Log.w(TAG, "layout.json 读不了,改名保留并重写默认: ${e.message}")
             runCatching { f.renameTo(Paths.layoutBad(ctx)) }
-            write(ctx, DEFAULT)
-            DEFAULT
+            write(ctx, DEFAULT_LAYOUT)
+            DEFAULT_LAYOUT
         }
     }
 

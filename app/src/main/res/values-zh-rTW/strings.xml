@@ -5,16 +5,16 @@
     <!-- menu_* : 齒輪選單與選單項 -->
     <string name="menu_settings_title">設定</string>
     <string name="menu_back_to_close">按返回鍵關閉</string>
-    <string name="menu_edit">編輯桌面</string>
+    <string name="menu_edit">編輯分欄</string>
     <string name="menu_edit_desc">新增或移除應用程式、調整順序、換卡片圖</string>
     <string name="menu_settings">UnitedU 設定</string>
-    <string name="menu_settings_desc">卡片、主題色、時鐘、待機</string>
+    <string name="menu_settings_desc">版面、桌布、主題、待機、時鐘、語言</string>
     <string name="menu_wallpaper">換桌布</string>
     <string name="menu_wallpaper_desc">選一張圖片取代背景</string>
-    <string name="menu_screensaver">螢幕保護程式圖庫</string>
-    <string name="menu_screensaver_desc">檢視輪播的螢幕保護程式圖片</string>
     <string name="menu_system_settings">系統設定</string>
     <string name="menu_system_settings_desc">開啟電視的 Android 設定</string>
+    <string name="menu_about">關於</string>
+    <string name="menu_about_desc">版本與檢查更新</string>
     <string name="menu_set_default_home">設定預設桌面</string>
     <string name="menu_set_default_home_desc">選擇按下 Home 鍵時啟動哪個桌面</string>
     <!-- card_menu_* : 首頁長按卡片選單 -->
@@ -27,7 +27,7 @@
     <string name="card_menu_icon">更改圖片</string>
     <string name="card_menu_icon_desc">從圖庫選一張 16:9 的圖</string>
     <string name="card_menu_move">移動位置</string>
-    <string name="card_menu_move_desc">進入編輯桌面並定位到這張卡</string>
+    <string name="card_menu_move_desc">進入編輯分欄並定位到這張卡</string>
     <string name="card_menu_remove">從目前分類移除</string>
     <string name="card_menu_remove_desc">應用程式本身不會被解除安裝</string>
     <!-- title_dialog_* : 「修改標題」對話框 -->
@@ -74,8 +74,8 @@
     <string name="web_apk_size">APK 超過 100 MB</string>
     <string name="web_apk_background">電視上的匯入頁不在前景,回到匯入頁後重試</string>
 
-    <!-- edit_* : 編輯桌面畫面 -->
-    <string name="edit_title">編輯桌面</string>
+    <!-- edit_* : 編輯分欄畫面 -->
+    <string name="edit_title">編輯分欄</string>
     <string name="edit_hint">選取應用程式後按確定:調整順序、換圖、移出。每行最後的加號可以新增。按返回鍵離開。</string>
     <string name="edit_toast_order_not_saved">順序沒能存下來,重新啟動後會變回原樣</string>
     <string name="edit_move_left">往左移</string>
@@ -93,7 +93,7 @@
     <string name="edit_badge_new">新</string>
 
     <!-- home_* : 首頁與預設桌面設定卡 -->
-    <string name="home_empty_apps_hint">沒有可顯示的應用程式\n右上角的齒輪已選取,按「確定」進入「編輯桌面」新增</string>
+    <string name="home_empty_apps_hint">沒有可顯示的應用程式\n右上角的齒輪已選取,按「確定」開啟選單,選「編輯分欄」新增</string>
     <string name="home_new_apps">有 %1$d 個新應用程式</string>
     <string name="home_input_row_title">輸入源</string>
     <string name="home_settings_title">預設桌面</string>
@@ -146,6 +146,50 @@
     <string name="settings_idle_nofade">不淡出</string>
     <string name="settings_on">開</string>
     <string name="settings_off">關</string>
+    <!-- 以下為 M7 兩欄設定頁新增的分組與行(語言 / 其他) -->
+    <string name="settings_group_language">語言</string>
+    <string name="settings_group_other">其他</string>
+    <string name="settings_language">語言</string>
+    <string name="settings_lang_system">跟隨系統</string>
+    <string name="settings_lang_zh_cn">简体</string>
+    <string name="settings_lang_zh_tw">繁體</string>
+    <string name="settings_lang_en">English</string>
+    <string name="settings_action_restore_defaults">恢復預設</string>
+    <string name="settings_action_restore_defaults_desc">分欄、標題、卡片圖和圖片庫都不會變</string>
+    <!-- restore_* / dialog_cancel : 「恢復預設」確認框(T7,spec §4) -->
+    <string name="restore_title">恢復預設設定?</string>
+    <string name="restore_body">分欄、標題、卡片圖和圖片庫都不會變</string>
+    <string name="restore_ok">恢復</string>
+    <string name="dialog_cancel">取消</string>
+    <!-- about_* : 關於頁與手動檢查更新(T9,spec §7) -->
+    <string name="about_title">關於 UnitedU</string>
+    <string name="about_version">版本 %1$s (%2$d)</string>
+    <string name="about_check">檢查更新</string>
+    <string name="about_checking">檢查中…</string>
+    <string name="about_latest">已是最新版本</string>
+    <string name="about_found">發現新版本 %1$s</string>
+    <string name="about_download">下載並安裝</string>
+    <string name="about_ready_install">安裝更新</string>
+    <string name="about_downloading">下載中 %1$d%%</string>
+    <string name="about_downloading_unknown">下載中…</string>
+    <string name="about_verifying">驗證中…</string>
+    <string name="about_verify_failed">驗證失敗</string>
+    <string name="about_download_failed">下載失敗,請稍後再試</string>
+    <string name="about_install_failed">這個更新套件無法安裝</string>
+    <string name="about_needs_permission">請在電視上允許「安裝未知應用程式」,然後重試</string>
+    <string name="about_net_failed">檢查失敗,請稍後再試</string>
+    <string name="about_bad_json">無法解析更新資訊</string>
+    <string name="about_license_title">授權聲明</string>
+    <string name="about_license">本專案以 Apache-2.0 授權發布。第三方元件:DM Sans(OFL 1.1)、Material Icons(Apache-2.0)、NanoHTTPD(BSD-3-Clause)、ZXing(Apache-2.0)。內建桌布為程式產生。</string>
+    <string name="about_repo">專案網址 github.com/GordonWang1878/UnitedU-launcher</string>
+    <!-- onb_* : 首次啟動引導(T10,spec §8);第 1 步的語言按鈕沿用 settings_lang_* -->
+    <string name="onb_step1_title">選擇語言</string>
+    <string name="onb_step2_title">把已安裝的應用程式放到桌面</string>
+    <string name="onb_step2_body">只會放下面這些;其餘的可以稍後在編輯分欄裡新增</string>
+    <string name="onb_step3_title">把 UnitedU 設為預設桌面</string>
+    <string name="onb_next">繼續</string>
+    <string name="onb_skip">略過</string>
+    <string name="onb_none">找不到可自動放置的應用程式</string>
 
     <!-- preset_* : 主題色預設名(門 2「沉穩」一套) -->
     <string name="preset_gold">金</string>
@@ -165,4 +209,5 @@
     <string name="toast_icon_restored">已恢復原始圖示</string>
     <string name="toast_opened_stock_launcher">已開啟原廠桌面;要永久切換請在系統設定裡變更主畫面應用程式</string>
     <string name="toast_stock_launcher_not_found">找不到原廠桌面</string>
+    <string name="toast_restored">已恢復預設設定</string>
 </resources>

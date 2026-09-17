@@ -42,12 +42,24 @@ import androidx.compose.ui.unit.sp
 
 /**
  * 首页:壁纸层 + 三行卡片 + 右上角时钟。
- * 待机由 [MainActivity] 通过 [idle] 传进来:除时钟外全部淡出。
+ * 待机由 [MainActivity] 通过 [idle] 传进来,内容由 [idleContent] 定(Task 3):
+ * [IdleContent.CLOCK_ONLY](默认)卡片/行标题淡出、时钟留着;[IdleContent.BLACK] 同上但
+ * 时钟也淡出(配合 MainActivity 叠加的黑屏,整屏全黑);[IdleContent.NO_FADE] 这里的
+ * `contentAlpha` 恒为 1、什么都不淡出。
+ *
+ * [demoIdle](M7 T6,spec §3.2)非 null 时会**覆盖**这两个:设置页「待机内容」行拿着焦点
+ * 期间,不管真实 [idle] 是不是待机,都按 `demoIdle` 演示对应内容,离开该行即恢复。
+ * 只影响这里的 `contentAlpha`/`clockAlpha` 两个动画,`Screensaver` 不参与(它是
+ * `MainActivity` 单独组合的另一层,读的是真实 `idle`)。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun HomeScreen(
     idle: Boolean,
+    /** 待机时屏幕上显示什么(design 待机 §,Task 3);默认与老行为一致。 */
+    idleContent: IdleContent = IdleContent.CLOCK_ONLY,
+    /** 待机演示(M7 T6,spec §3.2):非 null 时覆盖 [idle]/[idleContent] 驱动的两个淡出动画。 */
+    demoIdle: IdleContent? = null,
     menuItems: List<MenuItem>,
     menuOpen: Boolean,
     onMenuOpenChange: (Boolean) -> Unit,
@@ -77,29 +89,36 @@ fun HomeScreen(
     onRenameSave: (CardRef, String) -> Unit = { _, _ -> },
     onRenameCancel: () -> Unit = {},
     /**
-     * 首次组合时把焦点记忆**种**在这张卡上 (渲染行, 列);null = 照旧从 (0,0) 起。
+     * **预览态**(M7 T4 分层叠加):选择器 / 导入页这类整屏浮层现在**叠在首页之上**,
+     * 首页不再被移除,而是退到底下当背景(设置页 T5 起同理)。为真时首页交出一切交互:
+     * - **不可聚焦**:所有 [AppCard] / [GearButton] `canFocus = false` —— 与 `anyOverlay`
+     *   合成 `covered` 一个量,上面那层拿焦点,底下这层绝不抢(铁律 4 的推论)。
+     * - **不处理任何按键**:首页自己没有 `onKeyEvent`,卡片的点击挂在 `clickable` 上,
+     *   不可聚焦就一个按键都收不到;长按识别在 `MainActivity.dispatchKeyEvent` 里,
+     *   由那边的 `homeBare`(判 `overlayOpen`)挡住。
+     * - **焦点记忆冻结**:`restoring = covered || stale`,`tgtRow`/`tgtIdx` 原样留着,
+     *   浮层关掉后由还原效果送回离开前那一格。
      *
-     * 为什么需要:图片选择器这类浮层住在 MainActivity 的 if/else 链上,开着时首页整棵树
-     * 被移除,`tgtRow`/`tgtIdx` 跟着 `remember` 一起没了 —— 换完图回来焦点落回第一张卡,
-     * 而用户明明是站在第三行操作的。种子只影响**初值**,之后照旧由导航更新,
-     * 不是闩:同一个值种一次,换了新值下一次组合自然按新值种(铁律 7)。
+     * 正因为最后这条,**焦点记忆的「种子」整套退役了**:以前浮层住在 if/else 链上、开着时
+     * 首页整棵树被移除,`remember` 一起没,才需要 MainActivity 用 `homeInitialTarget`
+     * 把坐标种回来;现在这棵树自始至终活着,记忆天然保留,种子反而是多出来的一份状态
+     * (还要额外一条「消费完清掉」的窄路,正是铁律 7 要避免的东西)。
      */
-    initialTarget: Pair<Int, Int>? = null,
-    /** initialTarget 落地后的回调(T4 review item A):种子只该生效一次,消费完立刻告诉
-     *  MainActivity 清掉,否则下一次从别的浮层(换壁纸、屏保、设置、导入)回来会误种这颗旧值——
-     *  那几条路焦点原本在齿轮上,不该被 CHANGE_ICON 留下的坐标带偏。 */
-    onInitialTargetConsumed: () -> Unit = {},
+    previewing: Boolean = false,
 ) {
     val ctx = LocalContext.current
     // 卡片档位尺寸:6=当前标定常量原样(零回归),5/8 按跨度守恒推导。见 Theme.cardMetrics。
     val metrics = Theme.cardMetrics(cardsPerRow, showTitles)
-    // **「有没有浮层」只此一个判据。**首页上能盖住卡片的现在有三层(齿轮菜单、长按卡片菜单、
-    // 修改标题对话框),它们对下面四处的要求完全相同:卡片与齿轮不可聚焦、还原与看门狗让路。
+    // **首页内嵌的浮层**:齿轮菜单、长按卡片菜单、修改标题对话框 —— 它们住在首页这棵树里面。
+    val anyOverlay = menuOpen || cardMenu != null || renameTarget != null
+    // **「首页被盖住了没有」只此一个判据。**内嵌的那三层(`anyOverlay`)之外,M7 T4 起还有
+    // 叠在首页之上的整屏浮层([previewing]:选择器 / 导入页,T5 起加设置页)。四者对下面**四处**的
+    // 要求完全相同:卡片不可聚焦、齿轮不可聚焦、还原效果让路、看门狗让路。
     // 分开写四遍 `menuOpen ||` 迟早漏掉一处,而漏掉的那一处就是「菜单开着时看门狗每帧抢焦点,
     // 菜单里一项都不高亮」(铁律 4 的推论)。合成一个量之后,它同时是那两个效果的 key 与守卫(铁律 6)。
     // **例外:`gearNonce` 那个 LaunchedEffect 仍然只看 menuOpen** —— 它专管「齿轮菜单关了回齿轮」,
     // 长按菜单关掉后焦点应该回到那张卡,不是齿轮。
-    val anyOverlay = menuOpen || cardMenu != null || renameTarget != null
+    val covered = anyOverlay || previewing
     // 枚举应用 + 解码全部横幅是重活,放到 IO 线程,别拖慢首帧
     // (冷启动实测 2.0–2.3s,Projectivy 是 1.45s)。
     // 用 null 区分「还在加载」和「真的空」,否则每次冷启动和每次退出编辑都会闪一句求救文案
@@ -152,32 +171,28 @@ fun HomeScreen(
     // 「目标格」只由用户的主动导航更新,还原过程中不更新 ——
     // 否则 Compose 抢先把焦点给了第一张卡,目标就被改写成 0 了。
     // (横向位移由 CategoryRow 自己的 focusedIndex 算,不在这里。)
-    // initialTarget 只作**初值**(见它的 KDoc):首帧的初始焦点请求打的就是
-    // rowFocus[tgtRow] @ tgtIdx[tgtRow],种在这里等于「第一次落点就是那张卡」。
-    // 越界不必在这里挡:取用处(还原效果、看门狗、requester 挂点)全都 coerceIn 过。
-    // 种子只在这个组合实例创建时读一次,此后不再跟随活参数变化(T5 review Critical)。
-    // 不冻的话会踩一次时序竞争:首次合成时 rows 还是空的(loaded 没落地),`loaded != null`
-    // 前 `rows.size == 0`,tgtIdx 的 remember(rows.size) 第一次落在 key=0;紧接着下面的
-    // LaunchedEffect(Unit) 立刻把 homeInitialTarget 消费成 null(那是活参数,不是这里),
-    // 等 loaded 真正到达、rows.size 从 0 变成 N,tgtIdx 的初始化器随 key 变化重跑——
-    // 这次重跑读到的 initialTarget 早已是 null,列号被种成 0,种子形同虚设。
-    // tgtRow 用的是不带 key 的 remember,天然躲过了这个坑(下面这行只是把它也接到 seedTarget
-    // 上,两处必须读同一份冻结值);tgtIdx 必须显式冻一份才能对齐。
-    val seedTarget = remember { initialTarget }
+    // 目标格一律从 (0,0) 起。**这棵树只在冷启动 / 进出编辑页时才重建**,那两条路本来就该
+    // 落在第一张卡。M7 T4 之前这里还有一颗 `initialTarget` 种子,专为「图片选择器把首页
+    // 整棵树移除」那条路把坐标种回来;选择器改成叠加之后首页常驻,记忆改由 [previewing]
+    // 的冻结保住(见它的 KDoc),种子连同「消费完要清掉」那条窄路一起退役 ——
+    // 少一份状态,就少一条会过期的路(铁律 7)。
     val tgtIdx = remember(rows.size) {
-        mutableStateListOf(*Array(rows.size.coerceAtLeast(1)) { i ->
-            if (seedTarget != null && i == seedTarget.first) seedTarget.second else 0
-        })
+        mutableStateListOf(*Array(rows.size.coerceAtLeast(1)) { 0 })
     }
-    var tgtRow by remember { mutableStateOf(seedTarget?.first ?: 0) }
-    // 种子只消费一次(T4 review item A):落地当帧就告诉 MainActivity 清掉 homeInitialTarget,
-    // 不然下一次从「换壁纸/屏保/设置/导入」这类焦点原本在齿轮上的浮层回来,会被这颗旧坐标误种。
-    // Unit key = 只在这个组合实例首次进场时跑一次,和 tgtRow/tgtIdx 的初值是同一次落地。
-    // 守卫读 seedTarget(冻结值)而不是 initialTarget(活参数):这一帧之后活参数就可能已经
-    // 被消费成 null,守卫要反映「这个实例到底种没种」,不是参数此刻的值。
-    LaunchedEffect(Unit) {
-        if (seedTarget != null) onInitialTargetConsumed()
-    }
+    var tgtRow by remember { mutableStateOf(0) }
+    /**
+     * **目标是齿轮(true)还是那一格卡片(false)**。与 [tgtRow]/[tgtIdx] 同构,是同一条铁律 5
+     * 在齿轮上的应用:「目标」与「当前位置」必须分开,而且从浮层打开(或 `ON_PAUSE`)就冻住。
+     *
+     * 为什么不能只靠 `gearNonce`(M7 T4 实测):`gearNonce` 把「关掉之后回齿轮」这个意图
+     * **钉在某一个 focusNonce 上**,而浮层链里每一层关掉时都会 `focusNonce++`
+     * (关长按菜单、关选择器、关导入页、关设置页)。于是同一个意图在两条路上给出两种结果——
+     * 「换壁纸 → 选一张」不 ++、比对成立,「导入图片 → 返回」++ 一次、比对失效、焦点落回卡片。
+     * 记成目标就没有这个问题:它由**焦点真的落在哪**更新(铁律 4:只信控件自报),
+     * 浮层期间 `restoring` 冻着它,关掉后原样还原,中途 nonce 怎么涨都不影响。
+     * 也不是闩(铁律 7):每次焦点落地都是一次全新赋值,没有「只有一条窄路能清」的状态。
+     */
+    var tgtGear by remember { mutableStateOf(false) }
     var restoring by remember { mutableStateOf(false) }
     // 关菜单后焦点该还给齿轮。**用 nonce 比对而不是布尔闩**:布尔闩只有「看门狗跑完整个循环」
     // 这一条窄路能清掉,任何一次早退(菜单又开了、restoring 被 ON_PAUSE 置位、
@@ -230,6 +245,14 @@ fun HomeScreen(
         // (比如后台某个应用自动更新让某行短一格、焦点所在节点被销毁),
         // 人正站在第三行却突然瞬移到右上角。
         if (got && row == -1) gearNonce = -1
+        // 目标跟着「焦点真的落在哪」走,**还原过程中不更新**——理由与下面卡片那两个目标完全相同:
+        // 浮层关掉那一帧 Compose 会抢先把焦点塞给 (0,0),那次上报若不挡住就会把目标从齿轮改成卡片。
+        // **数据还没到也不更新**(`loaded != null`):冷启动时卡片一张都还没建出来,整棵树里
+        // 唯一可聚焦的就是齿轮,Compose 会把首帧的焦点给它 —— 那不是用户的选择,是「没得选」。
+        // 不挡住的话目标被这一下定成齿轮,行数据到达后还原效果反而主动把焦点拽回齿轮,
+        // 开机第一屏的焦点就从第一张卡变成了右上角(2026-09-17 冷启动三连实测)。
+        // 卡片那两个目标不必判:卡片本身就是数据到了才存在,这条件对它们是隐含成立的。
+        if (got && !restoring && loaded != null) tgtGear = row == -1
         // focusedCell 自己的得失顺序保护留着:只有「本格仍是持有者」才作废。导航时若两张卡的
         // 得失顺序颠倒(新卡先报 got、旧卡后报 lost),旧卡那次 lost 不会把新卡抹掉。
         if (got) focusedCell = row to idx
@@ -275,9 +298,9 @@ fun HomeScreen(
         if (!menuOpen && menuWasOpen && menuFromGear) gearNonce = focusNonce
         menuWasOpen = menuOpen
     }
-    LaunchedEffect(focusNonce, rows.size, rows.isEmpty(), anyOverlay, stale) {
+    LaunchedEffect(focusNonce, rows.size, rows.isEmpty(), covered, stale) {
         // 除「浮层开着」外的每条分支都要把 restoring 放掉,否则用户自己的导航从此更新不了目标。
-        // **浮层开着时反过来要把它按住**(`restoring = anyOverlay` 而不是恒 false):
+        // **浮层开着时反过来要把它按住**(`restoring = covered` 而不是恒 false):
         // 浮层关掉的那一帧,canFocus 从 false 回到 true,Compose 的默认恢复会抢在本效果重启之前
         // 把焦点给整棵树第一个可聚焦节点 = (0,0);那次上报此时看到 restoring 还是 false,
         // 于是把 tgtRow/tgtIdx 改写成 (0,0) —— **记忆在被用到之前就没了**(铁律 5),
@@ -285,19 +308,38 @@ fun HomeScreen(
         // 2026-09-16 实测:长按菜单与三条杠键打开的齿轮菜单都复现,而「从别的应用回来」这条路
         // 不复现 —— 差别正是后者在 ON_PAUSE 就冻结了。冻结点必须早于那次默认恢复,
         // 而浮层**打开**时冻结留有整整一个浮层的时间,足够早。
-        // 写成派生于 anyOverlay 而不是一次性布尔闩(铁律 7):浮层一关它自然放开,没有要清的闩;
-        // 而守卫读的 anyOverlay 本身就是 key(铁律 6)。
+        // 写成派生于 covered 而不是一次性布尔闩(铁律 7):浮层一关它自然放开,没有要清的闩;
+        // 而守卫读的 covered 本身就是 key(铁律 6)。
+        // **M7 T4 起 `covered` 还包含 [previewing]**,于是「选择器开着」这段时间目标同样被冻住:
+        // 这正是种子能退役的原因 —— 冻结期间任何抢先的默认恢复都改写不了 tgtRow/tgtIdx。
         // **`stale` 同理,而且它是「移除 / 卸载后还站在同一行」的关键**:那两个动作先关菜单
         // (nonce++)、再 revision++,新的行数据要几百毫秒才到。此刻若放开冻结,数据落地那一帧
         // 焦点卡的节点被销毁、Compose 把焦点塞给 (0,0),那次上报就把目标改写成第一行第一张,
         // 随后的还原只会把焦点送回那里。冻到数据新鲜为止,还原效果再按夹过的列号把焦点送到
         // 同行邻卡(design §1 的「行变短时索引夹取」)。
-        if (focusNonce == 0 || rows.isEmpty() || anyOverlay || stale || focusNonce == gearNonce) {
-            restoring = anyOverlay || stale; return@LaunchedEffect
+        if (focusNonce == 0 || rows.isEmpty() || covered || stale) {
+            restoring = covered || stale; return@LaunchedEffect
         }
-        val r = tgtRow.coerceIn(0, rowFocus.lastIndex)
+        // **回齿轮这条路也必须主动请求**,不能像以前那样早退、把它交给看门狗(M7 T4 实测):
+        // 看门狗只在「树里一个焦点都没有」时才动手,而它开头要等 3 帧(躲 D-pad 导航的得失间隙)——
+        // 浮层关掉后 Compose 的默认恢复就在这几帧里把焦点塞给了 (0,0),看门狗看到 `focusedCell != null`
+        // 当场让路,于是「换壁纸回来焦点回齿轮」变成了「落在第一张卡」。卡片那条路一直是对的,
+        // 正因为它是这里主动请求的;齿轮只是缺了对称的一半。
+        // 目标读 [tgtGear](冻结过的),`gearNonce` 仍然并进来:它管的是「菜单刚关掉」那一拍。
+        // 两者都是「读的量」不是守卫,与 tgtRow/tgtIdx 同例,不进 key(进了会在每次导航时重跑还原)。
         restoring = true
         var frames = 0
+        if (tgtGear || focusNonce == gearNonce) {
+            // 退出条件同样只信控件自报(铁律 2):齿轮拿到焦点会 report(-1, -1, true)。
+            while (frames < 60 && focusedCell != (-1 to -1)) {
+                withFrameNanos { }
+                runCatching { gearFocus.requestFocus() }
+                frames++
+            }
+            restoring = false
+            return@LaunchedEffect
+        }
+        val r = tgtRow.coerceIn(0, rowFocus.lastIndex)
         // 退出条件必须**同时**满足「树里真的有焦点」和「落在目标格上」:
         // 只看「当前格 == 目标格」的话,丢焦点时没人把「当前」作废,条件一开始就成立、
         // 循环一次都不跑;只看「有没有焦点」的话,Compose 抢先给了第一张卡就会提前退出。
@@ -313,12 +355,13 @@ fun HomeScreen(
         }
         restoring = false
     }
-    LaunchedEffect(rows.isEmpty(), loaded != null, focusNonce, focusedCell, anyOverlay, restoring, gearNonce) {
+    LaunchedEffect(rows.isEmpty(), loaded != null, focusNonce, focusedCell, covered, restoring, gearNonce) {
         // **任何浮层开着时让路。**focusedCell 只记录卡片与齿轮,不认识菜单项 ——
         // 浮层一开它就变成 null,看门狗会误判「树里没焦点」并每帧抢着请求,
         // 把浮层自己刚拿到的焦点搅掉,症状是「打开菜单后一项都没高亮、按什么都没反应」。
         // 让路的前提是浮层自己负责焦点恢复(铁律 3 的推论):GearMenu 自带 nonce 驱动的初始焦点循环。
-        if (anyOverlay) return@LaunchedEffect
+        // 叠在首页之上的选择器 / 导入页同理(各自的初始焦点循环),所以 [previewing] 也算在 covered 里。
+        if (covered) return@LaunchedEffect
         // 还原效果正在把焦点送回离开前那一格时也要让路:否则两者同挤一帧,
         // 中间必然有一帧落在 (0,0),那次上报会把 activeRow 改成 0、其余行当场压暗再弹回 —— 闪一下。
         if (restoring) return@LaunchedEffect
@@ -328,7 +371,10 @@ fun HomeScreen(
         // 症状是「按上到齿轮时焦点闪一下弹回卡片」(2026-09-11 真机复现)。
         repeat(3) { withFrameNanos {} }
         if (focusedCell != null) return@LaunchedEffect
-        val useGear = focusNonce == gearNonce
+        // 与还原效果同一判据:冻结过的目标优先,`gearNonce` 管「菜单刚关掉」那一拍。
+        // `tgtGear` 不进 key 也不违反铁律 6:它只在焦点真的落下时才变,而那一下必定同时改写
+        // `focusedCell`(已经是 key),本效果照样会以新值重启;而且它不是守卫,只决定送去哪儿。
+        val useGear = tgtGear || focusNonce == gearNonce
         val target = when {
             useGear && loaded != null -> gearFocus
             // 落点用「那一行记住的那一格」而不是第一行第一张 —— rowFocus 正好挂在那里
@@ -352,12 +398,25 @@ fun HomeScreen(
     // 背景与壁纸都在 MainActivity 那一层,这里保持透明
     Box(Modifier.fillMaxSize()) {
 
+        // **待机演示覆盖**(M7 T6,spec §3.2):`demoIdle` 非空时不管真实 `idle`,这两个
+        // 动画都按它演示——设置页「待机内容」行左右切换时,底层首页要当场看到三种效果。
+        // `Screensaver` 不读这两个量,不参与演示(它是 MainActivity 单独组合的另一层)。
+        val effectiveIdle = idle || demoIdle != null
+        val effectiveIdleContent = demoIdle ?: idleContent
         // 待机用 alpha 淡出,不用 AnimatedVisibility——后者自带裁剪,会把超出屏幕的
         // 第三行整块切掉(实测 MUSIC 行因此始终不可见)。
+        // NO_FADE(Task 3):恒 1,卡片/行标题/齿轮都不淡出——M5 之前的行为,什么都不发生。
         val contentAlpha by animateFloatAsState(
-            targetValue = if (idle) 0f else 1f,
-            animationSpec = tween(if (idle) 1200 else 400),
+            targetValue = if (effectiveIdle && effectiveIdleContent != IdleContent.NO_FADE) 0f else 1f,
+            animationSpec = tween(if (effectiveIdle) 1200 else 400),
             label = "contentAlpha",
+        )
+        // 时钟默认待机也留着(CLOCK_ONLY/NO_FADE);只有 BLACK 时钟才跟着淡出,
+        // 配合 MainActivity 在 Screensaver 之上叠的黑色蒙版,整屏才会真正全黑。
+        val clockAlpha by animateFloatAsState(
+            targetValue = if (effectiveIdle && effectiveIdleContent == IdleContent.BLACK) 0f else 1f,
+            animationSpec = tween(if (effectiveIdle) 1200 else 400),
+            label = "clockAlpha",
         )
         // 待机用 alpha 淡出而**不移除节点**:移除会连带销毁焦点,醒来后按键落空。
         // 同理也不能用 canFocus 把它们关掉,理由见下面 focusProperties 那段。
@@ -375,14 +434,17 @@ fun HomeScreen(
                 // 节点调 clearFocus(force=true),整棵树的焦点当场消失,而 DPAD_CENTER 不参与
                 // 框架的焦点恢复 —— 症状是「醒来后按确定永远没反应」。待机的唤醒改由
                 // MainActivity.dispatchKeyEvent 吞掉第一下按键来实现,焦点全程不动。
-                .focusProperties { canFocus = !anyOverlay }
+                .focusProperties { canFocus = !covered }
                 .offset(y = shift)
                 .padding(top = Theme.TopPadding),
             verticalArrangement = Arrangement.spacedBy(Theme.RowSpacing),
         ) {
             // 配置里的应用一个都装不到时,屏幕上只剩时钟和齿轮,看着像坏了。
             // 给一句话告诉用户怎么自救(实测:此时齿轮菜单仍可用)。
-            if (loaded != null && rows.isEmpty()) {
+            // **被整屏浮层盖着时不画**(M7 T10):这句话说的是「齿轮已选中」,而浮层开着时齿轮
+            // 不可聚焦、焦点在浮层里——它是一句假话;首次引导的 α 0.85 遮罩下它还正好横在
+            // 语言按钮与「继续」之间(模拟器截图实测)。previewing = false 时行为不变。
+            if (loaded != null && rows.isEmpty() && !previewing) {
                 BasicText(
                     text = stringResource(R.string.home_empty_apps_hint),
                     modifier = Modifier.padding(start = Theme.SidePadding),
@@ -432,7 +494,7 @@ fun HomeScreen(
                 // 找不到候选会冒泡到根继续找;卡片那一列已经被 canFocus 关掉,
                 // 但齿轮不在那一列里 —— 于是菜单里按右键焦点会落到蒙版后面的齿轮上,
                 // 高亮消失、上下左右都没反应,而这个菜单里装着「切回 Projectivy」这条退路。
-                .focusProperties { canFocus = !anyOverlay },
+                .focusProperties { canFocus = !covered },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),   // 复审实测参考 36.2px,17dp 给出 42.2px
         ) {
@@ -471,7 +533,7 @@ fun HomeScreen(
                     },
                 onFocusChange = { got -> report(-1, -1, got) },
             )
-            Clock(showDate = showDate)
+            Clock(modifier = Modifier.alpha(clockAlpha), showDate = showDate)
         }
 
         if (menuOpen) {
