@@ -27,6 +27,14 @@ val updateUrls: String = providers.gradleProperty("unitedu.updateUrls").orNull?.
  */
 val appVersionCode: Int = providers.gradleProperty("versionCodeOverride").orNull?.toInt() ?: 2
 
+/**
+ * `-PrequireReleaseKey=true`(`scripts/release.sh` 总是带上):找不到 release 密钥时**构建直接失败**,
+ * 不回落 debug keystore。回落本身是给没有密钥的贡献者留的(他们照样能出 release 包自己装);
+ * 但发布流程里一旦回落,发出去的包与已装 beta 的签名不同,用户点更新会被系统以 WRONG_SIGNER 拒绝、
+ * 只能卸载重装(M7 终审 I4)。release.sh 构建后还会用 apksigner 核对证书摘要,这里是更早的一道闸。
+ */
+val requireReleaseKey: Boolean = providers.gradleProperty("requireReleaseKey").orNull?.toBoolean() ?: false
+
 android {
     namespace = "com.uniteduone.launcher"
     compileSdk = 35
@@ -57,6 +65,12 @@ android {
                 keyAlias = releaseProps.getProperty("keyAlias", "unitedu")
                 keyPassword = releaseProps.getProperty("keyPassword")
             } else {
+                if (requireReleaseKey) {
+                    throw GradleException(
+                        "UnitedU: -PrequireReleaseKey=true, but ~/.unitedu/release.jks or the storePassword in " +
+                            "~/.unitedu/release.properties is missing; refusing to sign the release with the debug keystore",
+                    )
+                }
                 logger.warn("UnitedU: ~/.unitedu/release.jks not found, signing release with debug keystore")
                 storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
                 storePassword = "android"; keyAlias = "androiddebugkey"; keyPassword = "android"

@@ -10,11 +10,16 @@ set -euo pipefail
 #   <version>   例如 1.0.0-beta;必须与本次构建出的 APK 里的 versionName 完全一致
 #   --dry-run   只构建 + 在 dist/ 下生成产物并打印将要做的事,不建 tag、不 push、
 #               不 gh release、不 coscli 上传——没有任何网络写入
-#   --notes     发布说明;不给则取 dist/notes.txt,再没有就用一句默认文案。
+#   --notes     发布说明。来源只有两个:这个参数,或事先写好的 dist/notes-<version>.txt
+#               (**每个版本一份**,参数优先)。两者都没有时正式发布直接中止,不会拿默认文案发出去;
+#               --dry-run 才退回一句默认文案并警告。脚本从不把说明写回任何文件——旧版把解析结果
+#               回写进共用的 dist/notes.txt,下一次发布没给说明就会悄悄沿用上一版的(M7 终审 I3)。
 #               这份原文原样进 GitHub Release 描述;写进 latest.json 的 notes 字段时
 #               会截到 parseLatest()(UpdateChecker.kt)的 200 字上限,两处不是同一件事。
 #
-# 凭据只从 coscli 自己的 ~/.cos.yaml 读;本脚本、本仓库都不存任何密钥。
+# 构建带 -PrequireReleaseKey=true(没有 ~/.unitedu/release.jks 就构建失败,不回落 debug 签名),
+# 构建完再用 apksigner 核对 APK 的签名证书就是 release 证书(M7 终审 I4)。
+# 凭据只从 coscli 自己的 ~/.cos.yaml 读;本脚本、本仓库都不存任何密钥(release 证书的摘要是公开信息)。
 
 usage() {
   cat <<'EOF'
@@ -22,7 +27,8 @@ usage() {
 
   <version>   如 1.0.0-beta —— 要与本次构建出的 APK versionName 一致,不一致就中止
   --dry-run   只构建 + 生成 dist/ 下的产物,不发布(不建 tag、不 push、不 gh release、不 coscli)
-  --notes     发布说明文本;省略则读 dist/notes.txt,再没有用默认文案
+  --notes     发布说明文本;省略则读 dist/notes-<version>.txt。两者都没有:正式发布中止,
+              --dry-run 用一句默认文案并警告
   -h, --help  显示本说明
 EOF
 }
@@ -41,9 +47,91 @@ print_tag_recovery_hint() {
 EOF
 }
 
+# >>> release-checks
+# 这一段只定义常量和函数、不执行任何动作,可以被单独 source 进测试脚本(sed 按这两行标记截取)。
+
+# release 证书(~/.unitedu/release.jks,alias unitedu)的 SHA-256 摘要。**公开信息**:任何人拿到
+# 已发布的 APK 都能用 apksigner 读出来,不是密钥;脚本全程只读 APK 里的证书,不碰 keystore 与密码。
+# 取值来源:2026-09-17 在 Gordon 本机用 release.jks 构建的 app-release.apk(Gradle 输出里没有
+# debug 回落警告),apksigner verify --print-certs 读出的 Signer #1 摘要(DN: CN=UnitedU, O=UnitedU, C=CN)。
+RELEASE_CERT_SHA256="bdec592357472edb3727289fae02722c8974562f94b3da93b3a29c4b5593199b"
+
+# 决定这次的发布说明,写进全局 NOTES_RAW。读 VERSION / DRY_RUN / NOTES_GIVEN / NOTES_ARG,
+# 路径相对当前目录(release.sh 里已 cd 到仓库根)。正式发布拿不到说明时返回 1。
+resolve_notes() {
+  local per_version="dist/notes-${VERSION}.txt"
+  NOTES_RAW=""
+  if [[ "$NOTES_GIVEN" -eq 1 ]]; then
+    NOTES_RAW="$NOTES_ARG"
+    echo "==> 发布说明:取自 --notes"
+  elif [[ -f "$per_version" ]]; then
+    NOTES_RAW="$(cat "$per_version")"
+    if [[ -z "${NOTES_RAW//[[:space:]]/}" ]]; then
+      echo "${per_version} 是空的,不算数" >&2
+      NOTES_RAW=""
+    else
+      echo "==> 发布说明:取自 ${per_version}"
+    fi
+  fi
+  if [[ -f "dist/notes.txt" ]]; then
+    echo "注意:dist/notes.txt 不再被读取(那是旧版脚本回写的某一次说明);只认 --notes 或 ${per_version}" >&2
+  fi
+  if [[ -n "$NOTES_RAW" ]]; then
+    return 0
+  fi
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    NOTES_RAW="UnitedU ${VERSION} 发布。"
+    echo "警告:没有发布说明,dry-run 先用默认文案「${NOTES_RAW}」;正式发布会在这一步中止" >&2
+    return 0
+  fi
+  cat >&2 <<EOF
+没有发布说明,正式发布不会拿默认文案发出去(GitHub Release 与 latest.json 里会只剩一句空话)。二选一:
+  1. scripts/release.sh ${VERSION} --notes "这一版改了什么"
+  2. 把说明写进 ${per_version}(每个版本一份;dist/ 不进仓库),再重跑 scripts/release.sh ${VERSION}
+EOF
+  return 1
+}
+
+# 核对 APK 的签名证书就是 release 证书。需要 ANDROID_HOME(scripts/env.sh 设置)。
+# 不一致就返回 1:发出去的包签名与已装的 beta 不同,用户点更新会被系统以 WRONG_SIGNER 拒绝,只能卸载重装。
+check_signer() {
+  local apk="$1"
+  local apksigner="${ANDROID_HOME:-}/build-tools/35.0.0/apksigner"
+  if [[ -z "${ANDROID_HOME:-}" || ! -x "$apksigner" ]]; then
+    echo "apksigner 不存在或不可执行:${apksigner}(先 source scripts/env.sh)" >&2
+    return 1
+  fi
+  local out digests count
+  if ! out="$("$apksigner" verify --print-certs "$apk" 2>&1)"; then
+    echo "apksigner verify 没通过(APK 没签名或签名已损坏):" >&2
+    printf '%s\n' "$out" >&2
+    return 1
+  fi
+  digests="$(printf '%s\n' "$out" | sed -n 's/^Signer #[0-9][0-9]* certificate SHA-256 digest: \([0-9a-f]\{64\}\)$/\1/p')"
+  count="$(grep -c . <<<"$digests" || true)"
+  if [[ "$count" -ne 1 ]]; then
+    echo "期望恰好一个签名者,apksigner 读出 ${count} 个:" >&2
+    printf '%s\n' "$out" >&2
+    return 1
+  fi
+  if [[ "$digests" != "$RELEASE_CERT_SHA256" ]]; then
+    echo "签名证书不是 UnitedU 的 release 证书——已装 beta 的用户会因签名不一致装不上这个包(WRONG_SIGNER),只能卸载重装:" >&2
+    echo "  APK 证书 SHA-256:     ${digests}" >&2
+    echo "  release 证书 SHA-256: ${RELEASE_CERT_SHA256}" >&2
+    sed -n 's/^Signer #1 certificate DN: /  APK 证书 DN:         /p' <<<"$out" >&2
+    if grep -q 'CN=Android Debug' <<<"$out"; then
+      echo "  这是 debug keystore 的证书:~/.unitedu/release.jks 或 release.properties 缺失时,不带 -PrequireReleaseKey=true 的构建会回落到 debug 签名。" >&2
+    fi
+    return 1
+  fi
+  echo "==> 签名证书 = release 证书(SHA-256 ${digests})"
+}
+# <<< release-checks
+
 DRY_RUN=0
 VERSION=""
 NOTES_ARG=""
+NOTES_GIVEN=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run)
@@ -56,6 +144,7 @@ while [[ $# -gt 0 ]]; do
         exit 1
       fi
       NOTES_ARG="$2"
+      NOTES_GIVEN=1
       shift 2
       ;;
     -h | --help)
@@ -81,6 +170,11 @@ done
 if [[ -z "$VERSION" ]]; then
   echo "缺少 <version> 参数" >&2
   usage >&2
+  exit 1
+fi
+# 显式给了 --notes 却是空白:多半是变量没展开,当场报出来,不要悄悄落到别的来源上。
+if [[ "$NOTES_GIVEN" -eq 1 && -z "${NOTES_ARG//[[:space:]]/}" ]]; then
+  echo "--notes 给的是空白文本" >&2
   exit 1
 fi
 # 版本号要能安全地拼进 git tag 与文件名:只认数字、字母、点、连字符。
@@ -162,11 +256,18 @@ if [[ "$PREFLIGHT_OK" -eq 0 ]]; then
   fi
 fi
 
+# ---- 发布说明:--notes > dist/notes-<version>.txt;正式发布两者都没有就中止 ----
+# 放在构建之前:这一步不依赖构建产物,缺说明时不必先白等一次 assembleRelease。
+if ! resolve_notes; then
+  exit 1
+fi
+
 # ---- 构建 ----
-echo "==> source scripts/env.sh && gradle --no-daemon assembleRelease"
+# -PrequireReleaseKey=true:缺 release 密钥时构建直接失败,不回落 debug keystore(app/build.gradle.kts)。
+echo "==> source scripts/env.sh && gradle --no-daemon assembleRelease -PrequireReleaseKey=true"
 # shellcheck source=scripts/env.sh
 source scripts/env.sh
-gradle --no-daemon assembleRelease
+gradle --no-daemon assembleRelease -PrequireReleaseKey=true
 
 APK_SRC="app/build/outputs/apk/release/app-release.apk"
 if [[ ! -f "$APK_SRC" ]]; then
@@ -216,21 +317,15 @@ if [[ -z "$MIN_SDK" ]]; then
   exit 1
 fi
 
+# ---- 签名证书:必须是 release 证书(M7 终审 I4)----
+# Gradle 在缺密钥时会回落 debug 签名(给没有密钥的贡献者用);上面的构建已带 -PrequireReleaseKey=true,
+# 这里再从 APK 本身核一遍——与版本号同一个原则:不信构建配置,信 APK 实际带的是什么。
+if ! check_signer "$APK_DIST"; then
+  exit 1
+fi
+
 # ---- sha256(与 UpdateChecker.kt 的 sha256Hex 同算法,64 位小写 hex)----
 SHA256="$(shasum -a 256 "$APK_DIST" | awk '{print $1}')"
-
-# ---- 发布说明:参数 > dist/notes.txt > 默认文案 ----
-if [[ -n "$NOTES_ARG" ]]; then
-  NOTES_RAW="$NOTES_ARG"
-elif [[ -f "dist/notes.txt" ]]; then
-  NOTES_RAW="$(cat dist/notes.txt)"
-else
-  NOTES_RAW="UnitedU ${VERSION} 发布。"
-fi
-# 落一份到 dist/notes.txt:不管来源是参数还是默认文案,--notes-file 统一从这里读,
-# 也方便发布前再手动改一遍措辞。dist/ 不进仓库(.gitignore),不是持久配置。
-printf '%s' "$NOTES_RAW" >dist/notes.txt
-NOTES_FILE="dist/notes.txt"
 
 # ---- 生成 latest.json(spec §7.2)----
 #
@@ -301,9 +396,10 @@ else
     print_tag_recovery_hint
     exit 1
   fi
+  # 说明直接走 --notes(resolve_notes 已保证非空),不经任何中间文件。
   if ! gh release create "$TAG" "$APK_DIST" "dist/latest.json" \
     --title "UnitedU ${VERSION}" \
-    --notes-file "$NOTES_FILE" \
+    --notes "$NOTES_RAW" \
     --latest; then
     echo "gh release create 失败,但 tag 已经推到 origin 了——不是发布成功。" >&2
     print_tag_recovery_hint
