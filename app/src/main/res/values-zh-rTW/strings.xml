@@ -8,7 +8,7 @@
     <string name="menu_edit">編輯分欄</string>
     <string name="menu_edit_desc">新增或移除應用程式、調整順序、換卡片圖</string>
     <string name="menu_settings">UnitedU 設定</string>
-    <string name="menu_settings_desc">卡片、主題色、時鐘、待機</string>
+    <string name="menu_settings_desc">版面、桌布、主題、待機、時鐘、語言</string>
     <string name="menu_wallpaper">換桌布</string>
     <string name="menu_wallpaper_desc">選一張圖片取代背景</string>
     <string name="menu_system_settings">系統設定</string>
@@ -27,7 +27,7 @@
     <string name="card_menu_icon">更改圖片</string>
     <string name="card_menu_icon_desc">從圖庫選一張 16:9 的圖</string>
     <string name="card_menu_move">移動位置</string>
-    <string name="card_menu_move_desc">進入編輯桌面並定位到這張卡</string>
+    <string name="card_menu_move_desc">進入編輯分欄並定位到這張卡</string>
     <string name="card_menu_remove">從目前分類移除</string>
     <string name="card_menu_remove_desc">應用程式本身不會被解除安裝</string>
     <!-- title_dialog_* : 「修改標題」對話框 -->
@@ -74,8 +74,8 @@
     <string name="web_apk_size">APK 超過 100 MB</string>
     <string name="web_apk_background">電視上的匯入頁不在前景,回到匯入頁後重試</string>
 
-    <!-- edit_* : 編輯桌面畫面 -->
-    <string name="edit_title">編輯桌面</string>
+    <!-- edit_* : 編輯分欄畫面 -->
+    <string name="edit_title">編輯分欄</string>
     <string name="edit_hint">選取應用程式後按確定:調整順序、換圖、移出。每行最後的加號可以新增。按返回鍵離開。</string>
     <string name="edit_toast_order_not_saved">順序沒能存下來,重新啟動後會變回原樣</string>
     <string name="edit_move_left">往左移</string>
@@ -93,7 +93,7 @@
     <string name="edit_badge_new">新</string>
 
     <!-- home_* : 首頁與預設桌面設定卡 -->
-    <string name="home_empty_apps_hint">沒有可顯示的應用程式\n右上角的齒輪已選取,按「確定」進入「編輯桌面」新增</string>
+    <string name="home_empty_apps_hint">沒有可顯示的應用程式\n右上角的齒輪已選取,按「確定」開啟選單,選「編輯分欄」新增</string>
     <string name="home_new_apps">有 %1$d 個新應用程式</string>
     <string name="home_input_row_title">輸入源</string>
     <string name="home_settings_title">預設桌面</string>

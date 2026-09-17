@@ -16,6 +16,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.*
 import androidx.lifecycle.lifecycleScope
@@ -402,26 +403,32 @@ class MainActivity : ComponentActivity() {
             }
             // BLACK(Task 3):在屏保之上叠一层纯黑,随 idle 淡入淡出;配合 HomeScreen 里
             // 时钟自己的 clockAlpha 一起淡出,才是「整屏全黑」而不是黑底衬着屏保/时钟。
-            // Box 只要选了 BLACK 就常驻组合(不额外拿 idle 当 if 条件),这样 animateFloatAsState
-            // 才能从上一次的值平滑动画过去;若只在 idle 时才组合它,首帧会直接从目标值起跳,
-            // 表现为黑屏瞬间弹出而不是 1200ms 淡入。
-            // **待机演示(spec §3.2)也要能让这层变黑**:同一个 Box 常驻组合的条件因此加上
-            // `activeDemoIdle == BLACK`——只判 `homeSettings.idleContent`(真实设置)的话,
-            // 设置页把「待机内容」演示切到「全黑」时,若真实设置并非全黑,这层压根没被组合,
-            // 演示就只剩卡片淡出、看不到「整屏全黑」这一半。
-            if (homeSettings.idleContent == IdleContent.BLACK || activeDemoIdle == IdleContent.BLACK) {
-                val demoActive = activeDemoIdle != null
-                val blackIdle = idle || demoActive
-                val blackContent = activeDemoIdle ?: homeSettings.idleContent
-                val blackAlpha by animateFloatAsState(
-                    targetValue = if (blackIdle && blackContent == IdleContent.BLACK) 1f else 0f,
-                    animationSpec = tween(if (blackIdle) 1200 else 400),
-                    label = "blackAlpha",
-                )
+            // **待机演示(spec §3.2)也要能让这层变黑**:目标值同时看真实待机与演示值
+            // (`activeDemoIdle ?: 真实设置`)——只看真实设置的话,演示切到「全黑」时这层不会动。
+            //
+            // **动画状态常驻组合,Box 只在 alpha > 0 时才组合**(终审 M3)。之前是「选了 BLACK 或
+            // 演示值 == BLACK」才组合整段(连同 animateFloatAsState):从「时钟」演示切到「全黑」那一下,
+            // 这段才刚被组合出来,动画的初值就是目标值 1,黑屏是「弹」出来的;离开那一行时整段又被
+            // 立刻移出组合,黑屏同样是瞬间消失而不是 400 ms 淡出。现在动画值一直活着、从上一次的值
+            // 平滑过去(淡入 0 → 1、淡出 1 → 0 都完整),Box 等淡出真的走到 0 才离开组合。
+            // 两处读 alpha 都不在组合阶段逐帧发生:`derivedStateOf` 只在「是否 > 0」翻转时让这里重组,
+            // 透明度在 drawBehind(绘制阶段)里读——淡入淡出的 1.2 s 里不会每帧重组整层。
+            val demoActive = activeDemoIdle != null
+            val blackIdle = idle || demoActive
+            val blackContent = activeDemoIdle ?: homeSettings.idleContent
+            val blackAlpha = animateFloatAsState(
+                targetValue = if (blackIdle && blackContent == IdleContent.BLACK) 1f else 0f,
+                animationSpec = tween(if (blackIdle) 1200 else 400),
+                label = "blackAlpha",
+            )
+            val blackShown by remember(blackAlpha) { derivedStateOf { blackAlpha.value > 0f } }
+            if (blackShown) {
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = blackAlpha))
+                        .drawBehind {
+                            drawRect(androidx.compose.ui.graphics.Color.Black, alpha = blackAlpha.value)
+                        }
                 )
             }
             // **分层叠加**(M7 T4,plan §Architecture)。选择器 / 导入页 / 默认桌面卡不再「替换」

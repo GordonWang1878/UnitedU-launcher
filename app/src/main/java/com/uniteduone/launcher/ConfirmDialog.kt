@@ -39,7 +39,7 @@ import androidx.compose.ui.unit.sp
 
 /**
  * 通用两按钮确认框(spec §4「恢复默认」是第一个用它的场景,以后别的危险动作可以复用)。
- * 与 [TitleDialog] / `AboutPlaceholder` 同一份焦点账本手法,但焦点原子是**两个**按钮而不是一个:
+ * 与 [TitleDialog] / [AboutScreen] 同一份焦点账本手法,但焦点原子是**两个**按钮而不是一个:
  * - 铁律 2/4:焦点落没落下只信按钮自报 [onFocusChanged],不信 `requestFocus()` 的返回值;
  * - 铁律 3:两个按钮**逐个**挂 `FocusRequester`,初始焦点循环只信自报、`nonce` 变化重来一轮;
  * - **默认焦点在「取消」**(spec §4 终审,防止误触恢复);

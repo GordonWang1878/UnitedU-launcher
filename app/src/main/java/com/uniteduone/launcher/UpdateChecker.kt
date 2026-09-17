@@ -148,7 +148,7 @@ private fun unescapeJson(s: String): String? {
             '\\' -> sb.append('\\')
             '/' -> sb.append('/')
             'b' -> sb.append('\b')
-            'f' -> sb.append('')
+            'f' -> sb.append('\u000C')
             'n' -> sb.append('\n')
             'r' -> sb.append('\r')
             't' -> sb.append('\t')

@@ -265,7 +265,7 @@ object Update {
             if (declared > MAX_JSON_BYTES) throw IOException("latest.json too large: $declared bytes")
             val bytes = conn.inputStream.use { readCapped(it, MAX_JSON_BYTES) }
             // 手工编辑的文件可能带 UTF-8 BOM;它不算空白,留着会让「是不是一个完整对象」的判断失败。
-            return String(bytes, Charsets.UTF_8).removePrefix("﻿")
+            return String(bytes, Charsets.UTF_8).removePrefix("\uFEFF")
         } finally {
             conn.disconnect()
         }

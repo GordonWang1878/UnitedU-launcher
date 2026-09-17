@@ -8,7 +8,9 @@
     <string name="menu_edit">Edit Rows</string>
     <string name="menu_edit_desc">Add, remove, reorder apps, or change card art</string>
     <string name="menu_settings">UnitedU Settings</string>
-    <string name="menu_settings_desc">Cards, theme color, clock, standby</string>
+    <!-- Deliberate line break: on one line (521 px of DM Sans at 11sp) this only fits while unfocused (544 px);
+         the focus bar leaves 515 px, so it wrapped on focus and the whole menu jumped. Two fixed lines keep the height stable. -->
+    <string name="menu_settings_desc">Layout, wallpaper, theme,\nstandby, clock and language</string>
     <string name="menu_wallpaper">Change Wallpaper</string>
     <string name="menu_wallpaper_desc">Pick an image to replace the background</string>
     <string name="menu_system_settings">System Settings</string>
@@ -27,7 +29,7 @@
     <string name="card_menu_icon">Change Image</string>
     <string name="card_menu_icon_desc">Pick a 16:9 image from the library</string>
     <string name="card_menu_move">Move</string>
-    <string name="card_menu_move_desc">Open Edit Home Screen at this card</string>
+    <string name="card_menu_move_desc">Open Edit Rows at this card</string>
     <string name="card_menu_remove">Remove from This Row</string>
     <string name="card_menu_remove_desc">The app itself is not uninstalled</string>
     <!-- title_dialog_* : the "Rename Card" dialog -->
@@ -46,7 +48,7 @@
     <string name="import_hint_back">Press Back to close and stop the service</string>
     <string name="import_error_no_network">The TV is not connected to a network. Connect Wi-Fi or Ethernet and try again</string>
     <string name="import_error_port">Ports 8090–8099 are all in use. Try again later</string>
-    <string name="import_apk_needs_permission">Allow "Install unknown apps" on the TV, then retry on your phone</string>
+    <string name="import_apk_needs_permission">Allow “Install unknown apps” on the TV, then retry on your phone</string>
     <string name="import_apk_started">Handed to the system installer</string>
 
     <!-- web_* : phone upload page (injected by the server; %s/%d replaced by the page's JS) -->
@@ -67,15 +69,15 @@
     <string name="web_rejected_decode">Image could not be decoded</string>
     <string name="web_rejected_name">Invalid file name</string>
     <string name="web_rejected_write">Could not write to TV storage</string>
-    <string name="web_apk_hint">After you pick an APK the TV shows the system installer. The first time, allow "Install unknown apps" on the TV.</string>
+    <string name="web_apk_hint">After you pick an APK the TV shows the system installer. The first time, allow “Install unknown apps” on the TV.</string>
     <string name="web_apk_install">Pick an APK and install on the TV</string>
     <string name="web_apk_needs_permission">Allow installing unknown apps on the TV first, then retry</string>
     <string name="web_apk_invalid">Not a valid APK file</string>
     <string name="web_apk_size">APK larger than 100 MB</string>
     <string name="web_apk_background">The TV\'s import page is not in the foreground. Return to it and retry</string>
 
-    <!-- edit_* : edit home screen -->
-    <string name="edit_title">Edit Home Screen</string>
+    <!-- edit_* : Edit Rows screen -->
+    <string name="edit_title">Edit Rows</string>
     <string name="edit_hint">Select an app and press OK to reorder, change art, or remove it. The plus sign at the end of each row adds apps. Press Back to exit.</string>
     <string name="edit_toast_order_not_saved">The order couldn\'t be saved and will reset after restart</string>
     <string name="edit_move_left">Move Left</string>
@@ -93,7 +95,7 @@
     <string name="edit_badge_new">NEW</string>
 
     <!-- home_* : home screen and default-home settings card -->
-    <string name="home_empty_apps_hint">No apps to show\nThe gear icon in the top right is selected — press OK to open “Edit Home Screen” and add some</string>
+    <string name="home_empty_apps_hint">No apps to show\nThe gear icon in the top right is selected — press OK to open the menu, then choose “Edit Rows” to add some</string>
     <string name="home_new_apps">%1$d new app(s)</string>
     <string name="home_input_row_title">Inputs</string>
     <string name="home_settings_title">Default Home</string>
