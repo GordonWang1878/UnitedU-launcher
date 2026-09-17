@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -422,10 +423,11 @@ private fun OnbButton(
  * - [focused]:**当前**焦点在哪一项,只由按钮自报(铁律 2/4);null = 这一步里没有任何一项持有焦点。
  * - [target]:**目标**,焦点该回到哪一项。与 [focused] 分开存(铁律 5):它只在「焦点真的落下」且
  *   不在 [restoring] 期间时才跟着走,Compose 抢先塞给某个按钮的那一下改不了它。
- * - [restoring]:定位循环在跑。**初值为真**:本步第一帧里 Compose 可能抢先把焦点交给第一个
- *   可聚焦项(第 1 步就是「跟随系统」),那次上报若被当成用户的选择,初始焦点就再也落不到「已选语言」上。
- *   它不是一次性闩(铁律 7):定位效果在每次进场、每次 nonce 变化时都会跑,结束时必定把它放掉;
- *   中途被取消也只可能是 nonce 又变了,新一轮会重新置真、再放掉。
+ * - [restoring]:定位循环在跑(或 Activity 已暂停,等回到前台再定位)。**初值为真**:本步第一帧里
+ *   Compose 可能抢先把焦点交给第一个可聚焦项(第 1 步就是「跟随系统」),那次上报若被当成用户的选择,
+ *   初始焦点就再也落不到「已选语言」上。ON_PAUSE 时也置真(终审 I1,理由相同:回到前台那一下的抢先焦点)。
+ *   它不是一次性闩(铁律 7):定位效果在每次进场、每次 nonce 变化时都会跑,结束时只要在前台就把它放掉;
+ *   不在前台就留着,回到前台必经 `onResume` 的 `focusNonce++`,新一轮会重新置真、再放掉。
  */
 @Stable
 private class StepFocus(count: Int, initial: Int) {
@@ -455,6 +457,18 @@ private class StepFocus(count: Int, initial: Int) {
 @Composable
 private fun rememberStepFocus(count: Int, initial: Int, nonce: Int): StepFocus {
     val f = remember { StepFocus(count, initial.coerceIn(0, count - 1)) }
+    // **从 ON_PAUSE 就冻结目标**(铁律 5 的后半句,M7 终审 I1;与 HomeScreen / SettingsScreen 同一手法)。
+    // 灭屏再亮、别的应用到前台再回来:Compose 会抢在定位效果重启之前把焦点塞给这一步第一个可聚焦项
+    // (第 1 步是「跟随系统」),那次上报若看到 restoring 为假就把目标改写掉,用户回来落在「跟随系统」
+    // 而不是离开时的「繁體」。放开交给下面的定位效果(onResume 的 focusNonce++ 让它重跑)。
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle, f) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) f.restoring = true
+        }
+        lifecycle.addObserver(obs)
+        onDispose { lifecycle.removeObserver(obs) }
+    }
     LaunchedEffect(nonce) {
         f.restoring = true
         var frames = 0
@@ -464,7 +478,9 @@ private fun rememberStepFocus(count: Int, initial: Int, nonce: Int): StepFocus {
             runCatching { f.reqs[f.target].requestFocus() }
             frames++
         }
-        f.restoring = false
+        // 只在前台时放开(理由同 SettingsScreen 定位效果末尾):暂停期间跑完就继续冻着,
+        // 回到前台必经 focusNonce++,本效果重跑时再放开——不是闩(铁律 7)。
+        f.restoring = !lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
     }
     LaunchedEffect(nonce, f.focused, f.restoring) {
         if (f.restoring) return@LaunchedEffect

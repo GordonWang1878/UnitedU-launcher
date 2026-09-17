@@ -205,6 +205,19 @@ fun SettingsScreen(
      * 派生自 `covered` 而不是一次性布尔闩(铁律 7):子界面一关它自然放开。
      */
     var restoring by remember { mutableStateOf(false) }
+    // **从 ON_PAUSE 就冻结目标**(铁律 5 的后半句,M7 终审 I1;与 HomeScreen / EditScreen 同一手法)。
+    // 灭屏再亮、或别的应用到前台再回来:Compose 会抢在定位效果重启之前,把焦点塞给整棵树第一个
+    // 可聚焦节点 = 左栏第一组;那次上报若看到 restoring 还是 false,就把 pane/group 改写成「左栏·布局」,
+    // 用户回来落在布局组而不是离开时那一行。ON_PAUSE 一到就置位;放开交给定位效果——onResume 的
+    // focusNonce++ 让它重启、把焦点送回冻着的目标,并且**只在前台时**才放开(见它末尾)。
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) restoring = true
+        }
+        lifecycle.addObserver(obs)
+        onDispose { lifecycle.removeObserver(obs) }
+    }
     // 每一项一个 requester(铁律 3 的实现约束:逐项挂,恢复才有地方落)。
     // 右栏按「组内行号」挂:同一时刻只有当前组的行在组合里,下标 0..rows.lastIndex 一定挂得上,
     // 而所有落点都夹在这个区间内(见 targetOf),不会去请求一个没挂上的 requester。
@@ -259,7 +272,10 @@ fun SettingsScreen(
             runCatching { req.requestFocus() }
             frames++
         }
-        restoring = false
+        // **只在前台时放开**(终审 I1):ON_PAUSE 若恰好打在这段循环中途,循环在暂停期间跑完后
+        // 无条件放开,就等于撤销了上面那个观察者的冻结。不在前台就继续冻着——这不是闩(铁律 7):
+        // 回到前台必经 onResume 的 focusNonce++,本效果必然重跑,到那时再在前台放开。
+        restoring = !lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
     }
 
     // **焦点看门狗**:上面那条管「我想去哪」,这条管「焦点莫名其妙没了」——节点被重组销毁、

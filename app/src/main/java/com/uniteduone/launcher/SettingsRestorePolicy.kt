@@ -11,7 +11,7 @@ package com.uniteduone.launcher
  * 1. 第一版判据查 `intent.categories` 有没有 `CATEGORY_HOME`,想靠它分辨「这是不是
  *    HOME 键触发的」。被 `recreate()` 的实际行为推翻:`recreate()` 沿用**创建这个 Activity
  *    实例时的旧 intent**,不会因为主动重建而更新;真机上这个 Activity 几乎总是被 HOME
- *    启动的,于是切语言触发的 `recreate()` 里 `intent.categories` 也会是 `{HOME}}`,
+ *    启动的,于是切语言触发的 `recreate()` 里 `intent.categories` 也会是 `{HOME}`,
  *    单独拿它当判据会把「切语言后重开设置页」这个 T8 的核心功能整个关掉(2026-09-17
  *    round 2 用 adb 实测复现:force-stop 后用 HOME intent 启动、进设置页切语言,
  *    `recreate()` 之后新实例的 `intent.categories` 仍是 `{HOME}`,若按「HOME 就不种」
@@ -28,6 +28,15 @@ package com.uniteduone.launcher
  * 结论:`onCreate` 阶段只有一个可信信号——「这趟重建是不是我们自己主动要的」。是,就种;
  * 不是(不管后面接着来的是 HOME 还是 BACK,`onCreate` 都分不出来,统一按「不种」处理,
  * 落在桌面是更安全的默认值),就不种。
+ *
+ * **[onboardingOpen] 为真时一律不种**(M7 终审 I2)。引导开没开是 `onCreate` 按 settings.json
+ * 重新判的,与 Bundle 无关;而 `endOnboarding` 在写盘失败时也照样收起引导(盘上仍是
+ * `onboardingDone = false`)。之后若在设置页切语言,自己触发的 `recreate()` 会让新实例
+ * **同时**判出「要引导」和「设置页开着」——两层整屏浮层各带一套焦点账本,互相抢焦点。
+ * 引导画在最上层、而且 spec §8 要求它期间别的浮层都打不开,所以让设置页这一侧放弃。
  */
-internal fun shouldRestoreSettingsFromBundle(bundleSaysOpen: Boolean, selfTriggeredRecreate: Boolean): Boolean =
-    bundleSaysOpen && selfTriggeredRecreate
+internal fun shouldRestoreSettingsFromBundle(
+    bundleSaysOpen: Boolean,
+    selfTriggeredRecreate: Boolean,
+    onboardingOpen: Boolean,
+): Boolean = bundleSaysOpen && selfTriggeredRecreate && !onboardingOpen

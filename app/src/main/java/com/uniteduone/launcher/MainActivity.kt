@@ -254,10 +254,12 @@ class MainActivity : ComponentActivity() {
         // (`selfTriggeredRecreate`,调用 `recreate()` 前置真、随 Bundle 带过来);
         // 其它任何导致重建的原因——包括进程被系统杀掉——都不种,统一落在桌面,
         // 不区分后续是 HOME 还是 BACK。
+        // **引导开着时也不种**(终审 I2):上面 resolveOnboarding 刚按盘判出要引导的话,
+        // 设置页再种回来就是两层整屏浮层同时在场、两套焦点账本互相抢(见该函数 KDoc)。
         val bundleSaysOpen = savedInstanceState?.getBoolean(KEY_SETTINGS_OPEN) == true
         val wasSelfTriggered = savedInstanceState?.getBoolean(KEY_SELF_RECREATE) == true
         if (savedInstanceState != null &&
-            shouldRestoreSettingsFromBundle(bundleSaysOpen, wasSelfTriggered)
+            shouldRestoreSettingsFromBundle(bundleSaysOpen, wasSelfTriggered, onboardingOpen = onboarding)
         ) {
             settings = true
             settingsPos = SettingsPos(
@@ -496,7 +498,9 @@ class MainActivity : ComponentActivity() {
                         focusNonce = focusNonce,
                         // 确认框叠在设置页上时同样让路(铁律 3)——不加的话它自己的初始焦点循环
                         // 会跟设置页的看门狗抢同一帧的焦点请求。
-                        covered = confirmRestore || pt != null,
+                        // `onboarding` 是兜底(终审 I2):onCreate 已保证引导在场时不把设置页种回来,
+                        // 万一两者同时为真,画在最上层的引导负责焦点,这一页让路而不是跟它抢。
+                        covered = confirmRestore || pt != null || onboarding,
                         // 每次改动:只重读 settings.json,首页当场按新值重组(布局 / 主题 / 时钟都靠它)。
                         onSettingsChanged = { settingsRevision++ },
                         // 停手 300ms 之后的那一下:**壁纸管线的唯一入口**,见 wallpaperParams 的 KDoc。
