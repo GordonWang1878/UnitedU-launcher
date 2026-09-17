@@ -108,6 +108,27 @@ fun SettingsScreen(
     /** `recreate()` 之前记下的位置(T8);null = 从左栏第一组开始。 */
     initialPos: SettingsPos? = null,
     onPosChanged: (SettingsPos) -> Unit = {},
+    /**
+     * `MainActivity` 专为「本页需要绕过自己重读一次 settings.json」开的计数器,**只有
+     * `confirmRestoreDefaults()` 在 `withContext(IO)` 写盘落地之后才会 `++`**(T7 复审
+     * Important #1)。
+     *
+     * 最初这条重读挂在 `covered` 上,但 `confirmRestore` 有五条路径能把它写回 `false`
+     * (确认框自己的取消 / 返回、MENU 键、返回键兜底、`leaveSettings`),其中任意一条若抢在
+     * 写盘完成**之前**跑完,`covered` 就会提前落回 `false`、触发一次「读到旧值」的重读;
+     * 写盘真正完成后 `confirmRestore` 再赋一次 `false` 对 Compose 是无操作(值没变),`covered`
+     * 不会二次翻转,依赖它的效果永远不会再用最终值重读一次——「其他」组以外的分组会一直停在
+     * 恢复前的档位直到退出设置页重进,而 toast 却已经说「已恢复默认设置」。
+     *
+     * 改用**专用**计数器而不是复用「任一改动都 `++`」的 `settingsRevision`:本页自己的
+     * `update()` 也会通过 `onSettingsChanged()` 间接让 `settingsRevision` 递增,若挂在那颗上,
+     * 每按一次分段控件都会在写完之后**再重读一次盘**——多数时候只是白读一次,但
+     * `SettingsStore.update` 写失败(外置存储没挂)时,`update()` 特地保留的「内存里的改动」
+     * 会被这次重读立刻覆盖回盘上的旧值,刚才的调整在画面上当场弹回去,把「写失败时至少内存
+     * 里保住这次改动」的既有兜底整个废掉。专用计数器只在这一件事(恢复默认写盘落地)上递增,
+     * 不搭车。
+     */
+    reloadNonce: Int = 0,
 ) {
     val ctx = LocalContext.current
     var s by remember { mutableStateOf(SettingsStore.read(ctx)) }
@@ -141,14 +162,12 @@ fun SettingsScreen(
     // **T7 恢复默认的写盘走确认框**,不像切语言那样在 `actions.restoreDefaults()` 返回前就
     // 写完盘——`liveActions.restoreDefaults` 那次 `s = SettingsStore.read(ctx)`(上面这段
     // KDoc 写的重读)因此读到的还是恢复前的旧值:确认框此刻才刚打开,`MainActivity` 真正的
-    // 写盘要等用户按下「恢复」才发生,写完才把 `confirmRestore` 落回 false(见其 KDoc,
-    // 顺序是特地这样安排的)。这条效果补上那一半:`covered` 从 true 落回 false 那一刻
-    // (确认框或选择器关闭)才重读一次,保证读到的是盘上刚落地的最终值 —— 不然「其他」组以外
-    // 的分组(卡片大小 / 主题 / 待机…)会在恢复默认之后继续显示恢复前的档位,直到退出设置页重进。
-    // 守卫 `!covered` 与 key `covered` 成对(铁律 6);选择器关闭时同样会多读一次,读到的值
-    // 与内存里的没有分别,白读一次没有代价。
-    LaunchedEffect(covered) {
-        if (!covered) s = SettingsStore.read(ctx)
+    // 写盘要等用户按下「恢复」才发生。这条效果补上那一半:`reloadNonce`(见其参数 KDoc,
+    // T7 复审 Important #1)在写盘真正落地之后才递增一次,这里跟着重读一次,保证读到的是
+    // 盘上刚落地的最终值——不需要 guard,计数器本身的语义就是「该重读了」(铁律 6:这里
+    // 没有可省略的分支,key 即全部逻辑)。
+    LaunchedEffect(reloadNonce) {
+        s = SettingsStore.read(ctx)
     }
 
     // 内容模型(分组 / 行 / 当前档位)全在 SettingsModel.kt 里,这里只画和管焦点。

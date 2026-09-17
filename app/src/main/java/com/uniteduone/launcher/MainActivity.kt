@@ -110,6 +110,17 @@ class MainActivity : ComponentActivity() {
      * `leaveSettings()` 里还兜底清一次(HOME 键那条路径不会漏),不存在「卡在 true」的路。
      */
     private var confirmRestore by mutableStateOf(false)
+    /**
+     * 让 `SettingsScreen` 绕开自己重读一次 settings.json(T7 复审 Important #1)。
+     * **只有 `confirmRestoreDefaults()` 在写盘落地之后才 `++`**——不能挂 `confirmRestore`
+     * 或 `covered`:那两者有五条路径能把 `confirmRestore` 写回 `false`(取消 / 返回 / MENU 键 /
+     * 返回键兜底 / `leaveSettings`),其中任意一条若抢在写盘完成前跑完,`confirmRestore` 早已是
+     * `false`,写盘完成后再赋一次 `false` 对 Compose 是无操作、不会触发任何依赖它的效果重跑——
+     * `SettingsScreen` 会永远停在恢复前的旧值上,直到退出设置页重进。也不能复用
+     * `settingsRevision`:那颗计数器本页自己每次改动都会间接 `++`,若 `SettingsScreen` 挂在它
+     * 上面重读,会在写失败(外置存储没挂)时把 `update()` 特地留的内存态改动立刻冲掉。
+     */
+    private var settingsReloadNonce by mutableStateOf(0)
     /** 首页当前聚焦的卡(HomeScreen 上报);长按确定键时据此弹菜单。 */
     private var focusedCard by mutableStateOf<CardRef?>(null)
     /** 长按菜单开着的那张卡;null = 没开。 */
@@ -417,6 +428,9 @@ class MainActivity : ComponentActivity() {
                         onDemoIdle = { demoIdle = it },
                         initialPos = settingsPos,
                         onPosChanged = { settingsPos = it },
+                        // 恢复默认写盘落地之后才 ++ 一次(见其 KDoc,T7 复审 Important #1)——
+                        // 与 confirmRestore/covered 解耦,不受「dismiss 抢在写盘完成前跑完」影响。
+                        reloadNonce = settingsReloadNonce,
                     )
                 }
                 // 「恢复默认」确认框(spec §4)。叠在设置页之上,与选择器同属「设置页的子界面」——
@@ -684,9 +698,14 @@ class MainActivity : ComponentActivity() {
      * (纯函数,T1 已单测);壁纸缓存另调 [Wallpapers.clearCache],都在 IO 线程做。
      *
      * `confirmRestore = false` 特地等 `withContext(IO)` 写完盘**之后**才做,不学
-     * `onRenameSave`/`closeCardMenu` 那种「先关浮层再异步写」——`covered` 一变 false,
-     * `SettingsScreen` 那条新增的读盘效果就会立刻 `SettingsStore.read`,提前收掉的话
-     * 读到的还是恢复前的旧值,两栏设置页会在按了「恢复」之后短暂显示错误的档位。
+     * `onRenameSave`/`closeCardMenu` 那种「先关浮层再异步写」——但这**保护不了**用户自己
+     * 提前把确认框关掉的路径(取消 / 返回 / MENU 键,各自独立把 `confirmRestore` 写回
+     * `false`,不受这里的顺序约束),所以 `SettingsScreen` 的重读**不能**挂在 `confirmRestore`
+     * 或 `covered` 上(T7 复审 Important #1 修正)——那样的话,若用户在写盘完成前就关掉了
+     * 确认框,`covered` 提前翻转触发一次读到旧值的重读,而写盘真正完成后 `confirmRestore`
+     * 再赋一次同样的 `false` 对 Compose 是无操作,不会再触发一次。改用专用的
+     * `settingsReloadNonce`(见其 KDoc):只在这里、写盘落地之后才 `++`,不管确认框走的是
+     * 哪条 dismiss 路径,这一次递增必定发生、且必定在正确的时间点。
      *
      * `settingsRevision++`(首页重读)与 `wallpaperParams++`(壁纸管线,见其 KDoc)双双 bump:
      * 少 bump 后者的话,壁纸文件名虽然换回默认,但模糊/亮度还停在恢复前的处理结果上——
@@ -707,6 +726,7 @@ class MainActivity : ComponentActivity() {
             confirmRestore = false
             settingsRevision++
             wallpaperParams++
+            settingsReloadNonce++
             toast(getString(R.string.toast_restored))
             if (localeFor("system") != AppLocale.current) applyLanguage("system")
         }
