@@ -63,6 +63,8 @@ private const val KEY_SETTINGS_OPEN = "settingsOpen"
 private const val KEY_SETTINGS_PANE = "pane"
 private const val KEY_SETTINGS_GROUP = "group"
 private const val KEY_SETTINGS_ROW = "row"
+/** 见 [MainActivity.selfTriggeredRecreate] 的 KDoc、`SettingsRestorePolicy.kt`。 */
+private const val KEY_SELF_RECREATE = "selfTriggeredRecreate"
 
 class MainActivity : ComponentActivity() {
 
@@ -84,6 +86,18 @@ class MainActivity : ComponentActivity() {
      * 做成状态只会让每次上报都触发一次无谓的重组。
      */
     private var settingsPos: SettingsPos? = null
+    /**
+     * 即将调用的 `recreate()` 是不是我们自己在 [applyLanguage] 里主动喊的——调用前置真,
+     * `onSaveInstanceState` 把它一起写进 Bundle,新实例的 `onCreate` 读回来决定要不要
+     * 信任 Bundle 里的 `settingsOpen`(见 `shouldRestoreSettingsFromBundle` 的 KDoc,
+     * 2026-09-17 review round 2:`recreate()` 会原样沿用创建这个实例时的旧 intent,
+     * 真机上那几乎总是 HOME——不能拿 intent 本身去分辨「这趟重建是不是语言切换」,
+     * 只能靠我们自己显式做个记号)。**不是 `mutableStateOf`**:只在「置真 → 马上被
+     * `onSaveInstanceState` 读走」这一小段同步窗口内活着,不参与任何组合;这个实例
+     * 随 `recreate()` 销毁后这个字段也跟着作废,不需要写回 false(rule 7:一次性标记
+     * 挂在「即将销毁的旧实例」上,天生没有「卡在 true」的路)。
+     */
+    private var selfTriggeredRecreate = false
     /** 换过图/改过布局后 +1,用来强制界面重新读取 */
     private var revision by mutableStateOf(0)
     /**
@@ -227,9 +241,22 @@ class MainActivity : ComponentActivity() {
         // T8:上一趟若是切语言(或恢复默认连带切语言)触发的 recreate(),把「设置页开着」
         // 和当时停在哪一格从 Bundle 种回来(spec §5)。必须在这里、`setContent` 之前赋值——
         // 两个都是普通字段,`setContent` 首次组合时读到的就是当下的值,不需要额外触发重组。
-        // 只在这个键确实写过 `true` 时才种:配置变更之类别的 recreate 路径、或压根没有
-        // 这个键(冷启动)都必须维持默认的 `settings = false`,不能凭空把设置页种出来。
-        if (savedInstanceState?.getBoolean(KEY_SETTINGS_OPEN) == true) {
+        //
+        // **只信「这趟重建是不是我们自己要的」(2026-09-16 review Important #1,
+        // 2026-09-17 两轮修正后的最终判据)**:两版靠 `intent.categories` 分辨 HOME/BACK
+        // 的尝试都被实测推翻——`recreate()`、以及进程死后由外部请求重建,新实例的
+        // `intent` 都是**创建这个 Activity 实例时的原始 intent**(真机上这个 Activity
+        // 几乎总是被 HOME 启动的),`onCreate` 阶段根本看不出这次具体是被 HOME 还是 BACK
+        // 带回来的(详见 shouldRestoreSettingsFromBundle 的 KDoc,含两轮复现记录)。
+        // 现在只种「我们自己在 applyLanguage 里主动喊的 recreate()」这一种情况
+        // (`selfTriggeredRecreate`,调用 `recreate()` 前置真、随 Bundle 带过来);
+        // 其它任何导致重建的原因——包括进程被系统杀掉——都不种,统一落在桌面,
+        // 不区分后续是 HOME 还是 BACK。
+        val bundleSaysOpen = savedInstanceState?.getBoolean(KEY_SETTINGS_OPEN) == true
+        val wasSelfTriggered = savedInstanceState?.getBoolean(KEY_SELF_RECREATE) == true
+        if (savedInstanceState != null &&
+            shouldRestoreSettingsFromBundle(bundleSaysOpen, wasSelfTriggered)
+        ) {
             settings = true
             settingsPos = SettingsPos(
                 pane = savedInstanceState.getInt(KEY_SETTINGS_PANE),
@@ -533,14 +560,16 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * 与 `onCreate` 的还原半成对(T8,spec §5)。只存「设置页开没开」与当时停在哪一格——
-     * 其余临时态(`confirmRestore`、`pickerTarget` 之类)recreate 后归零才是对的:它们各自
-     * 只服务自己那一次交互(确认框、选择器),没有一条规则说它们要跨越一次 Activity 重建续命,
-     * 白存它们只会在恢复默认的确认框场景下凭空变出一层不该在的浮层。
+     * 与 `onCreate` 的还原半成对(T8,spec §5)。只存「设置页开没开」与当时停在哪一格,
+     * 外加 [selfTriggeredRecreate] 这个一次性记号(见其 KDoc)——其余临时态(`confirmRestore`、
+     * `pickerTarget` 之类)recreate 后归零才是对的:它们各自只服务自己那一次交互
+     * (确认框、选择器),没有一条规则说它们要跨越一次 Activity 重建续命,白存它们只会在
+     * 恢复默认的确认框场景下凭空变出一层不该在的浮层。
      */
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putBoolean(KEY_SETTINGS_OPEN, settings)
+        outState.putBoolean(KEY_SELF_RECREATE, selfTriggeredRecreate)
         settingsPos?.let { pos ->
             outState.putInt(KEY_SETTINGS_PANE, pos.pane)
             outState.putInt(KEY_SETTINGS_GROUP, pos.group)
@@ -734,10 +763,20 @@ class MainActivity : ComponentActivity() {
      * `onCreate` 收到后原样种回来,`SettingsScreen` 拿 `initialPos` 当 `remember` 的种子
      * 把焦点落回同一行(rule 5:目标与当前分开;rule 7:种子只喂一次,不留闩)。
      * 恢复默认(`confirmRestoreDefaults`)把语言改回 `system` 时走的是同一个函数、同一条路。
+     *
+     * `selfTriggeredRecreate = true` 必须在 `recreate()` **之前**这一行做(2026-09-17
+     * review 定稿):新实例的 `onCreate` 只有靠这个记号才能相信 Bundle 里的
+     * `settingsOpen`——`intent` 本身不可信(`recreate()` 沿用创建实例时的旧 intent,
+     * 真机上几乎总是 HOME,`onCreate` 阶段分不出这趟重建是不是语言切换),
+     * 漏了这一步会把这次合法的语言切换重开也当成「外部原因导致的重建」而拦掉
+     * (详见 SettingsRestorePolicy.kt 的 KDoc,含两轮复现记录)。
      */
     private fun applyLanguage(language: String) {
         SettingsStore.update(this) { it.copy(language = language) }
-        if (localeFor(language) != AppLocale.current) recreate()
+        if (localeFor(language) != AppLocale.current) {
+            selfTriggeredRecreate = true
+            recreate()
+        }
     }
 
     /**
