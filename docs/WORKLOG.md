@@ -472,6 +472,9 @@ Gordon(spec §0):
 - 裁定:T8 起提交尾注按各实施子代理自己的 harness 署名(T1–T7 Fable 5.1,T8 / T11 Sonnet 5,T9 / T10 Opus 5),不再作为评审发现 — 理由:署名随模型而变,为它开修复轮没有收益 — 若错的代价:合并前若要统一尾注,做一次只改提交信息的 rebase。
 - 裁定(T8 初版,已被下一条取代):保留 Bundle 还原(进程死后从系统设置 BACK 也该回到设置行),修复轮先用 `am kill` 复现「进程死后按 HOME」,设置页真的重开才加最小修复 — 理由:AOSP 会在恢复出的 `onCreate` 之后经 `onNewIntent` 递送挂起的 intent,该场景可能根本不发生 — 若错的代价:低内存电视进程死后按 HOME 会重新弹出设置页。
 - 裁定(取代上一条):只有我们自己在 `applyLanguage` 里置了 `selfTriggeredRecreate` 才从 Bundle 还原设置页,其它任何重建都落纯首页 — 理由:重建出来的 Activity 沿用原启动 intent,真机上就是 HOME,`onCreate` 分不出 HOME 与 BACK;spec §5 只要求语言重建后还原 — 若错的代价:桌面被系统销毁后从系统设置按 BACK,落首页而不是设置行。
+- 裁定:终审修复范围定为 C1/I1/I2/I3/I4 加 M1–M7 一次修完;「恢复」忙碌态与「versionCode 等于已发布 latest.json 告警」延后 — 理由:C1/I1/I2 是焦点这个最高风险区的回归,I3/I4 必须赶在第一次正式发布前落地,M1–M7 都只是一行改动 — 若错的代价:修复 diff 略微变大。
+- 裁定:终审复审遗留的两处文字问题(README:76 错误描述、`UpdateCheckerTest.kt` 与 WORKLOG 里的原始控制字符)不单开第二轮修复波终审,并入合并时一起改掉(Gordon 2026-09-17 选择本地合并)— 理由:两处都是零行为影响的纯文本改动,不需要为它们重跑一轮全分支终审 — 若错的代价:main 上多留一个只改文字的小提交。
+- 裁定:`.superpowers/sdd/2026-09-16-m7-settings/` 保留不删,worktree 移除前先拷进主 checkout — 理由:WORKLOG 引用了这份目录里的验证证据,前几个里程碑也都保留了各自的 SDD 工作区 — 若错的代价:本地多留约 70 MB 草稿文件。
 
 ### 发现(机制)
 - **`recreate()` 沿用原启动 intent**:电视上桌面是被 CATEGORY_HOME 拉起的,切语言 `recreate()` 之后 `intent.categories` 仍是 `{HOME}`,所以靠 intent 分不出「我们自己的重建」和「用户按了 HOME」;设置页只在 `selfTriggeredRecreate`(随 Bundle 带过去)为真时还原。模拟器用 `am start -n` 拉起时 intent 里没有 HOME,这个坑完全看不见——T8 第一版判据就是这样过了自测、又被 HOME intent 拉起的复测推翻的。
@@ -528,7 +531,7 @@ Gordon(spec §0):
 | M1 | 三条文案还叫「编辑桌面」 | 菜单改名时漏改 | 三语 `edit_title` / `card_menu_move_desc` / `home_empty_apps_hint` 改名;空桌面提示改成「按确定打开菜单,选编辑分栏」(那才是入口) | `97ab6eb` |
 | M2 | README 多处与代码不符 | — | 星期文字跟随应用语言;设置页按键写对(上下移动、左右改值、最左档左键回左栏、动作行确定键);adb 装包不问未知来源,「安装未知应用」只和应用内装包有关;编辑分栏只能行内排序;设默认桌面先出卡片;更新通道按构建配置、下载后核对包名 / 版本 / 证书 | 文档提交 |
 | M3 | 全黑演示弹出 / 弹回 | 动画状态住在按条件组合的那段里,条件一翻转状态就重建,初值即目标值 | 动画值常驻组合,Box 只在 alpha > 0 时组合(`derivedStateOf` 门控,透明度在 `drawBehind` 里读,淡入淡出期间不逐帧重组) | `97ab6eb` |
-| M4 | 源码里有看不见的 U+000C / U+FEFF | — | 写成 `''` / `"﻿"`;补控制字符转义的解析单测 | `97ab6eb` |
+| M4 | 源码里有看不见的 U+000C / U+FEFF | — | 写成 `'\u000C'` / `"\uFEFF"`;补控制字符转义的解析单测 | `97ab6eb` |
 | M5 | 「UnitedU 设置」描述缺组 | — | 六组都列;英文一行 521 px,聚焦时只剩 515 px(焦点竖条占位),会只在聚焦时折行、整个菜单跳一下 → 固定两行 | `97ab6eb` |
 | M6 | 两处注释 | — | `{HOME}}` 笔误;ConfirmDialog KDoc 改指 AboutScreen | `92b9773` / `97ab6eb` |
 | M7 | 英文直双引号被吃掉 | aapt 把未转义的 `"` 当成引用符 | 改弯引号;`web_apk_hint` 同病一并修 | `97ab6eb` |

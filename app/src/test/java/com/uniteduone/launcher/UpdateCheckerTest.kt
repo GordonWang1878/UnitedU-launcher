@@ -98,10 +98,10 @@ class UpdateCheckerTest {
         assertEquals("第一行\n第二行 \"引号\" \\ 中文 a/b", info?.notes)
     }
 
-    /** 终审 M4:源码里的 `\f` 分支改用 `''` 转义书写(原来是一个肉眼看不见的原始控制字符)。 */
+    /** 终审 M4:源码里的 `\f` 分支改用 `'\u000C'` 转义书写(原来是一个肉眼看不见的原始控制字符)。 */
     @Test fun controlCharEscapesAreDecoded() {
         val info = parseLatest(latest(notes = "\"a\\fb\\bc\\td\\re\""))
-        assertEquals("ab\bc\td\re", info?.notes)
+        assertEquals("a\u000Cb\bc\td\re", info?.notes)
     }
 
     @Test fun badEscapeInARequiredFieldRejectsTheFile() {
