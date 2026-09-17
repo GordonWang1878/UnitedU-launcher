@@ -554,3 +554,6 @@ Gordon(spec §0):
 - 进编辑页的初始焦点落在第 1 行行尾「＋」而不是第 1 张卡(修复前后一致,T12 的记录也是如此),未追查。
 - 模拟器收尾状态:本波最终构建、引导已完成、UnitedU 为 HOME 且在前台、语言跟随系统、`settings.json` / `layout.json` 与本波开始时相同、`long_press_timeout` = 400、`animator_duration_scale` 未设置;临时推入的 `library/cards/card-red.png` 与自定义卡片图已删除。
 - 同步改动:M7 spec §7.4 补发布说明与签名核对两条、状态行改为「终审修复波已完成」;CLAUDE.md 焦点责任表的设置页 / 引导 / 编辑页三行更新,「模拟器验证的坑」补两条。
+
+**合并(2026-09-17 晚,Gordon 选「本地合并进 main」)**:合并前先修终审复审遗留的两处文字(README 更新说明一句、测试与 WORKLOG 里的原始控制字符,`6a8d081`),再在临时 worktree 里做 `--no-ff` 合并 → main `c551568`(树与测过的分支头一致,161/161 绿)。未推送。主目录 main 上当时留着 M8 美化轮会话的未提交文档(M8 spec、调研、6 张 m8 截图,CLAUDE.md 与本文件的追加段),按 Gordon 选择**保持未提交**:合并在临时 worktree 完成,main 指针前移后把那两处追加原样放回工作区。SDD 台账与证据目录已拷回主目录 `.superpowers/sdd/2026-09-16-m7-settings/`,`m7-settings` 分支与 worktree 已删。
+- 真机通道:`adb connect 192.168.1.22:38673` 报 `No route to host` 时电视其实在线(ping 通);`adb kill-server` 后同一端口直接连上,无需重配——是本机 adb 后台进程过期,不是电视端口或配对问题。
