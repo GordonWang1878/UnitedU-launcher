@@ -36,6 +36,7 @@
 - **卸载需要 `REQUEST_DELETE_PACKAGES`**(API 26+ 起 `ACTION_DELETE` 必需;缺了系统卸载器静默退出、`startActivity` 仍返回成功)。清单已加。
 - **三条杠键(MENU)在卡片菜单开着时先关卡片菜单**,不能叠出齿轮菜单(两个 320dp 面板重叠、焦点在看不见的那层)。
 - **选择器回来的焦点**:「更改图标」走 `pickerTarget` 浮层,它会把 `HomeScreen` 整棵拆掉;`HomeScreen(initialTarget)` 用 (行, 列) 作 `tgtRow/tgtIdx` 的**初值**(只在组合实例创建时生效,不是闩),`MainActivity.homeInitialTarget` 在 CHANGE_ICON 时设、进编辑/设置/其它选择器时清。同一机制顺带修了 M3 备案的「换壁纸后焦点回到第一张」——从齿轮进的选择器不设种子,回到齿轮/第一张仍是既有行为。
+  - **已由 M7 T4 退役(`93f00aa`)**:选择器改为叠在常驻 `HomeScreen` 之上、首页不再被拆,`covered` 期间冻结 `tgtRow/tgtIdx/tgtGear`、关掉后按它还原,`initialTarget`/`homeInitialTarget` 整套删除;「picker 回来落 (0,0)」随之解决(编辑页仍整体替换首页,不在此列)。
 - 菜单项文案 `card_menu_*` ×6 + 描述行,三语。
 
 ## 2. 卡片标题
