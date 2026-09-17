@@ -27,6 +27,20 @@ usage() {
 EOF
 }
 
+# tag 卡在「本地/远程有、release 没发出去」这个半成品状态时打印的恢复步骤。
+# 三处会用到:①本地已有同名 tag;②origin 上已有同名 tag(本地没有);③tag 推上去之后
+# git push 或 gh release create 失败——三种情况的收场动作是同一套,所以只写一份。
+# 用到的 $TAG 是外层的全局变量,这个脚本没有别的地方会重新赋值给它。
+print_tag_recovery_hint() {
+  cat >&2 <<EOF
+恢复步骤:
+  1. 看一眼是不是已经发出去一半了:gh release view ${TAG}
+  2. 有本地 tag 就删掉:git tag -d ${TAG}
+  3. 有远程 tag 就删掉:git push origin :refs/tags/${TAG}
+  4. 确认干净之后再重新跑一次 scripts/release.sh ${VERSION}
+EOF
+}
+
 DRY_RUN=0
 VERSION=""
 NOTES_ARG=""
@@ -101,7 +115,51 @@ fi
 # 版本已经发布过时继续跑只会让人误以为还没发。真要重跑同版本的 dry-run,先删本地 tag。
 if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
   echo "tag ${TAG} 已存在" >&2
+  print_tag_recovery_hint
   exit 1
+fi
+
+# ---- 发布前预检查:gh 登录了没、origin 上有没有已经躺着一个同名 tag ----
+#
+# 必须在 git tag / git push / gh release create 这一串操作**之前**跑,而不是跑到中间才发现:
+# 这三步不是一个事务——旧版本先 tag、再 push、再发 release,任何一步在半路失败都会留下
+# 「tag 已经在 origin 上,release 还没发出去」的半成品状态,下次重跑会被上面「tag 已存在」
+# 拦住,却没有任何提示该怎么收场。把两项检查挪到建 tag 之前,就能在还没有任何副作用的时候
+# 发现问题。放在构建之前而不是构建之后:两项检查都很快,没必要等一次 assembleRelease 才失败。
+#
+# --dry-run 下只报告、不拦:dry-run 的一个用途就是在没登录 gh、甚至没联网的机器上
+# 也能跑一遍看流程对不对,不应该因为这两项跟「真的要发布」相关的检查而跑不完。
+PREFLIGHT_OK=1
+
+if gh auth status >/dev/null 2>&1; then
+  echo "==> gh auth status:已登录"
+else
+  echo "gh 未登录(gh auth status 失败)—— 正式发布前需要先 gh auth login" >&2
+  PREFLIGHT_OK=0
+fi
+
+REMOTE_TAG_OUT=""
+if REMOTE_TAG_OUT="$(git ls-remote --tags origin "refs/tags/${TAG}" 2>&1)"; then
+  if [[ -n "$REMOTE_TAG_OUT" ]]; then
+    echo "origin 上已经有 ${TAG} 了(本地没有,大概率是上一次发布中途失败留下的):" >&2
+    echo "$REMOTE_TAG_OUT" >&2
+    PREFLIGHT_OK=0
+  else
+    echo "==> origin 上没有 ${TAG}"
+  fi
+else
+  echo "git ls-remote origin 失败(连不上远程?):$REMOTE_TAG_OUT" >&2
+  PREFLIGHT_OK=0
+fi
+
+if [[ "$PREFLIGHT_OK" -eq 0 ]]; then
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    echo "警告:预检查没通过(dry-run 继续;正式发布前必须先解决上面的问题)" >&2
+  else
+    echo "预检查没通过,先处理上面的问题再发布。" >&2
+    print_tag_recovery_hint
+    exit 1
+  fi
 fi
 
 # ---- 构建 ----
@@ -235,11 +293,22 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "==> dry-run:跳过 git tag / git push / gh release create"
 else
   git tag "$TAG"
-  git push origin "$TAG"
-  gh release create "$TAG" "$APK_DIST" "dist/latest.json" \
+  # push 与 release create 各自用 if 包一层(set -e 下,作为 if 的条件失败不会直接退出脚本):
+  # 失败时要先打印恢复提示再退出,而不是让 set -e 直接终止、把「tag 已经推上去了」这件事
+  # 悄悄留给下一次重跑去发现。
+  if ! git push origin "$TAG"; then
+    echo "git push origin ${TAG} 失败,tag 可能没有(完全)推上去。" >&2
+    print_tag_recovery_hint
+    exit 1
+  fi
+  if ! gh release create "$TAG" "$APK_DIST" "dist/latest.json" \
     --title "UnitedU ${VERSION}" \
     --notes-file "$NOTES_FILE" \
-    --latest
+    --latest; then
+    echo "gh release create 失败,但 tag 已经推到 origin 了——不是发布成功。" >&2
+    print_tag_recovery_hint
+    exit 1
+  fi
   echo "==> GitHub Release ${TAG} 已发布"
 fi
 
