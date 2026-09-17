@@ -102,6 +102,14 @@ class MainActivity : ComponentActivity() {
      * 这个值会一直留着,下次按同一个键会被**再吞一次**,症状是「刚醒来第一下没反应」。
      */
     private var wakeDownTime = -1L
+    /**
+     * 「恢复默认」确认框(spec §4)是否开着。只从设置页「其他→恢复默认」这一行打开,
+     * 叠在设置页之上——`covered = confirmRestore || pickerTarget != null` 让设置页让路(铁律 3),
+     * 对话框自己的 nonce 初始焦点循环负责自己的焦点(见 `ConfirmDialog`)。
+     * **不是一次性布尔闩**(铁律 7):OK/取消/返回/三条杠键各自把它写回 false,
+     * `leaveSettings()` 里还兜底清一次(HOME 键那条路径不会漏),不存在「卡在 true」的路。
+     */
+    private var confirmRestore by mutableStateOf(false)
     /** 首页当前聚焦的卡(HomeScreen 上报);长按确定键时据此弹菜单。 */
     private var focusedCard by mutableStateOf<CardRef?>(null)
     /** 长按菜单开着的那张卡;null = 没开。 */
@@ -202,8 +210,8 @@ class MainActivity : ComponentActivity() {
                     pickWallpaper = { pickWallpaper() },
                     openImport = { openImport() },
                     setDefaultHome = { openHomeSettings() },
-                    // T7 换成「恢复默认」确认框(spec §4);在那之前只给一句提示,不做任何事。
-                    restoreDefaults = { toast("恢复默认:待 T7") },
+                    // 只开确认框(spec §4),真正的写盘在用户按下「恢复」之后 —— 见 confirmRestoreDefaults()。
+                    restoreDefaults = { confirmRestore = true },
                     // **本任务只写字段、不重建**(T8 才接 `applyLanguage` 的 `recreate()` + 位置还原):
                     // 现在就重建的话,设置页会连同它的焦点账本一起没,而还原那一半还没写。
                     applyLanguage = { lang ->
@@ -396,7 +404,9 @@ class MainActivity : ComponentActivity() {
                         onExit = ::leaveSettings,
                         actions = settingsActions,
                         focusNonce = focusNonce,
-                        covered = pt != null,
+                        // 确认框叠在设置页上时同样让路(铁律 3)——不加的话它自己的初始焦点循环
+                        // 会跟设置页的看门狗抢同一帧的焦点请求。
+                        covered = confirmRestore || pt != null,
                         // 每次改动:只重读 settings.json,首页当场按新值重组(布局 / 主题 / 时钟都靠它)。
                         onSettingsChanged = { settingsRevision++ },
                         // 停手 300ms 之后的那一下:**壁纸管线的唯一入口**,见 wallpaperParams 的 KDoc。
@@ -407,6 +417,20 @@ class MainActivity : ComponentActivity() {
                         onDemoIdle = { demoIdle = it },
                         initialPos = settingsPos,
                         onPosChanged = { settingsPos = it },
+                    )
+                }
+                // 「恢复默认」确认框(spec §4)。叠在设置页之上,与选择器同属「设置页的子界面」——
+                // 画在 `when (pt)` 之前只是顺序习惯,两者不会同时出现(它只能从设置页那一行打开,
+                // 打开的瞬间 pickerTarget 必为 null),谁在前不影响层叠结果。
+                if (confirmRestore) {
+                    ConfirmDialog(
+                        title = stringResource(R.string.restore_title),
+                        body = stringResource(R.string.restore_body),
+                        okLabel = stringResource(R.string.restore_ok),
+                        cancelLabel = stringResource(R.string.dialog_cancel),
+                        nonce = focusNonce,
+                        onOk = ::confirmRestoreDefaults,
+                        onCancel = { confirmRestore = false },
                     )
                 }
                 // 叠在首页之上的那一层。用 `when` 而不是继续 if/else 链:分支是同一个量的取值,
@@ -497,6 +521,9 @@ class MainActivity : ComponentActivity() {
             && event.keyCode == KeyEvent.KEYCODE_MENU
         ) {
             if (pickerTarget != null) return true
+            // 「恢复默认」确认框开着时同理:三条杠键只关它自己,不连带关掉整个设置页——
+            // 放在 `settings` 判断之前,否则会摸到下面那一支把整页一起收掉。
+            if (confirmRestore) { confirmRestore = false; return true }
             if (editing) { leaveEdit(); return true }
             if (settings) { leaveSettings(); return true }
             // 「关于」占位页开着时同理:三条杠键只负责关它,不能在它底下叠出齿轮菜单——
@@ -623,6 +650,10 @@ class MainActivity : ComponentActivity() {
         if (!settings) return
         settings = false
         settingsPos = null
+        // 兜底清掉确认框(铁律 7):HOME 键(onNewIntent)只调这一个函数就把整页收掉,
+        // 若确认框还开着,不清的话它会跟着 `settings` 一起消失、下次进设置页却莫名其妙
+        // 蹦出上次那个对话框——三处会调到这里的路(MENU 键 / 返回键兜底 / HOME)因此全覆盖。
+        confirmRestore = false
         // 待机演示的显式收口(见 [demoIdle] 的 KDoc):`activeDemoIdle` 的派生已经保证它
         // 关了就读不到,这里顺手把源头也清掉,免得下次打开设置页时,在 SettingsScreen
         // 重新报告真实值之前的那一帧,还读得到上一次会话残留的旧值。
@@ -645,6 +676,40 @@ class MainActivity : ComponentActivity() {
     private fun applyLanguage(language: String) {
         SettingsStore.update(this) { it.copy(language = language) }
         if (localeFor(language) != AppLocale.current) recreate()
+    }
+
+    /**
+     * 「恢复默认」确认框按下「恢复」(spec §4)。表格划的界线是 settings.json 与
+     * cache/ 两处:[restoredDefaults] 只动前者,library/titles.json/icons/ 一个字节都不碰
+     * (纯函数,T1 已单测);壁纸缓存另调 [Wallpapers.clearCache],都在 IO 线程做。
+     *
+     * `confirmRestore = false` 特地等 `withContext(IO)` 写完盘**之后**才做,不学
+     * `onRenameSave`/`closeCardMenu` 那种「先关浮层再异步写」——`covered` 一变 false,
+     * `SettingsScreen` 那条新增的读盘效果就会立刻 `SettingsStore.read`,提前收掉的话
+     * 读到的还是恢复前的旧值,两栏设置页会在按了「恢复」之后短暂显示错误的档位。
+     *
+     * `settingsRevision++`(首页重读)与 `wallpaperParams++`(壁纸管线,见其 KDoc)双双 bump:
+     * 少 bump 后者的话,壁纸文件名虽然换回默认,但模糊/亮度还停在恢复前的处理结果上——
+     * `wallpaperSpec` 的 remember key 特地不含 blur/brightness,只认这颗计数器。
+     *
+     * 语言字段固定被恢复成 `"system"`([restoredDefaults] 见 [Settings] 默认值),不必再读盘
+     * 确认;真正需要判断的是它是否与**当前生效**的 Locale 不同 —— 用户本来就跟随系统时
+     * 两者相等,不必 `recreate()`。走既有的 [applyLanguage]:T8 会在它上面接位置还原,
+     * 现在调用它、之后 T8 落地不用改这里一行。
+     */
+    private fun confirmRestoreDefaults() {
+        val now = System.currentTimeMillis()
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) {
+                SettingsStore.update(this@MainActivity) { restoredDefaults(it, now) }
+                Wallpapers.clearCache(this@MainActivity)
+            }
+            confirmRestore = false
+            settingsRevision++
+            wallpaperParams++
+            toast(getString(R.string.toast_restored))
+            if (localeFor("system") != AppLocale.current) applyLanguage("system")
+        }
     }
 
     override fun onResume() {
@@ -874,6 +939,9 @@ class MainActivity : ComponentActivity() {
                     // 同理:TitleDialog 自带的 BackHandler 正常会先接管,这里是同一种兜底
                     // (T5 review Important #4)——返回键在对话框开着时绝不能是空操作。
                     renameTarget != null -> { renameTarget = null; focusNonce++ }
+                    // 同理:ConfirmDialog 自带的 BackHandler 正常会先接管,这里是同一种兜底——
+                    // 放在 `settings` 之前,万一没接住也只收掉确认框本身,不连带关掉整个设置页。
+                    confirmRestore -> confirmRestore = false
                     editing -> leaveEdit()
                     settings -> leaveSettings()
                     // 同理:AboutPlaceholder 自带的 BackHandler 正常会先接管,这里是同一种兜底,

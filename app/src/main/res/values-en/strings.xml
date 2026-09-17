@@ -156,6 +156,11 @@
     <string name="settings_lang_en">English</string>
     <string name="settings_action_restore_defaults">Restore Defaults</string>
     <string name="settings_action_restore_defaults_desc">Rows, titles, card images and your gallery stay as they are</string>
+    <!-- restore_* / dialog_cancel : restore-defaults confirm dialog (T7, spec §4) -->
+    <string name="restore_title">Restore default settings?</string>
+    <string name="restore_body">Rows, titles, card images and your gallery stay as they are</string>
+    <string name="restore_ok">Restore</string>
+    <string name="dialog_cancel">Cancel</string>
 
     <!-- preset_* : theme color preset names (gate 2 "subdued" set) -->
     <string name="preset_gold">Gold</string>
@@ -175,4 +180,5 @@
     <string name="toast_icon_restored">Original icon restored</string>
     <string name="toast_opened_stock_launcher">Opened the stock launcher; to switch permanently, change the default home app in System Settings</string>
     <string name="toast_stock_launcher_not_found">Stock launcher not found</string>
+    <string name="toast_restored">Defaults restored</string>
 </resources>

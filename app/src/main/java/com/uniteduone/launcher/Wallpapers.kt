@@ -142,6 +142,16 @@ object Wallpapers {
         return res != null
     }
 
+    /**
+     * 「恢复默认」表(spec §4):清空壁纸处理缓存(cache/wallpapers/),不动 library 原图。
+     * IO 线程,与 [processed] 同一目录。缓存文件按内容 hash 命名,清空后下次显示自动按
+     * 当前 spec(恢复后是 blur=0/brightness=0)重新渲染,不会读到过期的模糊/加亮版本,
+     * 也不会黑屏——`Wallpaper` 组合的 `bmp` 在新结果就绪前仍留着上一帧的位图。
+     */
+    fun clearCache(ctx: Context) {
+        Paths.wallpaperCacheDir(ctx).listFiles()?.forEach { it.delete() }
+    }
+
     /** APK 内置默认底:任何路径都失败时的最后一张,保证永远不黑屏。失败必须留痕:
      *  这是黑屏前最后一道回落,静默失败会让"为什么黑屏"排查不出来。 */
     fun builtinDefault(ctx: Context): Bitmap? = runCatching {

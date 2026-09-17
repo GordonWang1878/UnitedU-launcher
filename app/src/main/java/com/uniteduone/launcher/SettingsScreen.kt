@@ -138,6 +138,19 @@ fun SettingsScreen(
         )
     }
 
+    // **T7 恢复默认的写盘走确认框**,不像切语言那样在 `actions.restoreDefaults()` 返回前就
+    // 写完盘——`liveActions.restoreDefaults` 那次 `s = SettingsStore.read(ctx)`(上面这段
+    // KDoc 写的重读)因此读到的还是恢复前的旧值:确认框此刻才刚打开,`MainActivity` 真正的
+    // 写盘要等用户按下「恢复」才发生,写完才把 `confirmRestore` 落回 false(见其 KDoc,
+    // 顺序是特地这样安排的)。这条效果补上那一半:`covered` 从 true 落回 false 那一刻
+    // (确认框或选择器关闭)才重读一次,保证读到的是盘上刚落地的最终值 —— 不然「其他」组以外
+    // 的分组(卡片大小 / 主题 / 待机…)会在恢复默认之后继续显示恢复前的档位,直到退出设置页重进。
+    // 守卫 `!covered` 与 key `covered` 成对(铁律 6);选择器关闭时同样会多读一次,读到的值
+    // 与内存里的没有分别,白读一次没有代价。
+    LaunchedEffect(covered) {
+        if (!covered) s = SettingsStore.read(ctx)
+    }
+
     // 内容模型(分组 / 行 / 当前档位)全在 SettingsModel.kt 里,这里只画和管焦点。
     val groups = settingsGroups(s, { transform -> update(transform) }, liveActions)
 

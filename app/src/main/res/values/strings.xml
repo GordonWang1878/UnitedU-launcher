@@ -156,6 +156,11 @@
     <string name="settings_lang_en">English</string>
     <string name="settings_action_restore_defaults">恢复默认</string>
     <string name="settings_action_restore_defaults_desc">分栏、标题、卡片图和图片库都不会变</string>
+    <!-- restore_* / dialog_cancel : 「恢复默认」确认框(T7,spec §4) -->
+    <string name="restore_title">恢复默认设置?</string>
+    <string name="restore_body">分栏、标题、卡片图和图片库都不会变</string>
+    <string name="restore_ok">恢复</string>
+    <string name="dialog_cancel">取消</string>
 
     <!-- preset_* : 主题色预设名(门 2「沉稳」一套) -->
     <string name="preset_gold">金</string>
@@ -175,4 +180,5 @@
     <string name="toast_icon_restored">已恢复原始图标</string>
     <string name="toast_opened_stock_launcher">已打开原厂桌面;要永久切换请在系统设置里改主屏幕应用</string>
     <string name="toast_stock_launcher_not_found">找不到原厂桌面</string>
+    <string name="toast_restored">已恢复默认设置</string>
 </resources>
