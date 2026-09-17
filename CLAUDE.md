@@ -33,6 +33,7 @@ adb emu kill                                     # 关闭
 - 按不住键:`settings put secure long_press_timeout 700` 后 `input keyevent --longpress KEYCODE_DPAD_CENTER`(注入的重复事件时间戳 = downTime + 该值,越过 600 ms 阈值;测完改回 400);或装 `LONG_PRESS_MS = 0` 的探针 APK。
 - HOME 角色进程受保护:`am kill` 无效,`am crash` 连任务带状态一起丢,`always_finish_activities` 不生效 ——「进程死后带 Bundle 重建」这台 AVD 造不出来。
 - `pm clear` 连数据带 HOME 角色一起清(卸载同样退回原厂桌面),之后重设。
+- HOME 角色没生效时应用会弹「Default Home」对话框(2026-09-17 美化轮截图时遇到):`input keyevent 4` 按两次再截;截图前 `dumpsys window | grep mCurrentFocus` 确认前台是 UnitedU。
 - 系统设置是半透明侧边面板:盖着时本应用仍是 STARTED,不能拿它当「退到后台」。
 - 测「从别的应用回来焦点还在不在」时,回来要按 BACK:对活着的实例 `am start -n …MainActivity` 走 `onNewIntent`(= HOME 语义),所有浮层当场收掉,测不出焦点记忆。
 - 抓动画过程:`settings put global animator_duration_scale 10`(Compose 动画照这个倍率放慢,screencap 每帧约 0.5 s 也采得到),测完 `settings delete global animator_duration_scale`。

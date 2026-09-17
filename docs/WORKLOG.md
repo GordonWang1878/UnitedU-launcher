@@ -392,6 +392,33 @@ spec 状态行已改为「已实施(commit `8cc5134`),待真机验」(T6 时为 
 - 推送:11 个 commit 未推 origin(等美化那轮或随时说「推」)。
 - M7 开工前的真机对照仍走 A95L 无线调试(端口以电视页面为准;`No route to host` 先 `adb kill-server`)。
 
+## 2026-09-17 · 美化轮第一步:原生 TV UI 一手调研
+
+- 上一轮末尾记的「M7 之后加一轮纯主观美化」正式开工,第一步不改代码,先摸清 Google / Apple 官方与开源 launcher 的原生做法当参照系。产出:`docs/research/2026-09-17-android-tv-native-ui-design-refs.md`(332 行,逐条标一手来源 URL)。
+- **核心发现:UnitedU 现有视觉基线是 Projectivy 系,不是 Google 系**——两套体系对「聚焦」这件事的处理策略根本不同,不是数值微调能弥合的:
+  - Google/Apple 把聚焦缩放压得很轻(均 **1.1×**,Apple 只说 "expands" 不给数字),辨识度另由边框(Card 聚焦 3dp `#938F99`)或抬升+高光承担;UnitedU 现是 **1.31×**,纯靠放大量做辨识度,所以行距(`RowSpacing` 25.4dp)、行内竖向留白（`RowVerticalPad` 20dp）都被迫放大来给它让空间。
+  - Google 焦点动效**进出不对称**(进 300ms / 出 500ms,`CubicBezier(0,0,0.2,1)` 减速曲线,源码 `SurfaceTokens.kt`),旧卡"慢慢沉下去"的观感;UnitedU 是对称 `tween(180)`,进出一样快,这是"利落"与"原生质感"的分水岭。
+  - 官方暗色不是纯黑,是 `#1C1B1F`(带紫的深灰)+ 卡片容器 `#49454F` + 焦点边框 `#938F99`,三个同色相不同明度档撑出「原生统一感」;UnitedU 背景色来自壁纸+主题色,没有这种系统性的中性色阶。
+- **可验证的硬约束**:banner 是 320×180px 位图、文字已烧入图内,卡宽只要不是 2 的整数倍缩放就会让烧入文字发糊——现有卡宽策略需要按此核对。
+- 五个开放问题(聚焦倍率、动效时长曲线、圆角走 Projectivy 40% 卡高还是 Material 8/12dp、壁纸压底层要不要统一 scrim、要不要上 content-based color 从壁纸取主题色)留在文档结尾,等 Gordon 看过再定选型,再进 spec/plan。
+
+## 2026-09-17 · 美化轮第二步:grilling 定方向 → M8 spec
+
+- 承接上一节的调研文档,Gordon 看完给出判断「Google TV 官方 UI 比 Projectivy 好看,Projectivy 只是换壁纸方便(且仅付费版)」。压力测试后的共识:Projectivy 真正做的是壁纸取色染整套界面(Google 官方也推荐 content-based color,UnitedU 早已搬进来),不是边缘功能;「Google TV 好看」要拆成组件库克制感与首页电影感两套语言,UnitedU 没有海报级内容,电影感只能来自壁纸。
+- **grilling 四轮 + 三张效果图 + 一张字体对照,共 15 项决策**,全部落在 `docs/superpowers/specs/2026-09-17-m8-home-visual-refresh-design.md` §0。骨干:壁纸即 hero(不换内置图)+ 大字时钟当主体 + 焦点行锚定下三分之一 + 右上 pill 组;直接照搬 Google 默认值(1.1 倍 + 3dp 描边、进 300 出 500ms、8dp 圆角、58/20dp 网格、#1C1B1F 色阶、新增 Material 紫预设为默认),唯一例外保留 DM Sans;accent 只落行标题/行图标/时钟/pill 图标;首页先做,二级界面并入 M7(顺序建议 M8 → M7)。
+- **决策依据的两个硬事实**:①六张内置壁纸是 1080p 仅二三十 KB 的近黑色斑(打开看过),撑不起电影感,所以 hero 主体必须另找,留空会显空;②横幅 320×180 烧字,三档照 Google 网格推导后中档正好 124dp = Google 表值,三档全是缩小(0.955/0.775/0.55),不放大就不糊。
+- **效果图**:三张 1920×1080 提案图(A 大字时钟 / B 留空 / C 行上移)用真实内置壁纸 + 已定 token 由 headless Chrome 渲染,Gordon 选 A;字体对照用模拟器里拉出来的 Roboto 与 NotoSansCJK 真字体文件 + 应用自带 DM Sans 用 PIL 渲染,结论「中文两方案无差,只影响数字英文」,Gordon 选保留 DM Sans。效果图、字体图与改前首页截图已归档到 `docs/screenshots/m8-*.png`。
+- **工具坑两条**:headless Chrome `--screenshot` 写完 PNG 后偶发不退出,要按「PNG 已生成且 >100KB」判成功、超时 kill、每次独立 `--user-data-dir`;模拟器 `set-home-activity` 后 HOME 键第一次仍落到 Google TV 原生首页(要用 `am start -n` 显式拉起),且 UnitedU 会弹「Default Home」对话框,按两次 BACK 才清。
+- 未做:spec 待 Gordon 审阅;plan 未写;M7 顺延到 M8 之后。
+
+## 2026-09-17 · 美化轮第三步:两问定实现路线(引库 + 分支顺序)
+
+- Gordon 两问。①「Google 不提供资源包吗」→ 提供三种,要分清:代码库 `androidx.tv:tv-material`(调研的数字全从它源码抄的)、Figma 设计包(要他的账号才开得了)、Google Sans 字体(不对外)。**定:引 tv-material 1.0.0,只用叶子组件与 token**(Card / Surface / IconButton / 描边 / 缩放动效 / 色阶 / 字阶),布局、锚定、hero、pill 容器仍自写,不用 ImmersiveList / Carousel / TvLazyRow。推翻 `app/build.gradle.kts` 第 65 行「不引 tv-material」的旧注释——那是焦点 bug 时期的决定,七条铁律管的是滚动容器与焦点恢复,不是叶子组件。版本必须钉 1.0.0:1.1.0 依赖 Compose 1.10.3,现 BOM 2024.10.01 是 1.7.x;本机 Gradle 缓存没有 androidx.tv,首次构建需联网。待 plan 落实:库的 `onLongClick` 走系统长按超时(≈500ms 随固件),与 M4 的 600ms 不同,默认 `onLongClick = null` + 外层 `onPreviewKeyEvent` 保留 600ms。
+- ②「UI 重构怎么切回主线」→ 查实 `m7-settings` 分支领先 main 11 提交、三千多行,改了 HomeScreen / MainActivity / Theme / Clock / Settings / strings,与 M8 正面重叠。**定:M7 先并,M8 之后从新 main 开 `m8-visual`,现阶段只写 plan**;对比靠同包名 APK 互相覆盖安装(十秒),不做 feature flag(两套首页 = 两本焦点账本),不做双装 flavor(applicationIdSuffix,备选)。**上一节记的「顺序建议 M8 → M7」作废,改为 M7 → M8**;M7 做好的二级界面在 M8 收尾时用同一套 token 换皮。
+- spec 同步:§0 加「实现方式」「分支与顺序」两行;新增 §1.0「库提供 vs 自写」表并给库默认值标 ★;§4 加依赖行;§5 单测只测自写公式;§8 加长按语义与 Compose 版本两条风险。
+- `~/GitHub/unitedu-ui-lab` 是另一个产品(UI 设计知识生产线),与本仓库的 UI 重构无关,别混。
+- **长按判据(Gordon 定,同日下午)**:接受 tv-material `Card` 自带 `onLongClick`(系统阈值 ≈500ms,跟系统设置),删 M4 的 600ms 自定义计时;600ms 只作退路。改主意的依据:保留 600ms 要在 `onPreviewKeyEvent` 抢确认键,库的点击和按下缩放随之全看不见,输入处理得整套自己重做,等于只借库画描边。M4 验收项列入 M8 §5 在 A95L 重跑。另加 plan 第一步:调研数字抄自 androidx 主干,要对着 1.0.0 源码核一遍。
+
 ## 2026-09-17 · M7 收官(设置两栏 + 实时预览 + 恢复默认 + 语言 + 待机接线 + 关于/检查更新 + 首次引导 + 发布脚本)
 
 分支 `m7-settings`(base = main `e6c3519`;T1–T11 共 16 个 commit,`e6c3519..68f645b`;本节随收官提交 `docs(m7): closeout`)。子代理驱动 + 每任务评审:T5/T7/T8/T9/T11 各 1 轮修复后 clean,其余一次过审。单测 74 → **159**,`testReleaseUnitTest assembleRelease` 绿。未推送、未发布(`scripts/release.sh` 只跑过 `--dry-run`)。台账、逐任务报告与截图在 `.superpowers/sdd/2026-09-16-m7-settings/`(不入库)。
@@ -564,3 +591,11 @@ Gordon(spec §0):
 - **Gordon 实测通过 5 项**:遥控器长按 0.6 s 弹出卡片菜单;编辑分栏「换卡片图」选择器正常弹出、返回仍在同一张卡(终审 C1);设置页两栏切换 + 首页实时预览;设置页开着时关屏再开,位置不丢(终审 I1,模拟器上复现不了的那条);待机内容三态 +「全黑」渐变过渡(终审 M3)。
 - **仍待测**:HOME 键拉起时切语言回到语言行(等切默认桌面);首次引导第 3 步的「当前默认桌面」显示(只在新装时出现);关于页检查更新 → 下载 → 安装,以及安装器与半透明系统设置面板的先后(等 GitHub 上有首个 release);API 28 签名解析路径(A95L 是 API 34,需另找 Android 9 设备)。
 - 真机通道:配对跨会话仍有效,`No route to host` 重启本机 adb 即通(CLAUDE.md 真机一节,`1ba97e5`)。
+
+## 2026-09-17 · M7 并入确认 → 开 M8:长按二次改口、token 对源码核过、plan 写好
+
+- **M7 并入确认**:合并提交 `c551568` 在 main(`39ec10c`)祖先链上,`m7-settings` 分支与 worktree 已清理。我这边未提交的文档(调研、M8 spec、截图、WORKLOG 三段、CLAUDE.md 一行)完好;CLAUDE.md 那行已并进 M7 写的「模拟器验证的坑」清单去重。
+- **长按第二次改口(Gordon 定:保留 M4 600ms)**。拉了 tv-material 1.0.0 的 sources.jar 看 `Surface.kt`:库的长按是 `handleDPadEnter` 里 `repeatCount == 1` 触发,即固件的首次重复延迟(A95L ≈ 0.4s),正是 M4 否掉的那种;而且 M4 的 600ms 计时不在 AppCard,在 `MainActivity.dispatchKeyEvent`,它在 Compose 之前就吞掉长按 DOWN、同 downTime 的 UP 和所有重复事件,所以保留 600ms 不需要任何拦截代码,Card 传 `onLongClick = null` 即可;库在失焦时发 `PressInteraction.Release`,菜单一开卡片失焦、按压态自动释放。上午「接受库的长按」那条基于我对库机制的错误描述,作废。教训:**涉及第三方库的行为,先拉源码再给建议**,调研文档引主干源码但没读 1.0.0 的输入处理这一段。
+- **★ 数值对 1.0.0 源码核过**:SurfaceScaleTokens 300/500/120/300 + (0,0,0.2,1)、focusedScale 1.1、border 3dp、ContainerShape 8dp、ShapeTokens 8/12、ColorDarkTokens 各角色,全部与调研一致。IconButton Medium 40dp / 图标 20dp → pill 高 48dp(spec §1.5 改)。scrim 措辞改为「顶随行上移、底固定屏底」(spec §2.1)。
+- **plan 写好**:`docs/superpowers/plans/2026-09-17-m8-home-visual-refresh.md`,10 个任务:主题壳 → HomeLayout 纯几何(TDD)→ AppCard 换 tv-material Card → 首页几何切到 HomeLayout(锚定/scrim/删压暗)→ Material 紫预设 → HeroClock → TopPills + 屏保按钮 → 待机/预览/长按复验 → 文档与截图 → 终验清单。新增纯 Kotlin `HomeLayout.kt` 承载全部首页几何,`Theme.cardMetrics` 变成它的 Dp 包装,单测只测它。
+- 待办:文档提交到 main 后开 `m8-visual` worktree(`.claude/worktrees/m8-visual`,沿 M7 惯例)。
