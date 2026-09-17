@@ -267,7 +267,7 @@ fun HomeScreen(
     // 配置里的包一个都装不到时,卡片一张都没有,焦点无处可落;而这时唯一能自救的
     // 控件正是齿轮。不能指望框架的隐式 focus-enter——这份代码在别处恰恰拒绝依赖它。
     val gearFocus = remember { FocusRequester() }
-    // 哪一行是「当前行」——决定其它行压暗;跟着焦点走。
+    // 哪一行是「当前行」——决定纵向锚定位移与 hero 淡出;跟着焦点走。
     var activeRow by remember { mutableStateOf(0) }
 
     // 垂直位置自己算,不用 verticalScroll(铁律 1)。M8:焦点行**锚定**在下三分之一(spec §2.2)——
