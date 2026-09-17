@@ -138,8 +138,10 @@ class MainActivity : ComponentActivity() {
     private var cardMenu by mutableStateOf<CardRef?>(null)
     /** 「修改标题」对话框(Task 5 接线)。 */
     private var renameTarget by mutableStateOf<CardRef?>(null)
-    /** 「移动位置」兜底:进编辑页时定位到这张卡。**(layout.json 行号, 包名)** ——
-     *  列号不能带:编辑页按 layout.json 排,里面还有装不到的包占位,渲染列号对不上。 */
+    /** 编辑页该定位到哪张卡:「移动位置」进编辑页时,以及编辑页里「换卡片图」的选择器关掉、
+     *  编辑页重建时(M7 终审 C1)。**(layout.json 行号, 包名)** ——
+     *  列号不能带:编辑页按 layout.json 排,里面还有装不到的包占位,渲染列号对不上。
+     *  只有 `leaveEdit()` 清它;编辑期间留着无害(编辑页按「已应用的目标」比对,同一个实例只应用一次)。 */
     private var editTarget by mutableStateOf<Pair<Int, String>?>(null)
     /** 「关于」浮层(齿轮菜单第四项,spec §7):版本号 + 手动检查更新,见 AboutScreen.kt。 */
     private var about by mutableStateOf(false)
@@ -431,15 +433,30 @@ class MainActivity : ComponentActivity() {
             // 不是盖在首页上的浮层。设置页 M7 T5 起也是叠加,见下面。
             val pt = pickerTarget
             if (editing) {
-                EditScreen(
-                    onPickIcon = { pickIcon(it) },
-                    onExit = ::leaveEdit,
-                    focusNonce = focusNonce,
-                    revision = revision,
-                    cardsPerRow = homeSettings.cardsPerRow,
-                    showTitles = homeSettings.showTitles,
-                    initialTarget = editTarget,
-                )
+                // **编辑页开着时,选择器替换它,不叠加**(M7 终审 C1)。EditScreen 没有 `covered`
+                // 这个让路开关:叠在它上面的话,它的看门狗与重定位会跟选择器抢焦点。所以回到 M7 之前
+                // 的替换语义——选择器开着时 EditScreen 整个不在组合里,关掉后重建,由 `editTarget`
+                // (layout 行号, 包名)这颗种子把焦点送回刚才那张卡(铁律 5:目标在打开选择器那一刻
+                // 就定下,重建期间 Compose 抢先给出的焦点事件改写不了它;见 onPickIcon)。
+                // 这一支曾被 T4 的伪代码整个挪进了下面的 else:编辑页里按「换卡片图」画面毫无变化,
+                // MENU 被吞,按返回退出编辑页后选择器才出现在首页上。
+                if (pt == null) {
+                    EditScreen(
+                        // 选择器真的打开了(存储就绪)才记种子:打不开时编辑页留在原地,
+                        // 它自己在调用前安排的重定位已经会把焦点放回这张卡。
+                        onPickIcon = { row, pkg -> if (pickIcon(pkg)) editTarget = row to pkg },
+                        onExit = ::leaveEdit,
+                        focusNonce = focusNonce,
+                        revision = revision,
+                        cardsPerRow = homeSettings.cardsPerRow,
+                        showTitles = homeSettings.showTitles,
+                        initialTarget = editTarget,
+                    )
+                } else {
+                    // 编辑页里能打开的只有「换卡片图」(pt = 包名);其余几种选择器只能从首页 / 设置页
+                    // 打开,编辑态下不会出现。仍然整段复用 PickerLayer,不在这里另写一份只认包名的分支。
+                    PickerLayer(pt)
+                }
             } else {
                 HomeScreen(
                     previewing = overlayOpen,
@@ -470,7 +487,7 @@ class MainActivity : ComponentActivity() {
                 // 半透明渐变遮罩底下看到的就是真正的首页 —— 改卡片大小 / 标题 / 主题色当场可见。
                 // 每次改动 `settingsRevision++`(不防抖):首页据此重读 settings.json,
                 // 而模糊 / 亮度另走设置页里 300 ms 防抖的那条,壁纸不必每按一下就重处理一遍。
-                // 写在选择器 `when` **之前**:从设置页里打开的换壁纸 / 导入图片 / 默认桌面卡要盖在它上面,
+                // 写在选择器层(PickerLayer)**之前**:从设置页里打开的换壁纸 / 导入图片 / 默认桌面卡要盖在它上面,
                 // 同时设置页收到 `covered` 让路(焦点归那一层管,铁律 3)。
                 if (settings) {
                     SettingsScreen(
@@ -496,7 +513,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 // 「恢复默认」确认框(spec §4)。叠在设置页之上,与选择器同属「设置页的子界面」——
-                // 画在 `when (pt)` 之前只是顺序习惯,两者不会同时出现(它只能从设置页那一行打开,
+                // 画在 PickerLayer 之前只是顺序习惯,两者不会同时出现(它只能从设置页那一行打开,
                 // 打开的瞬间 pickerTarget 必为 null),谁在前不影响层叠结果。
                 if (confirmRestore) {
                     ConfirmDialog(
@@ -509,43 +526,8 @@ class MainActivity : ComponentActivity() {
                         onCancel = { confirmRestore = false },
                     )
                 }
-                // 叠在首页之上的那一层。用 `when` 而不是继续 if/else 链:分支是同一个量的取值,
-                // `null -> Unit` 必须显式写出来,漏了编译器当场指出,不会悄悄多盖一层。
-                when (pt) {
-                    PICK_WALLPAPER -> WallpaperPicker(
-                        directory = Paths.wallpaperLibrary(this@MainActivity),
-                        title = stringResource(R.string.picker_wallpaper_title),
-                        nonce = focusNonce,
-                        onSelect = { file -> handlePick(file) },
-                        onDismiss = { pickerTarget = null; focusNonce++ },
-                    )
-                    VIEW_SCREENSAVER_POOL -> ScreensaverPoolViewer(
-                        directory = Paths.screensaverLibrary(this@MainActivity),
-                        nonce = focusNonce,
-                        onDismiss = { pickerTarget = null; focusNonce++ },
-                    )
-                    VIEW_IMPORT -> ImportScreen(
-                        onExit = { pickerTarget = null; focusNonce++ },
-                        focusNonce = focusNonce,
-                    )
-                    // 「当前默认桌面」的解析与首次引导第 3 步共用(rememberCurrentHome,T10 抽出)。
-                    VIEW_HOME_SETTINGS -> HomeSettingsCard(
-                        home = rememberCurrentHome(revision),
-                        onOpenSystem = { switchHome() },
-                        onDismiss = { pickerTarget = null; focusNonce++ },
-                        nonce = focusNonce,
-                    )
-                    null -> Unit
-                    // 其余取值都是包名 = 换这张卡的图。
-                    else -> IconPicker(
-                        directory = Paths.cardLibrary(this@MainActivity),
-                        originalIcon = remember(pt) { Apps.originalIcon(this@MainActivity, pt) },
-                        nonce = focusNonce,
-                        onSelect = { file -> handlePick(file) },
-                        onRestoreOriginal = { restoreOriginalIcon(pt) },
-                        onDismiss = { pickerTarget = null; focusNonce++ },
-                    )
-                }
+                // 叠在首页 / 设置页之上的那一层(编辑态下同一个 PickerLayer 改为替换编辑页,见上)。
+                if (pt != null) PickerLayer(pt)
                 // 齿轮菜单第四项「关于」(spec §1、§7)。画在最后 = 叠在设置页 / 选择器之上,
                 // 与它们同属 [overlayOpen] 的整屏浮层家族,首页早已因 previewing 让路;
                 // 焦点由页面自己的请求循环负责(铁律 3)。状态机在 aboutFlow 里,这里只接线。
@@ -584,6 +566,53 @@ class MainActivity : ComponentActivity() {
             }
             }
             }
+        }
+    }
+
+    /**
+     * 选择器那一层:[pickerTarget] 的每一种取值对应一个整屏子界面。用 `when` 而不是 if/else 链——
+     * 分支是同一个量的取值,新增一种取值时不会悄悄落进别的分支。
+     *
+     * **两个调用点**(M7 终审 C1):首页 / 设置页开着时它**叠在上面**(底下那层靠 `previewing` /
+     * `covered` 让路);编辑页开着时它**替换**编辑页(EditScreen 没有让路开关,见 setContent 里那一支)。
+     * 每个子界面自己负责自己的焦点(nonce 初始焦点循环,铁律 3);关掉时 `focusNonce++`,
+     * 让底下那一层——或重建出来的编辑页——把焦点接回离开前那一格。
+     */
+    @Composable
+    private fun PickerLayer(target: String) {
+        when (target) {
+            PICK_WALLPAPER -> WallpaperPicker(
+                directory = Paths.wallpaperLibrary(this),
+                title = stringResource(R.string.picker_wallpaper_title),
+                nonce = focusNonce,
+                onSelect = { file -> handlePick(file) },
+                onDismiss = { pickerTarget = null; focusNonce++ },
+            )
+            VIEW_SCREENSAVER_POOL -> ScreensaverPoolViewer(
+                directory = Paths.screensaverLibrary(this),
+                nonce = focusNonce,
+                onDismiss = { pickerTarget = null; focusNonce++ },
+            )
+            VIEW_IMPORT -> ImportScreen(
+                onExit = { pickerTarget = null; focusNonce++ },
+                focusNonce = focusNonce,
+            )
+            // 「当前默认桌面」的解析与首次引导第 3 步共用(rememberCurrentHome,T10 抽出)。
+            VIEW_HOME_SETTINGS -> HomeSettingsCard(
+                home = rememberCurrentHome(revision),
+                onOpenSystem = { switchHome() },
+                onDismiss = { pickerTarget = null; focusNonce++ },
+                nonce = focusNonce,
+            )
+            // 其余取值都是包名 = 换这张卡的图。
+            else -> IconPicker(
+                directory = Paths.cardLibrary(this),
+                originalIcon = remember(target) { Apps.originalIcon(this, target) },
+                nonce = focusNonce,
+                onSelect = { file -> handlePick(file) },
+                onRestoreOriginal = { restoreOriginalIcon(target) },
+                onDismiss = { pickerTarget = null; focusNonce++ },
+            )
         }
     }
 
@@ -639,6 +668,9 @@ class MainActivity : ComponentActivity() {
             // 首次引导期间 MENU 键无效(spec §8):不出声、不关引导、不在它底下叠出齿轮菜单。
             // 排在最前:下面每一支都会改某个浮层的状态,引导开着时它们一个都不该发生。
             if (onboarding) return true
+            // 选择器开着(叠在首页 / 设置页上,或替换了编辑页)时 MENU 什么都不做:排在 editing /
+            // settings 之前,否则会把底下那页收掉、选择器留在首页上(终审 C1)。关掉选择器之后
+            // pickerTarget 回到 null,MENU 在编辑页上照常 = 退出编辑。
             if (pickerTarget != null) return true
             // 「恢复默认」确认框开着时同理:三条杠键只关它自己,不连带关掉整个设置页——
             // 放在 `settings` 判断之前,否则会摸到下面那一支把整页一起收掉。
@@ -1150,6 +1182,10 @@ class MainActivity : ComponentActivity() {
                     // 同理:TitleDialog 自带的 BackHandler 正常会先接管,这里是同一种兜底
                     // (T5 review Important #4)——返回键在对话框开着时绝不能是空操作。
                     renameTarget != null -> { renameTarget = null; focusNonce++ }
+                    // 同理:每个选择器 / 导入页 / 默认桌面卡都自带 BackHandler,正常会先接管。
+                    // 必须排在 editing / settings 之前(终审 C1):选择器盖在(或替换了)这两页上,
+                    // 万一漏接,落到下面那两支就会把底下那页整个收掉、选择器却还留在首页上。
+                    pickerTarget != null -> { pickerTarget = null; focusNonce++ }
                     // 同理:ConfirmDialog 自带的 BackHandler 正常会先接管,这里是同一种兜底——
                     // 放在 `settings` 之前,万一没接住也只收掉确认框本身,不连带关掉整个设置页。
                     confirmRestore -> confirmRestore = false
