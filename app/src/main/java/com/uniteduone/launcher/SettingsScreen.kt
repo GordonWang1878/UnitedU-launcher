@@ -281,8 +281,9 @@ fun SettingsScreen(
         }
     }
 
-    // 位置上报给 Activity(T8 在 onSaveInstanceState 里存它,切语言 recreate 后种回来)。
-    // 纯读、无守卫,每次账本变动都重报一次全新的值,没有要清的状态。
+    // 位置上报给 Activity:`onSaveInstanceState` 存它,切语言 recreate() 后经 `initialPos`
+    // 种回本页顶上那几个 `remember` 的初值(T8,spec §5)。纯读、无守卫,每次账本变动都
+    // 重报一次全新的值,没有要清的状态。
     LaunchedEffect(pane, group, rowOf[group.coerceIn(0, rowOf.lastIndex)]) {
         onPosChanged(SettingsPos(pane, group, rowOf[group.coerceIn(0, rowOf.lastIndex)]))
     }

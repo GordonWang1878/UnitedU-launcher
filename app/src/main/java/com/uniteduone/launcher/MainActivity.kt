@@ -53,6 +53,17 @@ private const val VIEW_SCREENSAVER_POOL = "__screensaver_pool__"
 private const val VIEW_HOME_SETTINGS = "__home_settings__"
 private const val VIEW_IMPORT = "__import__"
 
+/**
+ * `onSaveInstanceState` 里设置页那几个键(T8,spec §5)。切语言 `recreate()` 会把整个
+ * Activity —— 连同 `settings`/`settingsPos` 这两个普通字段 —— 一起销毁重建,唯一能跨过
+ * 这一趟的是 Bundle。四个键各自独立、命名成组:T10 加引导步骤要存的 `onbStep` 照此追加
+ * 一个同构的常量,不要挤进这几个已有的键里。
+ */
+private const val KEY_SETTINGS_OPEN = "settingsOpen"
+private const val KEY_SETTINGS_PANE = "pane"
+private const val KEY_SETTINGS_GROUP = "group"
+private const val KEY_SETTINGS_ROW = "row"
+
 class MainActivity : ComponentActivity() {
 
     private var lastInput by mutableStateOf(System.currentTimeMillis())
@@ -64,7 +75,11 @@ class MainActivity : ComponentActivity() {
     private var settings by mutableStateOf(false)
     /**
      * 设置页上次停在哪一格(pane/group/row)。切语言要 `recreate()`(spec §5),
-     * 那一趟整棵树都会重建,设置页得按这个位置种回去 —— 由 T8 接 `onSaveInstanceState`。
+     * 那一趟整个 Activity —— 连同这个字段本身 —— 都会被销毁重建;真正跨得过去的是
+     * `onSaveInstanceState` 写进 Bundle 的那一份副本(T8):`onCreate(savedInstanceState)`
+     * 收到后原样种回这里,再喂给 `SettingsScreen(initialPos = …)` 当 `remember` 的初值——
+     * 种子只在挂载那一刻被消费一次,不留一次性布尔闩(rule 7),目标(种到哪一格)与
+     * 「当前焦点真的在哪」全程分开(rule 5)。
      * **不是 `mutableStateOf`**:它只在设置页挂载的那一刻被读一次(喂给 `remember` 的初值),
      * 做成状态只会让每次上报都触发一次无谓的重组。
      */
@@ -209,6 +224,19 @@ class MainActivity : ComponentActivity() {
         if (SettingsStore.read(this).newAppsSeenAt == 0L) {
             SettingsStore.update(this) { it.copy(newAppsSeenAt = System.currentTimeMillis()) }
         }
+        // T8:上一趟若是切语言(或恢复默认连带切语言)触发的 recreate(),把「设置页开着」
+        // 和当时停在哪一格从 Bundle 种回来(spec §5)。必须在这里、`setContent` 之前赋值——
+        // 两个都是普通字段,`setContent` 首次组合时读到的就是当下的值,不需要额外触发重组。
+        // 只在这个键确实写过 `true` 时才种:配置变更之类别的 recreate 路径、或压根没有
+        // 这个键(冷启动)都必须维持默认的 `settings = false`,不能凭空把设置页种出来。
+        if (savedInstanceState?.getBoolean(KEY_SETTINGS_OPEN) == true) {
+            settings = true
+            settingsPos = SettingsPos(
+                pane = savedInstanceState.getInt(KEY_SETTINGS_PANE),
+                group = savedInstanceState.getInt(KEY_SETTINGS_GROUP),
+                row = savedInstanceState.getInt(KEY_SETTINGS_ROW),
+            )
+        }
         installBackHandler()
         setContent {
             // 菜单项列表不必每次重组都新建,否则整棵树都不可跳过
@@ -223,12 +251,10 @@ class MainActivity : ComponentActivity() {
                     setDefaultHome = { openHomeSettings() },
                     // 只开确认框(spec §4),真正的写盘在用户按下「恢复」之后 —— 见 confirmRestoreDefaults()。
                     restoreDefaults = { confirmRestore = true },
-                    // **本任务只写字段、不重建**(T8 才接 `applyLanguage` 的 `recreate()` + 位置还原):
-                    // 现在就重建的话,设置页会连同它的焦点账本一起没,而还原那一半还没写。
-                    applyLanguage = { lang ->
-                        SettingsStore.update(this@MainActivity) { it.copy(language = lang) }
-                        settingsRevision++
-                    },
+                    // T8:接回真正的 applyLanguage()——写盘,且只在 Locale 真的变了才 recreate()。
+                    // 重建后的位置由 onSaveInstanceState/onCreate 经 Bundle 还原(见 settingsPos 的
+                    // KDoc),SettingsScreen 拿 initialPos 当 remember 的种子把焦点落回同一行。
+                    applyLanguage = ::applyLanguage,
                 )
             }
             // 设置页关闭时 leaveSettings() 会让 revision++,壁纸选图 / 轮播 / 滑块预览走的是
@@ -507,6 +533,22 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
+     * 与 `onCreate` 的还原半成对(T8,spec §5)。只存「设置页开没开」与当时停在哪一格——
+     * 其余临时态(`confirmRestore`、`pickerTarget` 之类)recreate 后归零才是对的:它们各自
+     * 只服务自己那一次交互(确认框、选择器),没有一条规则说它们要跨越一次 Activity 重建续命,
+     * 白存它们只会在恢复默认的确认框场景下凭空变出一层不该在的浮层。
+     */
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(KEY_SETTINGS_OPEN, settings)
+        settingsPos?.let { pos ->
+            outState.putInt(KEY_SETTINGS_PANE, pos.pane)
+            outState.putInt(KEY_SETTINGS_GROUP, pos.group)
+            outState.putInt(KEY_SETTINGS_ROW, pos.row)
+        }
+    }
+
+    /**
      * 任何按键都算「有人在用」,唤醒待机。
      *
      * 焦点丢失的兜底**不放在这里**:曾试过「按键时若无焦点就补请求」,但
@@ -681,11 +723,17 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * 语言切换入口(设置页接线见 T8)。写盘后只在 Locale 真的变了才 `recreate()`——
-     * 比如从 `zh-CN` 切到 `zh-TW`(都不是 `localeFor` 所在的等价类)才需要重建,
-     * 避免同语言重复选择也整个重建一次(黑闪 + 焦点打回第一张卡)。
-     * `recreate()` 会重新触发 [attachBaseContext],新语言由那里接管;
-     * 重建后的位置还原是 T8 设置页的职责(`onSaveInstanceState`),这里不管。
+     * 语言切换入口。写盘后只在 Locale 真的变了才 `recreate()`——比如从 `zh-CN` 切到
+     * `zh-TW`(都不是 `localeFor` 所在的等价类)才需要重建,避免同语言重复选择也整个
+     * 重建一次(黑闪 + 焦点打回第一张卡)。`recreate()` 会重新触发 [attachBaseContext],
+     * 新语言由那里接管。
+     *
+     * 重建前的位置不必在这里现抓:设置页每次账本变动都会经 `onPosChanged` 把当下这一格
+     * 写进 [settingsPos](调用这个函数时用户一定已经站在语言行上,该字段早已是最新值)——
+     * `onSaveInstanceState`(T8)把它连同 `settings` 一起写进 Bundle,新 Activity 的
+     * `onCreate` 收到后原样种回来,`SettingsScreen` 拿 `initialPos` 当 `remember` 的种子
+     * 把焦点落回同一行(rule 5:目标与当前分开;rule 7:种子只喂一次,不留闩)。
+     * 恢复默认(`confirmRestoreDefaults`)把语言改回 `system` 时走的是同一个函数、同一条路。
      */
     private fun applyLanguage(language: String) {
         SettingsStore.update(this) { it.copy(language = language) }
