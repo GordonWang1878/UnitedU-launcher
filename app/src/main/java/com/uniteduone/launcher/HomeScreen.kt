@@ -437,6 +437,14 @@ fun HomeScreen(
                 ),
         )
 
+        // hero 主体(spec §2.1 第 3 层):不随 shift 走;第 1 行起淡出、待机时回到 1(heroAlpha),BLACK 待机再随 clockAlpha 淡出。
+        HeroClock(
+            showDate = showDate,
+            modifier = Modifier
+                .padding(start = Theme.SidePadding, top = HomeLayout.HERO_TOP.dp)
+                .alpha(heroAlpha * clockAlpha),
+        )
+
         // 待机用 alpha 淡出而**不移除节点**:移除会连带销毁焦点,醒来后按键落空。
         // 同理也不能用 canFocus 把它们关掉,理由见下面 focusProperties 那段。
         Column(
@@ -551,7 +559,6 @@ fun HomeScreen(
                     },
                 onFocusChange = { got -> report(-1, -1, got) },
             )
-            Clock(modifier = Modifier.alpha(clockAlpha), showDate = showDate)
         }
 
         if (menuOpen) {
