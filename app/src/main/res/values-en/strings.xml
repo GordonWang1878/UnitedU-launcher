@@ -182,6 +182,14 @@
     <string name="about_license_title">Licenses</string>
     <string name="about_license">UnitedU is released under Apache-2.0. Third-party: DM Sans (OFL 1.1), Material Icons (Apache-2.0), NanoHTTPD (BSD-3-Clause), ZXing (Apache-2.0). Built-in wallpapers are procedurally generated.</string>
     <string name="about_repo">Project: github.com/GordonWang1878/UnitedU-launcher</string>
+    <!-- onb_* : first-run guide (T10, spec §8); step 1 language buttons reuse settings_lang_* -->
+    <string name="onb_step1_title">Choose a language</string>
+    <string name="onb_step2_title">Put your installed apps on the home screen</string>
+    <string name="onb_step2_body">Only the apps below will be added; you can add others later in Edit Rows.</string>
+    <string name="onb_step3_title">Make UnitedU your default home screen</string>
+    <string name="onb_next">Continue</string>
+    <string name="onb_skip">Skip</string>
+    <string name="onb_none">No apps found to place automatically</string>
 
     <!-- preset_* : theme color preset names (gate 2 "subdued" set) -->
     <string name="preset_gold">Gold</string>

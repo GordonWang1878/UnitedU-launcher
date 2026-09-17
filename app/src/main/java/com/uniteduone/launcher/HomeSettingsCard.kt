@@ -1,5 +1,7 @@
 package com.uniteduone.launcher
 
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
@@ -33,6 +35,92 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+/** 当前默认桌面:显示名 + 包名(包名只用来取图标;解析不到时为 null)。 */
+data class CurrentHome(val label: String, val pkg: String?)
+
+/**
+ * 按 HOME 会启动谁。设置页的「默认桌面」卡与首次引导第 3 步共用这一处解析(M7 T10 抽出):
+ * `resolveActivity(MATCH_DEFAULT_ONLY)` 给的是解析 HOME intent 的结果,与 HOME 键实际拉起谁一致。
+ * (2026-09-17 模拟器:`set-home-activity` 之后系统「默认主屏幕应用」页已勾 UnitedU,这里与 HOME 键
+ * 却仍指向原厂 Android TV Home——与 T3 记下的「这台 AVD 的 HOME 键不认 set-home-activity」同一现象。)
+ * [revision] 当 key:装卸应用(`PACKAGE_*` → `revision++`)之后默认桌面可能换人,跟着重算。
+ */
+@Composable
+fun rememberCurrentHome(revision: Int): CurrentHome {
+    val ctx = LocalContext.current
+    val unknown = stringResource(R.string.home_settings_unknown)
+    return remember(revision, unknown) {
+        val pm = ctx.packageManager
+        val info = pm.resolveActivity(
+            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),
+            PackageManager.MATCH_DEFAULT_ONLY,
+        )
+        CurrentHome(
+            label = info?.loadLabel(pm)?.toString() ?: unknown,
+            pkg = info?.activityInfo?.packageName,
+        )
+    }
+}
+
+/**
+ * 「当前默认桌面」信息行:图标 + 「当前」+ 名字。不可聚焦,纯展示。
+ * [HomeSettingsCard] 与首次引导第 3 步(spec §8「复用 HomeSettingsCard 内容」)共用,
+ * 两处长得一模一样,不各画一份。图标在 IO 线程取,取不到只留占位底。
+ */
+@Composable
+fun CurrentHomeRow(home: CurrentHome, modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current
+    val icon by produceState<Bitmap?>(null, home.pkg) {
+        value = home.pkg?.let { pkg ->
+            withContext(Dispatchers.IO) {
+                runCatching { drawableToBitmap(ctx.packageManager.getApplicationIcon(pkg)) }.getOrNull()
+            }
+        }
+    }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(Theme.InfoRowBackground)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Theme.IconPlaceholderBackground),
+            contentAlignment = Alignment.Center,
+        ) {
+            val b = icon
+            if (b != null) {
+                Image(
+                    bitmap = b.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(30.dp),
+                )
+            }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            BasicText(
+                text = stringResource(R.string.home_settings_current_label),
+                style = TextStyle(fontFamily = Theme.Sans, color = Theme.HintText, fontSize = 11.sp),
+            )
+            BasicText(
+                text = home.label,
+                style = TextStyle(
+                    fontFamily = Theme.Sans,
+                    fontWeight = FontWeight.Medium,
+                    color = Theme.EmphasisText,
+                    fontSize = 15.sp,
+                ),
+            )
+        }
+    }
+}
+
 /**
  * 「默认桌面」引导卡。Android 不允许普通应用直接改 HOME 角色,真正的切换只能在系统的
  * 「默认主屏幕应用」页完成(见 switchHome)。这张卡把那个粗糙的系统页包在一次明确点击之后:
@@ -41,21 +129,11 @@ import kotlinx.coroutines.withContext
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun HomeSettingsCard(
-    currentLabel: String,
-    currentPkg: String?,
+    home: CurrentHome,
     onOpenSystem: () -> Unit,
     onDismiss: () -> Unit,
     nonce: Int = 0,
 ) {
-    val ctx = LocalContext.current
-    val icon by produceState<Bitmap?>(null, currentPkg) {
-        value = currentPkg?.let { pkg ->
-            withContext(Dispatchers.IO) {
-                runCatching { drawableToBitmap(ctx.packageManager.getApplicationIcon(pkg)) }.getOrNull()
-            }
-        }
-    }
-
     val fr = remember { FocusRequester() }
     var landed by remember { mutableStateOf(false) }
     var btnFocused by remember { mutableStateOf(false) }
@@ -91,48 +169,7 @@ fun HomeSettingsCard(
             Spacer(Modifier.height(18.dp))
 
             // 当前默认桌面
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Theme.InfoRowBackground)
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Theme.IconPlaceholderBackground),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    val b = icon
-                    if (b != null) {
-                        Image(
-                            bitmap = b.asImageBitmap(),
-                            contentDescription = null,
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.size(30.dp),
-                        )
-                    }
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    BasicText(
-                        text = stringResource(R.string.home_settings_current_label),
-                        style = TextStyle(fontFamily = Theme.Sans, color = Theme.HintText, fontSize = 11.sp),
-                    )
-                    BasicText(
-                        text = currentLabel,
-                        style = TextStyle(
-                            fontFamily = Theme.Sans,
-                            fontWeight = FontWeight.Medium,
-                            color = Theme.EmphasisText,
-                            fontSize = 15.sp,
-                        ),
-                    )
-                }
-            }
+            CurrentHomeRow(home)
 
             Spacer(Modifier.height(20.dp))
 

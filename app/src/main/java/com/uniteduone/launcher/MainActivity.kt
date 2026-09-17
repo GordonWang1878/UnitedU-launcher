@@ -3,7 +3,6 @@ package com.uniteduone.launcher
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.ActivityInfo
-import android.content.pm.PackageManager
 import android.os.Bundle
 import android.provider.Settings
 import android.view.SoundEffectConstants
@@ -46,6 +45,8 @@ private const val KEY_SETTINGS_GROUP = "group"
 private const val KEY_SETTINGS_ROW = "row"
 /** 见 [MainActivity.selfTriggeredRecreate] 的 KDoc、`SettingsRestorePolicy.kt`。 */
 private const val KEY_SELF_RECREATE = "selfTriggeredRecreate"
+/** 首次引导停在第几步(T10)。只在引导开着时写;还原规则见 `onCreate` 里引导那一段。 */
+private const val KEY_ONB_STEP = "onbStep"
 
 class MainActivity : ComponentActivity() {
 
@@ -147,8 +148,15 @@ class MainActivity : ComponentActivity() {
      * 取消进行中的一切,所以它的寿命可以跟 Activity 走——构造时只存引用,不碰 Context。
      */
     private val aboutFlow = AboutController(this, BuildConfig.VERSION_CODE, Update.configuredUrls())
-    /** 首次引导浮层(T10 接线)。目前只声明,永远是 false。 */
+    /**
+     * 首次引导浮层(T10,spec §8)开着没有。**只在 `onCreate` 里由 settings.json 派生**
+     * (`resolveOnboarding`:`onboardingDone == false` 才开),关掉只有 [endOnboarding] 一条路,
+     * 而那条路先把 `onboardingDone = true` 写下去——所以不管 Activity 怎么重建,结束了的引导都不会回来,
+     * 没结束的引导每次重建都会被重新判出来。它是 [overlayOpen] 的成员:首页让路、待机冻结、长按不识别。
+     */
     private var onboarding by mutableStateOf(false)
+    /** 引导当前第几步(1..3)。跨 `recreate()` 靠 Bundle 的 [KEY_ONB_STEP]。 */
+    private var onbStep by mutableStateOf(1)
     /**
      * 待机演示(spec §3.2):设置页「待机内容」行拿着焦点时,`SettingsScreen` 经 `onDemoIdle`
      * 上报当前选中值;离开该行 → null。**只在 [settings] 开着期间才有意义**——`SettingsScreen`
@@ -166,7 +174,7 @@ class MainActivity : ComponentActivity() {
      * **首页之上盖着整屏浮层没有**(M7 T4 分层叠加)。写成派生属性而不是各处重算:
      * 这个判据有三个消费者 —— 首页的 `previewing`、长按识别的 `homeBare`、待机效果的
      * key 与守卫 —— 少判一个成员就是一处「浮层开着时底下的首页还在抢焦点 / 还在计待机」。
-     * 四个成员里 [onboarding] 目前恒为 false(T10 接线)。
+     * 引导([onboarding],T10)正是靠这一处同时拿到「首页让路 / 不进待机 / 长按无效」三件事。
      * 读的全是 `mutableStateOf` 字段,在 `setContent` 里读它照样是响应式的。
      */
     private val overlayOpen: Boolean
@@ -207,6 +215,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.colorMode = ActivityInfo.COLOR_MODE_HDR
+        // T10 引导三态判定(spec §8)。**必须排在最前**:它靠「layout.json 在不在」分辨老用户与新装,
+        // 而首页(setContent 之后)一读布局,缺失的 layout.json 就会被写成默认值。放在注册广播之前
+        // 也不是多余——包变动的回调要等 onCreate 返回才轮得到主线程,但这样读起来不必再想这一层。
+        onboarding = resolveOnboarding(this)
         registerReceiver(
             packageChanges,
             android.content.IntentFilter().apply {
@@ -251,6 +263,15 @@ class MainActivity : ComponentActivity() {
                 group = savedInstanceState.getInt(KEY_SETTINGS_GROUP),
                 row = savedInstanceState.getInt(KEY_SETTINGS_ROW),
             )
+        }
+        // T10:引导**开没开不从 Bundle 读**(上面 resolveOnboarding 已经按 settings.json 判过),Bundle
+        // 只回答「开着的话停在第几步」。**不像设置页那样卡 selfTriggeredRecreate**:设置页要卡,是因为
+        // HOME 应该关掉它、而 onCreate 分不出这趟重建之后跟着来的是 HOME 还是 BACK(T8);引导不一样——
+        // HOME 不关它(onNewIntent 不碰它),它在不在只由 settings.json 决定,任何一种重建(切语言、
+        // 进程被杀后回来、清单没声明的配置变化)之后它都照样在,唯一合理的落点就是用户离开时那一步。
+        // 也不会把结束了的引导种回来:结束的每条路都先写 onboardingDone = true,那时 onboarding 已是 false。
+        if (onboarding && savedInstanceState != null) {
+            onbStep = restoredOnboardingStep(savedInstanceState.getInt(KEY_ONB_STEP))
         }
         installBackHandler()
         setContent {
@@ -507,23 +528,13 @@ class MainActivity : ComponentActivity() {
                         onExit = { pickerTarget = null; focusNonce++ },
                         focusNonce = focusNonce,
                     )
-                    VIEW_HOME_SETTINGS -> {
-                        val pm = packageManager
-                        val info = remember(revision) {
-                            pm.resolveActivity(
-                                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),
-                                PackageManager.MATCH_DEFAULT_ONLY,
-                            )
-                        }
-                        val unknownAppLabel = stringResource(R.string.home_settings_unknown)
-                        HomeSettingsCard(
-                            currentLabel = remember(info) { info?.loadLabel(pm)?.toString() ?: unknownAppLabel },
-                            currentPkg = remember(info) { info?.activityInfo?.packageName },
-                            onOpenSystem = { switchHome() },
-                            onDismiss = { pickerTarget = null; focusNonce++ },
-                            nonce = focusNonce,
-                        )
-                    }
+                    // 「当前默认桌面」的解析与首次引导第 3 步共用(rememberCurrentHome,T10 抽出)。
+                    VIEW_HOME_SETTINGS -> HomeSettingsCard(
+                        home = rememberCurrentHome(revision),
+                        onOpenSystem = { switchHome() },
+                        onDismiss = { pickerTarget = null; focusNonce++ },
+                        nonce = focusNonce,
+                    )
                     null -> Unit
                     // 其余取值都是包名 = 换这张卡的图。
                     else -> IconPicker(
@@ -551,6 +562,26 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+            // 首次引导(T10,spec §8)。画在最上层,而且**放在 editing 的 if/else 之外**:引导开着时
+            // 本来就进不了编辑页(菜单、长按都被挡),但万一两者同时为真,也绝不能出现「引导状态是开的、
+            // 画面上却没有它」——那会是一个吞掉全部焦点的黑洞。其余整屏浮层在引导期间都打不开。
+            if (onboarding) {
+                Onboarding(
+                    step = onbStep,
+                    language = homeSettings.language,
+                    revision = revision,
+                    nonce = focusNonce,
+                    onLanguage = ::chooseOnboardingLanguage,
+                    onStep = { onbStep = it },
+                    onFill = { fillFromOnboarding(fill = true) },
+                    onSkipFill = { fillFromOnboarding(fill = false) },
+                    // 先结束(写 onboardingDone = true)再跳系统页:从系统页回来落在普通首页,
+                    // 即使进程在系统页里被杀,引导也不会再出现。
+                    onOpenHomeSettings = { endOnboarding(); switchHome() },
+                    onFinish = ::endOnboarding,
+                    onBack = ::stepBackInOnboarding,
+                )
+            }
             }
             }
         }
@@ -572,6 +603,9 @@ class MainActivity : ComponentActivity() {
             outState.putInt(KEY_SETTINGS_GROUP, pos.group)
             outState.putInt(KEY_SETTINGS_ROW, pos.row)
         }
+        // T10:引导的步骤号。第 1 步选语言时 chooseOnboardingLanguage 先把它改成 2 再 recreate(),
+        // 这里写下的就是 2——重建后直接落在第 2 步、已是新语言。
+        if (onboarding) outState.putInt(KEY_ONB_STEP, onbStep)
     }
 
     /**
@@ -602,6 +636,9 @@ class MainActivity : ComponentActivity() {
         if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0
             && event.keyCode == KeyEvent.KEYCODE_MENU
         ) {
+            // 首次引导期间 MENU 键无效(spec §8):不出声、不关引导、不在它底下叠出齿轮菜单。
+            // 排在最前:下面每一支都会改某个浮层的状态,引导开着时它们一个都不该发生。
+            if (onboarding) return true
             if (pickerTarget != null) return true
             // 「恢复默认」确认框开着时同理:三条杠键只关它自己,不连带关掉整个设置页——
             // 放在 `settings` 判断之前,否则会摸到下面那一支把整页一起收掉。
@@ -679,6 +716,8 @@ class MainActivity : ComponentActivity() {
      * HOME 键的语义是「回到桌面初始状态」,所以要把编辑界面和菜单都收掉。
      * 导入页额外收一次:它拿着一个无密码的局域网 HTTP 服务,按 HOME 离开时必须一并关掉
      * (其余选择器不持有任何资源,不用管)。
+     * **首次引导故意不收**(T10):spec §8 只给了「跳过 / 走完 / 第 1 步返回」三个出口;
+     * 引导期间其余浮层都打不开,下面这几个收尾调用全是空操作,也不碰 focusNonce。
      */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -787,6 +826,53 @@ class MainActivity : ComponentActivity() {
             selfTriggeredRecreate = true
             recreate()
         }
+    }
+
+    /**
+     * 引导第 1 步选了一个语言(T10)。**先把步骤号改成 2,再调 [applyLanguage]**:Locale 真变了的话
+     * 它会 `recreate()`,`onSaveInstanceState` 写下的正是 2,新实例直接落在第 2 步、已是新语言;
+     * 选的就是当前生效的语言时不重建,这一行本身就把界面带到了第 2 步。
+     * `settingsRevision++` 只为没重建的那条路:让 `homeSettings.language` 跟上盘上的新值,
+     * 从第 2 步按返回回来时「已选」标记在对的按钮上(重建的那条路上它是对一个即将销毁的实例赋值,无害)。
+     */
+    private fun chooseOnboardingLanguage(language: String) {
+        onbStep = 2
+        applyLanguage(language)
+        settingsRevision++
+    }
+
+    /**
+     * 引导第 2 步的「继续」(fill)/「跳过」。界面立刻进第 3 步,写盘在串行 IO 上做
+     * (见 `onboardingLayoutWrites`:「继续 → 返回 → 跳过」两次写盘不会交叠,最后落盘的是最后一次选择);
+     * 写完 `revision++`,底下常驻的首页按新 layout.json 重读。
+     */
+    private fun fillFromOnboarding(fill: Boolean) {
+        onbStep = 3
+        lifecycleScope.launch {
+            val ok = withContext(onboardingLayoutWrites) { writeOnboardingLayout(this@MainActivity, fill) }
+            if (ok) revision++ else toast(getString(R.string.toast_storage_not_ready))
+        }
+    }
+
+    /** 引导里的返回键(页面自己的 BackHandler 与 [installBackHandler] 的兜底共用):上一步;第 1 步 = 结束。 */
+    private fun stepBackInOnboarding() {
+        val previous = onboardingBack(onbStep)
+        if (previous == null) endOnboarding() else onbStep = previous
+    }
+
+    /**
+     * 结束引导**只有这一条路**(第 3 步的「继续」/「跳过」、第 3 步去系统设置、第 1 步按返回)。
+     * 顺序是死的:先写 `onboardingDone = true`(同步写完——第 3 步紧接着就要离开本应用,进程可能在
+     * 系统页里被杀),再收浮层,再 `focusNonce++` 让首页从冻结的目标(冷启动即第一张卡,空桌面即齿轮)
+     * 把焦点接回来。写盘失败也照样收起:用户明确结束了,本次会话不再打扰(盘上仍是 false,
+     * 下次启动引导还会出现——那时存储多半已经恢复)。
+     * 开头的判断读的是活状态,不是闩(铁律 7):同一帧里按两下只会结束一次。
+     */
+    private fun endOnboarding() {
+        if (!onboarding) return
+        SettingsStore.update(this) { it.copy(onboardingDone = true) }
+        onboarding = false
+        focusNonce++
     }
 
     /**
@@ -1051,6 +1137,8 @@ class MainActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 when {
+                    // 首次引导画在最上层(T10),兜底也最先判(Onboarding 自带的 BackHandler 正常会先接管)。
+                    onboarding -> stepBackInOnboarding()
                     // 「关于」页画在最上层,兜底也最先判(AboutScreen 自带的 BackHandler 正常会先接管)。
                     // 它开着时下面几种浮层都不可能同时在场(只能从首页齿轮菜单打开,打开时菜单已收起)。
                     about -> onAboutBack()

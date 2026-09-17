@@ -441,7 +441,10 @@ fun HomeScreen(
         ) {
             // 配置里的应用一个都装不到时,屏幕上只剩时钟和齿轮,看着像坏了。
             // 给一句话告诉用户怎么自救(实测:此时齿轮菜单仍可用)。
-            if (loaded != null && rows.isEmpty()) {
+            // **被整屏浮层盖着时不画**(M7 T10):这句话说的是「齿轮已选中」,而浮层开着时齿轮
+            // 不可聚焦、焦点在浮层里——它是一句假话;首次引导的 α 0.85 遮罩下它还正好横在
+            // 语言按钮与「继续」之间(模拟器截图实测)。previewing = false 时行为不变。
+            if (loaded != null && rows.isEmpty() && !previewing) {
                 BasicText(
                     text = stringResource(R.string.home_empty_apps_hint),
                     modifier = Modifier.padding(start = Theme.SidePadding),

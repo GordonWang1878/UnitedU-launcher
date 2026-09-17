@@ -56,6 +56,18 @@ data class ActionRow(
 data class GroupSpec(val id: GroupId, val titleRes: Int, val rows: List<RowSpec>)
 
 /**
+ * 语言的四个选项文案,与 [VALID_LANGUAGES] 逐项对应(第 i 项的文案对应第 i 个取值)。
+ * 两处读同一张表:设置页的语言行、首次引导第 1 步的四个按钮(M7 T10)——
+ * 抽出来是为了不让两边各写一份、改一处漏一处(与 `Settings.kt` 那几张合法值表同一个道理)。
+ */
+internal val LANGUAGE_OPTION_RES: List<Int> = listOf(
+    R.string.settings_lang_system,
+    R.string.settings_lang_zh_cn,
+    R.string.settings_lang_zh_tw,
+    R.string.settings_lang_en,
+)
+
+/**
  * 设置页要做、但**只有 Activity 做得了**的五件事(开子界面、切语言)。
  * 模型只管把它们挂到对应的行上,不认识 `Context`;真正的实现在 `MainActivity`。
  */
@@ -217,12 +229,7 @@ fun settingsGroups(
                 ControlRow(
                     id = "language", labelRes = R.string.settings_language,
                     kind = CtrlKind.SEGMENTED,
-                    optionRes = listOf(
-                        R.string.settings_lang_system,
-                        R.string.settings_lang_zh_cn,
-                        R.string.settings_lang_zh_tw,
-                        R.string.settings_lang_en,
-                    ),
+                    optionRes = LANGUAGE_OPTION_RES,
                     count = VALID_LANGUAGES.size,
                     // 读盘时已经夹过(非法值 → system),找不到再退一次 0,不让下标变成 −1。
                     selected = VALID_LANGUAGES.indexOf(s.language).coerceAtLeast(0),

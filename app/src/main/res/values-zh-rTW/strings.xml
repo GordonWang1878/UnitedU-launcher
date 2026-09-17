@@ -182,6 +182,14 @@
     <string name="about_license_title">授權聲明</string>
     <string name="about_license">本專案以 Apache-2.0 授權發布。第三方元件:DM Sans(OFL 1.1)、Material Icons(Apache-2.0)、NanoHTTPD(BSD-3-Clause)、ZXing(Apache-2.0)。內建桌布為程式產生。</string>
     <string name="about_repo">專案網址 github.com/GordonWang1878/UnitedU-launcher</string>
+    <!-- onb_* : 首次啟動引導(T10,spec §8);第 1 步的語言按鈕沿用 settings_lang_* -->
+    <string name="onb_step1_title">選擇語言</string>
+    <string name="onb_step2_title">把已安裝的應用程式放到桌面</string>
+    <string name="onb_step2_body">只會放下面這些;其餘的可以稍後在編輯分欄裡新增</string>
+    <string name="onb_step3_title">把 UnitedU 設為預設桌面</string>
+    <string name="onb_next">繼續</string>
+    <string name="onb_skip">略過</string>
+    <string name="onb_none">找不到可自動放置的應用程式</string>
 
     <!-- preset_* : 主題色預設名(門 2「沉穩」一套) -->
     <string name="preset_gold">金</string>
