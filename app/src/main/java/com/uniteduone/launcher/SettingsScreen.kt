@@ -98,6 +98,13 @@ fun SettingsScreen(
     onSettingsChanged: () -> Unit = {},
     /** 模糊 / 亮度改动 300 ms 防抖后通知:壁纸要重新处理一遍,不该每按一下就跑一次。 */
     onWallpaperParamsChanged: () -> Unit = {},
+    /**
+     * 待机演示(spec §3.2):焦点停在「待机内容」这一行时,把当前选中的值上报出去;
+     * 离开这一行(或整页被 `covered` 盖住)就要变回 null。`MainActivity` 拿它驱动
+     * 底层首页的待机预览,`leaveSettings()` 那条路另有一层派生兜底(铁律 7 见 `demoIdle` KDoc),
+     * 这里只管「本页开着期间,焦点在不在那一行」这一件事。
+     */
+    onDemoIdle: (IdleContent?) -> Unit = {},
     /** `recreate()` 之前记下的位置(T8);null = 从左栏第一组开始。 */
     initialPos: SettingsPos? = null,
     onPosChanged: (SettingsPos) -> Unit = {},
@@ -247,6 +254,18 @@ fun SettingsScreen(
     LaunchedEffect(pane, group, rowOf[group.coerceIn(0, rowOf.lastIndex)]) {
         onPosChanged(SettingsPos(pane, group, rowOf[group.coerceIn(0, rowOf.lastIndex)]))
     }
+
+    // **待机演示**(spec §3.2):判据直接从 `focusedCell`/`group` 派生「是不是正站在
+    // 『待机内容』这一行」——不缓存、不设一次性布尔闩(铁律 7):离开那一行、切到别的组、
+    // 或整页被子界面盖住(此时 `focusedCell` 已经因失焦变 null),这个判据自己就变回 false,
+    // 没有专门的「清空」路径要另外维护。上报值取 `s.idleContent` 而不是控件自己另存一份——
+    // 它与 `ControlRow.selected` 同源,左右键改完档位那一刻这里跟着变,预览与实际选中永远一致。
+    val standbyGroupIndex = groups.indexOfFirst { it.id == GroupId.STANDBY }
+    val idleContentRowIndex = groups.getOrNull(standbyGroupIndex)?.rows?.indexOfFirst { it.id == "idleContent" } ?: -1
+    val onIdleContentRow = pane == PANE_R && group == standbyGroupIndex &&
+        idleContentRowIndex >= 0 && focusedCell == (PANE_R to idleContentRowIndex)
+    val demoIdle = if (onIdleContentRow) s.idleContent else null
+    LaunchedEffect(demoIdle) { onDemoIdle(demoIdle) }
 
     // 返回键关闭本页。走 Compose 的 BackHandler:它比 MainActivity 那个常开回调后注册,
     // 本页在时优先接管;子界面叠在本页之上时,它自己的 BackHandler 又比这条更后注册,先接管。

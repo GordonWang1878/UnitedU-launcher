@@ -14,10 +14,29 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.*
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
@@ -92,11 +111,20 @@ class MainActivity : ComponentActivity() {
     /** 「移动位置」兜底:进编辑页时定位到这张卡。**(layout.json 行号, 包名)** ——
      *  列号不能带:编辑页按 layout.json 排,里面还有装不到的包占位,渲染列号对不上。 */
     private var editTarget by mutableStateOf<Pair<Int, String>?>(null)
-    /** 「关于与检查更新」浮层(T7 接线)。**本任务只是占位,永远是 false**——
-     *  先声明是为了让 [overlayOpen] 与长按的 `homeBare` 一次写全,T7 只需把它置真。 */
+    /** 「关于」浮层。**本任务(T6)接了齿轮菜单第四项**,给它一个占位页(标题「关于」+ 返回关闭)——
+     *  T9 换成正式的 AboutScreen(版本号 + 检查更新)。 */
     private var about by mutableStateOf(false)
-    /** 首次引导浮层(T9 接线)。同 [about]:本任务只占位,永远是 false。 */
+    /** 首次引导浮层(T9 接线)。同 [about] 曾经的占位状态:本任务只声明,永远是 false。 */
     private var onboarding by mutableStateOf(false)
+    /**
+     * 待机演示(spec §3.2):设置页「待机内容」行拿着焦点时,`SettingsScreen` 经 `onDemoIdle`
+     * 上报当前选中值;离开该行 → null。**只在 [settings] 开着期间才有意义**——`SettingsScreen`
+     * 整页收掉之后不会再有机会把它冲回 null,所以下面用到它的每一处都读派生量
+     * `if (settings) demoIdle else null`,不直接读这个字段(铁律 7:靠派生自愈,
+     * 不指望某一条窄路把状态清干净)。`settings` 置真 / 置假的两条路上也顺手清一次,
+     * 免得下次打开设置页时残留上一次的值在派生生效前的那一帧里闪一下。
+     */
+    private var demoIdle by mutableStateOf<IdleContent?>(null)
     /** 长按识别:记下那次按压的 downTime,同一次按压之后的事件(含 UP)全吞——clickable 在 UP 才触发,不会顺带启动应用。 */
     private var longPressDownTime = -1L
     private val LONG_PRESS_MS = 600L
@@ -105,7 +133,7 @@ class MainActivity : ComponentActivity() {
      * **首页之上盖着整屏浮层没有**(M7 T4 分层叠加)。写成派生属性而不是各处重算:
      * 这个判据有三个消费者 —— 首页的 `previewing`、长按识别的 `homeBare`、待机效果的
      * key 与守卫 —— 少判一个成员就是一处「浮层开着时底下的首页还在抢焦点 / 还在计待机」。
-     * 四个成员里 [about] / [onboarding] 本任务恒为 false(见各自 KDoc)。
+     * 四个成员里 [onboarding] 本任务恒为 false(T9 接线);[about] 本任务起会真的置真。
      * 读的全是 `mutableStateOf` 字段,在 `setContent` 里读它照样是响应式的。
      */
     private val overlayOpen: Boolean
@@ -190,6 +218,9 @@ class MainActivity : ComponentActivity() {
             // 这里不能显式写 Settings 类型名,本文件已经 `import android.provider.Settings`,
             // 裸写 Settings 会撞上那个系统类;靠类型推断绕开,只取用到的字段(showDate)。
             val homeSettings = remember(revision, settingsRevision) { SettingsStore.read(this@MainActivity) }
+            // 待机演示派生量(见 [demoIdle] 的 KDoc):`settings` 一关就自动变 null,
+            // 不依赖 SettingsScreen 在它自己最后一帧里主动上报 null(铁律 7)。
+            val activeDemoIdle = if (settings) demoIdle else null
             // 主题色:选中预设的 accent + highlight,经下面的 LocalThemeColors 供给**每个界面**(2026-09-16 全面接线)。
             // followWallpaperColor 打开时,accent 改从当前壁纸主色提取、highlight 由它混白推得
             // (与非金预设同一算法);解不出色或没壁纸就回落到预设。壁纸解码放 IO 线程,
@@ -289,10 +320,17 @@ class MainActivity : ComponentActivity() {
             // Box 只要选了 BLACK 就常驻组合(不额外拿 idle 当 if 条件),这样 animateFloatAsState
             // 才能从上一次的值平滑动画过去;若只在 idle 时才组合它,首帧会直接从目标值起跳,
             // 表现为黑屏瞬间弹出而不是 1200ms 淡入。
-            if (homeSettings.idleContent == IdleContent.BLACK) {
+            // **待机演示(spec §3.2)也要能让这层变黑**:同一个 Box 常驻组合的条件因此加上
+            // `activeDemoIdle == BLACK`——只判 `homeSettings.idleContent`(真实设置)的话,
+            // 设置页把「待机内容」演示切到「全黑」时,若真实设置并非全黑,这层压根没被组合,
+            // 演示就只剩卡片淡出、看不到「整屏全黑」这一半。
+            if (homeSettings.idleContent == IdleContent.BLACK || activeDemoIdle == IdleContent.BLACK) {
+                val demoActive = activeDemoIdle != null
+                val blackIdle = idle || demoActive
+                val blackContent = activeDemoIdle ?: homeSettings.idleContent
                 val blackAlpha by animateFloatAsState(
-                    targetValue = if (idle && homeSettings.idleContent == IdleContent.BLACK) 1f else 0f,
-                    animationSpec = tween(if (idle) 1200 else 400),
+                    targetValue = if (blackIdle && blackContent == IdleContent.BLACK) 1f else 0f,
+                    animationSpec = tween(if (blackIdle) 1200 else 400),
                     label = "blackAlpha",
                 )
                 Box(
@@ -326,6 +364,7 @@ class MainActivity : ComponentActivity() {
                     previewing = overlayOpen,
                     idle = idle,
                     idleContent = homeSettings.idleContent,
+                    demoIdle = activeDemoIdle,
                     menuItems = menu,
                     menuOpen = menuOpen,
                     onMenuOpenChange = { if (it) { menuFromGear = true; menuOpen = true } else closeMenu() },
@@ -362,6 +401,10 @@ class MainActivity : ComponentActivity() {
                         onSettingsChanged = { settingsRevision++ },
                         // 停手 300ms 之后的那一下:**壁纸管线的唯一入口**,见 wallpaperParams 的 KDoc。
                         onWallpaperParamsChanged = { wallpaperParams++ },
+                        // 待机演示(spec §3.2):焦点停在「待机内容」行时上报选中值,写回 [demoIdle]。
+                        // 派生量 activeDemoIdle 已经把「settings 关了就是 null」这半覆盖了,
+                        // 这里只管「本页开着期间」的实时上报。
+                        onDemoIdle = { demoIdle = it },
                         initialPos = settingsPos,
                         onPosChanged = { settingsPos = it },
                     )
@@ -413,6 +456,12 @@ class MainActivity : ComponentActivity() {
                         onDismiss = { pickerTarget = null; focusNonce++ },
                     )
                 }
+                // 齿轮菜单第四项「关于」(spec §1)。**本任务只是占位页**(T9 换成正式内容),
+                // 画在最后 = 叠在设置页 / 选择器之上,与它们同属 [overlayOpen] 的整屏浮层家族,
+                // 首页早已因 previewing 让路。
+                if (about) {
+                    AboutPlaceholder(nonce = focusNonce, onDismiss = ::closeAbout)
+                }
             }
             }
             }
@@ -450,6 +499,9 @@ class MainActivity : ComponentActivity() {
             if (pickerTarget != null) return true
             if (editing) { leaveEdit(); return true }
             if (settings) { leaveSettings(); return true }
+            // 「关于」占位页开着时同理:三条杠键只负责关它,不能在它底下叠出齿轮菜单——
+            // 不判的话会摸到下面 `menuOpen` 那一支,在关于页蒙版后面悄悄开出一层齿轮菜单。
+            if (about) { closeAbout(); return true }
             window.decorView.playSoundEffect(SoundEffectConstants.NAVIGATION_DOWN)
             // 「修改标题」对话框开着时同理:三条杠键只负责取消它,不能在它底下叠出齿轮菜单——
             // 不判的话 menuOpen 会被悄悄置 true,对话框仍在最上层挡着,直到它关掉才会露出
@@ -525,6 +577,7 @@ class MainActivity : ComponentActivity() {
         leaveSettings()
         closeMenu()
         closeCardMenu()
+        closeAbout()
         renameTarget = null
         if (pickerTarget == VIEW_IMPORT) { pickerTarget = null; focusNonce++ }
     }
@@ -544,6 +597,17 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
+     * 关「关于」占位页**只有这一条路**(与 closeMenu 同构):它自己的 BackHandler、
+     * MENU 键分支、installBackHandler 的兜底分支都调它,焦点由首页看门狗接回齿轮
+     * (与其它整屏浮层的 onDismiss 同理)。
+     */
+    private fun closeAbout() {
+        if (!about) return
+        about = false
+        focusNonce++
+    }
+
+    /**
      * 关设置页**只有这一条路**。关掉后 focusNonce++ 让首页把焦点还原到进入设置前那一格
      * (与各选择器 onDismiss 同理;首页常驻,`previewing` 期间目标是冻着的)。
      *
@@ -559,6 +623,10 @@ class MainActivity : ComponentActivity() {
         if (!settings) return
         settings = false
         settingsPos = null
+        // 待机演示的显式收口(见 [demoIdle] 的 KDoc):`activeDemoIdle` 的派生已经保证它
+        // 关了就读不到,这里顺手把源头也清掉,免得下次打开设置页时,在 SettingsScreen
+        // 重新报告真实值之前的那一帧,还读得到上一次会话残留的旧值。
+        demoIdle = null
         focusNonce++
         // **防抖的补课**:滑块的 300ms 防抖住在设置页的效果里,「动一格就立刻按返回」会把那次
         // 通知连同协程一起取消掉,壁纸就会停在旧参数上,直到下次换图/重扫才追上。这里补一次。
@@ -597,14 +665,26 @@ class MainActivity : ComponentActivity() {
         longPressDownTime = -1L
     }
 
+    /**
+     * 齿轮菜单四项,顺序固定(spec §1):编辑分栏 · UnitedU 设置 · 系统设置 · 关于。
+     * 「导入图片 / 换壁纸 / 屏保图库 / 设置默认桌面」四项搬进设置页对应分组(SettingsModel.kt),
+     * 不再是菜单项;`openImport()`/`pickWallpaper()`/`openHomeSettings()` 三个函数还在,
+     * 只是改由那边的动作行调用(见 `settingsActions`)。
+     */
     private fun menuItems() = listOf(
         MenuItem(getString(R.string.menu_edit), getString(R.string.menu_edit_desc)) { editing = true },
-        MenuItem(getString(R.string.menu_settings), getString(R.string.menu_settings_desc)) { settings = true },
-        MenuItem(getString(R.string.menu_import), getString(R.string.menu_import_desc)) { openImport() },
-        MenuItem(getString(R.string.menu_wallpaper), getString(R.string.menu_wallpaper_desc)) { pickWallpaper() },
-        MenuItem(getString(R.string.menu_screensaver), getString(R.string.menu_screensaver_desc)) { openScreensaverPool() },
-        MenuItem(getString(R.string.menu_system_settings), getString(R.string.menu_system_settings_desc)) { open(Intent(Settings.ACTION_SETTINGS)) },
-        MenuItem(getString(R.string.menu_set_default_home), getString(R.string.menu_set_default_home_desc)) { openHomeSettings() },
+        MenuItem(getString(R.string.menu_settings), getString(R.string.menu_settings_desc)) {
+            // 待机演示清零(见 [demoIdle] 的 KDoc):打开设置页那一刻先冲掉上一次会话的残留值,
+            // 免得 SettingsScreen 报告真实焦点之前的那一帧里,底层首页读到一个过期的演示态。
+            demoIdle = null
+            settings = true
+        },
+        MenuItem(getString(R.string.menu_system_settings), getString(R.string.menu_system_settings_desc)) {
+            // `open()` 失败时已经会 toast(`toast_open_failed`,带异常信息),复用它就不必
+            // 再声明一个专门的 `toast_open_settings_failed` 只为了包一层同样的文案。
+            open(Intent(Settings.ACTION_SETTINGS))
+        },
+        MenuItem(getString(R.string.menu_about), getString(R.string.menu_about_desc)) { about = true },
     )
 
     /**
@@ -699,6 +779,12 @@ class MainActivity : ComponentActivity() {
         pickerTarget = VIEW_IMPORT
     }
 
+    /**
+     * 屏保图库查看器的入口。**齿轮菜单 / 设置页本轮都没有按钮调它**(spec §1:四项菜单里
+     * 「屏保图库」被移除;§2.2 待机组的屏保子项要等 M5)——保留函数与 [VIEW_SCREENSAVER_POOL]
+     * 只是不删掉这条已经写好、M5 会直接复用的路径,不是死代码判断失误。
+     */
+    @Suppress("unused")
     private fun openScreensaverPool() {
         if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
         closeMenu()
@@ -790,6 +876,9 @@ class MainActivity : ComponentActivity() {
                     renameTarget != null -> { renameTarget = null; focusNonce++ }
                     editing -> leaveEdit()
                     settings -> leaveSettings()
+                    // 同理:AboutPlaceholder 自带的 BackHandler 正常会先接管,这里是同一种兜底,
+                    // 万一没接住,「关于」占位页不能是一个按返回也退不出去的死角。
+                    about -> closeAbout()
                     // 桌面根状态:什么都不做,绝不 finish
                 }
             }
@@ -815,3 +904,66 @@ private fun wallpaperThemeColors(ctx: android.content.Context, wallpaperFile: St
             val accent = androidx.compose.ui.graphics.Color(usableAccent(rgb) or 0xFF000000.toInt())
             ThemeColors(accent, highlightFrom(accent))
         }
+
+/**
+ * 「关于」占位页(spec §1、§7:T9 换成正式的 AboutScreen,含版本号 + 检查更新)。
+ * 与 GearMenu / TitleDialog 同一份焦点账本手法:
+ * - 整屏浮层至少要有**一个**可聚焦节点(铁律 1 的姊妹坑:一个都没有的话 D-pad 在这棵树里
+ *   找不到候选,焦点会整个消失,之后关掉这一层时首页看门狗会先经历一帧「树里没有任何焦点」);
+ * - 焦点落没落下只信自报 `focused`(铁律 2/4),`nonce` 变化就重新请求一轮(铁律 3);
+ * - 上下左右在这个节点上全锁 `Cancel`:占位页只有一块内容,没有任何方向可以移动出去。
+ * 返回键走 `BackHandler`(与焦点无关,由 OnBackPressedDispatcher 按注册顺序接管),
+ * `MainActivity` 另有一条同构的兜底(见 `installBackHandler`)。
+ */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+@Composable
+private fun AboutPlaceholder(nonce: Int, onDismiss: () -> Unit) {
+    val fr = remember { FocusRequester() }
+    var focused by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler { onDismiss() }
+    LaunchedEffect(nonce, focused) {
+        if (focused) return@LaunchedEffect
+        var frames = 0
+        while (!focused && frames < 60) {
+            withFrameNanos { }
+            runCatching { fr.requestFocus() }
+            frames++
+        }
+    }
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.72f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier
+                .clip(RoundedCornerShape(14.dp))
+                .background(Theme.DialogSurface)
+                .width(360.dp)
+                .focusRequester(fr)
+                .focusProperties {
+                    up = FocusRequester.Cancel
+                    down = FocusRequester.Cancel
+                    left = FocusRequester.Cancel
+                    right = FocusRequester.Cancel
+                }
+                .onFocusChanged { focused = it.isFocused }
+                .focusable()
+                .padding(24.dp),
+        ) {
+            BasicText(
+                text = stringResource(R.string.menu_about),
+                style = TextStyle(
+                    fontFamily = Theme.Sans,
+                    fontWeight = FontWeight.Medium,
+                    color = Theme.EmphasisText,
+                    fontSize = 18.sp,
+                ),
+            )
+            Spacer(Modifier.height(8.dp))
+            BasicText(
+                text = stringResource(R.string.menu_back_to_close),
+                style = TextStyle(fontFamily = Theme.Sans, color = Theme.FooterHintText, fontSize = 11.sp),
+            )
+        }
+    }
+}

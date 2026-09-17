@@ -5,16 +5,16 @@
     <!-- menu_* : 齒輪選單與選單項 -->
     <string name="menu_settings_title">設定</string>
     <string name="menu_back_to_close">按返回鍵關閉</string>
-    <string name="menu_edit">編輯桌面</string>
+    <string name="menu_edit">編輯分欄</string>
     <string name="menu_edit_desc">新增或移除應用程式、調整順序、換卡片圖</string>
     <string name="menu_settings">UnitedU 設定</string>
     <string name="menu_settings_desc">卡片、主題色、時鐘、待機</string>
     <string name="menu_wallpaper">換桌布</string>
     <string name="menu_wallpaper_desc">選一張圖片取代背景</string>
-    <string name="menu_screensaver">螢幕保護程式圖庫</string>
-    <string name="menu_screensaver_desc">檢視輪播的螢幕保護程式圖片</string>
     <string name="menu_system_settings">系統設定</string>
     <string name="menu_system_settings_desc">開啟電視的 Android 設定</string>
+    <string name="menu_about">關於</string>
+    <string name="menu_about_desc">版本與檢查更新</string>
     <string name="menu_set_default_home">設定預設桌面</string>
     <string name="menu_set_default_home_desc">選擇按下 Home 鍵時啟動哪個桌面</string>
     <!-- card_menu_* : 首頁長按卡片選單 -->

@@ -5,16 +5,16 @@
     <!-- menu_* : gear menu and its items -->
     <string name="menu_settings_title">Settings</string>
     <string name="menu_back_to_close">Press Back to close</string>
-    <string name="menu_edit">Edit Home Screen</string>
+    <string name="menu_edit">Edit Rows</string>
     <string name="menu_edit_desc">Add, remove, reorder apps, or change card art</string>
     <string name="menu_settings">UnitedU Settings</string>
     <string name="menu_settings_desc">Cards, theme color, clock, standby</string>
     <string name="menu_wallpaper">Change Wallpaper</string>
     <string name="menu_wallpaper_desc">Pick an image to replace the background</string>
-    <string name="menu_screensaver">Screensaver Gallery</string>
-    <string name="menu_screensaver_desc">View the screensaver slideshow images</string>
     <string name="menu_system_settings">System Settings</string>
     <string name="menu_system_settings_desc">Open the TV\'s Android settings</string>
+    <string name="menu_about">About</string>
+    <string name="menu_about_desc">Version and check for updates</string>
     <string name="menu_set_default_home">Set Default Home</string>
     <string name="menu_set_default_home_desc">Choose which launcher opens on the Home button</string>
     <!-- card_menu_* : long-press card menu on the home screen -->

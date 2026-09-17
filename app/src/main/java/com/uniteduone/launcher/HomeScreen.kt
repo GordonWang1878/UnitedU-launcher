@@ -46,6 +46,11 @@ import androidx.compose.ui.unit.sp
  * [IdleContent.CLOCK_ONLY](默认)卡片/行标题淡出、时钟留着;[IdleContent.BLACK] 同上但
  * 时钟也淡出(配合 MainActivity 叠加的黑屏,整屏全黑);[IdleContent.NO_FADE] 这里的
  * `contentAlpha` 恒为 1、什么都不淡出。
+ *
+ * [demoIdle](M7 T6,spec §3.2)非 null 时会**覆盖**这两个:设置页「待机内容」行拿着焦点
+ * 期间,不管真实 [idle] 是不是待机,都按 `demoIdle` 演示对应内容,离开该行即恢复。
+ * 只影响这里的 `contentAlpha`/`clockAlpha` 两个动画,`Screensaver` 不参与(它是
+ * `MainActivity` 单独组合的另一层,读的是真实 `idle`)。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
@@ -53,6 +58,8 @@ fun HomeScreen(
     idle: Boolean,
     /** 待机时屏幕上显示什么(design 待机 §,Task 3);默认与老行为一致。 */
     idleContent: IdleContent = IdleContent.CLOCK_ONLY,
+    /** 待机演示(M7 T6,spec §3.2):非 null 时覆盖 [idle]/[idleContent] 驱动的两个淡出动画。 */
+    demoIdle: IdleContent? = null,
     menuItems: List<MenuItem>,
     menuOpen: Boolean,
     onMenuOpenChange: (Boolean) -> Unit,
@@ -391,19 +398,24 @@ fun HomeScreen(
     // 背景与壁纸都在 MainActivity 那一层,这里保持透明
     Box(Modifier.fillMaxSize()) {
 
+        // **待机演示覆盖**(M7 T6,spec §3.2):`demoIdle` 非空时不管真实 `idle`,这两个
+        // 动画都按它演示——设置页「待机内容」行左右切换时,底层首页要当场看到三种效果。
+        // `Screensaver` 不读这两个量,不参与演示(它是 MainActivity 单独组合的另一层)。
+        val effectiveIdle = idle || demoIdle != null
+        val effectiveIdleContent = demoIdle ?: idleContent
         // 待机用 alpha 淡出,不用 AnimatedVisibility——后者自带裁剪,会把超出屏幕的
         // 第三行整块切掉(实测 MUSIC 行因此始终不可见)。
         // NO_FADE(Task 3):恒 1,卡片/行标题/齿轮都不淡出——M5 之前的行为,什么都不发生。
         val contentAlpha by animateFloatAsState(
-            targetValue = if (idle && idleContent != IdleContent.NO_FADE) 0f else 1f,
-            animationSpec = tween(if (idle) 1200 else 400),
+            targetValue = if (effectiveIdle && effectiveIdleContent != IdleContent.NO_FADE) 0f else 1f,
+            animationSpec = tween(if (effectiveIdle) 1200 else 400),
             label = "contentAlpha",
         )
         // 时钟默认待机也留着(CLOCK_ONLY/NO_FADE);只有 BLACK 时钟才跟着淡出,
         // 配合 MainActivity 在 Screensaver 之上叠的黑色蒙版,整屏才会真正全黑。
         val clockAlpha by animateFloatAsState(
-            targetValue = if (idle && idleContent == IdleContent.BLACK) 0f else 1f,
-            animationSpec = tween(if (idle) 1200 else 400),
+            targetValue = if (effectiveIdle && effectiveIdleContent == IdleContent.BLACK) 0f else 1f,
+            animationSpec = tween(if (effectiveIdle) 1200 else 400),
             label = "clockAlpha",
         )
         // 待机用 alpha 淡出而**不移除节点**:移除会连带销毁焦点,醒来后按键落空。
