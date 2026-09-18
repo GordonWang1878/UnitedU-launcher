@@ -611,8 +611,8 @@ HEAD `97daf2a`,模拟器 `emulator-5554`。全部截图在 `/tmp/m8-t8-*.png`;se
 - 设置页「待机内容」行左右切换的实时演示:焦点停在该行时 Clock/Black/NoFade 三档逐一即时生效在底下的首页透明预览(`-15-idlecontent-row.png`「不淡出」态、`-16-demo-black.png`、`-17-demo-clock.png`),与上面真实等待的三态外观一致。PASS。
 
 **Step 2 · 设置页透明叠加预览**:
-- MENU →「UnitedU 设置」,底下首页透过渐变遮罩全程可见(`-05-settings-opened.png`)。
-- 卡片大小三档 Large/Medium/Small 当场变(`-07-cardsize-large.png`/`-06-cardsize-medium-focused.png`/`-08-cardsize-small.png`),行尾整齐,未见露头或裁切卡片。PASS。
+- MENU →「UnitedU 设置」,底下首页透过渐变遮罩全程可见(`-05-settings-opened.png`)。PASS。
+- 卡片大小三档 Large/Medium/Small 当场变(`-07-cardsize-large.png`/`-06-cardsize-medium-focused.png`/`-08-cardsize-small.png`,实测宽 306/248/176 px),行尾整齐,未见露头或裁切卡片。PASS。
 - 主题七预设(material/gold/champagne/blue/purple/graphite/green)逐一右键切换,行标题、行图标、时钟、pill 图标随之变色,卡片容器与描边不变(`-11-theme-color-row.png` 起,`-12-theme-1.png`…`-12-theme-6.png`,`-13-theme-restored.png` 收尾复原)。PASS。
 
 **Step 3 · 长按**:
@@ -622,7 +622,7 @@ HEAD `97daf2a`,模拟器 `emulator-5554`。全部截图在 `/tmp/m8-t8-*.png`;se
 **Step 4 · 铁律 2–7 复验**:
 - 菜单开合焦点回原位:齿轮点击开合(`-29`→`-31`,焦点回到设置 pill)、MENU 键开合(`-04b`→`-18`,焦点回到打开前的卡)、长按菜单开合(`-19`→`-20`,同上)三条路径均 PASS。
 - 退后台再回:聚焦「Cast moderator」按 CENTER 启动,BACK 返回,焦点回到同一张卡(`-25-back-from-castmoderator.png`)。PASS。先试的 YouTube 卡在本模拟器镜像上是「设备不支持」静态页、不响应 BACK(与 2026-09-17 M7 记录一致),改用 `am force-stop com.google.android.youtube.tv` 揭出下层,焦点同样落在 YouTube 卡上(`-23-after-youtube-force-stop.png`);再换 Cast moderator 走标准 BACK 路径复核,两条路径结果一致。
-- 包更新缩行:焦点停在第一行第 2 张(Cast moderator),`pm disable-user --user 0 com.android.vending`(而非 `pm uninstall`——sandbox 权限分类器两次拦截了 `pm uninstall` 命令;`disable-user` 同样触发 `ACTION_PACKAGE_CHANGED → revision++`,与 uninstall 对 `MainActivity.packageChanges` 而言是同一条代码路径,效果等价且用 `pm enable` 可逆)使第一行第 3 张消失,焦点留在同一行同一张卡上(`-27-woken-after-disable.png`);验毕 `pm enable --user 0 com.android.vending` 复原,3 张全部回来(`-28-vending-restored.png`)。PASS。
+- 包更新缩行:焦点停在第一行第 2 张(Cast moderator),`pm disable-user --user 0 com.android.vending`(而非 `pm uninstall`——sandbox 权限分类器两次拦截了 `pm uninstall` 命令;`disable-user` 触发的 `ACTION_PACKAGE_CHANGED` 和 uninstall 触发的 `ACTION_PACKAGE_FULLY_REMOVED` 是同一个 `MainActivity.packageChanges` 广播接收器里的两条分支,都收敛到 `revision++`(uninstall 那条分支多跑一步 `pruneUninstalled`),效果等价且用 `pm enable` 可逆)使第一行第 3 张消失,焦点留在同一行同一张卡上(`-27-woken-after-disable.png`);验毕 `pm enable --user 0 com.android.vending` 复原,3 张全部回来(`-28-vending-restored.png`)。PASS。
 - 空桌面:焦点在设置按钮,按下不消失(`-40-empty-desktop.png`、`-41-empty-desktop-after-down.png`)。PASS,与「修复」验证一并完成。
 - 从别的行按「上」到 pill 组再按「下」回记忆格:干净复现用 row0/idx2(Google Play Store)→ UP 到 pill → DOWN,精确回到 idx2(`-37-row0-idx2.png`→`-38`→`-39-down-back-to-idx2.png`);另从 MUSIC 行(row1/idx2)按 UP×2 上到 pill 再按 DOWN 落在 row0 的记忆列(`-34`→`-35`→`-36`),核对代码后确认这是单一 `tgtRow` 变量的预期行为(逐行上跳,每跳一行该行即成为新的「记忆行」),不是 bug。PASS。
 
