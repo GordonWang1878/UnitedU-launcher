@@ -139,3 +139,5 @@ brainstorming 阶段按「最小设置」估 7.5 天;grilling 后范围约翻倍
 | M8 | 模拟器全程导航回归 + Gordon 真机验收 + Release | 1.5 天 |
 
 合计约 **20 个工作日**。Gordon 的电视只在 M8 被占用,且开发全程继续跑 TvHome;UnitedU 装上只是多一个应用,验收失败切回 TvHome 一条命令。
+
+**现状与后续路线(2026-09-19)**:已完成 M1、M2、M3、M4、M6、M7、M8——注意 **M8 的编号被「首页视觉 Google TV 化」占用**,上表原定的 M8「全程回归 + 真机验收 + Release」顺延为最后一个里程碑。进行中:M5 待机与屏保(spec `docs/superpowers/specs/2026-09-19-m5-standby-screensaver-design.md`)。之后依次:M8b 二级界面换皮 + M8 终审遗留六项;M4b 行管理(1–5 行增删 / 命名 / 图标)、HDMI-CEC 父子去重、输入源逐项隐藏 / 改名、原地移动;1.0.0-beta 全程回归、真机终验与发布。

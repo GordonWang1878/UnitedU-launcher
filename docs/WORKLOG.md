@@ -712,3 +712,9 @@ HEAD `71eb6d7`(Task 9 完成态),worktree `m8-visual`。Task 10 只做 Step 1–
 - 改名:「待机」保留;壁纸组「轮播间隔」→「壁纸自动切换」;屏保换图间隔 →「屏保轮播设置」;我们的叫「自定义屏保」,系统的叫「系统屏保」。
 - 设置组「待机与屏保」变六行,新增「屏保启动」;其细节(按「待机后再过多久」算、选项与默认、待机关时从最后按键算、图库空不进屏保)已提给 Gordon 待定。DESIGN §3/§4 已按此改写(术语表 + 状态模型 + 行表)。
 - 事实:UnitedU 不持有屏幕常亮(无 keepScreenOn / WakeLock),系统屏保与灭屏计时在首页上照常生效。
+
+## 2026-09-19 · M5 spec 定稿 + 路线图
+
+- Gordon 同意「屏保启动」三条(待机后再过 关/1/5/10/30 分、默认 5 分;待机关时从最后按键算;图库空不进屏保并提示)。M5 spec 写好:`docs/superpowers/specs/2026-09-19-m5-standby-screensaver-design.md`(状态机两布尔量、`standbyPlan` 纯函数、共用播放器 `ScreensaverPlayer`、设置组六行、长按删图、`UnitedUDream` 的 Compose 宿主);plan 由子代理起草中。
+- 路线图写进 DESIGN §11:已完成 7 个里程碑;M8 编号被首页视觉占用,原「回归 + 发布」顺延为最后;顺序 M5 → M8b → M4b → 1.0.0-beta。
+- Surge 改了 GitHub 策略后推送仍失败:pack 1.12 MiB 完整写出后报 `unable to rewind rpc post data`(连接在发送后被断),带 HTTP 头追踪的一次重试在后台跑。
