@@ -749,3 +749,22 @@ HEAD `b1af9e1`,worktree `m5-standby`,模拟器 `emulator-5554`。截图 `/tmp/m5
 4. 系统屏保:电视「设置 → 屏幕保护程序」先把屏保打开(你之前用 adb 关过),在列表里选 UnitedU——也可以从 UnitedU 设置页「系统屏保 ▸」跳过去,顺便看这一行在索尼上能不能打开对的页面;「立即启动」或等系统时长:照片 + 时钟正常;UnitedU 自己的屏保开着时触发系统屏保,照片从同一张接着播;按任意键回到原来的应用。
 5. 屏保图库:「屏保图库 ▸」看图;长按缩略图约 0.6 秒弹「删除这张图片?」,默认焦点在「取消」;删一张后焦点落在补上来的那张。
 6. 设置页六行,「屏保启动」下面的小字随图库空 / 待机关 / 其余三种情况变化。
+7. 轮播时按 HOME:屏保正播着图时按 HOME 键(不是随便哪个键)——应该跟别的键一样直接唤醒回到正常桌面(走的是 `onResume` 那条路,不是 `dispatchKeyEvent` 的吞键路径),没有额外停顿或黑屏。
+8. 图库 20 张以上翻页:「屏保图库 ▸」放够 20 张图,方向键一路翻到最后一行再翻回来——这个网格用的是 `verticalScroll`(铁律 1 的既有例外,M5 之前就有,这次从设置页能常规进入,翻页成了常见操作),留意滚不跟手、卡顿或焦点丢失。
+9. 冷启动系统屏保:UnitedU 没在跑自己屏保时(比如刚重启、或者停在设置页/编辑页),让系统屏保自然触发(到点,或去系统「屏幕保护程序」点「立即启动」)——验证 `UnitedUDream` 在 MainActivity 没跑过的情况下也能正常读设置、显示图库轮播或黑底时钟。
+
+## 2026-09-19 · M5 终审收尾(final-review fix wave)
+
+HEAD `c0cf5a6`(接 `8d82355`),worktree 仍是 `m5-standby`。终审复查的完整记录见 `.superpowers/sdd/2026-09-19-m5-standby-screensaver/final-fix-report.md`。
+
+- **终审代码修复已提交**(`c0cf5a6`):①屏保按钮效果在「等帧 + IO 扫描图库」这次异步跳转之后补一次复查(`lastInput`/`editing`/`menuOpen`/`overlayOpen`/`cardMenu`/`renameTarget` 六项里任一有变就放弃这次写入)——原写法跳完不问青红皂白直接写 SCREENSAVER,复现路径是「按屏保按钮 → 极短窗口内按了别的键或开了菜单 → 轮播照样在浮层底下渐入,还把下一个键当唤醒错吞」;②按钮目标与「只升不降」两处判断从 `MainActivity` 抽到 `StandbySchedule.kt`(`screensaverButtonTarget`/`atLeastStandby`),两处只剩一份逻辑,JVM 单测补 4 个方法(203 tests,0 failures);③`UnitedUDream` 补 `onDestroy` 兜底,防止个别固件不经 `onDetachedFromWindow` 直接销毁 service 时 registry 卡在非 DESTROYED、ComposeView 的 window recomposer job 漏关;④头部 KDoc 与一处 M7 时代的过期注释改成 M5 之后「待机 → 屏保」两阶段的表述,design 文档引用改回 `docs/DESIGN-unitedu-open-source.md`(原先仍指向已不存在的 `DESIGN-custom-launcher.md`)。
+- **遗留(未在 M5 修,不阻塞验收)**:
+  - `PickerGrid`(`ImagePicker.kt:195`)仍是铁律 1 的既有例外,用 `verticalScroll` 且没有谁负责它的焦点/滚动状态——1.0 前要给它一个明确的责任方(照 HomeScreen 自己算位移,或者改 3×5 分页);
+  - 全屏预览的初始焦点循环(`ImagePicker.kt:577`,`ScreensaverPreview` 的 `LaunchedEffect(Unit)`)只落一次地、从不重新落地——应改成以 nonce 为 key,并在预览开着时让网格自己的循环让路;
+  - 图库查看器在主线程按自己的一套扩展名过滤器列文件(`ImagePicker.kt` 的 `directory.listFiles()` 调用),与 `ScreensaverPlayer.kt:31` 的 `scanScreensaverLibrary` 是两份重复逻辑——应统一改到 IO 线程走 `scanScreensaverLibrary`,删掉重复的扩展名集合;
+  - `PreviewSlot`(`ImagePicker.kt:589`)与 `ScreensaverSlot`(`Screensaver.kt:81`)画法重复,可以合并成一份;
+  - `ScreensaverPlayer.attach` 里 ticker 的扫库那一下(`ScreensaverPlayer.kt:80-87`)没包 `runCatching`——IO 异常会直接杀掉这个协程、轮播从此停转,要等下一次 attach/detach 才会重建,扫描那一行应该包一层;
+  - 删图失败(`MainActivity.kt:1228`,`deletePoolImage`)现在只写 `Log.w`,界面上没有任何反馈——需要一条 toast 字符串;
+  - `androidx.lifecycle` / `androidx.savedstate` 目前只是 `activity-compose` 等库带进来的传递依赖,`UnitedUDream.kt` 却直接 import 了 `Lifecycle`/`LifecycleRegistry`/`SavedStateRegistry` 等类——应在 `app/build.gradle.kts` 里显式声明这两个 artifact,不依赖传递版本;
+  - 英文设置项大小写不一致:M2/M3 的 `settings_idle_after`("Standby Timeout")、`settings_idle_content`("Standby Display")是 Title Case,M5 新增四行——`settings_screensaver_after`("Screensaver starts")、`settings_screensaver_interval`("Slideshow interval")、`settings_screensaver_gallery`("Screensaver gallery")、`settings_system_screensaver`("System screensaver")——是 Sentence case,同一组内两种风格混着(`app/src/main/res/values-en/strings.xml:147-163`);
+  - `ScreensaverPlayer` 的引用计数语义(`refs`/`attach`/`detach`)现在只在模拟器上人工验过,没有注入 scanner 的 JVM 单测,补一份能挡住未来的回归。
