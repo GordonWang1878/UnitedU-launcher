@@ -473,7 +473,7 @@ private fun AddCard(
 ) {
     var focused by remember { mutableStateOf(false) }
     val highlight = LocalThemeColors.current.highlight
-    // 卡片聚焦会放大 1.31 倍并起光晕,加号原来只换个底色,暗背景下看不出「我选中的是它」
+    // 卡片聚焦会放大 1.1 倍并起描边,加号原来只换个底色,暗背景下看不出「我选中的是它」
     val addScale by androidx.compose.animation.core.animateFloatAsState(
         if (focused) 1.12f else 1f, label = "addScale",
     )

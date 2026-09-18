@@ -657,7 +657,7 @@ HEAD `71eb6d7`(Task 9 完成态),worktree `m8-visual`。Task 10 只做 Step 1–
 | 大字时钟数字墨迹左边 | 116 | 124 | +8 | 120 | +4 |
 | 大字时钟数字墨迹顶(84sp 行内留白) | 300 | 347 | +47 | 321 | +21 |
 
-5 项结构性测量(边距、卡宽、卡间距、pill 顶、pill 右边距)与设计意图**逐像素相等**。后 3 项量的是文字 / 数字的墨迹边界而非布局盒边界:标题行盒高度实测=48px(与 `Modifier.height(ROW_TITLE_LINE.dp)` 一致),墨迹顶距盒顶 12px、距盒底 12px,完全对称——是 Compose 行高居中的自然结果,不是间距 bug;`HomeLayout.anchorTop`/`HERO_TOP` 本身已被单测钉死在 720/300,不受此影响。效果图是几何定稿前手画的 HTML 稿,卡宽 / 卡间距 / 边距三项恰好已与定稿一致,时钟与标题的墨迹偏移方向与实现相反(效果图更靠上),量出来仅供参考、不算失败。
+5 项结构性测量(边距、卡宽、卡间距、pill 顶、pill 右边距)与设计意图**逐像素相等**。后 3 项量的是文字 / 数字的墨迹边界而非布局盒边界:标题行盒高度实测=48px(与 `Modifier.height(ROW_TITLE_LINE.dp)` 一致),墨迹顶距盒顶 12px、距盒底 12px,完全对称——是 Compose 行高居中的自然结果,不是间距 bug;`HomeLayout.anchorTop`/`HERO_TOP` 本身已被单测钉死在 720/300,不受此影响。效果图是几何定稿前手画的 HTML 稿,卡宽 / 卡间距 / 边距三项恰好已与定稿一致;标题墨迹的偏移方向与实现相反(效果图更靠上,Δ−17px vs 实现 +12px),时钟墨迹其实与实现同侧、只是幅度更小(效果图 +21px vs 实现 +47px,并非「相反」),量出来仅供参考、不算失败。
 
 **Step 3 · A95L 真机验收清单**(Gordon 手动过一遍,勾完即算 Task 10 收口):
 
@@ -667,3 +667,18 @@ HEAD `71eb6d7`(Task 9 完成态),worktree `m8-visual`。Task 10 只做 Step 1–
 4. 待机三种内容(时钟 / 全黑 / 不淡出)+ 屏保按钮都正常。
 5. 从别的应用返回桌面,焦点停在离开前那张卡上。
 6. DM Sans 大字时钟的真机观感(清晰度、字重、颜色)。
+7. 行间导航流畅度:每张卡片经 tv-material 走离屏合成层 + 动画 zIndex,模拟器判断不了掉帧,真机上下左右各连按十次看是否顺滑。
+
+## 2026-09-18 · M8 实施决策(SDD 裁定记录)
+
+终审 fix wave 发现:R1/R3/R5/R7/R8 等裁定原文只存在 `.superpowers/`(gitignored),仓库里除 Task 8/10 两段外没有留痕。补一份可追溯的副本,格式统一为「决定 / 依据 / 代价」;R6(模型分工)不影响产物,不收录。
+
+- **R1(编辑页行内留白)** 决定:编辑页行内留白改读 `metrics.rowVerticalPad`。依据:卡片已是 1.1 倍,留白随之。代价:编辑页行距变紧,可用一个 `EditRowVerticalPad` 常量恢复。
+- **R2(HeroClock 时区)** 决定:`SimpleDateFormat` 以 `tzTick` 为 key 重建。依据:SDF 出生时绑死时区,plan 原稿只按 pattern 重建会漏掉换时区。代价:无,多一个 key。
+- **R3(屏保按钮时序)** 决定:屏保按钮走 `screensaverRequests` 计数 + 声明在计时效果之后的效果 + 等一帧再写 `idle = true`。依据:直接写 `idle = true` 会被同一次重组里因 `lastInput` 变化重启的计时效果写回 `false`。代价:无,多一层间接。
+- **R4(SettingsTest 默认预设)** 决定:SettingsTest 默认预设断言改为 material。依据:M8 spec §0 定 Material 紫为默认,原断言(gold)已过期。代价:无。
+- **R5(二级界面换皮延期)** 决定:设置 / 编辑 / 选择器 / 菜单 / 对话框换皮**不在 M8**,另立后续 plan(建议名 M8b);spec 引言原写「M8 收尾任务」是笔误,已改(见本轮 spec 修订)。依据:Global Constraints「二级界面不动」+ spec §0 分期 + §7 不做三处一致指向延期,引言是唯一走样的地方。代价:M8 并入后设置页等界面仍是 M7 观感,Gordon 若期待一并换皮会落空。
+- **R7(编辑页继承共用 token)** 决定:编辑页继承共用 token(58dp 边距、124dp 卡、8dp 圆角、20dp 间距)。依据:plan 把 `Theme.SidePadding` 与 `cardMetrics` 定为唯一来源,编辑页自身位移算式读同一组常量、保持自洽;「二级界面不动」约束的是换皮工作量(范围),不是像素冻结。代价:编辑页观感与 M7 验收时不同,留到 A95L 验收时看。
+- **R8(提交 trailer 作者名)** 决定:提交 trailer 允许写实际作者模型(子代理为 Sonnet 5);plan 全局约束那一行同步改(见本轮 plan 修订)。依据:真实归属优先于统一措辞;为改一行 trailer 去 amend 历史是无意义的折腾。代价:同一分支上 trailer 名不统一,无功能影响。
+
+**终审遗留(转后续 plan 处理,本轮不改)**:删 `CardMetrics.rowPitch`/`titleHeight`、`Theme.CardFallbackText`、`HomeLayout.scrimHeight` 三处死代码;补 `cardMetrics(7)` 回落单测;`SettingsTest` 的 `themePresetIdFallsBackToGoldWhenAbsentOrBlank` 改名;输入源行长按后卡片按压态要等失焦才释放(M4b 加菜单时给 Card 传 `interactionSource`);`showInputRow && showTitles` 时锚点偏 20dp(输入源行不画标题)。

@@ -21,7 +21,7 @@
 - **几何**(dp,960×540 基准):边距 58、卡间距 20、行间距 20、圆角 8、锚点 = 屏高 × 2/3、三档卡宽 (844 − 20×(N−1))/N。
 - **颜色**:中性色阶用 `MaterialTheme.colorScheme`(dark 默认);accent 只落行标题、行图标、大字时钟、pill 图标;卡片容器 / 描边 / scrim 不染 accent(M7 §10.5 不变量延续)。
 - **命令**:构建 `source scripts/env.sh && gradle --no-daemon assembleRelease`;单测 `source scripts/env.sh && gradle --no-daemon testReleaseUnitTest`;模拟器操作按项目 `CLAUDE.md`「模拟器」一节(`am start -n` 拉起,不用 HOME 键;`Default Home` 对话框按两次 BACK)。
-- **提交**:每个任务结束一个 commit,信息用英文 conventional 前缀(`feat(m8): …` / `refactor(m8): …` / `docs(m8): …`),结尾加 `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`。
+- **提交**:每个任务结束一个 commit,信息用英文 conventional 前缀(`feat(m8): …` / `refactor(m8): …` / `docs(m8): …`),结尾加 `Co-Authored-By: Claude <模型名> <noreply@anthropic.com>`(写实际作者模型;2026-09-18 R8)。
 - **二级界面不动**(设置页、编辑页、选择器、菜单、对话框):只允许改它们对已删常量的引用,不改观感。
 
 ---

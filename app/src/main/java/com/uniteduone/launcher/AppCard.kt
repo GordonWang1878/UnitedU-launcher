@@ -83,7 +83,8 @@ fun AppCard(
     }
     val shape = RoundedCornerShape(metrics.cardCorner)
     Column(
-        // 聚焦卡浮到邻居上面(3dp 描边不被右邻居盖住),标题一起放大——与库的 graphicsLayer 缩放同一个节点树
+        // 聚焦卡浮到邻居上面(3dp 描边不被右邻居盖住)。标题是 Card 外层 Column 的兄弟节点,
+        // 不在库的 graphicsLayer 缩放范围内——放大的只有卡片本身,标题始终固定大小贴在卡片下方。
         modifier = Modifier.zIndex(if (focused) 1f else 0f).width(metrics.cardWidth),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

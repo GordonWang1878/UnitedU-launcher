@@ -8,9 +8,6 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -107,7 +104,7 @@ fun HomeScreen(
     previewing: Boolean = false,
 ) {
     val ctx = LocalContext.current
-    // 卡片档位尺寸:6=当前标定常量原样(零回归),5/8 按跨度守恒推导。见 Theme.cardMetrics。
+    // 卡片档位尺寸:5/6/8 三档统一由 HomeLayout 按张数推导,不再有「6 是标定常量、5/8 反推」的特例。见 Theme.cardMetrics。
     val metrics = Theme.cardMetrics(cardsPerRow, showTitles)
     // **首页内嵌的浮层**:齿轮菜单、长按卡片菜单、修改标题对话框 —— 它们住在首页这棵树里面。
     val anyOverlay = menuOpen || cardMenu != null || renameTarget != null
@@ -204,7 +201,7 @@ fun HomeScreen(
     // **谁持有焦点,只信控件自己的上报。**根节点的 onFocusChanged 在「退到后台再回来」
     // 这条路上不会重发,`hasFocus` 会停在过期的 true —— 实测日志说有焦点,截图里
     // 卡片却没有放大也没有光晕(上边缘 777→812、光晕峰值 142→66)。
-    // (-1, -1) 表示焦点在齿轮上。
+    // (-1, col) 表示焦点在顶栏 pill 组上(col 0 设置 / 1 屏保)。
     var focusedCell by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     // **从 onPause 就开始冻结目标**,而不是等还原效果开始时才冻。实测:从别的应用回来时
     // Compose 会抢在还原效果之前把焦点给第一张卡,那次焦点事件会把目标改写成 (0,0),
@@ -224,8 +221,8 @@ fun HomeScreen(
      *     节点 (0,0) 原地换成了原来的 (0,1),焦点没动、没有事件,缓存里仍是被移除的那张:长按弹出的是
      *     「幽灵」的菜单(打开会启动它、卸载会卸它、移动位置 indexOf(pkg) = -1)。后台 PACKAGE_REMOVED
      *     让焦点卡左边任一张消失,同一形态。
-     * (ii) **卡→齿轮且回调顺序是「新先旧后」**——齿轮 got 把 focusedCell 写成 (-1,-1)(不上报),
-     *     随后卡片的 lost 看到 focusedCell != null 就不清,齿轮上长按弹出上一张卡的菜单。
+     * (ii) **卡→顶栏 pill 且回调顺序是「新先旧后」**——pill 的 got 把 focusedCell 写成 (-1, col)(不上报),
+     *     随后卡片的 lost 看到 focusedCell != null 就不清,pill 上长按弹出上一张卡的菜单。
      * 派生之后两条路都自愈:上报值永远等于 cardAt(focusedCell) 对**当前** rows 的求值;
      * 数据重载由下面那个 LaunchedEffect(loaded, focusedCell) 再算一次(rows 变 → key 变,没有闩)。
      * layoutRow **直接取 Row 自己带的那个**(buildRows 在 filter 之前按 layout.json 定的),
@@ -234,7 +231,7 @@ fun HomeScreen(
      */
     fun cardAt(cell: Pair<Int, Int>?): CardRef? {
         val (row, idx) = cell ?: return null
-        if (row < 0) return null                       // (-1,-1) = 齿轮:它不是卡,长按不该出菜单
+        if (row < 0) return null                       // (-1, col) = 顶栏 pill:它不是卡,长按不该出菜单
         val r = rows.getOrNull(row) ?: return null
         val app = r.apps.getOrNull(idx) ?: return null
         return CardRef(row, idx, r.layoutRow, r.kind, app.packageName, app.label)
@@ -367,7 +364,8 @@ fun HomeScreen(
         // 叠在首页之上的选择器 / 导入页同理(各自的初始焦点循环),所以 [previewing] 也算在 covered 里。
         if (covered) return@LaunchedEffect
         // 还原效果正在把焦点送回离开前那一格时也要让路:否则两者同挤一帧,
-        // 中间必然有一帧落在 (0,0),那次上报会把 activeRow 改成 0、其余行当场压暗再弹回 —— 闪一下。
+        // 中间必然有一帧落在 (0,0),那次上报会把 activeRow 改成 0、锚定位移 shift 当场跳去第 0 行的
+        // 目标值再弹回 —— 闪一下(压暗邻行 M8 已删,现在会跳的只剩这个位移量)。
         if (restoring) return@LaunchedEffect
         if (focusedCell != null) return@LaunchedEffect
         // D-pad 导航时 unfocus 和 focus 分属相邻两帧:旧控件先报 focusedCell=null,

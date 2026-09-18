@@ -11,11 +11,11 @@ import androidx.compose.ui.graphics.lerp
  *
  * 每个预设带**两种角色色**:
  * - [color](= accent):齿轮、设置页分组标题——原 Theme.ChampagneGold 的位置。就是 swatch 上那个色点。
- * - [highlight]:时钟(叠 0.55 alpha)、光晕、行标题,以及各界面的标题 / 焦点条 / 选中段 / 滑块填充 /
- *   光标 / 选择器标签——原 Theme.Champagne 的位置。黑底上要清透可读,所以是浅色。
+ * - [highlight]:**首页不再落点**(时钟 / 光晕 / 行标题已改走 accent,M8);只驱动二级界面的标题 /
+ *   焦点条 / 选中段 / 滑块填充 / 光标 / 选择器标签——原 Theme.Champagne 的位置。黑底上要清透可读,所以是浅色。
  *
- * 金的 highlight 就是今日的 [Theme.Champagne] #FFF5DC 原值 —— 保证金预设下齿轮/时钟/光晕
- * 逐位复现今日观感(行标题从纯白 #FFFFFF 变成 #FFF5DC,是唯一的可见改动,见任务报告)。
+ * 金的 highlight 值沿用引入多预设那天定的 [Theme.Champagne] #FFF5DC(见任务报告)。M8 把首页的
+ * 时钟 / 光晕 / 行标题改走 accent 后,这份「金预设逐位复现旧观感」的保证只在二级界面还成立,首页已不读它。
  * 其余 5 个 highlight 都是各自 accent 混白 ~55% 的浅色调(见 [highlightFrom]),这里写成
  * 显式 hex 以便单独微调。
  *
@@ -27,7 +27,7 @@ data class ThemePreset(
     val nameRes: Int,
     /** accent:齿轮。与 swatch 色点同一个值。 */
     val color: Color,
-    /** highlight:时钟 / 光晕 / 行标题。 */
+    /** highlight:二级界面的标题 / 焦点条 / 选中段 / 滑块等(首页已不读,M8 改用 accent)。 */
     val highlight: Color,
 )
 
