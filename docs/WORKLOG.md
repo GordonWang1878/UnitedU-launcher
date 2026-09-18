@@ -633,3 +633,37 @@ HEAD `97daf2a`,模拟器 `emulator-5554`。全部截图在 `/tmp/m8-t8-*.png`;se
 **修复**(commit `1fd3bb2`):`home_empty_apps_hint` 三语仍写「齿轮已选中/已選取/gear icon」,但 TopPills 已用设置按钮取代齿轮。改为「右上角的设置按钮已选中」/「右上角的設定按鈕已選取」/"The settings button in the top right is selected",其余原文与 `\n` 不变。空桌面场景下切 `language` 为 `system`(落地 en,`-40-empty-desktop.png`)、`zh-CN`(`-42b-empty-desktop-zhCN.png`)、`zh-TW`(`-43b-empty-desktop-zhTW.png`)三种,新文案均正确显示且设置按钮保持聚焦。`testReleaseUnitTest`、`assembleRelease` 均 BUILD SUCCESSFUL。
 
 **结论**:Step 1–4 全部 PASS,追加检查 (a)(b) 全部 PASS;长按 400ms 一条是机制性发现(adb 合成注入下单条命令提前完成点击),不计入失败。修复 1 处字符串资源。设置/布局改动全部还原,`long_press_timeout` 回 400,`com.android.vending` 保持 enabled。
+
+## 2026-09-18 · M8 终验 + A95L 验收清单(Task 10)
+
+HEAD `71eb6d7`(Task 9 完成态),worktree `m8-visual`。Task 10 只做 Step 1–3(全量验证 + 效果图对照 + 验收清单),Step 4(并入 main)留给收尾流程另行处理。
+
+**Step 1 · 全量**:
+- `gradle --no-daemon testReleaseUnitTest --rerun-tasks`:`BUILD SUCCESSFUL in 14s`,`25 actionable tasks: 25 executed`;测试报告(`app/build/reports/tests/testReleaseUnitTest/index.html`)= **176 tests,0 failures,0 ignored**(21 个测试类逐一核对,总和 176 一致)。
+- `gradle --no-daemon testReleaseUnitTest assembleRelease`:`BUILD SUCCESSFUL in 4s`;APK 生成于 `app/build/outputs/apk/release/app-release.apk`(2,857,704 字节)。
+- `grep -rn "androidx.tv.material3.\(ImmersiveList\|Carousel\)\|TvLazy" app/src/main/java`:**0 处**。
+- `grep -rn "LazyRow\|LazyColumn\|verticalScroll\|horizontalScroll" HomeScreen.kt AppCard.kt TopPills.kt Clock.kt`:命中 3 处,逐条核对**全部是注释**(`HomeScreen.kt:274/618/622`,解释「为什么不能用」的规格注释,非实际调用),四个文件都没有 `Lazy*` / `*Scroll` 的 import。铁律 1 成立。
+
+**Step 2 · 与效果图 A 对照**(Python/PIL 像素测量,两图均 1920×1080 = 960×540dp × 2;方法与脚本见 `.superpowers/sdd/2026-09-17-m8-home-visual-refresh/task-10-report.md`):
+
+| 测量项 | 设计意图 px | 实现测得 px | 实现 Δ | 效果图测得 px | 效果图 Δ(仅参考) |
+|---|---|---|---|---|---|
+| 边距(未聚焦卡片行左边,代数推算) | 116 | 116 | 0 | 116 | 0 |
+| 卡宽(卡 2/卡 3 中部量,避开圆角) | 248 | 248 | 0 | 248 | 0 |
+| 卡间距(卡 2–卡 3 缝隙) | 40 | 40 | 0 | 40 | 0 |
+| pill 组顶边 | 56 | 56 | 0 | 56 | 0 |
+| pill 组右边距(距屏右) | 116 | 116 | 0 | 116 | 0 |
+| 首行标题文字墨迹顶(锚点 720 的 48px 行内居中) | 720 | 732 | +12 | 703 | −17 |
+| 大字时钟数字墨迹左边 | 116 | 124 | +8 | 120 | +4 |
+| 大字时钟数字墨迹顶(84sp 行内留白) | 300 | 347 | +47 | 321 | +21 |
+
+5 项结构性测量(边距、卡宽、卡间距、pill 顶、pill 右边距)与设计意图**逐像素相等**。后 3 项量的是文字 / 数字的墨迹边界而非布局盒边界:标题行盒高度实测=48px(与 `Modifier.height(ROW_TITLE_LINE.dp)` 一致),墨迹顶距盒顶 12px、距盒底 12px,完全对称——是 Compose 行高居中的自然结果,不是间距 bug;`HomeLayout.anchorTop`/`HERO_TOP` 本身已被单测钉死在 720/300,不受此影响。效果图是几何定稿前手画的 HTML 稿,卡宽 / 卡间距 / 边距三项恰好已与定稿一致,时钟与标题的墨迹偏移方向与实现相反(效果图更靠上),量出来仅供参考、不算失败。
+
+**Step 3 · A95L 真机验收清单**(Gordon 手动过一遍,勾完即算 Task 10 收口):
+
+1. 中档卡片(248px)横幅烧字清不清楚;不满意就去设置页切大档(306px)再看一遍。
+2. 长按遥控器确定键约 0.6 秒弹出卡片菜单,短按直接启动应用。
+3. 设置页七个主题预设逐一切换,行标题 / 图标 / 时钟 / pill 颜色跟着变。
+4. 待机三种内容(时钟 / 全黑 / 不淡出)+ 屏保按钮都正常。
+5. 从别的应用返回桌面,焦点停在离开前那张卡上。
+6. DM Sans 大字时钟的真机观感(清晰度、字重、颜色)。
