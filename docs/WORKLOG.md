@@ -720,3 +720,10 @@ HEAD `71eb6d7`(Task 9 完成态),worktree `m8-visual`。Task 10 只做 Step 1–
 - Surge 改了 GitHub 策略后推送仍失败:pack 1.12 MiB 完整写出后报 `unable to rewind rpc post data`(连接在发送后被断),带 HTTP 头追踪的一次重试在后台跑。
 - **推送解决(2026-09-19)**:Gordon 在 Surge 里改了 GitHub 策略后,`git -c http.version=HTTP/1.1 -c http.postBuffer=157286400 push origin main` 一次成功,origin/main = `7a76a84`,本地与远程一致(M7 + M8 + 验收修复全部上去)。HTTP 追踪:401 → 200(认证)→ POST 1,183,077 字节 → 78 秒后 200。推法写进 CLAUDE.md。
 - 模拟器被 Gordon 关掉过,需要时重启(`emulator -avd unitedu-tv …`,见 CLAUDE.md)。
+
+## 2026-09-19 · Google TV 首页差距报告(只调研,不改代码)
+
+- 报告:`docs/research/2026-09-19-google-tv-home-gap.md`;截图与对照图 `docs/screenshots/gtv-compare-*`(19 张,5.3MB)。
+- 事实:模拟器镜像的原生桌面是 **Android TV Home `com.google.android.tvlauncher` 7.7.15**,不是 Google TV launcherx;实机网格是 54 / 12 / 4dp(边距 / 卡距 / 圆角),不是 M8 照搬的设计指南 58 / 20 / 8;应用 tile 聚焦 ×1.29 以左沿为轴、无描边、只在聚焦 tile 下出应用名;非焦点行压到 60%;**焦点行顶到屏幕上沿**(spec §0 把「下三分之一锚定」称为 Google TV 做法,7.7.15 实测相反,launcherx 未验)。
+- 结论:骨架可对齐(网格、标题、聚焦标签、顶栏、行尾「+」)合计 11 h + 回归 5 h ≈ 2 天;hero / 推荐行 / 促销卡 / 搜索 / 通知 / 账号永远做不到(依赖 Google 后台或违反零广告零推荐)。推荐先做前四项 6 h,不动 spec §0 任何决定。
+- 模拟器:本轮由控制方重启,截图完成后 UnitedU 已重新置前(row 0),标记 `/tmp/gtv-compare-emulator-done` 已写。
