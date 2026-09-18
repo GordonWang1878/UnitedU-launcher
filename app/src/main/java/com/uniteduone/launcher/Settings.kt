@@ -21,7 +21,7 @@ data class Settings(
     val cardsPerRow: Int = 6,
     val showTitles: Boolean = false,
     val showInputRow: Boolean = false,
-    val themePresetId: String = "gold",
+    val themePresetId: String = "material",
     val followWallpaperColor: Boolean = false,
     /** 主题化卡片:开启后所有应用卡片去色→染当前主题色(design 2026-09-16 追加)。默认关。 */
     val themedCards: Boolean = false,

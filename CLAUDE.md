@@ -91,7 +91,7 @@ adb emu kill                                     # 关闭
 
    | 界面 / 浮层 | 恢复责任方 |
    |---|---|
-   | 首页卡片/齿轮 | HomeScreen 看门狗 + 还原效果(选择器、设置页等整屏浮层都叠在常驻首页上,`covered` 期间冻结 `tgtRow/tgtIdx/tgtGear`,关掉后按它还原;编辑页仍整体替换首页,回来落 (0,0)) |
+   | 首页卡片/pill 组(设置 / 屏保两个按钮,账本里都是 row = -1) | HomeScreen 看门狗 + 还原效果(选择器、设置页等整屏浮层都叠在常驻首页上,`covered` 期间冻结 `tgtRow/tgtIdx/tgtGear`,关掉后按它还原;编辑页仍整体替换首页,回来落 (0,0)) |
    | 齿轮菜单 / 长按卡片菜单 | GearMenu 自己的初始焦点循环(nonce) |
    | 修改标题对话框 | TitleDialog(nonce + focused,四向 Cancel) |
    | 设置页两栏 | SettingsScreen 看门狗(二维账本 pane/group/rowOf,`covered` 让路,`reloadNonce` 重读;`ON_PAUSE` 起冻结目标,回到前台才放开) |
@@ -106,7 +106,7 @@ adb emu kill                                     # 关闭
    曾经用根节点的 `hasFocus && !isFocused` 当判据,它在多数路径上是对的,
    但在「退到后台再回来」这条路上**不重发**,会停在过期的 `true`:日志说有焦点,
    截图里卡片却既没有放大也没有光晕(上边缘 777→812、光晕峰值 142→66)。
-   现在由 `AppCard` / `GearButton` 通过 `onFocusChange(Boolean)` 同时上报「得到」和「失去」。
+   现在由 `AppCard` / `TopPills` 通过 `onFocusChange(Boolean)` 同时上报「得到」和「失去」。
    **推论:看门狗的账本必须覆盖它会去抢焦点的全部场合。**它不认识齿轮菜单的菜单项,
    菜单一开账本就变成「没有焦点」,于是每帧抢着请求、把菜单刚拿到的焦点搅掉 ——
    菜单开着时必须让路。

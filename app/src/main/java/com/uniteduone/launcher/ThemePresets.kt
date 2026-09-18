@@ -5,17 +5,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 
 /**
- * 6 个主题色预设(门 2 Gordon 定「沉稳」一套,强调色低饱和;金保持 #C0A73A)。
+ * 7 个主题色预设(M8 加 Material 紫为默认)(门 2 Gordon 定「沉稳」一套,强调色低饱和;金保持 #C0A73A)。
  * 只在这里定义一次:设置页用它画 swatch + 持久化 [Settings.themePresetId];
  * 选中的颜色经 [LocalThemeColors] 驱动**每个界面**的强调色(2026-09-16 全面接线,原先只接首页四处)。
  *
  * 每个预设带**两种角色色**:
  * - [color](= accent):齿轮、设置页分组标题——原 Theme.ChampagneGold 的位置。就是 swatch 上那个色点。
- * - [highlight]:时钟(叠 0.55 alpha)、光晕、行标题,以及各界面的标题 / 焦点条 / 选中段 / 滑块填充 /
- *   光标 / 选择器标签——原 Theme.Champagne 的位置。黑底上要清透可读,所以是浅色。
+ * - [highlight]:**首页不再落点**(时钟 / 光晕 / 行标题已改走 accent,M8);只驱动二级界面的标题 /
+ *   焦点条 / 选中段 / 滑块填充 / 光标 / 选择器标签——原 Theme.Champagne 的位置。黑底上要清透可读,所以是浅色。
  *
- * 金的 highlight 就是今日的 [Theme.Champagne] #FFF5DC 原值 —— 保证金预设下齿轮/时钟/光晕
- * 逐位复现今日观感(行标题从纯白 #FFFFFF 变成 #FFF5DC,是唯一的可见改动,见任务报告)。
+ * 金的 highlight 值沿用引入多预设那天定的 [Theme.Champagne] #FFF5DC(见任务报告)。M8 把首页的
+ * 时钟 / 光晕 / 行标题改走 accent 后,这份「金预设逐位复现旧观感」的保证只在二级界面还成立,首页已不读它。
  * 其余 5 个 highlight 都是各自 accent 混白 ~55% 的浅色调(见 [highlightFrom]),这里写成
  * 显式 hex 以便单独微调。
  *
@@ -27,7 +27,7 @@ data class ThemePreset(
     val nameRes: Int,
     /** accent:齿轮。与 swatch 色点同一个值。 */
     val color: Color,
-    /** highlight:时钟 / 光晕 / 行标题。 */
+    /** highlight:二级界面的标题 / 焦点条 / 选中段 / 滑块等(首页已不读,M8 改用 accent)。 */
     val highlight: Color,
 )
 
@@ -95,10 +95,13 @@ fun usableAccent(rgb: Int): Int {
 
 object ThemePresets {
     /** 默认预设 id,与 [Settings] 的默认值一致。 */
-    const val DEFAULT_ID = "gold"
+    const val DEFAULT_ID = "material"
 
     /** 顺序即 swatch 的从左到右排列顺序;换顺序会改变左右键的移动方向,别随手动。 */
     val all: List<ThemePreset> = listOf(
+        // Material 紫:tv-material darkColorScheme 的 primary #D0BCFF 原值(spec §0);highlight = 混白 55%。
+        // 放最前 = swatch 最左 = 默认在最左(左右键方向随之,有意的)。
+        ThemePreset("material", R.string.preset_material, Color(0xFFD0BCFF), Color(0xFFE8DCFF)),
         // 金:highlight = 今日 Theme.Champagne #FFF5DC 原值,金预设逐位复现今日观感。
         ThemePreset("gold", R.string.preset_gold, Color(0xFFC0A73A), Color(0xFFFFF5DC)),
         // 以下 5 个 highlight = accent 混白 55%(highlightFrom 的结果),写成显式 hex 以便微调。

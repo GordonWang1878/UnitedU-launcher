@@ -56,8 +56,8 @@ class SettingsTest {
     }
 
     @Test fun themePresetIdFallsBackToGoldWhenAbsentOrBlank() {
-        assertEquals("gold", parseSettings("""{}""").themePresetId)
-        assertEquals("gold", parseSettings("""{"themePresetId": ""}""").themePresetId)
+        assertEquals("material", parseSettings("""{}""").themePresetId)
+        assertEquals("material", parseSettings("""{"themePresetId": ""}""").themePresetId)
         assertEquals("sunset", parseSettings("""{"themePresetId": "sunset"}""").themePresetId)
     }
 
@@ -233,5 +233,14 @@ class SettingsTest {
         assertEquals("system", r.language); assertEquals(0, r.wallpaperBlur)
         assertEquals(999L, r.newAppsSeenAt); assertEquals(true, r.onboardingDone)
         assertEquals(r, parseSettings(r.toJson()))
+    }
+
+    @Test fun defaultThemePresetIsMaterial() {
+        assertEquals("material", Settings().themePresetId)
+        assertEquals("material", parseSettings("{}").themePresetId)
+    }
+
+    @Test fun legacyGoldPresetIdIsKept() {
+        assertEquals("gold", parseSettings("""{"themePresetId": "gold"}""").themePresetId)
     }
 }

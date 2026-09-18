@@ -102,13 +102,15 @@ android {
 }
 
 dependencies {
-    // 刻意保持最小依赖:不引 tv-material / material3,焦点与动画用标准 Compose 自己控。
+    // tv-material 只用叶子组件与 token(Card / IconButton / MaterialTheme);滚动容器一律不用(铁律 1)。
+    // 钉 1.0.0:1.1.0 依赖 Compose 1.10,超出本 BOM。M8 2026-09-17。
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation(platform("androidx.compose:compose-bom:2024.10.01"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.tv:tv-material:1.0.0")
     // 行标题图标与齿轮用真的 Material 图标——Projectivy 用的就是这套,
     // 手画的三个形状被复审逐一指出「fill/朝向/笔画都不对」,是最显眼的差异。
     implementation("androidx.compose.material:material-icons-core")

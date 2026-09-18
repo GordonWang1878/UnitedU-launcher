@@ -8,9 +8,6 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -36,12 +33,11 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * 首页:壁纸层 + 三行卡片 + 右上角时钟。
+ * 首页:壁纸层 + hero 大字时钟 + 锚定在下三分之一的卡片行 + 右上 pill 组(设置 / 屏保)。
  * 待机由 [MainActivity] 通过 [idle] 传进来,内容由 [idleContent] 定(Task 3):
  * [IdleContent.CLOCK_ONLY](默认)卡片/行标题淡出、时钟留着;[IdleContent.BLACK] 同上但
  * 时钟也淡出(配合 MainActivity 叠加的黑屏,整屏全黑);[IdleContent.NO_FADE] 这里的
@@ -63,6 +59,7 @@ fun HomeScreen(
     menuItems: List<MenuItem>,
     menuOpen: Boolean,
     onMenuOpenChange: (Boolean) -> Unit,
+    onScreensaver: () -> Unit = {},
     focusNonce: Int,
     revision: Int = 0,
     menuFromGear: Boolean = true,
@@ -91,7 +88,7 @@ fun HomeScreen(
     /**
      * **预览态**(M7 T4 分层叠加):选择器 / 导入页这类整屏浮层现在**叠在首页之上**,
      * 首页不再被移除,而是退到底下当背景(设置页 T5 起同理)。为真时首页交出一切交互:
-     * - **不可聚焦**:所有 [AppCard] / [GearButton] `canFocus = false` —— 与 `anyOverlay`
+     * - **不可聚焦**:所有 [AppCard] / [TopPills] `canFocus = false` —— 与 `anyOverlay`
      *   合成 `covered` 一个量,上面那层拿焦点,底下这层绝不抢(铁律 4 的推论)。
      * - **不处理任何按键**:首页自己没有 `onKeyEvent`,卡片的点击挂在 `clickable` 上,
      *   不可聚焦就一个按键都收不到;长按识别在 `MainActivity.dispatchKeyEvent` 里,
@@ -107,7 +104,7 @@ fun HomeScreen(
     previewing: Boolean = false,
 ) {
     val ctx = LocalContext.current
-    // 卡片档位尺寸:6=当前标定常量原样(零回归),5/8 按跨度守恒推导。见 Theme.cardMetrics。
+    // 卡片档位尺寸:5/6/8 三档统一由 HomeLayout 按张数推导,不再有「6 是标定常量、5/8 反推」的特例。见 Theme.cardMetrics。
     val metrics = Theme.cardMetrics(cardsPerRow, showTitles)
     // **首页内嵌的浮层**:齿轮菜单、长按卡片菜单、修改标题对话框 —— 它们住在首页这棵树里面。
     val anyOverlay = menuOpen || cardMenu != null || renameTarget != null
@@ -204,7 +201,7 @@ fun HomeScreen(
     // **谁持有焦点,只信控件自己的上报。**根节点的 onFocusChanged 在「退到后台再回来」
     // 这条路上不会重发,`hasFocus` 会停在过期的 true —— 实测日志说有焦点,截图里
     // 卡片却没有放大也没有光晕(上边缘 777→812、光晕峰值 142→66)。
-    // (-1, -1) 表示焦点在齿轮上。
+    // (-1, col) 表示焦点在顶栏 pill 组上(col 0 设置 / 1 屏保)。
     var focusedCell by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     // **从 onPause 就开始冻结目标**,而不是等还原效果开始时才冻。实测:从别的应用回来时
     // Compose 会抢在还原效果之前把焦点给第一张卡,那次焦点事件会把目标改写成 (0,0),
@@ -224,8 +221,8 @@ fun HomeScreen(
      *     节点 (0,0) 原地换成了原来的 (0,1),焦点没动、没有事件,缓存里仍是被移除的那张:长按弹出的是
      *     「幽灵」的菜单(打开会启动它、卸载会卸它、移动位置 indexOf(pkg) = -1)。后台 PACKAGE_REMOVED
      *     让焦点卡左边任一张消失,同一形态。
-     * (ii) **卡→齿轮且回调顺序是「新先旧后」**——齿轮 got 把 focusedCell 写成 (-1,-1)(不上报),
-     *     随后卡片的 lost 看到 focusedCell != null 就不清,齿轮上长按弹出上一张卡的菜单。
+     * (ii) **卡→顶栏 pill 且回调顺序是「新先旧后」**——pill 的 got 把 focusedCell 写成 (-1, col)(不上报),
+     *     随后卡片的 lost 看到 focusedCell != null 就不清,pill 上长按弹出上一张卡的菜单。
      * 派生之后两条路都自愈:上报值永远等于 cardAt(focusedCell) 对**当前** rows 的求值;
      * 数据重载由下面那个 LaunchedEffect(loaded, focusedCell) 再算一次(rows 变 → key 变,没有闩)。
      * layoutRow **直接取 Row 自己带的那个**(buildRows 在 filter 之前按 layout.json 定的),
@@ -234,7 +231,7 @@ fun HomeScreen(
      */
     fun cardAt(cell: Pair<Int, Int>?): CardRef? {
         val (row, idx) = cell ?: return null
-        if (row < 0) return null                       // (-1,-1) = 齿轮:它不是卡,长按不该出菜单
+        if (row < 0) return null                       // (-1, col) = 顶栏 pill:它不是卡,长按不该出菜单
         val r = rows.getOrNull(row) ?: return null
         val app = r.apps.getOrNull(idx) ?: return null
         return CardRef(row, idx, r.layoutRow, r.kind, app.packageName, app.label)
@@ -268,21 +265,24 @@ fun HomeScreen(
     // 配置里的包一个都装不到时,卡片一张都没有,焦点无处可落;而这时唯一能自救的
     // 控件正是齿轮。不能指望框架的隐式 focus-enter——这份代码在别处恰恰拒绝依赖它。
     val gearFocus = remember { FocusRequester() }
-    // 哪一行是「当前行」——决定其它行压暗;跟着焦点走。
+    // 哪一行是「当前行」——决定纵向锚定位移与 hero 淡出;跟着焦点走。
     var activeRow by remember { mutableStateOf(0) }
 
-    // 垂直位置自己算,不用 verticalScroll:实测系统的 bringIntoView 会在**水平**移动焦点时
-    // 也带动垂直滚动(按一次右键整体上移 158px),把 v4 的顶部留白吃掉。
-    val screenH = LocalConfiguration.current.screenHeightDp.dp
-    // 同理:整行被 filter 摘掉后 activeRow 会越界,内容会整块多上移一个 RowPitch
+    // 垂直位置自己算,不用 verticalScroll(铁律 1)。M8:焦点行**锚定**在下三分之一(spec §2.2)——
+    // 内容整块上移 activeRow 个行距,第 0 行时 hero 完整;不再是「溢出才上移」。
+    val screenH = LocalConfiguration.current.screenHeightDp.toFloat()
     val activeRowSafe = activeRow.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
-    // 标题开着时卡片下面还挂一行字(titleHeight),焦点行的「底」要连这行字一起算,
-    // 否则标题开关打开时,焦点落在最后一行会让标题的放大后半截探出屏幕底边(见 M4 Task 2 复审)。
-    val overflow = metrics.firstCardTop + metrics.rowPitch * activeRowSafe +
-        metrics.cardHeight + metrics.titleHeight + Theme.BottomKeepout - screenH
+    val anchorTop = HomeLayout.anchorTop(screenH).dp
     val shift by animateDpAsState(
-        targetValue = if (overflow > 0.dp) -overflow else 0.dp,
+        targetValue = HomeLayout.shift(activeRowSafe, cardsPerRow, showTitles).dp,
+        animationSpec = tween(Theme.MotionInMs, easing = Theme.MotionEasing),
         label = "rowShift",
+    )
+    // hero 主体第 1 行起淡出(spec §2.3);待机时无条件回到 1(spec §2.4)——Task 6 的 HeroClock 读它。
+    val heroAlpha by animateFloatAsState(
+        targetValue = if (idle || demoIdle != null) 1f else HomeLayout.heroAlpha(activeRowSafe),
+        animationSpec = tween(Theme.MotionInMs, easing = Theme.MotionEasing),
+        label = "heroAlpha",
     )
     // **焦点看门狗。**判据取自真机日志:根节点的 onFocusChanged 里
     //   hasFocus=true && !isFocused  → 某个子节点持有焦点(正常)
@@ -330,8 +330,9 @@ fun HomeScreen(
         restoring = true
         var frames = 0
         if (tgtGear || focusNonce == gearNonce) {
-            // 退出条件同样只信控件自报(铁律 2):齿轮拿到焦点会 report(-1, -1, true)。
-            while (frames < 60 && focusedCell != (-1 to -1)) {
+            // 退出条件同样只信控件自报(铁律 2):设置 / 屏保两个 pill 都会 report(-1, col, true),
+            // 两者都算「回到顶栏」——按 focusedCell?.first 判,不钉死某一列(col 0/1 都算数)。
+            while (frames < 60 && focusedCell?.first != -1) {
                 withFrameNanos { }
                 runCatching { gearFocus.requestFocus() }
                 frames++
@@ -363,7 +364,8 @@ fun HomeScreen(
         // 叠在首页之上的选择器 / 导入页同理(各自的初始焦点循环),所以 [previewing] 也算在 covered 里。
         if (covered) return@LaunchedEffect
         // 还原效果正在把焦点送回离开前那一格时也要让路:否则两者同挤一帧,
-        // 中间必然有一帧落在 (0,0),那次上报会把 activeRow 改成 0、其余行当场压暗再弹回 —— 闪一下。
+        // 中间必然有一帧落在 (0,0),那次上报会把 activeRow 改成 0、锚定位移 shift 当场跳去第 0 行的
+        // 目标值再弹回 —— 闪一下(压暗邻行 M8 已删,现在会跳的只剩这个位移量)。
         if (restoring) return@LaunchedEffect
         if (focusedCell != null) return@LaunchedEffect
         // D-pad 导航时 unfocus 和 focus 分属相邻两帧:旧控件先报 focusedCell=null,
@@ -418,6 +420,31 @@ fun HomeScreen(
             animationSpec = tween(if (effectiveIdle) 1200 else 400),
             label = "clockAlpha",
         )
+        // scrim(spec §2.1):#1C1B1F α0 → α0.8;顶边 = 锚点上方 60dp 再加 shift,底边固定屏底——行往上推时它变高,
+        // 下方新露出的行始终在暗层里。待机时随内容一起淡出。
+        val scrimTop = anchorTop - HomeLayout.SCRIM_LEAD.dp + shift
+        val surface = androidx.tv.material3.MaterialTheme.colorScheme.surface
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .offset(y = scrimTop)
+                .height((screenH.dp - scrimTop).coerceAtLeast(0.dp))
+                .alpha(contentAlpha)
+                .background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        0f to surface.copy(alpha = 0f), 1f to surface.copy(alpha = 0.8f),
+                    ),
+                ),
+        )
+
+        // hero 主体(spec §2.1 第 3 层):不随 shift 走;第 1 行起淡出、待机时回到 1(heroAlpha),BLACK 待机再随 clockAlpha 淡出。
+        HeroClock(
+            showDate = showDate,
+            modifier = Modifier
+                .padding(start = Theme.SidePadding, top = HomeLayout.HERO_TOP.dp)
+                .alpha(heroAlpha * clockAlpha),
+        )
+
         // 待机用 alpha 淡出而**不移除节点**:移除会连带销毁焦点,醒来后按键落空。
         // 同理也不能用 canFocus 把它们关掉,理由见下面 focusProperties 那段。
         Column(
@@ -436,8 +463,8 @@ fun HomeScreen(
                 // MainActivity.dispatchKeyEvent 吞掉第一下按键来实现,焦点全程不动。
                 .focusProperties { canFocus = !covered }
                 .offset(y = shift)
-                .padding(top = Theme.TopPadding),
-            verticalArrangement = Arrangement.spacedBy(Theme.RowSpacing),
+                .padding(top = anchorTop),
+            verticalArrangement = Arrangement.spacedBy(HomeLayout.ROW_GAP.dp),
         ) {
             // 配置里的应用一个都装不到时,屏幕上只剩时钟和齿轮,看着像坏了。
             // 给一句话告诉用户怎么自救(实测:此时齿轮菜单仍可用)。
@@ -450,7 +477,7 @@ fun HomeScreen(
                     modifier = Modifier.padding(start = Theme.SidePadding),
                     style = TextStyle(
                         fontFamily = Theme.Sans,
-                        color = Theme.RowTitle.copy(alpha = 0.75f),
+                        color = androidx.tv.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
                         fontSize = 15.sp,
                     ),
                 )
@@ -463,7 +490,6 @@ fun HomeScreen(
                     themedCards = themedCards,
                     titles = titles,
                     firstCard = if (rowIndex == 0) firstCard else null,
-                    active = rowIndex == activeRowSafe,
                     rowRequester = rowFocus.getOrNull(rowIndex),
                     isLastRow = rowIndex == rows.lastIndex,
                     // 上下移动落到相邻行「记住的那一格」——每行的 requester 就挂在那一格上
@@ -483,57 +509,34 @@ fun HomeScreen(
             }
         }
 
-        // 时钟常驻,待机时也留着
-        Row(
+        // 顶栏(spec §1.5):右上 pill 组 + 其下的「有 N 个新应用」。不随 shift 走;待机随内容淡出。
+        // 节点只淡出不移除:移除会连带销毁停在按钮上的焦点,醒来第一下按键落空。
+        Column(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                // 右边距经三轮复审确认正确(1790.6 vs 1789.3)。顶部:复审实测参考里齿轮中心
-                // 93.63px、时钟中心 93.15px,我们是 99.5/99.0,整条状态栏低了约 6px。
-                .padding(top = 32.dp, end = 64.dp)
-                // 菜单开着时齿轮也不能被聚焦。GearMenu 的 focusGroup 只保证「组内优先」,
-                // 找不到候选会冒泡到根继续找;卡片那一列已经被 canFocus 关掉,
-                // 但齿轮不在那一列里 —— 于是菜单里按右键焦点会落到蒙版后面的齿轮上,
-                // 高亮消失、上下左右都没反应,而这个菜单里装着「切回 Projectivy」这条退路。
-                .focusProperties { canFocus = !covered },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),   // 复审实测参考 36.2px,17dp 给出 42.2px
+                .padding(top = HomeLayout.PILL_TOP.dp, end = Theme.SidePadding)
+                .alpha(contentAlpha),
+            horizontalAlignment = Alignment.End,
         ) {
-            // 「有 N 个新应用」:状态栏里、齿轮左边的小字(design §4 的最终落位)。
-            // **住在这一行是为了永不被卡片盖住**:左上角那版会在焦点落到最后一行、
-            // 内容整块上移(`offset(y = shift)`)时被升上来的第一行盖掉半截(2026-09-16 实测);
-            // 左下角那版会撞底行的卡片标题。右上角这条带子是屏幕上唯一永远没有卡片的地方。
-            // 只是一行字,不可聚焦 —— 外层那个 canFocus 管的是齿轮,与它无关。
+            TopPills(
+                gearFocus = gearFocus,
+                canFocus = !covered,
+                rowsEmpty = rows.isEmpty(),
+                downTarget = rowFocus.getOrNull(tgtRow.coerceIn(0, rowFocus.lastIndex)),
+                onSettings = { onMenuOpenChange(true) },
+                onScreensaver = onScreensaver,
+                onFocusChange = { col, got -> report(-1, col, got) },
+            )
             val newCount = loaded?.third ?: 0
             if (newCount > 0) {
                 BasicText(
                     text = stringResource(R.string.home_new_apps, newCount),
-                    modifier = Modifier.alpha(contentAlpha),
-                    style = TextStyle(fontFamily = Theme.Sans, color = Theme.FooterHintText, fontSize = 12.sp),
+                    modifier = Modifier.padding(top = 6.dp),
+                    style = androidx.tv.material3.MaterialTheme.typography.labelSmall.copy(
+                        color = androidx.tv.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
                 )
             }
-            // 齿轮同样用 alpha 而不是 AnimatedVisibility:待机时若把节点移除,
-            // 恰好停在齿轮上的焦点会被销毁,醒来第一下按键落空。
-            GearButton(
-                onClick = { onMenuOpenChange(true) },
-                // 齿轮的上、左、右都是空的(时钟不可聚焦),不锁的话按这三个方向焦点会整棵树消失
-                modifier = Modifier
-                    .alpha(contentAlpha)
-                    .focusRequester(gearFocus)
-                    .focusProperties {
-                        up = FocusRequester.Cancel
-                        left = FocusRequester.Cancel
-                        right = FocusRequester.Cancel
-                        // 空桌面时下方一张卡都没有,不锁的话按下键焦点会消失再被看门狗捞回来,
-                        // 高亮闪一下 —— 而这正是唯一的自救界面。
-                        if (rows.isEmpty()) down = FocusRequester.Cancel
-                        // 非空时按下回到「记住的那一格」。走几何搜索的话,齿轮在右上角,
-                        // 最近的永远是第一行最右那张 —— 与上下行的列记忆不一致。
-                        else rowFocus.getOrNull(tgtRow.coerceIn(0, rowFocus.lastIndex))
-                            ?.let { down = it }
-                    },
-                onFocusChange = { got -> report(-1, -1, got) },
-            )
-            Clock(modifier = Modifier.alpha(clockAlpha), showDate = showDate)
         }
 
         if (menuOpen) {
@@ -583,7 +586,6 @@ private fun CategoryRow(
     themedCards: Boolean,
     titles: Map<String, String>,
     firstCard: FocusRequester?,
-    active: Boolean,
     rowRequester: FocusRequester?,
     isLastRow: Boolean,
     upTarget: FocusRequester?,
@@ -598,28 +600,17 @@ private fun CategoryRow(
     val accent = LocalThemeColors.current.accent
     // 记住聚焦在第几张,用来算这一行的横向位移(超出右边界就整行左移)
     var focusedIndex by remember { mutableStateOf(0) }
-    val rowAlpha by animateFloatAsState(
-        targetValue = if (active) 1f else Theme.InactiveRowAlpha,
-        animationSpec = tween(180),
-        label = "rowAlpha",
-    )
-    Column(
-        modifier = Modifier.alpha(rowAlpha),
-        verticalArrangement = Arrangement.spacedBy(Theme.RowTitleGap),
-    ) {
+    Column(verticalArrangement = Arrangement.spacedBy(HomeLayout.ROW_TITLE_GAP.dp)) {
         Row(
-            modifier = Modifier.padding(start = Theme.SidePadding),
+            modifier = Modifier.padding(start = Theme.SidePadding).height(HomeLayout.ROW_TITLE_LINE.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             RowIcon(row.name, row.kind, tint = accent)
             BasicText(
                 text = row.name,
-                style = TextStyle(
-                fontFamily = Theme.Sans,
-                    // 行标题跟主题 accent 走(与齿轮同色)。
-                    color = accent, fontSize = 15.5.sp, fontWeight = FontWeight.Medium,
-                ),
+                // 行标题 = titleMedium 16sp Medium(spec §1.4),颜色 accent(spec §0「accent 落点」)
+                style = androidx.tv.material3.MaterialTheme.typography.titleMedium.copy(color = accent),
             )
         }
         // **绝不能用 LazyRow / horizontalScroll**:任何可滚动容器都会挡住纵向焦点外出。
@@ -634,6 +625,7 @@ private fun CategoryRow(
         val overRight = focusRight + Theme.SidePadding - LocalConfiguration.current.screenWidthDp.dp
         val xShift by animateDpAsState(
             targetValue = if (overRight > 0.dp) -overRight else 0.dp,
+            animationSpec = tween(Theme.MotionInMs, easing = Theme.MotionEasing),
             label = "rowXShift",
         )
         Row(
@@ -648,7 +640,7 @@ private fun CategoryRow(
                 // 内容早在测量阶段就被砍掉了尾巴。纵向的 wrapContentHeight 是同一招。
                 .wrapContentWidth(Alignment.Start, unbounded = true)
                 .offset(x = xShift)
-                .padding(start = Theme.SidePadding, top = Theme.RowVerticalPad, bottom = Theme.RowVerticalPad),
+                .padding(start = Theme.SidePadding, top = metrics.rowVerticalPad, bottom = metrics.rowVerticalPad),
         ) {
             row.apps.forEachIndexed { index, app ->
                 AppCard(

@@ -9,30 +9,22 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.unit.times
 
-/**
- * 一档卡片布局的全部尺寸(随「每行张数」变化的那些)。
- * 中档(6/行)= [Theme] 里像素标定的原始常量原样;5/8 档由「可见跨度守恒」推导(见 [Theme.cardMetrics])。
- * 不随档位变的量(FocusScale、SidePadding、RowVerticalPad、Shadow* 等)仍直接读 [Theme],不进这里。
- */
+/** 一档卡片布局的尺寸(Dp)。全部由 [HomeLayout] 推导,这里只做单位包装,不要在这里写任何数字。 */
 data class CardMetrics(
     val cardWidth: Dp,
     val cardHeight: Dp,
     val cardCorner: Dp,
     val cardSpacing: Dp,
-    val glowRadius: Dp,
-    /** 卡顶到下一行卡顶的间距,只用于「焦点行会不会掉出屏幕」的位移计算(见 HomeScreen 的 overflow)。 */
+    /** 行内上下留白:放大 10% 的溢出一半 + 描边。 */
+    val rowVerticalPad: Dp,
+    /** 行标题顶到下一行行标题顶。 */
     val rowPitch: Dp,
-    /** 第一行卡片顶到内容顶的距离,同样只用于 overflow 计算。 */
-    val firstCardTop: Dp,
     /** 标题行占的高度(开关关 = 0),已计入 rowPitch。 */
-    val titleHeight: Dp = 0.dp,
-    /** 标题的卡底间距 / 行高 / 字号,随档位按 [cardWidth] 比例缩放(design §2.2,与卡宽同一推导)。
-     *  开关关着时这三个字段不影响任何东西(titleHeight 已经是 0);默认值只为了让其它构造点不必改。 */
-    val titleGap: Dp = 0.dp,
-    val titleLine: Dp = 0.dp,
-    val titleSize: TextUnit = 0.sp,
+    val titleHeight: Dp,
+    val titleGap: Dp,
+    val titleLine: Dp,
+    val titleSize: TextUnit,
 )
 
 /** 全部视觉常量集中在这里,对应 docs/DESIGN-custom-launcher.md §4 的规格表。 */
@@ -137,142 +129,33 @@ object Theme {
     // 加底色并缩放,复审用像素证明参考图里两者都没有生效——资源存在不代表用在这个位置。
     // 现在方形图标不画底、按卡片高铺满。
 
-    // 尺寸全部按 v4 截图像素级实测(1920x1080,density 2.0,故 dp = px/2):
-    //   卡片 254x142px、左边距 166px、卡片间距 28px、
-    //   第一行卡片顶 486px、行间距(卡片底到下行卡片顶)182px。
-    // 三行按这个尺寸会超出屏幕——**v4 本身就是这样**(MUSIC 行在屏幕外),所以配垂直滚动。
-    val CardWidth = 127.75.dp   // 复审实测 255.33px(自身重复性 ±0.08px)
-    val CardHeight = 71.85.dp      // 16:9;复审实测 143.8px,且 255.33×9/16=143.6 独立吻合
-    val CardCorner = 13.75.dp   // 复审弧线拟合 27.4px;与 Projectivy「圆角 40%」(0.4×71.85)一致
-    val CardSpacing = 8.9.dp   // 复审三轮实测参考间隙 17.88/17.78px(9.5dp 给出 19.0px)
-    /**
-     * 行与行的额外间距。注意它不等于「行距」——行距还包含标题、间隙和行内上下留白,
-     * 所以改 RowVerticalPad 时这里要跟着反向调整,否则行距会跑掉(实测一次调大留白后
-     * 行距从 324px 变成 358px)。目标是让卡片顶到卡片顶正好 RowPitch。
-     */
-    // 标定到卡片顶间距 328px。行标题图标从 16dp 放大到 24dp 后每行都高了 16px,
-    // 行距会跟着涨,所以这个值比单看间距推出来的要小。
-    val RowSpacing = 25.4.dp
-    // 标题正文 cap 中心到卡顶:参考 69.0px,原 4.5dp 给出 73.1px。
-    // 注意参考图里**正文比行图标高 3.33px**,而我们两者齐平,所以这里以正文为基准
-    // (图标字形本来就不是同一个,拿它当基准会把正文推错位)。
-    val RowTitleGap = 2.3.dp
-    /** 卡片标题(design §2,Gordon 定放卡片下方):卡底到文字的间距、一行文字的高度、字号。
-     *  这三个是**中档基准值**——实际渲染读 [CardMetrics.titleGap]/[titleLine]/[titleSize],
-     *  在 [cardMetrics] 里按 f 跨档缩放(同 CardCorner/GlowRadius 那一套),这里不再重复读。 */
-    val CardTitleGap = 6.dp
-    val CardTitleLine = 18.dp
-    val CardTitleSize = 13.sp
-    val SidePadding = 84.5.dp   // 复审三轮实测参考左边缘 168.4/168.6px(85dp 给出 169.5px)
-    val TopPadding = 195.3.dp   // 与 RowTitleGap/RowSpacing 联立解出:第一行卡顶落在 483.4px
-    /** 行内上下留白:要放得下聚焦后放大 31% 的卡片,否则会被行高裁掉。 */
-    val RowVerticalPad = 20.dp
-
-    /**
-     * 非当前行的卡片压暗——v4 实测:同一张白底卡片在当前行是 (255,255,255),
-     * 在非当前行是 (75,73,63)。三通道各不同(R 29.4% / G 28.6% / B 24.7%),
-     * 说明 Projectivy 在 alpha 之外还有色温偏移;单一 alpha 无法完美复现,
-     * 取 0.248 是偏暗偏冷的折中(更接近 B 通道),0.29 偏亮偏暖(更接近 R)。
-     */
-    const val InactiveRowAlpha = 0.248f
-
-    /**
-      * 只用于「焦点行会不会掉出屏幕」的位移计算,必须与实际渲染出来的位置一致。
-      * 复审实测:第一行卡顶 483.4px = 241.7dp;卡顶到卡顶 327.5px = 163.75dp。
-      */
-    val FirstCardTop = 241.7.dp
-    val RowPitch = 163.75.dp
-    /** 焦点行底部至少离屏幕底这么远,不够就整体上移。 */
-    val BottomKeepout = 28.dp
-
-    /**
-     * 每行张数 → 一档卡片尺寸。门 1(Gordon 定):**只定每行张数,其余按比例算,中档锚定**。
-     *
-     * - **中档 6(以及任何意外值)返回上面这批像素标定的原始常量原样** —— 零回归的锚点,
-     *   不要在这里「优化」标定值。
-     * - **5 / 8 档由「可见跨度守恒」推导**:当前 6 张卡的可见跨度
-     *   `S = 6*CardWidth + 5*CardSpacing`;换成 N 张时保持同一个 S、且 [CardSpacing] 不变,
-     *   于是 `cardWidth(N) = (S - (N-1)*CardSpacing) / N`。再用比例 `f = cardWidth(N)/CardWidth`
-     *   缩放随卡宽变的量:高、圆角、光晕、标题(卡底间距/行高/字号,design §2.2)。
-     *   [FocusScale] 与 [CardSpacing] 跨档不变。
-     *   → 5 张更大、8 张更小、6 张不变。
-     * - **纵向**:行距 [RowPitch] 里只有卡高一项随档变(标题、间隙、留白、行间距都不变),
-     *   所以 `rowPitch(N) = RowPitch + (cardHeight(N) - CardHeight)`。
-     *   卡「顶」的位置不受卡高影响,故 [FirstCardTop] 跨档不变。
-     */
+    /** 每行张数 → 一档尺寸。三档同一公式(spec §1.1),不再有「中档零回归锚点」;非法值按中档 6。 */
     fun cardMetrics(cardsPerRow: Int, showTitles: Boolean = false): CardMetrics {
-        // 6 与任何意外值都走中档:原始常量原样(不乘 f,连浮点乘 1.0 的风险都不冒),
-        // 保证与本次改动前逐像素一致。
-        if (cardsPerRow != 5 && cardsPerRow != 8) {
-            val titleHeight = if (showTitles) CardTitleGap + CardTitleLine else 0.dp
-            return CardMetrics(
-                cardWidth = CardWidth,
-                cardHeight = CardHeight,
-                cardCorner = CardCorner,
-                cardSpacing = CardSpacing,
-                glowRadius = GlowRadius,
-                rowPitch = RowPitch + titleHeight,
-                firstCardTop = FirstCardTop,
-                titleHeight = titleHeight,
-                titleGap = CardTitleGap,
-                titleLine = CardTitleLine,
-                titleSize = CardTitleSize,
-            )
-        }
-        val span = CardWidth * 6 + CardSpacing * 5           // 6 张时的可见跨度 S = 811.0dp
-        val cardWidth = (span - CardSpacing * (cardsPerRow - 1)) / cardsPerRow
-        val f = cardWidth / CardWidth                         // Dp/Dp = Float 比例因子
-        val cardHeight = CardHeight * f
-        // 标题随卡宽同一个 f 缩放(design §2.2:「随档位按 cardWidth 比例缩放,与 cardMetrics 同一推导」)。
-        val titleGap = CardTitleGap * f
-        val titleLine = CardTitleLine * f
-        val titleSize = CardTitleSize * f
-        val titleHeight = if (showTitles) titleGap + titleLine else 0.dp
+        val n = if (cardsPerRow in VALID_CARDS_PER_ROW) cardsPerRow else 6
         return CardMetrics(
-            cardWidth = cardWidth,
-            cardHeight = cardHeight,
-            cardCorner = CardCorner * f,
-            cardSpacing = CardSpacing,                        // 跨档不变
-            glowRadius = GlowRadius * f,
-            rowPitch = RowPitch + (cardHeight - CardHeight) + titleHeight,  // 只有卡高随档变
-            firstCardTop = FirstCardTop,                      // 卡顶位置与卡高无关
-            titleHeight = titleHeight,
-            titleGap = titleGap,
-            titleLine = titleLine,
-            titleSize = titleSize,
+            cardWidth = HomeLayout.cardWidth(n).dp,
+            cardHeight = HomeLayout.cardHeight(n).dp,
+            cardCorner = HomeLayout.CARD_CORNER.dp,
+            cardSpacing = HomeLayout.CARD_SPACING.dp,
+            rowVerticalPad = HomeLayout.rowVerticalPad(n).dp,
+            rowPitch = HomeLayout.rowPitch(n, showTitles).dp,
+            titleHeight = HomeLayout.titleHeight(showTitles).dp,
+            titleGap = HomeLayout.CARD_TITLE_GAP.dp,
+            titleLine = HomeLayout.CARD_TITLE_LINE.dp,
+            titleSize = 12.sp,   // bodySmall
         )
     }
 
-    /**
-     * 聚焦卡片放大比例:v4 实测,同一张卡片未聚焦时高 143px、聚焦时 187px,187/143 ≈ 1.31。
-     * 第一版拍脑袋写 1.06,屏幕上几乎看不出放大——这是「凭感觉设参数」的典型代价。
-     */
-    const val FocusScale = 1.31f
-    /**
-     * 光晕半径。注意 LazyRow 会裁剪超出行边界的绘制,半径设得比行内留白还大时
-     * 光晕会被整块裁掉、屏幕上几乎看不见(第一版 34dp 就是这样)。
-     * 现在的值配合 RowVerticalPad 20dp 刚好落在可见区域内。
-     */
-    val GlowRadius = 6.8.dp   // 复审用无模型拟合:参考光晕比原来窄 37%、亮 18%
+    val SidePadding = HomeLayout.SIDE_PADDING.dp
+    /** 焦点 / 位移动效:tv-material SurfaceScaleTokens 同一条减速曲线与进焦时长。 */
+    val MotionEasing = androidx.compose.animation.core.CubicBezierEasing(0f, 0f, 0.2f, 1f)
+    const val MotionInMs = 300
+    /** 编辑页专用(观感不动,M8 不碰二级界面);随二级界面换皮时删。 */
+    val EditRowSpacing = 25.4.dp
+    val EditRowTitleGap = 2.3.dp
+
     // 邻居压暗的数值写在 AppCard 的 shade 里,以那里为准(左邻居 0.09、隔一张 0.06、
     // 右邻居 0.05)。这里不再复述——注释抄一份就会各自漂移,先前就漂成了 0.17/0.09/0.04。
-    const val GlowPeriodMs = 2500    // v4 实测周期 2.50 s
-
-    /**
-     * 聚焦卡片投在邻居身上的**投影**。参考图里这层压暗是二维的:邻居顶部几乎不暗(5%),
-     * 底部最深 18%,且左邻居的亏损是右邻居的 3 倍 —— 光源在右上、影子落向左下。
-     * 先前做成了 `Brush.horizontalGradient`,任何 y 上都一模一样,是最大的一处可见差异
-     * (最深处差 31/255)。它同时解释了光晕的上下不对称:参考图上重下轻 43%,
-     * 正是因为下方光晕被这层投影吃掉了 —— **所以不要去调光晕的 alpha 或半径**。
-     */
-    // 参数是按实测反解的,不是拍脑袋:第一版 dy 只有 3.5dp,投影整片盖住邻居
-    // (实测左邻居顶 213 / 底 205,几乎均匀),而参考是 243 / 212 —— **上下差 3.6 倍**。
-    // 要的是「影子的上边缘正好落在邻居中部」,所以 dy 必须与卡片高同量级。
-    // 注意这些值在**卡片自身坐标系**里,聚焦时整体还会被放大 1.31 倍。
-    val ShadowRadius = 12.5.dp   // 屏幕上约 33px
-    val ShadowDx = (-4).dp       // 屏幕上约 -10.5px,影子偏左
-    val ShadowDy = 21.75.dp      // 屏幕上约 +57px
-    val ShadowColor = Color(0x60000000)
 
     /** 待机默认时长(3 分钟),与 [Settings.idleAfterMs] 的默认值一致。
      *  实际计时已改由 MainActivity 读 homeSettings.idleAfterMs 驱动(0 = 永不待机、

@@ -710,7 +710,7 @@ private fun SegmentedControl(options: List<String>, selected: Int, rowFocused: B
     }
 }
 
-/** 主题色 swatch:6 个色点,选中项加环;行聚焦时环变主题 highlight 色(焦点 + 选中都清楚)。 */
+/** 主题色 swatch:7 个色点,选中项加环;行聚焦时环变主题 highlight 色(焦点 + 选中都清楚)。 */
 @Composable
 private fun SwatchControl(selected: Int, rowFocused: Boolean) {
     val highlight = LocalThemeColors.current.highlight

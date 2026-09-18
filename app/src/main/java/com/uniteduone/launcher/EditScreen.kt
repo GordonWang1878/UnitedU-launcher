@@ -293,8 +293,8 @@ fun EditScreen(
             )
             rows.forEachIndexed { ri, (name, pkgs) ->
                 Column(
-                    Modifier.padding(bottom = Theme.RowSpacing),
-                    verticalArrangement = Arrangement.spacedBy(Theme.RowTitleGap),
+                    Modifier.padding(bottom = Theme.EditRowSpacing),
+                    verticalArrangement = Arrangement.spacedBy(Theme.EditRowTitleGap),
                 ) {
                     BasicText(
                         text = name,
@@ -317,7 +317,7 @@ fun EditScreen(
                             // 它一消失,这一行 UI 内再也加不进任何应用。
                             .wrapContentWidth(Alignment.Start, unbounded = true)
                             .offset(x = dx)
-                            .padding(start = Theme.SidePadding, top = Theme.RowVerticalPad, bottom = Theme.RowVerticalPad),
+                            .padding(start = Theme.SidePadding, top = metrics.rowVerticalPad, bottom = metrics.rowVerticalPad),
                     ) {
                         pkgs.forEachIndexed { pi, pkg ->
                             val app = all?.get(pkg)
@@ -473,7 +473,7 @@ private fun AddCard(
 ) {
     var focused by remember { mutableStateOf(false) }
     val highlight = LocalThemeColors.current.highlight
-    // 卡片聚焦会放大 1.31 倍并起光晕,加号原来只换个底色,暗背景下看不出「我选中的是它」
+    // 卡片聚焦会放大 1.1 倍并起描边,加号原来只换个底色,暗背景下看不出「我选中的是它」
     val addScale by androidx.compose.animation.core.animateFloatAsState(
         if (focused) 1.12f else 1f, label = "addScale",
     )

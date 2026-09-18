@@ -104,6 +104,13 @@ class MainActivity : ComponentActivity() {
     private var pickerTarget by mutableStateOf<String?>(null)
     /** 待机(超时淡出)。**必须住在 Activity 里**,因为唤醒发生在 dispatchKeyEvent。 */
     private var idle by mutableStateOf(false)
+    /**
+     * 屏保按钮(M8 spec §1.5)的「立即待机」请求计数。**不能直接写 `idle = true`**:按下确认键的那次
+     * dispatchKeyEvent 已经刷新了 lastInput,待机计时效果随之在同一次重组里重启并把 idle 写回 false。
+     * 所以走一个独立的请求计数:它的效果声明在计时效果之后、先等一帧再写 idle = true,稳赢那次重启。
+     * 唤醒仍由 dispatchKeyEvent 吞掉下一次按键(与超时待机同一条路);不是闩——每次点击都是一次新计数(铁律 7)。
+     */
+    private var screensaverRequests by mutableStateOf(0)
     /** 菜单是从齿轮按钮打开的(true)还是从遥控器三条杠键打开的(false)。
      *  关闭菜单时 HomeScreen 据此决定焦点恢复到齿轮还是原来的卡片。 */
     private var menuFromGear = true
@@ -367,6 +374,12 @@ class MainActivity : ComponentActivity() {
                 delay(idleAfterMs)
                 idle = true
             }
+            // 屏保按钮的请求(见 screensaverRequests 的 KDoc):声明在计时效果之后、再等一帧,保证后写。
+            LaunchedEffect(screensaverRequests) {
+                if (screensaverRequests == 0) return@LaunchedEffect
+                withFrameNanos { }
+                idle = true
+            }
             // 壁纸轮播。守卫读的两个量就是 key(铁律 6):rotate() 写盘后 settingsRevision++ 重读 settings,
             // rotatedAt 变 → 本 effect 以新 key 重启、再等一个间隔;重启 app 后按剩余时间续等。
             val rotateMs = homeSettings.wallpaperRotateMs
@@ -386,6 +399,7 @@ class MainActivity : ComponentActivity() {
             // 壁纸与黑底常驻在这一层:进出编辑界面只换上面那一层,
             // 壁纸不会被重建,也就不会每次退出编辑都重新解码 + 黑闪一下。
             // 主题色只此一条线:这里提供一次,下面每个界面都读 LocalThemeColors.current(见 ThemePresets.kt)。
+            UnitedUTheme(themeColors) {
             CompositionLocalProvider(LocalThemeColors provides themeColors) {
             Box(
                 Modifier
@@ -475,6 +489,10 @@ class MainActivity : ComponentActivity() {
                     menuItems = menu,
                     menuOpen = menuOpen,
                     onMenuOpenChange = { if (it) { menuFromGear = true; menuOpen = true } else closeMenu() },
+                    // 屏保按钮 = 立即进入待机(spec §1.5),走请求计数(见 screensaverRequests 的 KDoc)。
+                    // NO_FADE 下待机没有任何可见效果(HomeScreen 的 contentAlpha 恒为 1、黑幕不升),
+                    // 请求只会白白吞掉下一个按键当唤醒,所以这一档不发请求,按钮不动作。
+                    onScreensaver = { if (homeSettings.idleContent != IdleContent.NO_FADE) screensaverRequests++ },
                     focusNonce = focusNonce,
                     revision = revision,
                     menuFromGear = menuFromGear,
@@ -574,6 +592,7 @@ class MainActivity : ComponentActivity() {
                     onFinish = ::endOnboarding,
                     onBack = ::stepBackInOnboarding,
                 )
+            }
             }
             }
             }

@@ -95,8 +95,9 @@
     <string name="edit_badge_new">NEW</string>
 
     <!-- home_* : home screen and default-home settings card -->
-    <string name="home_empty_apps_hint">No apps to show\nThe gear icon in the top right is selected — press OK to open the menu, then choose “Edit Rows” to add some</string>
+    <string name="home_empty_apps_hint">No apps to show\nThe settings button in the top right is selected — press OK to open the menu, then choose “Edit Rows” to add some</string>
     <string name="home_new_apps">%1$d new app(s)</string>
+    <string name="home_screensaver_button">Screensaver</string>
     <string name="home_input_row_title">Inputs</string>
     <string name="home_settings_title">Default Home</string>
     <string name="home_settings_current_label">Current</string>
@@ -194,6 +195,7 @@
     <string name="onb_none">No apps found to place automatically</string>
 
     <!-- preset_* : theme color preset names (gate 2 "subdued" set) -->
+    <string name="preset_material">Material Purple</string>
     <string name="preset_gold">Gold</string>
     <string name="preset_champagne">Champagne</string>
     <string name="preset_blue">Blue</string>

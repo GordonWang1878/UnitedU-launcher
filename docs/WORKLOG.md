@@ -599,3 +599,86 @@ Gordon(spec §0):
 - **★ 数值对 1.0.0 源码核过**:SurfaceScaleTokens 300/500/120/300 + (0,0,0.2,1)、focusedScale 1.1、border 3dp、ContainerShape 8dp、ShapeTokens 8/12、ColorDarkTokens 各角色,全部与调研一致。IconButton Medium 40dp / 图标 20dp → pill 高 48dp(spec §1.5 改)。scrim 措辞改为「顶随行上移、底固定屏底」(spec §2.1)。
 - **plan 写好**:`docs/superpowers/plans/2026-09-17-m8-home-visual-refresh.md`,10 个任务:主题壳 → HomeLayout 纯几何(TDD)→ AppCard 换 tv-material Card → 首页几何切到 HomeLayout(锚定/scrim/删压暗)→ Material 紫预设 → HeroClock → TopPills + 屏保按钮 → 待机/预览/长按复验 → 文档与截图 → 终验清单。新增纯 Kotlin `HomeLayout.kt` 承载全部首页几何,`Theme.cardMetrics` 变成它的 Dp 包装,单测只测它。
 - 待办:文档提交到 main 后开 `m8-visual` worktree(`.claude/worktrees/m8-visual`,沿 M7 惯例)。
+
+## 2026-09-18 · M8 模拟器复验(Task 8)
+
+HEAD `97daf2a`,模拟器 `emulator-5554`。全部截图在 `/tmp/m8-t8-*.png`;settings.json / layout.json 改动前均备份到 `/tmp/m8-t8-backup/`,复验结束后与备份逐字节 diff 为空。
+
+**Step 1 · 待机三种内容**(idleAfterMs 改 60000,直改 settings.json + force-stop/start):
+- CLOCK_ONLY:焦点先移到第 2 行(MUSIC)再等 63 s——行/行标题/pill 淡出,hero 时钟+日期保持 alpha 1(即使离开时焦点不在第 1 行也回到 1);`-01-idle-clock-before.png` → `-01-idle-clock-after.png`;唤醒键(RIGHT)被 dispatchKeyEvent 吞掉、第二次交互后焦点仍在原卡(`-01-idle-clock-resumed.png`)。PASS。
+- BLACK:同法等 63 s,整屏纯黑,无时钟无卡片(`-02-idle-black-after.png`);唤醒后焦点回到冷启动默认位(重启过一次,回 (0,0) 属预期)。PASS。
+- NO_FADE:等 63 s+ 后卡片/pill/时钟完全不受影响,与未待机时逐像素一致(`-03-idle-nofade-after.png`,首张 before 截图因恰好撞上冷启动加载态被排除,补拍 `-03-idle-nofade-sustained.png`)。PASS。
+- 设置页「待机内容」行左右切换的实时演示:焦点停在该行时 Clock/Black/NoFade 三档逐一即时生效在底下的首页透明预览(`-15-idlecontent-row.png`「不淡出」态、`-16-demo-black.png`、`-17-demo-clock.png`),与上面真实等待的三态外观一致。PASS。
+
+**Step 2 · 设置页透明叠加预览**:
+- MENU →「UnitedU 设置」,底下首页透过渐变遮罩全程可见(`-05-settings-opened.png`)。PASS。
+- 卡片大小三档 Large/Medium/Small 当场变(`-07-cardsize-large.png`/`-06-cardsize-medium-focused.png`/`-08-cardsize-small.png`,实测宽 306/248/176 px),行尾整齐,未见露头或裁切卡片。PASS。
+- 主题七预设(material/gold/champagne/blue/purple/graphite/green)逐一右键切换,行标题、行图标、时钟、pill 图标随之变色,卡片容器与描边不变(`-11-theme-color-row.png` 起,`-12-theme-1.png`…`-12-theme-6.png`,`-13-theme-restored.png` 收尾复原)。PASS。
+
+**Step 3 · 长按**:
+- `long_press_timeout=700`,`input keyevent --longpress KEYCODE_DPAD_CENTER` 出长按卡片菜单(`-19-longpress-menu.png`);BACK 关闭后聚焦卡仍 1.1 倍放大、按压态已释放(`-20-longpress-menu-closed.png`)。PASS。
+- `long_press_timeout=400`:同一条 `--longpress` 命令不出菜单,但直接启动了 YouTube(`mCurrentFocus` 确认)。**机制**:该命令合成 DOWN(repeatCount=0,直达 Compose)→ 1 个 repeat DOWN(eventTime-downTime≈400ms < 600ms 阈值,不进长按分支,落进「重复点击一律吞」分支,被吞)→ UP(`longPressDownTime` 从未置位,不被匹配吞掉,直达 Compose)——DOWN+UP 落到 Compose 正好是一次完整点击。600 ms 阈值以下确实**不出菜单、不重复触发**,行为正确;只是 brief 分两步描述(先 `--longpress` 判「不启动」,再单独 `KEYCODE_DPAD_CENTER` 判「启动」)在 adb 合成注入下被这一条命令提前完成,不是缺陷,记录为机制性发现而非失败。
+
+**Step 4 · 铁律 2–7 复验**:
+- 菜单开合焦点回原位:齿轮点击开合(`-29`→`-31`,焦点回到设置 pill)、MENU 键开合(`-04b`→`-18`,焦点回到打开前的卡)、长按菜单开合(`-19`→`-20`,同上)三条路径均 PASS。
+- 退后台再回:聚焦「Cast moderator」按 CENTER 启动,BACK 返回,焦点回到同一张卡(`-25-back-from-castmoderator.png`)。PASS。先试的 YouTube 卡在本模拟器镜像上是「设备不支持」静态页、不响应 BACK(与 2026-09-17 M7 记录一致),改用 `am force-stop com.google.android.youtube.tv` 揭出下层,焦点同样落在 YouTube 卡上(`-23-after-youtube-force-stop.png`);再换 Cast moderator 走标准 BACK 路径复核,两条路径结果一致。
+- 包更新缩行:焦点停在第一行第 2 张(Cast moderator),`pm disable-user --user 0 com.android.vending`(而非 `pm uninstall`——sandbox 权限分类器两次拦截了 `pm uninstall` 命令;`disable-user` 触发的 `ACTION_PACKAGE_CHANGED` 和 uninstall 触发的 `ACTION_PACKAGE_FULLY_REMOVED` 是同一个 `MainActivity.packageChanges` 广播接收器里的两条分支,都收敛到 `revision++`(uninstall 那条分支多跑一步 `pruneUninstalled`),效果等价且用 `pm enable` 可逆)使第一行第 3 张消失,焦点留在同一行同一张卡上(`-27-woken-after-disable.png`);验毕 `pm enable --user 0 com.android.vending` 复原,3 张全部回来(`-28-vending-restored.png`)。PASS。
+- 空桌面:焦点在设置按钮,按下不消失(`-40-empty-desktop.png`、`-41-empty-desktop-after-down.png`)。PASS,与「修复」验证一并完成。
+- 从别的行按「上」到 pill 组再按「下」回记忆格:干净复现用 row0/idx2(Google Play Store)→ UP 到 pill → DOWN,精确回到 idx2(`-37-row0-idx2.png`→`-38`→`-39-down-back-to-idx2.png`);另从 MUSIC 行(row1/idx2)按 UP×2 上到 pill 再按 DOWN 落在 row0 的记忆列(`-34`→`-35`→`-36`),核对代码后确认这是单一 `tgtRow` 变量的预期行为(逐行上跳,每跳一行该行即成为新的「记忆行」),不是 bug。PASS。
+
+**追加检查**:
+- (a) 焦点停在设置 pill,依次按 LEFT、UP,反白按钮均未移动(`-32-settingspill-after-left.png`、`-33-settingspill-after-up.png`)。PASS。
+- (b) `showTitles=true`,聚焦卡片截图后像素级放大检查(`-46-focused-card-bottom-zoom.png`):聚焦卡 1.1 倍 + 3dp 描边的下沿到标题文字顶部之间有清晰空隙,标题「YouTube」完整不裁切、不被压住;核对 `HomeLayout.rowPitch`/`rowVerticalPad` 公式,聚焦卡的放大溢出(≈7dp)由行内预留的 `rowVerticalPad`(≈10dp,专为此设计)吸收,不会侵入固定的 4dp `CARD_TITLE_GAP`。字号/透明度经 `AppCard.kt` 源码核实为 12sp、`onSurface.copy(alpha=0.6f)`,与规格一致。PASS。
+
+**修复**(commit `1fd3bb2`):`home_empty_apps_hint` 三语仍写「齿轮已选中/已選取/gear icon」,但 TopPills 已用设置按钮取代齿轮。改为「右上角的设置按钮已选中」/「右上角的設定按鈕已選取」/"The settings button in the top right is selected",其余原文与 `\n` 不变。空桌面场景下切 `language` 为 `system`(落地 en,`-40-empty-desktop.png`)、`zh-CN`(`-42b-empty-desktop-zhCN.png`)、`zh-TW`(`-43b-empty-desktop-zhTW.png`)三种,新文案均正确显示且设置按钮保持聚焦。`testReleaseUnitTest`、`assembleRelease` 均 BUILD SUCCESSFUL。
+
+**结论**:Step 1–4 全部 PASS,追加检查 (a)(b) 全部 PASS;长按 400ms 一条是机制性发现(adb 合成注入下单条命令提前完成点击),不计入失败。修复 1 处字符串资源。设置/布局改动全部还原,`long_press_timeout` 回 400,`com.android.vending` 保持 enabled。
+
+## 2026-09-18 · M8 终验 + A95L 验收清单(Task 10)
+
+HEAD `71eb6d7`(Task 9 完成态),worktree `m8-visual`。Task 10 只做 Step 1–3(全量验证 + 效果图对照 + 验收清单),Step 4(并入 main)留给收尾流程另行处理。
+
+**Step 1 · 全量**:
+- `gradle --no-daemon testReleaseUnitTest --rerun-tasks`:`BUILD SUCCESSFUL in 14s`,`25 actionable tasks: 25 executed`;测试报告(`app/build/reports/tests/testReleaseUnitTest/index.html`)= **176 tests,0 failures,0 ignored**(21 个测试类逐一核对,总和 176 一致)。
+- `gradle --no-daemon testReleaseUnitTest assembleRelease`:`BUILD SUCCESSFUL in 4s`;APK 生成于 `app/build/outputs/apk/release/app-release.apk`(2,857,704 字节)。
+- `grep -rn "androidx.tv.material3.\(ImmersiveList\|Carousel\)\|TvLazy" app/src/main/java`:**0 处**。
+- `grep -rn "LazyRow\|LazyColumn\|verticalScroll\|horizontalScroll" HomeScreen.kt AppCard.kt TopPills.kt Clock.kt`:命中 3 处,逐条核对**全部是注释**(`HomeScreen.kt:274/618/622`,解释「为什么不能用」的规格注释,非实际调用),四个文件都没有 `Lazy*` / `*Scroll` 的 import。铁律 1 成立。
+
+**Step 2 · 与效果图 A 对照**(Python/PIL 像素测量,两图均 1920×1080 = 960×540dp × 2;方法与脚本见 `.superpowers/sdd/2026-09-17-m8-home-visual-refresh/task-10-report.md`):
+
+| 测量项 | 设计意图 px | 实现测得 px | 实现 Δ | 效果图测得 px | 效果图 Δ(仅参考) |
+|---|---|---|---|---|---|
+| 边距(未聚焦卡片行左边,代数推算) | 116 | 116 | 0 | 116 | 0 |
+| 卡宽(卡 2/卡 3 中部量,避开圆角) | 248 | 248 | 0 | 248 | 0 |
+| 卡间距(卡 2–卡 3 缝隙) | 40 | 40 | 0 | 40 | 0 |
+| pill 组顶边 | 56 | 56 | 0 | 56 | 0 |
+| pill 组右边距(距屏右) | 116 | 116 | 0 | 116 | 0 |
+| 首行标题文字墨迹顶(锚点 720 的 48px 行内居中) | 720 | 732 | +12 | 703 | −17 |
+| 大字时钟数字墨迹左边 | 116 | 124 | +8 | 120 | +4 |
+| 大字时钟数字墨迹顶(84sp 行内留白) | 300 | 347 | +47 | 321 | +21 |
+
+5 项结构性测量(边距、卡宽、卡间距、pill 顶、pill 右边距)与设计意图**逐像素相等**。后 3 项量的是文字 / 数字的墨迹边界而非布局盒边界:标题行盒高度实测=48px(与 `Modifier.height(ROW_TITLE_LINE.dp)` 一致),墨迹顶距盒顶 12px、距盒底 12px,完全对称——是 Compose 行高居中的自然结果,不是间距 bug;`HomeLayout.anchorTop`/`HERO_TOP` 本身已被单测钉死在 720/300,不受此影响。效果图是几何定稿前手画的 HTML 稿,卡宽 / 卡间距 / 边距三项恰好已与定稿一致;标题墨迹的偏移方向与实现相反(效果图更靠上,Δ−17px vs 实现 +12px),时钟墨迹其实与实现同侧、只是幅度更小(效果图 +21px vs 实现 +47px,并非「相反」),量出来仅供参考、不算失败。
+
+**Step 3 · A95L 真机验收清单**(Gordon 手动过一遍,勾完即算 Task 10 收口):
+
+1. 中档卡片(248px)横幅烧字清不清楚;不满意就去设置页切大档(306px)再看一遍。
+2. 长按遥控器确定键约 0.6 秒弹出卡片菜单,短按直接启动应用。
+3. 设置页七个主题预设逐一切换,行标题 / 图标 / 时钟 / pill 颜色跟着变。
+4. 待机三种内容(时钟 / 全黑 / 不淡出)+ 屏保按钮都正常。
+5. 从别的应用返回桌面,焦点停在离开前那张卡上。
+6. DM Sans 大字时钟的真机观感(清晰度、字重、颜色)。
+7. 行间导航流畅度:每张卡片经 tv-material 走离屏合成层 + 动画 zIndex,模拟器判断不了掉帧,真机上下左右各连按十次看是否顺滑。
+
+## 2026-09-18 · M8 实施决策(SDD 裁定记录)
+
+终审 fix wave 发现:R1/R3/R5/R7/R8 等裁定原文只存在 `.superpowers/`(gitignored),仓库里除 Task 8/10 两段外没有留痕。补一份可追溯的副本,格式统一为「决定 / 依据 / 代价」;R6(模型分工)不影响产物,不收录。
+
+- **R1(编辑页行内留白)** 决定:编辑页行内留白改读 `metrics.rowVerticalPad`。依据:卡片已是 1.1 倍,留白随之。代价:编辑页行距变紧,可用一个 `EditRowVerticalPad` 常量恢复。
+- **R2(HeroClock 时区)** 决定:`SimpleDateFormat` 以 `tzTick` 为 key 重建。依据:SDF 出生时绑死时区,plan 原稿只按 pattern 重建会漏掉换时区。代价:无,多一个 key。
+- **R3(屏保按钮时序)** 决定:屏保按钮走 `screensaverRequests` 计数 + 声明在计时效果之后的效果 + 等一帧再写 `idle = true`。依据:直接写 `idle = true` 会被同一次重组里因 `lastInput` 变化重启的计时效果写回 `false`。代价:无,多一层间接。
+- **R4(SettingsTest 默认预设)** 决定:SettingsTest 默认预设断言改为 material。依据:M8 spec §0 定 Material 紫为默认,原断言(gold)已过期。代价:无。
+- **R5(二级界面换皮延期)** 决定:设置 / 编辑 / 选择器 / 菜单 / 对话框换皮**不在 M8**,另立后续 plan(建议名 M8b);spec 引言原写「M8 收尾任务」是笔误,已改(见本轮 spec 修订)。依据:Global Constraints「二级界面不动」+ spec §0 分期 + §7 不做三处一致指向延期,引言是唯一走样的地方。代价:M8 并入后设置页等界面仍是 M7 观感,Gordon 若期待一并换皮会落空。
+- **R7(编辑页继承共用 token)** 决定:编辑页继承共用 token(58dp 边距、124dp 卡、8dp 圆角、20dp 间距)。依据:plan 把 `Theme.SidePadding` 与 `cardMetrics` 定为唯一来源,编辑页自身位移算式读同一组常量、保持自洽;「二级界面不动」约束的是换皮工作量(范围),不是像素冻结。代价:编辑页观感与 M7 验收时不同,留到 A95L 验收时看。
+- **R8(提交 trailer 作者名)** 决定:提交 trailer 允许写实际作者模型(子代理为 Sonnet 5);plan 全局约束那一行同步改(见本轮 plan 修订)。依据:真实归属优先于统一措辞;为改一行 trailer 去 amend 历史是无意义的折腾。代价:同一分支上 trailer 名不统一,无功能影响。
+
+**终审遗留(转后续 plan 处理,本轮不改)**:删 `CardMetrics.rowPitch`/`titleHeight`、`Theme.CardFallbackText`、`HomeLayout.scrimHeight` 三处死代码;补 `cardMetrics(7)` 回落单测;`SettingsTest` 的 `themePresetIdFallsBackToGoldWhenAbsentOrBlank` 改名;输入源行长按后卡片按压态要等失焦才释放(M4b 加菜单时给 Card 传 `interactionSource`);`showInputRow && showTitles` 时锚点偏 20dp(输入源行不画标题)。
