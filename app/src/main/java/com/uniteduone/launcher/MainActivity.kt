@@ -102,13 +102,23 @@ class MainActivity : ComponentActivity() {
      *  X-plore 的 GET_CONTENT 不响应 D-pad(2026-09-11 真机确认),所以换壁纸/换图标
      *  改为用内置选择器,图片通过 adb push 到 files/library/ 预先放好。 */
     private var pickerTarget by mutableStateOf<String?>(null)
-    /** 待机(超时淡出)。**必须住在 Activity 里**,因为唤醒发生在 dispatchKeyEvent。 */
-    private var idle by mutableStateOf(false)
     /**
-     * 屏保按钮(M8 spec §1.5)的「立即待机」请求计数。**不能直接写 `idle = true`**:按下确认键的那次
-     * dispatchKeyEvent 已经刷新了 lastInput,待机计时效果随之在同一次重组里重启并把 idle 写回 false。
-     * 所以走一个独立的请求计数:它的效果声明在计时效果之后、先等一帧再写 idle = true,稳赢那次重启。
-     * 唤醒仍由 dispatchKeyEvent 吞掉下一次按键(与超时待机同一条路);不是闩——每次点击都是一次新计数(铁律 7)。
+     * 待机与自定义屏保(M5 spec §1)。**一个值装两个布尔量**,只取 [StandbyFlags] 的三个常量:
+     * 不变量「屏保 ⇒ 待机」由它的构造函数钉死,两个量一次写完、没有「只写了一半」的中间态。
+     * 读者照旧按布尔量读([idle] / [screensaverActive]),`idle` 原有的五个消费者一个字都不用改。
+     * **必须住在 Activity 里**,因为唤醒发生在 dispatchKeyEvent。
+     */
+    private var standby by mutableStateOf(StandbyFlags.NORMAL)
+    /** 待机:首页内容淡出 + 下一个按键当唤醒吞掉。自定义屏保时同样为真(spec §1 表)。 */
+    private val idle: Boolean get() = standby.idle
+    /** 自定义屏保:全屏轮播屏保图库。只在 [idle] 为真时可能为真。 */
+    private val screensaverActive: Boolean get() = standby.screensaverActive
+    /**
+     * 屏保按钮的请求计数(M8 spec §1.5;M5 spec §1.3 起 = 立刻进自定义屏保、跳过待机,图库空时退为待机)。
+     * **不能在点击回调里直接写状态**:按下确认键的那次 dispatchKeyEvent 已经刷新了 lastInput,
+     * 计时效果随之在同一次重组里重启、把状态写回正常。所以走一个独立的请求计数:它的效果声明在
+     * 计时效果之后、先等一帧再写(R3),稳赢那次重启。唤醒仍由 dispatchKeyEvent 吞掉下一次按键
+     * (与超时进入同一条路);不是闩——每次点击都是一次新计数(铁律 7)。
      */
     private var screensaverRequests by mutableStateOf(0)
     /** 菜单是从齿轮按钮打开的(true)还是从遥控器三条杠键打开的(false)。
@@ -365,20 +375,41 @@ class MainActivity : ComponentActivity() {
             // 待机时长/内容改由设置页驱动(Task 3):idleAfterMs 既是 key 也是守卫(铁律 6)——
             // 用户把它从「关」改成别的值(或反过来)时,这条 effect 必须以新 key 重启,
             // 否则「关」之后再打开待机,要等到下一次别的 key 变化才会生效。
+            // M5:screensaverAfterMs 同理(铁律 6)——两个时刻都由 standbyPlan 从同一次按键起算(spec §1.1)。
             val idleAfterMs = homeSettings.idleAfterMs
-            LaunchedEffect(touched, editing, menuOpen, overlay, homeOverlay, idleAfterMs) {
-                idle = false
+            val screensaverAfterMs = homeSettings.screensaverAfterMs
+            LaunchedEffect(touched, editing, menuOpen, overlay, homeOverlay, idleAfterMs, screensaverAfterMs) {
+                standby = StandbyFlags.NORMAL
                 if (editing || menuOpen || overlay || homeOverlay) return@LaunchedEffect
-                // 0 = 关,永不待机。
-                if (idleAfterMs == 0L) return@LaunchedEffect
-                delay(idleAfterMs)
-                idle = true
+                val plan = standbyPlan(idleAfterMs, screensaverAfterMs)
+                var waited = 0L
+                val standbyAt = plan.standbyAt
+                if (standbyAt != null) {
+                    delay(standbyAt)
+                    waited = standbyAt
+                    // 只升不降:屏保按钮可能已经把状态推到了屏保,这一拍不能把它拉回待机
+                    // (spec 的写法是「只写 idle = true」;打包成一个值之后,等价写法就是这个判断)。
+                    if (!standby.idle) standby = StandbyFlags.STANDBY
+                }
+                // 屏保「关」:停在待机(待机也「关」就是什么都不发生)。
+                val screensaverAt = plan.screensaverAt ?: return@LaunchedEffect
+                delay(screensaverAt - waited)
+                // 到点才查图库(spec §1.1):空 → 停在待机,下一个键照常只负责唤醒;非空 → 进屏保。
+                if (withContext(Dispatchers.IO) { hasScreensaverImages(this@MainActivity) }) {
+                    standby = StandbyFlags.SCREENSAVER
+                }
             }
-            // 屏保按钮的请求(见 screensaverRequests 的 KDoc):声明在计时效果之后、再等一帧,保证后写。
+            // 屏保按钮的请求(见 screensaverRequests 的 KDoc):声明在计时效果之后、再等一帧,保证后写(R3)。
+            // M5 spec §1.3:有图 → 立刻进自定义屏保、跳过待机;图库空 → 退为进待机;空图库 +「不淡出」→ 空操作,
+            // 下一个键不被吞(「不淡出」的待机没有任何可见效果,进了只会白吞一个键)。NO_FADE 的判断从调用点
+            // 移到这里:有图时「不淡出」也能进屏保。idleContentNow 是按下那一刻的设置(本效果随请求计数重启)。
+            val idleContentNow = homeSettings.idleContent
             LaunchedEffect(screensaverRequests) {
                 if (screensaverRequests == 0) return@LaunchedEffect
                 withFrameNanos { }
-                idle = true
+                val hasImages = withContext(Dispatchers.IO) { hasScreensaverImages(this@MainActivity) }
+                if (hasImages) standby = StandbyFlags.SCREENSAVER
+                else if (idleContentNow != IdleContent.NO_FADE) standby = StandbyFlags.STANDBY
             }
             // 壁纸轮播。守卫读的两个量就是 key(铁律 6):rotate() 写盘后 settingsRevision++ 重读 settings,
             // rotatedAt 变 → 本 effect 以新 key 重启、再等一个间隔;重启 app 后按剩余时间续等。
@@ -410,12 +441,9 @@ class MainActivity : ComponentActivity() {
             // 是在此之前读的;不重读的话,从 M2 升上来、开着「跟随壁纸主色」的用户整个首次会话
             // 都看不到壁纸主色(见 Wallpapers.prepare 的 KDoc)。
             Wallpaper(this@MainActivity, wallpaperSpec, onSettingsChanged = { settingsRevision++ })
-            // NO_FADE(Task 3):干脆不组合 Screensaver——M5 之前待机不淡出时就是「什么都不发生」
-            // (spec §6),屏保图片一张都不该解码,不只是不显示。
-            if (homeSettings.idleContent != IdleContent.NO_FADE) {
-                // M5 Task 2:画法搬到共用播放器(Screensaver.kt),间隔改读设置;触发条件 Task 3 换成 screensaverActive。
-                Screensaver(active = idle, intervalMs = homeSettings.screensaverIntervalMs)
-            }
+            // 自定义屏保层(M5 spec §1.4 第 2 层):只看 screensaverActive。不再因「不淡出」不组合——
+            // 待机显示只管待机,「不淡出」时屏保照样会来(spec §0);没进屏保时 alpha 为 0,一张图都不画。
+            Screensaver(active = screensaverActive, intervalMs = homeSettings.screensaverIntervalMs)
             // BLACK(Task 3):在屏保之上叠一层纯黑,随 idle 淡入淡出;配合 HomeScreen 里
             // 时钟自己的 clockAlpha 一起淡出,才是「整屏全黑」而不是黑底衬着屏保/时钟。
             // **待机演示(spec §3.2)也要能让这层变黑**:目标值同时看真实待机与演示值
@@ -432,7 +460,8 @@ class MainActivity : ComponentActivity() {
             val blackIdle = idle || demoActive
             val blackContent = activeDemoIdle ?: homeSettings.idleContent
             val blackAlpha = animateFloatAsState(
-                targetValue = if (blackIdle && blackContent == IdleContent.BLACK) 1f else 0f,
+                // 进自定义屏保时黑层淡出、照片亮出来(M5 spec §1.4 第 3 层)——「全黑」只管待机。
+                targetValue = if (blackIdle && blackContent == IdleContent.BLACK && !screensaverActive) 1f else 0f,
                 animationSpec = tween(if (blackIdle) 1200 else 400),
                 label = "blackAlpha",
             )
@@ -485,15 +514,15 @@ class MainActivity : ComponentActivity() {
                 HomeScreen(
                     previewing = overlayOpen,
                     idle = idle,
+                    screensaver = screensaverActive,
                     idleContent = homeSettings.idleContent,
                     demoIdle = activeDemoIdle,
                     menuItems = menu,
                     menuOpen = menuOpen,
                     onMenuOpenChange = { if (it) { menuFromGear = true; menuOpen = true } else closeMenu() },
-                    // 屏保按钮 = 立即进入待机(spec §1.5),走请求计数(见 screensaverRequests 的 KDoc)。
-                    // NO_FADE 下待机没有任何可见效果(HomeScreen 的 contentAlpha 恒为 1、黑幕不升),
-                    // 请求只会白白吞掉下一个按键当唤醒,所以这一档不发请求,按钮不动作。
-                    onScreensaver = { if (homeSettings.idleContent != IdleContent.NO_FADE) screensaverRequests++ },
+                    // 屏保按钮 = 立刻进自定义屏保、跳过待机(M5 spec §1.3),走请求计数(见 screensaverRequests 的 KDoc)。
+                    // 「不淡出」的判断移进了请求效果:有图时照样进屏保,只有空图库 +「不淡出」才是空操作。
+                    onScreensaver = { screensaverRequests++ },
                     focusNonce = focusNonce,
                     revision = revision,
                     menuFromGear = menuFromGear,
@@ -685,7 +714,8 @@ class MainActivity : ComponentActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         lastInput = System.currentTimeMillis()
         if (idle) {
-            idle = false
+            // 待机与自定义屏保一样:任意键回到正常,这一下只负责唤醒(spec §1.2)。
+            standby = StandbyFlags.NORMAL
             wakeDownTime = event.downTime
             return true
         }

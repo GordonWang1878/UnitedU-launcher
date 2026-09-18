@@ -38,12 +38,17 @@ import androidx.compose.ui.unit.sp
  * [demoIdle](M7 T6,spec §3.2)非 null 时会**覆盖**这两个:设置页「待机内容」行拿着焦点
  * 期间,不管真实 [idle] 是不是待机,都按 `demoIdle` 演示对应内容,离开该行即恢复。
  * 只影响这里的 `contentAlpha`/`clockAlpha` 两个动画,`Screensaver` 不参与(它是
- * `MainActivity` 单独组合的另一层,读的是真实 `idle`)。
+ * `MainActivity` 单独组合的另一层,M5 起读的是 `screensaverActive`)。
+ *
+ * [screensaver](M5 spec §1.4)为真 = 自定义屏保:行 / 渐变 / pill 一律淡出(「不淡出」也不例外——
+ * 照片上不该浮着一排卡片),大字时钟恒亮并加淡阴影(「全黑」待机进屏保时,时钟随照片一起亮出来)。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun HomeScreen(
     idle: Boolean,
+    /** 自定义屏保(M5 spec §1.4)。只在 [idle] 为真时可能为真(MainActivity 的 StandbyFlags 钉死)。 */
+    screensaver: Boolean = false,
     /** 待机时屏幕上显示什么(design 待机 §,Task 3);默认与老行为一致。 */
     idleContent: IdleContent = IdleContent.CLOCK_ONLY,
     /** 待机演示(M7 T6,spec §3.2):非 null 时覆盖 [idle]/[idleContent] 驱动的两个淡出动画。 */
@@ -400,16 +405,18 @@ fun HomeScreen(
         val effectiveIdleContent = demoIdle ?: idleContent
         // 待机用 alpha 淡出,不用 AnimatedVisibility——后者自带裁剪,会把超出屏幕的
         // 第三行整块切掉(实测 MUSIC 行因此始终不可见)。
-        // NO_FADE(Task 3):恒 1,卡片/行标题/齿轮都不淡出——M5 之前的行为,什么都不发生。
+        // NO_FADE(Task 3):待机时恒 1,卡片/行标题/pill 都不淡出。**自定义屏保例外**(M5 spec §0 / §1.4):
+        // 「不淡出」只管待机显示,屏保照样全屏——照片上不能浮着一排卡片,所以 screensaver 为真时一律淡出。
         val contentAlpha by animateFloatAsState(
-            targetValue = if (effectiveIdle && effectiveIdleContent != IdleContent.NO_FADE) 0f else 1f,
+            targetValue = if (screensaver || (effectiveIdle && effectiveIdleContent != IdleContent.NO_FADE)) 0f else 1f,
             animationSpec = tween(if (effectiveIdle) 1200 else 400),
             label = "contentAlpha",
         )
         // 时钟默认待机也留着(CLOCK_ONLY/NO_FADE);只有 BLACK 时钟才跟着淡出,
         // 配合 MainActivity 在 Screensaver 之上叠的黑色蒙版,整屏才会真正全黑。
+        // 自定义屏保时恒 1(M5 spec §1.4):「全黑」待机进屏保那一刻,时钟随照片一起亮出来。
         val clockAlpha by animateFloatAsState(
-            targetValue = if (effectiveIdle && effectiveIdleContent == IdleContent.BLACK) 0f else 1f,
+            targetValue = if (!screensaver && effectiveIdle && effectiveIdleContent == IdleContent.BLACK) 0f else 1f,
             animationSpec = tween(if (effectiveIdle) 1200 else 400),
             label = "clockAlpha",
         )
@@ -431,8 +438,10 @@ fun HomeScreen(
         )
 
         // hero 主体(spec §2.1 第 3 层):不随 shift 走;第 1 行起淡出、待机时回到 1(heroAlpha),BLACK 待机再随 clockAlpha 淡出。
+        // 自定义屏保时加淡阴影(M5 spec §1.5):照片可能很亮。
         HeroClock(
             showDate = showDate,
+            shadow = screensaver,
             modifier = Modifier
                 .padding(start = Theme.SidePadding, top = HomeLayout.HERO_TOP.dp)
                 .alpha(heroAlpha * clockAlpha),
