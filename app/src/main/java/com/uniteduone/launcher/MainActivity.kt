@@ -350,20 +350,8 @@ class MainActivity : ComponentActivity() {
             // key 带上 followWallpaperColor、wallpaperFile 与 revision:换壁纸(handlePick 只
             // settingsRevision++,不再 recreate)会让 homeSettings.wallpaperFile 变、这里跟着重跑;
             // 开关跟随、回到设置页同样触发。preset 路径是纯内存查表,直接同步解析。
-            val presetColors = remember(homeSettings.themePresetId) {
-                ThemePresets.byId(homeSettings.themePresetId).colors()
-            }
-            val wallpaperColors by produceState<ThemeColors?>(
-                null, homeSettings.followWallpaperColor, homeSettings.wallpaperFile, revision,
-            ) {
-                value = if (!homeSettings.followWallpaperColor) null
-                else withContext(Dispatchers.IO) {
-                    wallpaperThemeColors(this@MainActivity, homeSettings.wallpaperFile)
-                }
-            }
-            val themeColors =
-                if (homeSettings.followWallpaperColor) wallpaperColors ?: presetColors
-                else presetColors
+            // M5:解析本体搬到 ThemeResolve.kt 的 rememberThemeColors——系统屏保(UnitedUDream)走同一条路(spec §4)。
+            val themeColors = rememberThemeColors(this@MainActivity, homeSettings, revision)
             // 壁纸渲染输入:文件名 + 模糊 + 亮度,**不带主题色**(「主题化壁纸」2026-09-16 整个删掉,
             // 壁纸不再染色)。所以换预设、开关跟随、壁纸取色落地都不会让 spec 变,壁纸不会被无谓地重处理。
             //
@@ -1333,22 +1321,3 @@ class MainActivity : ComponentActivity() {
         })
     }
 }
-
-/**
- * followWallpaperColor 打开时,从当前壁纸主色推导界面强调色(经 LocalThemeColors 供给每个界面)。
- * **必须在 IO 线程调用**:取色会解一张缩略图并跑 Palette(实现见 [Wallpapers.paletteAccent])。
- *
- * accent 用取到的色,highlight 由 [highlightFrom] 混白 55% 推得 —— 与非金预设 highlight 同一手法。
- * 任何一步落空(没壁纸、解不出、Palette 抽不到色)返回 null,调用方回落到选中预设,绝不崩、绝不留黑。
- *
- * 取到的色只喂界面强调色,壁纸本身**不染色**(「主题化壁纸」2026-09-16 删掉,壁纸管线不再认识主题色)。
- */
-private fun wallpaperThemeColors(ctx: android.content.Context, wallpaperFile: String): ThemeColors? =
-    Wallpapers.resolveSource(ctx, wallpaperFile)
-        ?.let { Wallpapers.paletteAccent(ctx, it) }
-        ?.let { rgb ->
-            // 壁纸主色可能很暗 / 很灰,先提亮到可读地板再当强调色(见 usableAccent);
-            // 否则深色主题色压在 #0A0A0A 的设置页上,分组标题等文字直接消失。
-            val accent = androidx.compose.ui.graphics.Color(usableAccent(rgb) or 0xFF000000.toInt())
-            ThemeColors(accent, highlightFrom(accent))
-        }
