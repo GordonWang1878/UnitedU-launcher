@@ -490,7 +490,9 @@ class MainActivity : ComponentActivity() {
                     menuOpen = menuOpen,
                     onMenuOpenChange = { if (it) { menuFromGear = true; menuOpen = true } else closeMenu() },
                     // 屏保按钮 = 立即进入待机(spec §1.5),走请求计数(见 screensaverRequests 的 KDoc)。
-                    onScreensaver = { screensaverRequests++ },
+                    // NO_FADE 下待机没有任何可见效果(HomeScreen 的 contentAlpha 恒为 1、黑幕不升),
+                    // 请求只会白白吞掉下一个按键当唤醒,所以这一档不发请求,按钮不动作。
+                    onScreensaver = { if (homeSettings.idleContent != IdleContent.NO_FADE) screensaverRequests++ },
                     focusNonce = focusNonce,
                     revision = revision,
                     menuFromGear = menuFromGear,
