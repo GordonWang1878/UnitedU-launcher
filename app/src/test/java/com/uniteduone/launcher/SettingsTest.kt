@@ -243,4 +243,42 @@ class SettingsTest {
     @Test fun legacyGoldPresetIdIsKept() {
         assertEquals("gold", parseSettings("""{"themePresetId": "gold"}""").themePresetId)
     }
+
+    @Test fun screensaverFieldsDefaultWhenAbsent() {
+        // 不需要迁移(spec §0):旧 settings.json 没有这两个键 → 屏保启动 5 分、轮播 30 秒
+        val s = parseSettings("""{"idleAfterMs": 180000}""")
+        assertEquals(300_000L, s.screensaverAfterMs)
+        assertEquals(30_000L, s.screensaverIntervalMs)
+        assertEquals(300_000L, Settings().screensaverAfterMs)
+        assertEquals(30_000L, Settings().screensaverIntervalMs)
+    }
+
+    @Test fun screensaverAfterMsMustBeOneOfAllowedValues() {
+        assertEquals(300_000L, parseSettings("""{"screensaverAfterMs": 12345}""").screensaverAfterMs)
+        assertEquals(300_000L, parseSettings("""{"screensaverAfterMs": "x"}""").screensaverAfterMs)
+        for (v in listOf(0L, 60_000L, 300_000L, 600_000L, 1_800_000L)) {
+            assertEquals(v, parseSettings("""{"screensaverAfterMs": $v}""").screensaverAfterMs)
+        }
+    }
+
+    @Test fun screensaverIntervalMsMustBeOneOfAllowedValues() {
+        assertEquals(30_000L, parseSettings("""{"screensaverIntervalMs": 45000}""").screensaverIntervalMs)
+        assertEquals(30_000L, parseSettings("""{"screensaverIntervalMs": 0}""").screensaverIntervalMs)
+        for (v in listOf(30_000L, 60_000L, 300_000L)) {
+            assertEquals(v, parseSettings("""{"screensaverIntervalMs": $v}""").screensaverIntervalMs)
+        }
+    }
+
+    @Test fun screensaverFieldsRoundTrip() {
+        val s = Settings(screensaverAfterMs = 0L, screensaverIntervalMs = 300_000L)
+        assertTrue(s.toJson().contains("\"screensaverAfterMs\": 0"))
+        assertTrue(s.toJson().contains("\"screensaverIntervalMs\": 300000"))
+        assertEquals(s, parseSettings(s.toJson()))
+    }
+
+    @Test fun restoredDefaultsResetsScreensaverFields() {
+        val r = restoredDefaults(Settings(screensaverAfterMs = 1_800_000L, screensaverIntervalMs = 60_000L), 1L)
+        assertEquals(300_000L, r.screensaverAfterMs)
+        assertEquals(30_000L, r.screensaverIntervalMs)
+    }
 }
