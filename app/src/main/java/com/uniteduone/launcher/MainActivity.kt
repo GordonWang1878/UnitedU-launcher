@@ -26,8 +26,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * 桌面主界面。这里只管三件事:待机计时、返回键不退出、齿轮菜单的入口。
- * 视觉全在 HomeScreen / AppCard / Clock 里,规格见 docs/DESIGN-custom-launcher.md §4。
+ * 桌面主界面。统筹待机计时、返回键不退出、齿轮菜单入口,以及设置页/选择器/引导等浮层的开关状态。
+ * 视觉全在 HomeScreen / AppCard / Clock 里,规格见 docs/DESIGN-unitedu-open-source.md §4。
  */
 private const val PICK_WALLPAPER = "__wallpaper__"
 private const val VIEW_SCREENSAVER_POOL = "__screensaver_pool__"
@@ -372,8 +372,9 @@ class MainActivity : ComponentActivity() {
             // 第一下按键却被当唤醒吃掉,症状就是「按了没反应」。
             // 长时间停在这两个界面由电视自己的系统屏保接管(实测存在 DreamActivity)。
             // **整屏浮层开着时不进入待机**(M7 T4:原来只挡了导入页)。选择器现在叠在常驻首页之上,
-            // 底下那层照旧在计时;不挡的话在「换壁纸」里挑图挑够三分钟,首页会在选择器的半透明
-            // 蒙版底下淡出、屏保渐入,而下一个按键还要被 dispatchKeyEvent 当唤醒吞掉。
+            // 底下那层照旧在计时;不挡的话在「换壁纸」里挑图挑够时间,首页会先淡出进入待机、
+            // 再等屏保时长用完才渐入自定义屏保(M5 spec §1:待机与屏保是先后两个互斥状态,
+            // 不是一步耦合),而下一个按键还要被 dispatchKeyEvent 当唤醒吞掉。
             // 与 menuOpen 同一处理:既是 key 也是守卫(铁律 6)。
             val overlay = overlayOpen
             // 长按卡片菜单与「修改标题」对话框同理(终审 Important #3):输入法显示着时每个按键都被它先吃掉,
@@ -396,8 +397,10 @@ class MainActivity : ComponentActivity() {
                     delay(standbyAt)
                     waited = standbyAt
                     // 只升不降:屏保按钮可能已经把状态推到了屏保,这一拍不能把它拉回待机
-                    // (spec 的写法是「只写 idle = true」;打包成一个值之后,等价写法就是这个判断)。
-                    if (!standby.idle) standby = StandbyFlags.STANDBY
+                    // (spec 的写法是「只写 idle = true」;打包成一个值之后,等价写法就是 atLeastStandby()——
+                    // 已经 idle 就原样不动,只有 NORMAL 才被抬到 STANDBY)。判断抽到 StandbySchedule.kt,
+                    // 与屏保按钮效果共用同一份逻辑,JVM 单测覆盖(终审 Important 2)。
+                    standby = standby.atLeastStandby()
                 }
                 // 屏保「关」:停在待机(待机也「关」就是什么都不发生)。
                 val screensaverAt = plan.screensaverAt ?: return@LaunchedEffect
@@ -411,13 +414,28 @@ class MainActivity : ComponentActivity() {
             // M5 spec §1.3:有图 → 立刻进自定义屏保、跳过待机;图库空 → 退为进待机;空图库 +「不淡出」→ 空操作,
             // 下一个键不被吞(「不淡出」的待机没有任何可见效果,进了只会白吞一个键)。NO_FADE 的判断从调用点
             // 移到这里:有图时「不淡出」也能进屏保。idleContentNow 是按下那一刻的设置(本效果随请求计数重启)。
+            // 目标状态的判断抽到 StandbySchedule.screensaverButtonTarget,与本效果共用同一份逻辑,JVM 单测覆盖
+            // (终审 Important 2)。
             val idleContentNow = homeSettings.idleContent
             LaunchedEffect(screensaverRequests) {
                 if (screensaverRequests == 0) return@LaunchedEffect
+                // 这次请求触发那一刻的按键时间戳:按钮那下 dispatchKeyEvent 已经刷新过 lastInput
+                // (先于 screensaverRequests 这颗计数器的写入,见其 KDoc),这里捕获的就是「这次点击」
+                // 本身,不是更早的一次。
+                val at = lastInput
                 withFrameNanos { }
                 val hasImages = withContext(Dispatchers.IO) { hasScreensaverImages(this@MainActivity) }
-                if (hasImages) standby = StandbyFlags.SCREENSAVER
-                else if (idleContentNow != IdleContent.NO_FADE) standby = StandbyFlags.STANDBY
+                // **异步跳转(等帧 + IO 扫描)之后的一次性复查,不是重启型守卫**——不进 key。铁律 6 管的是
+                // 「守卫值必须同时是 key,否则效果不会在它变化时重启」;这里反过来,故意不想因为这些量的
+                // 变化重启整个效果,只想在真正落笔之前再看一眼当下是否仍然成立。期间若又来一次按键
+                // (计时效果随之以新 key 重启、把状态写回 NORMAL)或打开了菜单/浮层,这次写入就该放弃——
+                // 否则要么把 SCREENSAVER 盖在一个更新的状态之上,要么在浮层开着时违反「浮层 ⇒ 绝不待机」,
+                // 让轮播在打开的菜单底下渐入、下一下按键还被当唤醒错吞。
+                if (lastInput != at || editing || menuOpen || overlayOpen || cardMenu != null || renameTarget != null) {
+                    return@LaunchedEffect
+                }
+                val target = screensaverButtonTarget(hasImages, idleContentNow)
+                if (target != null) standby = target
             }
             // 壁纸轮播。守卫读的两个量就是 key(铁律 6):rotate() 写盘后 settingsRevision++ 重读 settings,
             // rotatedAt 变 → 本 effect 以新 key 重启、再等一个间隔;重启 app 后按剩余时间续等。

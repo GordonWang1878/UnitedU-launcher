@@ -31,3 +31,23 @@ data class StandbyFlags(val idle: Boolean, val screensaverActive: Boolean) {
         val SCREENSAVER = StandbyFlags(idle = true, screensaverActive = true)
     }
 }
+
+/**
+ * 只升不降:已经 idle(待机或屏保)时原样不动,只有 NORMAL 才被抬到 STANDBY。
+ * 计时效果到点进待机那一拍用它(spec 的写法是「只写 idle = true」,打包成一个值之后
+ * 等价写法就是这个判断)——屏保按钮可能已经把状态推到了屏保,这一拍不能把它拉回待机。
+ * 终审 Important 2:从 MainActivity 抽出,JVM 单测覆盖(原来是内联、模拟器专属)。
+ */
+fun StandbyFlags.atLeastStandby(): StandbyFlags = if (idle) this else StandbyFlags.STANDBY
+
+/**
+ * 屏保按钮按下时的目标状态(M5 spec §1.3 / M8 spec §1.5):有图 → 立刻进自定义屏保、跳过待机;
+ * 图库空 → 退为进待机;空图库 +「不淡出」→ null(空操作,调用方不写状态、下一个键不被吞——
+ * 「不淡出」的待机没有任何可见效果,进了只会白吞一个键)。
+ * 终审 Important 2:从 MainActivity 的按钮效果抽出,JVM 单测覆盖(原来是内联、模拟器专属)。
+ */
+fun screensaverButtonTarget(hasImages: Boolean, idleContent: IdleContent): StandbyFlags? = when {
+    hasImages -> StandbyFlags.SCREENSAVER
+    idleContent != IdleContent.NO_FADE -> StandbyFlags.STANDBY
+    else -> null
+}

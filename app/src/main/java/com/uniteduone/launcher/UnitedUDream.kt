@@ -105,6 +105,20 @@ class UnitedUDream : DreamService(), SavedStateRegistryOwner {
         super.onDetachedFromWindow()
     }
 
+    /**
+     * 第二重兜底(终审 Minor 1):个别固件销毁 service 时不先拆窗(decor 未 detach),
+     * `onDetachedFromWindow` 那条路不会跑,registry 停不到 DESTROYED、ComposeView 挂的
+     * window recomposer job 就一直活着。`releasePlayer()` 自己按 `holdsPlayer` 幂等,
+     * `currentState` 的判断避免同一个实例被重复置一次已经到达的终态。
+     */
+    override fun onDestroy() {
+        releasePlayer()
+        if (lifecycleRegistry.currentState != Lifecycle.State.DESTROYED) {
+            lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
+        }
+        super.onDestroy()
+    }
+
     private fun releasePlayer() {
         if (holdsPlayer) {
             ScreensaverPlayer.detach()

@@ -34,4 +34,28 @@ class StandbyScheduleTest {
     fun screensaverWithoutStandbyIsRejected() {
         StandbyFlags(idle = false, screensaverActive = true)
     }
+
+    // 终审 Important 2:屏保按钮的目标状态与「只升不降」从 MainActivity 抽到这里,
+    // 两处只有一份判断,JVM 单测覆盖(原来是内联、模拟器专属)。
+
+    @Test fun buttonTargetWithImagesIsAlwaysScreensaverRegardlessOfIdleContent() {
+        for (content in IdleContent.entries) {
+            assertEquals(StandbyFlags.SCREENSAVER, screensaverButtonTarget(hasImages = true, idleContent = content))
+        }
+    }
+
+    @Test fun buttonTargetNoImagesClockOnlyOrBlackFallsBackToStandby() {
+        assertEquals(StandbyFlags.STANDBY, screensaverButtonTarget(hasImages = false, idleContent = IdleContent.CLOCK_ONLY))
+        assertEquals(StandbyFlags.STANDBY, screensaverButtonTarget(hasImages = false, idleContent = IdleContent.BLACK))
+    }
+
+    @Test fun buttonTargetNoImagesNoFadeIsANoOp() {
+        assertEquals(null, screensaverButtonTarget(hasImages = false, idleContent = IdleContent.NO_FADE))
+    }
+
+    @Test fun atLeastStandbyRaisesOnlyFromNormal() {
+        assertEquals(StandbyFlags.STANDBY, StandbyFlags.NORMAL.atLeastStandby())
+        assertEquals(StandbyFlags.STANDBY, StandbyFlags.STANDBY.atLeastStandby())
+        assertEquals(StandbyFlags.SCREENSAVER, StandbyFlags.SCREENSAVER.atLeastStandby())
+    }
 }
