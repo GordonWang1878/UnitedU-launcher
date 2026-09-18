@@ -10,7 +10,7 @@
     <string name="menu_settings">UnitedU Settings</string>
     <!-- Deliberate line break: on one line (521 px of DM Sans at 11sp) this only fits while unfocused (544 px);
          the focus bar leaves 515 px, so it wrapped on focus and the whole menu jumped. Two fixed lines keep the height stable. -->
-    <string name="menu_settings_desc">Layout, wallpaper, theme,\nstandby, clock and language</string>
+    <string name="menu_settings_desc">Layout, wallpaper, theme,\nstandby &amp; screensaver, clock and language</string>
     <string name="menu_wallpaper">Change Wallpaper</string>
     <string name="menu_wallpaper_desc">Pick an image to replace the background</string>
     <string name="menu_system_settings">System Settings</string>
@@ -124,9 +124,9 @@
     <string name="settings_group_layout">Layout</string>
     <string name="settings_group_theme">Theme</string>
     <string name="settings_group_clock">Clock</string>
-    <string name="settings_group_standby">Standby</string>
+    <string name="settings_group_standby">Standby &amp; Screensaver</string>
     <string name="settings_group_wallpaper">Wallpaper</string>
-    <string name="settings_wallpaper_rotate">Rotate Every</string>
+    <string name="settings_wallpaper_rotate">Auto-change wallpaper</string>
     <string name="settings_rotate_daily">Daily</string>
     <string name="settings_wallpaper_blur">Blur</string>
     <string name="settings_wallpaper_brightness">Brightness</string>
@@ -147,6 +147,17 @@
     <string name="settings_idle_clock">Clock</string>
     <string name="settings_idle_black">Black</string>
     <string name="settings_idle_nofade">No Fade</string>
+    <!-- M5 "Standby & Screensaver" group, four new rows (spec §3, §6); minutes reuse settings_idle_minutes, "Off" reuses settings_idle_off -->
+    <string name="settings_screensaver_after">Screensaver starts</string>
+    <string name="settings_screensaver_note_empty">Gallery empty, won\'t start</string>
+    <string name="settings_screensaver_note_from_input">From the last key press</string>
+    <string name="settings_screensaver_note_after_standby">After standby begins</string>
+    <string name="settings_screensaver_interval">Slideshow interval</string>
+    <string name="settings_seconds">%1$d s</string>
+    <string name="settings_screensaver_gallery">Screensaver gallery</string>
+    <string name="settings_screensaver_gallery_desc">View; hold OK to delete</string>
+    <string name="settings_system_screensaver">System screensaver</string>
+    <string name="settings_system_screensaver_desc">Pick UnitedU in system settings</string>
     <string name="settings_on">On</string>
     <string name="settings_off">Off</string>
     <!-- Added by M7 two-pane settings page (Language / Other groups) -->
@@ -216,4 +227,5 @@
     <string name="toast_opened_stock_launcher">Opened the stock launcher; to switch permanently, change the default home app in System Settings</string>
     <string name="toast_stock_launcher_not_found">Stock launcher not found</string>
     <string name="toast_restored">Defaults restored</string>
+    <string name="toast_system_screensaver_unavailable">Can\'t open system screensaver settings</string>
 </resources>

@@ -8,7 +8,7 @@
     <string name="menu_edit">编辑分栏</string>
     <string name="menu_edit_desc">增删应用、调整顺序、换卡片图</string>
     <string name="menu_settings">UnitedU 设置</string>
-    <string name="menu_settings_desc">布局、壁纸、主题、待机、时钟、语言</string>
+    <string name="menu_settings_desc">布局、壁纸、主题、待机与屏保、时钟、语言</string>
     <string name="menu_wallpaper">换壁纸</string>
     <string name="menu_wallpaper_desc">选一张图片替换背景</string>
     <string name="menu_system_settings">系统设置</string>
@@ -122,9 +122,9 @@
     <string name="settings_group_layout">布局</string>
     <string name="settings_group_theme">主题</string>
     <string name="settings_group_clock">时钟</string>
-    <string name="settings_group_standby">待机</string>
+    <string name="settings_group_standby">待机与屏保</string>
     <string name="settings_group_wallpaper">壁纸</string>
-    <string name="settings_wallpaper_rotate">轮播间隔</string>
+    <string name="settings_wallpaper_rotate">壁纸自动切换</string>
     <string name="settings_rotate_daily">每天</string>
     <string name="settings_wallpaper_blur">模糊</string>
     <string name="settings_wallpaper_brightness">亮度</string>
@@ -145,6 +145,17 @@
     <string name="settings_idle_clock">时钟</string>
     <string name="settings_idle_black">全黑</string>
     <string name="settings_idle_nofade">不淡出</string>
+    <!-- M5「待机与屏保」组新增的四行(spec §3、§6);分钟档复用 settings_idle_minutes,「关」复用 settings_idle_off -->
+    <string name="settings_screensaver_after">屏保启动</string>
+    <string name="settings_screensaver_note_empty">图库为空,不会进入</string>
+    <string name="settings_screensaver_note_from_input">从最后一次按键算</string>
+    <string name="settings_screensaver_note_after_standby">从进入待机算</string>
+    <string name="settings_screensaver_interval">屏保轮播设置</string>
+    <string name="settings_seconds">%1$d 秒</string>
+    <string name="settings_screensaver_gallery">屏保图库</string>
+    <string name="settings_screensaver_gallery_desc">看图、长按删图</string>
+    <string name="settings_system_screensaver">系统屏保</string>
+    <string name="settings_system_screensaver_desc">在系统设置里选 UnitedU</string>
     <string name="settings_on">开</string>
     <string name="settings_off">关</string>
     <!-- 以下为 M7 两栏设置页新增的分组与行(语言 / 其他) -->
@@ -214,4 +225,5 @@
     <string name="toast_opened_stock_launcher">已打开原厂桌面;要永久切换请在系统设置里改主屏幕应用</string>
     <string name="toast_stock_launcher_not_found">找不到原厂桌面</string>
     <string name="toast_restored">已恢复默认设置</string>
+    <string name="toast_system_screensaver_unavailable">打不开系统屏保设置</string>
 </resources>

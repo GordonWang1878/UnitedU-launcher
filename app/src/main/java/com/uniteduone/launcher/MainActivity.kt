@@ -121,6 +121,11 @@ class MainActivity : ComponentActivity() {
      * (与超时进入同一条路);不是闩——每次点击都是一次新计数(铁律 7)。
      */
     private var screensaverRequests by mutableStateOf(0)
+    /**
+     * 屏保图库版本(M5 spec §3 / §5):删图后 +1。设置页的图库计数(「屏保启动」行的提示)与图库查看器的
+     * 文件列表都以它为 key 重读。只增不减,不是闩(铁律 7)。
+     */
+    private var galleryVersion by mutableStateOf(0)
     /** 菜单是从齿轮按钮打开的(true)还是从遥控器三条杠键打开的(false)。
      *  关闭菜单时 HomeScreen 据此决定焦点恢复到齿轮还是原来的卡片。 */
     private var menuFromGear = true
@@ -313,6 +318,9 @@ class MainActivity : ComponentActivity() {
                     // 重建后的位置由 onSaveInstanceState/onCreate 经 Bundle 还原(见 settingsPos 的
                     // KDoc),SettingsScreen 拿 initialPos 当 remember 的种子把焦点落回同一行。
                     applyLanguage = ::applyLanguage,
+                    // M5:屏保图库与换壁纸同一套(只置 pickerTarget,叠在设置页上),关掉后设置页把焦点接回这一行。
+                    openScreensaverGallery = { openScreensaverPool() },
+                    openSystemScreensaver = { openSystemScreensaverSettings() },
                 )
             }
             // 设置页关闭时 leaveSettings() 会让 revision++,壁纸选图 / 轮播 / 滑块预览走的是
@@ -569,6 +577,8 @@ class MainActivity : ComponentActivity() {
                         // 恢复默认写盘落地之后才 ++ 一次(见其 KDoc,T7 复审 Important #1)——
                         // 与 confirmRestore/covered 解耦,不受「dismiss 抢在写盘完成前跑完」影响。
                         reloadNonce = settingsReloadNonce,
+                        // 图库版本(M5):删图后 +1,设置页据此重数图库(「屏保启动」行的提示)。
+                        galleryVersion = galleryVersion,
                     )
                 }
                 // 「恢复默认」确认框(spec §4)。叠在设置页之上,与选择器同属「设置页的子界面」——
@@ -1128,6 +1138,19 @@ class MainActivity : ComponentActivity() {
             .onFailure { toast(getString(R.string.toast_open_failed, it.message)) }
     }
 
+    /**
+     * 设置页「系统屏保 ▸」(M5 spec §3):系统屏保设置页;解析不到(`ActivityNotFoundException`)退到系统设置首页;
+     * 两个都打不开才 toast。不检测系统当前选的是不是 UnitedU(spec §8:隐藏设置键,读不可靠)。
+     * 回来时 onResume 的 focusNonce++ 让设置页把焦点送回这一行(ON_PAUSE 起冻结)。
+     */
+    private fun openSystemScreensaverSettings() {
+        for (action in listOf(Settings.ACTION_DREAM_SETTINGS, Settings.ACTION_SETTINGS)) {
+            val ok = runCatching { startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
+            if (ok) return
+        }
+        toast(getString(R.string.toast_system_screensaver_unavailable))
+    }
+
     private fun pickWallpaper() {
         if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
         closeMenu()
@@ -1141,11 +1164,9 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * 屏保图库查看器的入口。**齿轮菜单 / 设置页本轮都没有按钮调它**(spec §1:四项菜单里
-     * 「屏保图库」被移除;§2.2 待机组的屏保子项要等 M5)——保留函数与 [VIEW_SCREENSAVER_POOL]
-     * 只是不删掉这条已经写好、M5 会直接复用的路径,不是死代码判断失误。
+     * 屏保图库查看器的入口:设置页「待机与屏保 → 屏保图库 ▸」(M5 spec §3)。叠在设置页之上,
+     * 关掉后 focusNonce++ 让设置页把焦点接回这一行(设置页 `covered` 期间冻结目标)。
      */
-    @Suppress("unused")
     private fun openScreensaverPool() {
         if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
         closeMenu()

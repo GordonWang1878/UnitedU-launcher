@@ -8,7 +8,7 @@
     <string name="menu_edit">編輯分欄</string>
     <string name="menu_edit_desc">新增或移除應用程式、調整順序、換卡片圖</string>
     <string name="menu_settings">UnitedU 設定</string>
-    <string name="menu_settings_desc">版面、桌布、主題、待機、時鐘、語言</string>
+    <string name="menu_settings_desc">版面、桌布、主題、待機與螢幕保護、時鐘、語言</string>
     <string name="menu_wallpaper">換桌布</string>
     <string name="menu_wallpaper_desc">選一張圖片取代背景</string>
     <string name="menu_system_settings">系統設定</string>
@@ -122,9 +122,9 @@
     <string name="settings_group_layout">版面</string>
     <string name="settings_group_theme">主題</string>
     <string name="settings_group_clock">時鐘</string>
-    <string name="settings_group_standby">待機</string>
+    <string name="settings_group_standby">待機與螢幕保護</string>
     <string name="settings_group_wallpaper">桌布</string>
-    <string name="settings_wallpaper_rotate">輪播間隔</string>
+    <string name="settings_wallpaper_rotate">桌布自動切換</string>
     <string name="settings_rotate_daily">每天</string>
     <string name="settings_wallpaper_blur">模糊</string>
     <string name="settings_wallpaper_brightness">亮度</string>
@@ -145,6 +145,17 @@
     <string name="settings_idle_clock">時鐘</string>
     <string name="settings_idle_black">全黑</string>
     <string name="settings_idle_nofade">不淡出</string>
+    <!-- M5「待機與螢幕保護」組新增的四行(spec §3、§6);分鐘檔複用 settings_idle_minutes,「關」複用 settings_idle_off -->
+    <string name="settings_screensaver_after">螢幕保護啟動</string>
+    <string name="settings_screensaver_note_empty">圖庫是空的,不會進入</string>
+    <string name="settings_screensaver_note_from_input">從最後一次按鍵算起</string>
+    <string name="settings_screensaver_note_after_standby">從進入待機算起</string>
+    <string name="settings_screensaver_interval">螢幕保護輪播設定</string>
+    <string name="settings_seconds">%1$d 秒</string>
+    <string name="settings_screensaver_gallery">螢幕保護圖庫</string>
+    <string name="settings_screensaver_gallery_desc">看圖、長按刪圖</string>
+    <string name="settings_system_screensaver">系統螢幕保護</string>
+    <string name="settings_system_screensaver_desc">在系統設定選 UnitedU</string>
     <string name="settings_on">開</string>
     <string name="settings_off">關</string>
     <!-- 以下為 M7 兩欄設定頁新增的分組與行(語言 / 其他) -->
@@ -214,4 +225,5 @@
     <string name="toast_opened_stock_launcher">已開啟原廠桌面;要永久切換請在系統設定裡變更主畫面應用程式</string>
     <string name="toast_stock_launcher_not_found">找不到原廠桌面</string>
     <string name="toast_restored">已恢復預設設定</string>
+    <string name="toast_system_screensaver_unavailable">無法開啟系統螢幕保護設定</string>
 </resources>

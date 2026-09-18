@@ -41,8 +41,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 // 两栏的尺寸(spec §2.1)。左栏 7 项、右栏最多 8 行,两栏都**一屏放得下**,
 // 所以这里不需要 HomeScreen / 旧设置页那种自算纵向位移 —— 但同样一行滚动容器都不许有(铁律 1)。
@@ -129,6 +132,8 @@ fun SettingsScreen(
      * 不搭车。
      */
     reloadNonce: Int = 0,
+    /** 屏保图库版本(M5):MainActivity 删图后 +1,本页据此重数图库(「屏保启动」行的提示)。 */
+    galleryVersion: Int = 0,
 ) {
     val ctx = LocalContext.current
     var s by remember { mutableStateOf(SettingsStore.read(ctx)) }
@@ -156,6 +161,9 @@ fun SettingsScreen(
             setDefaultHome = actions.setDefaultHome,
             restoreDefaults = { actions.restoreDefaults(); s = SettingsStore.read(ctx) },
             applyLanguage = { lang -> actions.applyLanguage(lang); s = SettingsStore.read(ctx) },
+            // M5 两条:不写盘,本页快照不会过期,原样转交。
+            openScreensaverGallery = actions.openScreensaverGallery,
+            openSystemScreensaver = actions.openSystemScreensaver,
         )
     }
 
@@ -170,8 +178,15 @@ fun SettingsScreen(
         s = SettingsStore.read(ctx)
     }
 
+    // 屏保图库张数(M5 spec §3):「屏保启动」行的提示要分「图库为空」。IO 线程数(与播放器同一条扫描规则,
+    // 见 scanScreensaverLibrary);key 带图库版本(删图后 +1)与 covered——从导入页 / 图库查看器回来时重数一次,
+    // 手机上传也会改图库。−1 = 还没数完,模型按非空处理。produceState 没有守卫,不涉及铁律 6。
+    val screensaverImages by produceState(-1, galleryVersion, covered) {
+        value = withContext(Dispatchers.IO) { scanScreensaverLibrary(ctx).size }
+    }
+
     // 内容模型(分组 / 行 / 当前档位)全在 SettingsModel.kt 里,这里只画和管焦点。
-    val groups = settingsGroups(s, { transform -> update(transform) }, liveActions)
+    val groups = settingsGroups(s, { transform -> update(transform) }, liveActions, screensaverImages)
 
     // 模糊/亮度改动后 300 ms 防抖通知首页重处理壁纸。用「上次通知过的值」比对,不用一次性布尔闩
     // (铁律 7):首次组合两者相等不发;改回原值也会再发一次,预览不会卡在旧参数上。
@@ -551,7 +566,7 @@ private fun SettingRow(
             }
             .focusable(),
     ) {
-        RowFrame(focused = focused, label = stringResource(ctrl.labelRes)) {
+        RowFrame(focused = focused, label = stringResource(ctrl.labelRes), note = ctrl.noteRes?.let { stringResource(it) }) {
             when (ctrl.kind) {
                 CtrlKind.SWATCH -> SwatchControl(selected = ctrl.selected, rowFocused = focused)
                 CtrlKind.SLIDER -> SliderControl(
@@ -633,9 +648,14 @@ private fun ActionRowItem(
     }
 }
 
-/** 行的外壳:聚焦底色 + 左侧竖条 + 标签列。两种行共用,免得「只有动作行忘了改」那种漂移。 */
+/**
+ * 行的外壳:聚焦底色 + 左侧竖条 + 标签列。两种行共用,免得「只有动作行忘了改」那种漂移。
+ * [note](M5 spec §3「标签与控件之间一行小字」):画在标签**下方**、仍在 190 dp 标签列里——控件列不右移,
+ * 同组控件照旧纵向对齐;横着塞不下(五档分段控件之后只剩约 80 dp)。15 sp 标签 + 12 sp 小字两行放得进
+ * 46 dp 行高,右栏行数上限(≤ 8,不滚动)不受影响。样式同 ActionRowItem 的 hint。
+ */
 @Composable
-private fun RowFrame(focused: Boolean, label: String, content: @Composable () -> Unit) {
+private fun RowFrame(focused: Boolean, label: String, note: String? = null, content: @Composable () -> Unit) {
     val highlight = LocalThemeColors.current.highlight
     Row(
         modifier = Modifier
@@ -657,16 +677,29 @@ private fun RowFrame(focused: Boolean, label: String, content: @Composable () ->
                 .background(if (focused) highlight else Color.Transparent),
         )
         Spacer(Modifier.width(12.dp))
-        BasicText(
-            text = label,
-            style = TextStyle(
-                fontFamily = Theme.Sans,
-                fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
-                color = if (focused) Theme.EmphasisText else Theme.MenuItemText,
-                fontSize = 15.sp,
-            ),
-            modifier = Modifier.width(LABEL_W),
-        )
+        Column(Modifier.width(LABEL_W)) {
+            BasicText(
+                text = label,
+                style = TextStyle(
+                    fontFamily = Theme.Sans,
+                    fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
+                    color = if (focused) Theme.EmphasisText else Theme.MenuItemText,
+                    fontSize = 15.sp,
+                ),
+            )
+            if (note != null) {
+                BasicText(
+                    text = note,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(
+                        fontFamily = Theme.Sans,
+                        color = if (focused) Theme.SecondaryText else Theme.FooterHintText,
+                        fontSize = 12.sp,
+                    ),
+                )
+            }
+        }
         Spacer(Modifier.width(8.dp))
         Box(Modifier.fillMaxHeight().weight(1f), contentAlignment = Alignment.CenterStart) { content() }
     }
