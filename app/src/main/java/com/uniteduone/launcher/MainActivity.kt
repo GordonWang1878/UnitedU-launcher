@@ -413,7 +413,8 @@ class MainActivity : ComponentActivity() {
             // NO_FADE(Task 3):干脆不组合 Screensaver——M5 之前待机不淡出时就是「什么都不发生」
             // (spec §6),屏保图片一张都不该解码,不只是不显示。
             if (homeSettings.idleContent != IdleContent.NO_FADE) {
-                Screensaver(this@MainActivity, idle)
+                // M5 Task 2:画法搬到共用播放器(Screensaver.kt),间隔改读设置;触发条件 Task 3 换成 screensaverActive。
+                Screensaver(active = idle, intervalMs = homeSettings.screensaverIntervalMs)
             }
             // BLACK(Task 3):在屏保之上叠一层纯黑,随 idle 淡入淡出;配合 HomeScreen 里
             // 时钟自己的 clockAlpha 一起淡出,才是「整屏全黑」而不是黑底衬着屏保/时钟。

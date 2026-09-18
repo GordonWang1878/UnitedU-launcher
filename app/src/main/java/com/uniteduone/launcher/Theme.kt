@@ -162,7 +162,10 @@ object Theme {
      *  可在设置页调整),这个常量只留作默认值参考,不再被计时逻辑直接读取。 */
     const val IdleAfterMs = 3 * 60 * 1000L
 
-    /** 屏保轮播:每张图显示多久。 */
+    /**
+     * 屏保轮播默认间隔(= [Settings.screensaverIntervalMs] 的默认值)。M5 起实际间隔读设置;
+     * 这里只剩两个读者:播放器第一次 attach 之前的初值、图库全屏预览的 Ken Burns 时长。
+     */
     const val ScreensaverIntervalMs = 30_000L
     /** 屏保轮播:两张图之间的交叉淡入时长。 */
     const val ScreensaverCrossfadeMs = 2000
