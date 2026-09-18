@@ -194,6 +194,8 @@
 
     <!-- preset_* : 主题色预设名(门 2「沉稳」一套) -->
     <string name="preset_material">Material 紫</string>
+    <string name="preset_white">白</string>
+    <string name="preset_black">黑</string>
     <string name="preset_gold">金</string>
     <string name="preset_champagne">香槟</string>
     <string name="preset_blue">蓝</string>

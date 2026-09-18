@@ -59,7 +59,7 @@ fun AppCard(
     isLastRow: Boolean = false,
     /** 首行锁「上」(编辑页用;首页上方有 pill 组接住,默认 false)。 */
     isFirstRow: Boolean = false,
-    /** 上下移动的显式落点:相邻行「记住的那一格」。 */
+    /** 上下移动的显式落点:相邻行里与当前列对齐的那一格,邻行更短则是它的末张(2026-09-18 起,同列规则)。 */
     upTarget: FocusRequester? = null,
     downTarget: FocusRequester? = null,
     /** 卡片下方一行小字;null = 不显示。 */

@@ -15,7 +15,13 @@ class ThemePresetsTest {
     @Test fun oldPresetsStillResolve() {
         assertEquals("gold", ThemePresets.byId("gold").id)
         assertEquals(Color(0xFFC0A73A), ThemePresets.byId("gold").color)
-        assertEquals(7, ThemePresets.all.size)
+        assertEquals(9, ThemePresets.all.size)
+    }
+
+    @Test fun whiteAndBlackFollowMaterial() {
+        assertEquals(listOf("material", "white", "black"), ThemePresets.all.take(3).map { it.id })
+        assertEquals(Color(0xFFF5F5F5), ThemePresets.byId("white").color)
+        assertEquals(Color(0xFF1A1A1A), ThemePresets.byId("black").color)
     }
 
     @Test fun unknownIdFallsBackToMaterial() {

@@ -196,6 +196,8 @@
 
     <!-- preset_* : theme color preset names (gate 2 "subdued" set) -->
     <string name="preset_material">Material Purple</string>
+    <string name="preset_white">White</string>
+    <string name="preset_black">Black</string>
     <string name="preset_gold">Gold</string>
     <string name="preset_champagne">Champagne</string>
     <string name="preset_blue">Blue</string>

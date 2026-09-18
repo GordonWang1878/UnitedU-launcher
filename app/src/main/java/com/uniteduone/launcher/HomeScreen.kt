@@ -163,7 +163,8 @@ fun HomeScreen(
     val stale = loadedRevision != revision
     // 开机后焦点要自己落到第一张卡片上,否则方向键第一下没有反应。
     val firstCard = remember { FocusRequester() }
-    // 每行一个 requester,挂在「这一行的目标格」上 —— 用来把焦点**还原到离开前那张卡**。
+    // 每行一个 requester。当前行(tgtRow)的挂在它记住的那一格,用来把焦点**还原到离开前那张卡**;
+    // 其它行的挂在「与当前列对齐、按该行长度夹取」的格子上,上下键就落在同一列(见 CategoryRow 调用处)。
     val rowFocus = remember(rows.size) { List(rows.size.coerceAtLeast(1)) { FocusRequester() } }
     // 「目标格」只由用户的主动导航更新,还原过程中不更新 ——
     // 否则 Compose 抢先把焦点给了第一张卡,目标就被改写成 0 了。
@@ -492,10 +493,14 @@ fun HomeScreen(
                     firstCard = if (rowIndex == 0) firstCard else null,
                     rowRequester = rowFocus.getOrNull(rowIndex),
                     isLastRow = rowIndex == rows.lastIndex,
-                    // 上下移动落到相邻行「记住的那一格」——每行的 requester 就挂在那一格上
+                    // 上下移动落到相邻行的 requester;它挂在哪一格由下面 targetIndex 决定
                     upTarget = if (rowIndex > 0) rowFocus.getOrNull(rowIndex - 1) else gearFocus,
                     downTarget = if (rowIndex < rows.lastIndex) rowFocus.getOrNull(rowIndex + 1) else null,
-                    targetIndex = tgtIdx.getOrElse(rowIndex) { 0 },
+                    // **上下键同列落点,邻行更短就夹到它的末张**(Google TV / tvOS 规则;2026-09-18 Gordon A95L 验收后定,
+                    // 取代原来「每行记住自己的列」——那条规则依赖历史,同一个起点会落到不同列,看着像随机)。
+                    // 实现:非当前行的 requester 挂在「当前行的列」经该行长度夹取后的格子上;当前行(tgtRow)仍挂自己记住的列,
+                    // 还原效果与顶栏 pill 的下键都靠它回到离开前那一格。tgtRow/tgtIdx 在浮层 / 还原期间冻结,挂点随之稳定。
+                    targetIndex = if (rowIndex == tgtRow) tgtIdx.getOrElse(rowIndex) { 0 } else tgtIdx.getOrElse(tgtRow) { 0 },
                     onFocusChange = { idx, got ->
                         report(rowIndex, idx, got)
                         if (got) {

@@ -689,3 +689,10 @@ HEAD `71eb6d7`(Task 9 完成态),worktree `m8-visual`。Task 10 只做 Step 1–
 - **APK 已装到 A95L**(`install -r`,lastUpdateTime 2026-09-18 10:50),Gordon 的 settings.json 原样保留(themePresetId = green,不会被新默认 material 覆盖)。**待 Gordon 按上一节「A95L 验收清单」7 项验收。**
 - 未推 origin:main 领先 origin/main 已含 M7 + M8,等 Gordon 说「推」。
 - 后续:M8b(二级界面换皮 + 终审遗留六项),spec/plan 待写。
+
+## 2026-09-18 · M8 A95L 验收结果 + 三个决定
+
+- **验收 7 项:6 过 1 待改**。过:横幅烧字清晰度(中档 248px 可接受,默认档不改)、长按 600ms、七预设切换、三种待机 + 屏保按钮、从应用返回焦点、DM Sans 大字时钟、行间导航流畅度。
+- **上下焦点规则改为「同列落点,短行夹到末张」**(Gordon 定):原来是 Projectivy 式「每行记住自己的列」,上下键落到邻行记住的列;规则确定但依赖历史,同一起点会落不同列,Gordon 在真机上完全摸不清。改法只动一处:非当前行的 requester 挂在「当前行的列」按该行长度夹取后的格子,当前行仍挂自己记住的列(还原效果、pill 下键不变)。AppCard / HomeScreen 注释、DESIGN §2 同步。
+- **加白、黑两个基础色预设**(Gordon 定「只加白黑」):white #F5F5F5 / black #1A1A1A,排在 Material 紫之后;黑只在浅色照片壁纸上可读,不做保护。共 9 个。
+- **待机与屏保**:Gordon 问「设置里为什么找不到屏保」——因为 M5 没做:M7 把齿轮菜单的「屏保图库」挪走并写明等 M5 补回待机组,而 M5 至今只有 DreamService spike。图库有图就自动叠轮播,所以「待机显示 = 时钟」名不副实。**定:M5 按五行设计做**(组名「待机与屏保」:待机时长 / 待机显示加「屏保图库轮播」且只有选它才叠图 / 轮播间隔 / 屏保图库看图删图 / 系统屏保说明 + DreamService),写进 DESIGN §4;排期:先修上两项,装电视、推远程,再写 M5 spec/plan。

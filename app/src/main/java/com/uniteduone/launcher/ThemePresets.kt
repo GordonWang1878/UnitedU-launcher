@@ -5,7 +5,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 
 /**
- * 7 个主题色预设(M8 加 Material 紫为默认)(门 2 Gordon 定「沉稳」一套,强调色低饱和;金保持 #C0A73A)。
+ * 9 个主题色预设(M8 加 Material 紫为默认;2026-09-18 加白、黑两个基础色)(门 2 Gordon 定「沉稳」一套,强调色低饱和;金保持 #C0A73A)。
  * 只在这里定义一次:设置页用它画 swatch + 持久化 [Settings.themePresetId];
  * 选中的颜色经 [LocalThemeColors] 驱动**每个界面**的强调色(2026-09-16 全面接线,原先只接首页四处)。
  *
@@ -102,6 +102,10 @@ object ThemePresets {
         // Material 紫:tv-material darkColorScheme 的 primary #D0BCFF 原值(spec §0);highlight = 混白 55%。
         // 放最前 = swatch 最左 = 默认在最左(左右键方向随之,有意的)。
         ThemePreset("material", R.string.preset_material, Color(0xFFD0BCFF), Color(0xFFE8DCFF)),
+        // 白 / 黑:2026-09-18 Gordon A95L 验收后要的基础色。白给深色壁纸;黑只在浅色照片壁纸上可读,不做保护,由用户自己选。
+        // highlight 同样按 highlightFrom(混白 55%)算出后写成显式 hex。
+        ThemePreset("white", R.string.preset_white, Color(0xFFF5F5F5), Color(0xFFFBFBFB)),
+        ThemePreset("black", R.string.preset_black, Color(0xFF1A1A1A), Color(0xFF989898)),
         // 金:highlight = 今日 Theme.Champagne #FFF5DC 原值,金预设逐位复现今日观感。
         ThemePreset("gold", R.string.preset_gold, Color(0xFFC0A73A), Color(0xFFFFF5DC)),
         // 以下 5 个 highlight = accent 混白 55%(highlightFrom 的结果),写成显式 hex 以便微调。
