@@ -40,7 +40,7 @@ adb emu kill                                     # 关闭
 - 注入按键之间留 ~0.4 s:零间隔连发会跑在 Compose 异步焦点效果前面。
 - uiautomator 不报全透明节点(真待机时 `focused="true"` 为 0,焦点其实还在);TV 设置应用卡片的 content-desc 也是「Settings」,与齿轮同名 —— 脚本按 bounds 区分,且确定键之前先断言焦点文案,否则会启动卡片对应的应用。
 
-真机(Sony A95L)只在里程碑真机验收用;开发全程走模拟器。真机 adb 走「无线调试」(**不是** 5555),**配对会跨会话保留,装包前别先向 Gordon 要配对码**(2026-09-17 实证,见 WORKLOG 当日 M7 合并一节):先 `adb connect 192.168.1.22:38673`(连接端口以电视「无线调试」主页面显示的为准;IP 走 DHCP);报 `No route to host` 就 `adb kill-server` 后重连同一地址(本机 adb 后台进程的问题,不是电视);报 `Connection refused` 才请 Gordon 读电视页面上的新端口(mDNS 广播的端口可能是休眠前的过期记录,端口扫描也扫不到真端口;mDNS 发现要 `ADB_MDNS_OPENSCREEN=1`);只有连上后 `offline` / 认证失败才需重配:电视「使用配对码配对设备」拿码,`printf '<码>\n' | adb pair <IP:配对端口>`(管道喂码,参数形式会 protocol fault),再 connect。
+真机(Sony A95L)只在里程碑真机验收用;开发全程走模拟器。真机 adb 走「无线调试」(**不是** 5555),**配对会跨会话保留,装包前别先向 Gordon 要配对码**(2026-09-17 实证,见 WORKLOG 当日 M7 合并一节):先 `adb connect 192.168.1.22:38673`(连接端口以电视「无线调试」主页面显示的为准;IP 走 DHCP);报 `No route to host` 就 `adb kill-server` 后重连同一地址(本机 adb 后台进程的问题,不是电视);报 `Connection refused` 才请 Gordon 读电视页面上的新端口(mDNS 广播的端口可能是休眠前的过期记录,端口扫描也扫不到真端口;mDNS 发现要 `ADB_MDNS_OPENSCREEN=1`);真机的 adb 序列号形如 `adb-…-1F8N2S (2)._adb-tls-connect._tcp`,**带空格**,脚本里 `adb devices` 要按 tab 切分、`-s` 参数加引号(2026-09-18 M8 装包时 awk 默认切分取到半截序列号报 device not found);只有连上后 `offline` / 认证失败才需重配:电视「使用配对码配对设备」拿码,`printf '<码>\n' | adb pair <IP:配对端口>`(管道喂码,参数形式会 protocol fault),再 connect。
 
 ## 文档分流(每轮工作收尾前必查同步)
 

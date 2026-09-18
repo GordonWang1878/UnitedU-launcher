@@ -682,3 +682,10 @@ HEAD `71eb6d7`(Task 9 完成态),worktree `m8-visual`。Task 10 只做 Step 1–
 - **R8(提交 trailer 作者名)** 决定:提交 trailer 允许写实际作者模型(子代理为 Sonnet 5);plan 全局约束那一行同步改(见本轮 plan 修订)。依据:真实归属优先于统一措辞;为改一行 trailer 去 amend 历史是无意义的折腾。代价:同一分支上 trailer 名不统一,无功能影响。
 
 **终审遗留(转后续 plan 处理,本轮不改)**:删 `CardMetrics.rowPitch`/`titleHeight`、`Theme.CardFallbackText`、`HomeLayout.scrimHeight` 三处死代码;补 `cardMetrics(7)` 回落单测;`SettingsTest` 的 `themePresetIdFallsBackToGoldWhenAbsentOrBlank` 改名;输入源行长按后卡片按压态要等失焦才释放(M4b 加菜单时给 Card 传 `interactionSource`);`showInputRow && showTitles` 时锚点偏 20dp(输入源行不画标题)。
+
+## 2026-09-18 · M8 并入 main(本地)+ A95L 装包
+
+- `m8-visual` 15 个提交经子代理逐任务实施(每任务独立审查 + fable 整分支终审,两条必修项已修并复核),`merge --no-ff` 并入本地 main = `b65cca3`;并后 main 上单测 176/176、`assembleRelease` 绿(APK 2,857,704 字节)。worktree 与分支已删;SDD 台账归档在 `.superpowers/sdd/2026-09-17-m8-home-visual-refresh/`(gitignored)。
+- **APK 已装到 A95L**(`install -r`,lastUpdateTime 2026-09-18 10:50),Gordon 的 settings.json 原样保留(themePresetId = green,不会被新默认 material 覆盖)。**待 Gordon 按上一节「A95L 验收清单」7 项验收。**
+- 未推 origin:main 领先 origin/main 已含 M7 + M8,等 Gordon 说「推」。
+- 后续:M8b(二级界面换皮 + 终审遗留六项),spec/plan 待写。
