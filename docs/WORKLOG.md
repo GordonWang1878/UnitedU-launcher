@@ -699,3 +699,8 @@ HEAD `71eb6d7`(Task 9 完成态),worktree `m8-visual`。Task 10 只做 Step 1–
 - **改完已验、已装**(`dce959c`):模拟器用 uiautomator 读焦点逐步验证同列规则——VIDEO 第 3 张↓MUSIC 第 3 张;MUSIC 第 4 张↓只有 2 张的 LIVE 落第 2 张、再↑回 MUSIC 第 2 张(不再跳回第 4 张)、再↑VIDEO 第 2 张;pill↑↓、MENU 开关菜单都回 VIDEO 第 2 张。单测 177/177。APK 已 `install -r` 到 A95L(21:54)。
 - **推送只完成一部分**:origin/main 到 `76eb827`(58 个提交推上去 50 个);剩 8 个卡在 `f6c5c88`(4 张 after 截图约 1.2MB)——HTTPS 大包上传反复断(HTTP/2 framing error、Empty reply、remote hung up;切 HTTP/1.1、调 postBuffer、逐提交推都不行),小提交能过。SSH 不可用:GitHub 账号没登记本机公钥(Permission denied)。坑:zsh 里 `"$sha:refs/heads/main"` 的 `:r` 会被当成修饰符吃掉,要写 `"${sha}:refs/heads/main"`;macOS 没有 `timeout`,用 `perl -e 'alarm N; exec @ARGV' git push …` 给推送限时。
 - **真机复验通过(2026-09-18 晚,Gordon)**:同列焦点规则、9 个色点在 A95L 上验过,无问题。**M8 真机验收至此 7/7 关闭**;剩推送(后台定时重试中)。下一条主线:M5「待机与屏保」spec + plan。
+
+## 2026-09-18 · M5「待机与屏保」grilling
+
+- Gordon 定:轮播时保留大字时钟并加淡阴影(桌面与系统屏保一致);首页「屏保」按钮永远播图库,图库空退回「待机显示」效果。另提五条做法未被反对:系统屏保行跳 `ACTION_DREAM_SETTINGS`、桌面与 DreamService 共用播放进度、图库空时系统屏保黑底 + 时钟、长按缩略图删图并确认、不做迁移。全部写进 DESIGN §4「M5 细化决定」。
+- 事实:DreamService spike(`4f184b7`,39 行)9 月 16 日在 A95L 屏保列表可见,未测渲染;手机上传页已支持删屏保图;电视本轮离线,系统屏保当前是否开启未读到,M5 实施时再读。
