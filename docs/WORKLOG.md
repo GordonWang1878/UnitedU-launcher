@@ -718,3 +718,5 @@ HEAD `71eb6d7`(Task 9 完成态),worktree `m8-visual`。Task 10 只做 Step 1–
 - Gordon 同意「屏保启动」三条(待机后再过 关/1/5/10/30 分、默认 5 分;待机关时从最后按键算;图库空不进屏保并提示)。M5 spec 写好:`docs/superpowers/specs/2026-09-19-m5-standby-screensaver-design.md`(状态机两布尔量、`standbyPlan` 纯函数、共用播放器 `ScreensaverPlayer`、设置组六行、长按删图、`UnitedUDream` 的 Compose 宿主);plan 由子代理起草中。
 - 路线图写进 DESIGN §11:已完成 7 个里程碑;M8 编号被首页视觉占用,原「回归 + 发布」顺延为最后;顺序 M5 → M8b → M4b → 1.0.0-beta。
 - Surge 改了 GitHub 策略后推送仍失败:pack 1.12 MiB 完整写出后报 `unable to rewind rpc post data`(连接在发送后被断),带 HTTP 头追踪的一次重试在后台跑。
+- **推送解决(2026-09-19)**:Gordon 在 Surge 里改了 GitHub 策略后,`git -c http.version=HTTP/1.1 -c http.postBuffer=157286400 push origin main` 一次成功,origin/main = `7a76a84`,本地与远程一致(M7 + M8 + 验收修复全部上去)。HTTP 追踪:401 → 200(认证)→ POST 1,183,077 字节 → 78 秒后 200。推法写进 CLAUDE.md。
+- 模拟器被 Gordon 关掉过,需要时重启(`emulator -avd unitedu-tv …`,见 CLAUDE.md)。
