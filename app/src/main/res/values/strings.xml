@@ -116,6 +116,10 @@
     <string name="picker_screensaver_title">屏保图库</string>
     <string name="picker_no_screensavers">还没有屏保图片</string>
     <string name="picker_adb_hint_screensaver">用 adb push 添加图片到\nfiles/library/screensavers/ 目录</string>
+    <!-- pool_delete_* : 屏保图库长按删图的确认框(M5 spec §5);取消复用 dialog_cancel -->
+    <string name="pool_delete_title">删除这张图片?</string>
+    <string name="pool_delete_body">「%1$s」会从屏保图库删除,无法恢复</string>
+    <string name="pool_delete_ok">删除</string>
 
     <!-- settings_* : UnitedU 设置页(分组带标题) -->
     <string name="settings_title">UnitedU 设置</string>

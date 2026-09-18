@@ -118,6 +118,10 @@
     <string name="picker_screensaver_title">Screensaver Gallery</string>
     <string name="picker_no_screensavers">No screensaver images yet</string>
     <string name="picker_adb_hint_screensaver">Use adb push to add images to\nfiles/library/screensavers/</string>
+    <!-- pool_delete_* : long-press delete confirm in the screensaver gallery (M5 spec §5); cancel reuses dialog_cancel -->
+    <string name="pool_delete_title">Delete this picture?</string>
+    <string name="pool_delete_body">\"%1$s\" will be removed from the gallery for good</string>
+    <string name="pool_delete_ok">Delete</string>
 
     <!-- settings_* : UnitedU settings page (grouped) -->
     <string name="settings_title">UnitedU Settings</string>

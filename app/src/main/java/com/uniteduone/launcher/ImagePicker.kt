@@ -202,6 +202,11 @@ private fun PickerGrid(
     onSelectFile: (File) -> Unit,
     onRestoreOriginal: (() -> Unit)?,
     onDismiss: () -> Unit,
+    /**
+     * 当前聚焦的图库文件(M5 spec §5,长按删图用):缩略图得到焦点报文件、失去报 null;只有屏保图库传它。
+     * 全屏预览 / 确认框盖上来时网格失焦 → 报 null → 长按不生效。
+     */
+    onFocusedFile: ((File?) -> Unit)? = null,
 ) {
     val rows = items.chunked(columns)
     val focusRequesters = remember(items.size) {
@@ -209,6 +214,11 @@ private fun PickerGrid(
     }
     var focusedIdx by remember { mutableStateOf(0) }
     var landed by remember { mutableStateOf(false) }
+    /**
+     * **现在**持有焦点的那一格(只信控件自报,铁律 4);null = 网格里没有。与 [focusedIdx] 分开(铁律 5):
+     * 后者是「回来时落哪」的目标,失焦时不清;这一个失焦就清,长按判据只认它。
+     */
+    var holderIdx by remember { mutableStateOf<Int?>(null) }
     val scroll = rememberScrollState()
 
     LaunchedEffect(nonce) {
@@ -220,6 +230,15 @@ private fun PickerGrid(
             runCatching { focusRequesters[i].requestFocus() }
             frames++
         }
+    }
+
+    // 上报只派生、不缓存(同 HomeScreen 的 onFocusedCard):删图后同一格换了文件、没有焦点事件,
+    // items 变 → 这里按新列表再报一次。离开组合(关图库 / 删空换成空态)报 null,不留过期文件。
+    if (onFocusedFile != null) {
+        LaunchedEffect(holderIdx, items) {
+            onFocusedFile((holderIdx?.let { items.getOrNull(it) } as? PickerItem.Library)?.file)
+        }
+        DisposableEffect(Unit) { onDispose { onFocusedFile(null) } }
     }
 
     Column(
@@ -262,6 +281,9 @@ private fun PickerGrid(
                             }
                             .onFocusChanged {
                                 if (it.isFocused) { focusedIdx = idx; landed = true }
+                                // 得失顺序保护(同 HomeScreen.report):只有「本格仍是持有者」时 lost 才作废,
+                                // 新格先报 got、旧格后报 lost 时不会把新格抹掉。
+                                if (it.isFocused) holderIdx = idx else if (holderIdx == idx) holderIdx = null
                             }
                             .clickable {
                                 when (item) {
@@ -362,23 +384,36 @@ private fun ThumbCard(
 private const val MAX_ICON_ITEMS = 16
 
 /**
- * 屏保图库预览:显示 library/screensavers/ 里的全部图片。
- * 只读浏览——所有图片都参与轮播,不需要「选一张」。
+ * 屏保图库:显示 library/screensavers/ 里的全部图片,确定键全屏预览;长按缩略图 → 删除确认框
+ * (M5 spec §5;长按识别在 MainActivity.dispatchKeyEvent,这里只画与上报)。
+ * [refresh] = 图库版本,删图后 +1,文件列表据此重读。
+ * [deleteTarget] 非 null 时在自身之上画 [ConfirmDialog]:它自己负责焦点(nonce + focusedBtn,默认在取消);
+ * 关掉后(删除 / 取消都 focusNonce++)由网格的 nonce 循环把焦点接回原位置——删掉的那格由下一张补上,
+ * 删的是末张就夹到上一张(`focusedIdx` 夹到新长度);删空换成空态,空态自己的循环接住焦点。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun ScreensaverPoolViewer(
     directory: File,
     nonce: Int = 0,
+    refresh: Int = 0,
+    onFocusedFile: (File?) -> Unit = {},
+    deleteTarget: File? = null,
+    onConfirmDelete: (File) -> Unit = {},
+    onCancelDelete: () -> Unit = {},
     onDismiss: () -> Unit,
 ) {
-    val files = remember(directory) {
+    val files = remember(directory, refresh) {
         directory.listFiles()
             ?.filter { it.isFile && it.extension.lowercase() in IMAGE_EXTS }
             ?.sortedBy { it.name }
             ?: emptyList()
     }
     var previewIndex by remember { mutableStateOf(-1) }
+    // 全屏预览关掉时,它拿着的焦点随节点一起销毁,外层没有人会补请求(铁律 3:浮层自己负责恢复)。
+    // M5 让图库重新可达(设置页入口),这条路因此变成常规路径。本地计数并进网格的 nonce:两个量都只增不减,
+    // 任何一个变了和就变,网格的初始焦点循环据此再跑一轮,落回 focusedIdx。
+    var previewCloses by remember { mutableStateOf(0) }
 
     androidx.activity.compose.BackHandler { onDismiss() }
     Box(
@@ -395,13 +430,14 @@ fun ScreensaverPoolViewer(
                 columns = 3,
                 thumbWidth = 170.dp,
                 thumbHeight = 96.dp,
-                nonce = nonce,
+                nonce = nonce + previewCloses,
                 onSelectFile = { file ->
                     val idx = files.indexOf(file)
                     if (idx >= 0) previewIndex = idx
                 },
                 onRestoreOriginal = null,
                 onDismiss = onDismiss,
+                onFocusedFile = onFocusedFile,
             )
         }
     }
@@ -410,7 +446,21 @@ fun ScreensaverPoolViewer(
         ScreensaverPreview(
             files = files,
             startIndex = previewIndex,
-            onDismiss = { previewIndex = -1 },
+            onDismiss = { previewIndex = -1; previewCloses++ },
+        )
+    }
+
+    // 删除确认框(spec §5):画在最上层;BackHandler 比查看器的更晚注册,返回键先关它。
+    val target = deleteTarget
+    if (target != null) {
+        ConfirmDialog(
+            title = stringResource(R.string.pool_delete_title),
+            body = stringResource(R.string.pool_delete_body, target.name),
+            okLabel = stringResource(R.string.pool_delete_ok),
+            cancelLabel = stringResource(R.string.dialog_cancel),
+            nonce = nonce,
+            onOk = { onConfirmDelete(target) },
+            onCancel = onCancelDelete,
         )
     }
 }

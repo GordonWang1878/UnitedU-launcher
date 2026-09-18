@@ -126,6 +126,18 @@ class MainActivity : ComponentActivity() {
      * 文件列表都以它为 key 重读。只增不减,不是闩(铁律 7)。
      */
     private var galleryVersion by mutableStateOf(0)
+    /**
+     * 屏保图库网格当前聚焦的那张图(PickerGrid 上报:得到报文件、失去报 null)。长按确定键据此弹删除确认框。
+     * 只在 [pickerTarget] == [VIEW_SCREENSAVER_POOL] 时有意义(长按那一支先判它);网格离开组合时报 null,
+     * [openScreensaverPool] 打开时再清一次——下一次会话在第一次焦点上报之前也读不到上一次的旧文件。
+     */
+    private var poolFocusedFile by mutableStateOf<java.io.File?>(null)
+    /**
+     * 删除确认框开着的那张图;null = 没开(M5 spec §5)。确定([deletePoolImage] 删完才清)、取消 / 返回
+     * (onCancelDelete)各自清它,[openScreensaverPool] 打开时再兜底清一次:不会有「上次没清掉、下次一打开图库
+     * 就蹦出确认框」的路(铁律 7)。
+     */
+    private var poolDeleteTarget by mutableStateOf<java.io.File?>(null)
     /** 菜单是从齿轮按钮打开的(true)还是从遥控器三条杠键打开的(false)。
      *  关闭菜单时 HomeScreen 据此决定焦点恢复到齿轮还是原来的卡片。 */
     private var menuFromGear = true
@@ -658,9 +670,17 @@ class MainActivity : ComponentActivity() {
                 onSelect = { file -> handlePick(file) },
                 onDismiss = { pickerTarget = null; focusNonce++ },
             )
+            // M5 spec §5:长按缩略图删图。长按识别在 dispatchKeyEvent(「图库光着」那一支),这里只接线:
+            // 网格上报聚焦的文件、确认框的目标与两个按钮。确认框自己负责焦点;关掉后(删除 / 取消都 focusNonce++)
+            // 由网格的 nonce 循环把焦点接回原位置。
             VIEW_SCREENSAVER_POOL -> ScreensaverPoolViewer(
                 directory = Paths.screensaverLibrary(this),
                 nonce = focusNonce,
+                refresh = galleryVersion,
+                onFocusedFile = { poolFocusedFile = it },
+                deleteTarget = poolDeleteTarget,
+                onConfirmDelete = ::deletePoolImage,
+                onCancelDelete = { poolDeleteTarget = null; focusNonce++ },
                 onDismiss = { pickerTarget = null; focusNonce++ },
             )
             VIEW_IMPORT -> ImportScreen(
@@ -790,6 +810,19 @@ class MainActivity : ComponentActivity() {
                     if (cardMenuActions(ref.kind).isNotEmpty()) cardMenu = ref
                     return true
                 }
+            }
+            // 屏保图库「光着」(M5 spec §5):图库开着、确认框没开、网格上有聚焦的缩略图。满 LONG_PRESS_MS 弹删除
+            // 确认框,整下吞掉(同 longPressDownTime 手法:UP 落不到缩略图上,不会顺带打开全屏预览)。
+            // 与上面的 homeBare 天然互斥:homeBare 要求 !overlayOpen,而图库开着时 pickerTarget != null。
+            // 全屏预览开着时网格失焦、poolFocusedFile 已报 null,这一支不成立 = 预览里长按无效。
+            val poolBare = pickerTarget == VIEW_SCREENSAVER_POOL && poolDeleteTarget == null && poolFocusedFile != null
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount > 0 && poolBare
+                && event.eventTime - event.downTime >= LONG_PRESS_MS
+            ) {
+                longPressDownTime = event.downTime
+                window.decorView.playSoundEffect(SoundEffectConstants.CLICK)
+                poolDeleteTarget = poolFocusedFile
+                return true
             }
         }
         // 长按确认键不应重复点击:电视 UI 里没有连按同一按钮的场景,
@@ -1166,11 +1199,32 @@ class MainActivity : ComponentActivity() {
     /**
      * 屏保图库查看器的入口:设置页「待机与屏保 → 屏保图库 ▸」(M5 spec §3)。叠在设置页之上,
      * 关掉后 focusNonce++ 让设置页把焦点接回这一行(设置页 `covered` 期间冻结目标)。
+     * 打开时清掉删图的两个量:它们只属于一次图库会话,旧值不能带进新会话(见两个字段的 KDoc)。
      */
     private fun openScreensaverPool() {
         if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
         closeMenu()
+        poolDeleteTarget = null
+        poolFocusedFile = null
         pickerTarget = VIEW_SCREENSAVER_POOL
+    }
+
+    /**
+     * 图库删图的「删除」键(M5 spec §5)。顺序照 spec:IO 线程删文件 → 播放器重扫 → 图库版本 +1 →
+     * 收确认框 → focusNonce++(网格按 nonce 把焦点落回原位置)。确认框留到删完才收:收掉那一刻焦点随它的
+     * 按钮销毁,紧接着的 nonce 让网格接回,中间没有「谁都不管」的空档。开头比对目标:过期的调用直接忽略。
+     * 删不掉(文件还在)只记日志——列表按盘上实况重读,那张图留在原处,用户看得见结果。
+     */
+    private fun deletePoolImage(file: java.io.File) {
+        if (poolDeleteTarget != file) return
+        lifecycleScope.launch {
+            val gone = withContext(Dispatchers.IO) { file.delete() || !file.exists() }
+            if (!gone) android.util.Log.w("UnitedU", "屏保图删不掉: ${file.name}")
+            ScreensaverPlayer.rescan(this@MainActivity)
+            galleryVersion++
+            poolDeleteTarget = null
+            focusNonce++
+        }
     }
 
     private fun openHomeSettings() {

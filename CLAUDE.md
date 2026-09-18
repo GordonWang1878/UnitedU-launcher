@@ -103,6 +103,8 @@ adb emu kill                                     # 关闭
    | 编辑页 | EditScreen 看门狗 + 显式重定位。「换卡片图」的选择器**替换**编辑页(开着时 EditScreen 不在组合里,它没有 `covered` 让路开关);关掉后编辑页重建,由 MainActivity 的 `editTarget`(layout 行号, 包名)种子定位回同一张卡 |
    | 添加应用列表 | AppPicker(逐项 requester) |
    | 图片选择器 / 屏保图库 / 默认桌面卡 / 导入图片页 | 各自的初始焦点循环(nonce) |
+   | 屏保图库的删除确认框(M5) | ConfirmDialog 自己的 nonce + focusedBtn 循环(默认在取消);关掉后(删除 / 取消都 `focusNonce++`)由图库网格的 nonce 循环接回原位置,`focusedIdx` 夹到新长度;删空换成空态,空态自己的循环接住 |
+   | 屏保图库的全屏预览(M5 起可达) | 自己的初始焦点循环;关掉时焦点随节点销毁,图库用本地计数 `previewCloses` 并进网格的 nonce,让网格循环再跑一轮接回 |
 
 4. **「有没有焦点」只信控件自己上报,不要用根节点的 `onFocusChanged`。**
    曾经用根节点的 `hasFocus && !isFocused` 当判据,它在多数路径上是对的,

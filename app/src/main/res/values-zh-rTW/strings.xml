@@ -116,6 +116,10 @@
     <string name="picker_screensaver_title">螢幕保護程式圖庫</string>
     <string name="picker_no_screensavers">還沒有螢幕保護程式圖片</string>
     <string name="picker_adb_hint_screensaver">用 adb push 新增圖片到\nfiles/library/screensavers/ 目錄</string>
+    <!-- pool_delete_* : 螢幕保護圖庫長按刪圖的確認框(M5 spec §5);取消複用 dialog_cancel -->
+    <string name="pool_delete_title">刪除這張圖片?</string>
+    <string name="pool_delete_body">「%1$s」會從螢幕保護圖庫刪除,無法復原</string>
+    <string name="pool_delete_ok">刪除</string>
 
     <!-- settings_* : UnitedU 設定頁(分組帶標題) -->
     <string name="settings_title">UnitedU 設定</string>
