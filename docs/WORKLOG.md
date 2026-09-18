@@ -727,3 +727,25 @@ HEAD `71eb6d7`(Task 9 完成态),worktree `m8-visual`。Task 10 只做 Step 1–
 - 事实:模拟器镜像的原生桌面是 **Android TV Home `com.google.android.tvlauncher` 7.7.15**,不是 Google TV launcherx;实机网格是 54 / 12 / 4dp(边距 / 卡距 / 圆角),不是 M8 照搬的设计指南 58 / 20 / 8;应用 tile 聚焦 ×1.29 以左沿为轴、无描边、只在聚焦 tile 下出应用名;非焦点行压到 60%;**焦点行顶到屏幕上沿**(spec §0 把「下三分之一锚定」称为 Google TV 做法,7.7.15 实测相反,launcherx 未验)。
 - 结论:骨架可对齐(网格、标题、聚焦标签、顶栏、行尾「+」)合计 11 h + 回归 5 h ≈ 2 天;hero / 推荐行 / 促销卡 / 搜索 / 通知 / 账号永远做不到(依赖 Google 后台或违反零广告零推荐)。推荐先做前四项 6 h,不动 spec §0 任何决定。
 - 模拟器:本轮由控制方重启,截图完成后 UnitedU 已重新置前(row 0),标记 `/tmp/gtv-compare-emulator-done` 已写。
+
+## 2026-09-19 · M5 待机与屏保:实施完成 + 模拟器验证
+
+HEAD `b1af9e1`,worktree `m5-standby`,模拟器 `emulator-5554`。截图 `/tmp/m5-*.png`;夹具(settings.json、原图库、`long_press_timeout`、两个屏保安全设置键)已还原。
+
+- **单测 / 构建**:199 tests,0 failures;APK 2,882,700 字节。`--rerun-tasks` 全量重跑 + `git diff main -- app/src/main | grep -E "LazyRow|LazyColumn|verticalScroll|horizontalScroll"` 结果为 0(铁律 1,无新增可滚动容器)。
+- **时间线**(Task 3 / Task 7 Step 2):A 时钟(20s photo=none clockMax=201 / 75s cardsDiff=53.9 / 135s photo=under=red clockMax=201 cardsDiff=86.5 → 75s 卡片已淡出、135s 进屏保)/ B 全黑(75s clockMax=0 / 135s photo=red clockMax=201 → 全黑待机期时钟不可见,进屏保后随照片一起出现)/ C 图库空(75s、135s 均 photo=none clockMax=201 cardsDiff=52.7 → 永远停在待机时钟)/ D 待机关(45s cardsDiff=0.0 仍正常态、75s 直接 photo=red → 跳过待机直接进屏保)/ E 屏保关(75s、135s 均 photo=none clockMax=201 cardsDiff=52.7 → 永远停在待机)。Task 7 Step 2 在最终 APK 上重跑场景 A,三行判据与 Task 3 逐字一致,唤醒后 `focus-unchanged`、前台仍是 MainActivity。
+- **屏保按钮**:F1 有图(20s/30s/75s 均 photo=red/blue,含「75 s 后仍是照片,没被降回待机」,验证计时器「只升不降」)/ F2 空图库 + 时钟(cardsDiff=50.3,回落待机)/ F3 空图库 + 不淡出(cardsDiff=0.0 真无操作,下一个键未被吞,DPAD_DOWN 正常移动到卡片)/ F4 有图 + 不淡出(photo=red clockMax=201,截图确认只有时钟没有卡片行浮在照片上)。
+- **设置页**(Task 4):六行(Standby Timeout / Standby Display / Screensaver starts / Slideshow interval / Screensaver gallery / System screensaver);提示三种情况(after standby / from last key / gallery empty)+ 屏保启动「关」时不画;`ACTION_DREAM_SETTINGS` 在这台 AVD 上不 resolve(`cmd package resolve-activity` 返回 "No activity found"),退到系统设置首页 `com.android.tv.settings.MainSettings`;壁纸组「轮播间隔」改名「Auto-change wallpaper」;繁中截图 `/tmp/m5-t4-zhtw.png` 六行不折行不重叠。
+- **删图**(Task 5):取消不删(计数不变、焦点回原缩略图);删中间 → 焦点落下一张(滑上来的那张);删末张 → 落上一张;删空 → `PoolEmptyState` 空态,焦点落「Press Back to close」;预览里长按无效(`photo=red` 无遮罩,无确认框弹出)、关预览焦点靠 `previewCloses` 并入网格 nonce 接回;按压指示残留:无(专门截图复核 cancel 后的缩略图只有正常聚焦色,无异常残留;理论风险仍记在下面「已知未修」)。
+- **系统屏保**(Task 6):模拟器上可用的启动办法是到点自动触发——`screensaver_components`/`screensaver_enabled`/`screensaver_activate_on_sleep` 三键 + `screen_off_timeout=15000` + `stay_on_while_plugged_in 0` + `dumpsys battery set usb 1`,发一次真实按键后干等 20–30 s、中途不插入任何 adb 查询(`cmd dreams start-dreaming` 要 root 不可用;`Somnambulator` 静默假成功,`dumpsys dreams` 仍 `mCurrentDream=null`);屏保窗口 `android.service.dreams.DreamActivity`;画面 = 照片 + 带阴影的时钟,与桌面一致;桌面先进自定义屏保、系统屏保接班,同一张 green 接着播(共用 `ScreensaverPlayer` 单例,`_index` 未被 attach/detach 重置);空图库黑底 + 时钟(无阴影);冷进程(pid 8769)正常渲染、结束后回到 YouTube(不是回到 UnitedU,符合「回到屏保前的前台应用」);crash 缓冲 0 条,约十几个屏保周期全程零崩溃。
+- **轮播间隔**(Task 7 Step 3):60 s 档实测相邻换图约 63 s(60±6 s 容差内,采样粒度 ~7 s);30 s 档约 28 s(30±6 s 内)。
+- **焦点七条**:唤醒后焦点原位(Step 2 `focus-unchanged`,verbatim bounds 一致);确认框与网格的焦点接回(Task 5:取消/删除后都准确落回网格,`previewCloses` 接回预览关闭后的网格焦点);设置页新行上下左右无 `<none>`(Step 5 六次 `FOCUS:` 全部非空,末行下键锁住、右键被动作行消费、左键回左栏);长按两个入口互斥(Step 4:首页只出 `Open App`,图库只出 `Delete this picture?`,`homeBare`/`poolBare` 互斥成立)。
+- **已知未修**:`PickerGrid` 仍用 `verticalScroll`(M5 之前就有,违反铁律 1;图库超过约 15 张才会滚,真机未测);被吞掉的长按 UP 可能让 `clickable` 的按压指示残留(外观问题,下一次按键即复原,Task 5 实测未复现);全屏预览开着时回到前台(如系统屏保结束),网格的 nonce 循环会把焦点从预览上拿走(M5 之前就有);`/tmp/m5-focus.py` 的文字抓取漏掉单引号包裹的 XML 属性(uiautomator 对含双引号的文本值用单引号序列化,脚本正则只认双引号,Task 5 删图确认框正文曾因此读不出来,截图核实无碍)。
+
+**A95L 真机清单**(Gordon 做):
+1. 时间线手感:设置页「待机与屏保」把待机时长设 1 分、屏保启动设 1 分,放着不动——1 分后卡片淡出只留时钟,再 1 分照片轮播 + 带淡阴影的时钟;按任意键回到原来那张卡,这一下不会启动应用。看完改回自己习惯的值(你原来是待机 3 分;屏保启动默认 5 分)。
+2. 屏保画面:照片亮的时候大字时钟看得清;换图 2 秒交叉淡入 + 缓慢放大不卡。
+3. 右上「屏保」按钮:按下立刻进照片轮播,不经过待机。
+4. 系统屏保:电视「设置 → 屏幕保护程序」先把屏保打开(你之前用 adb 关过),在列表里选 UnitedU——也可以从 UnitedU 设置页「系统屏保 ▸」跳过去,顺便看这一行在索尼上能不能打开对的页面;「立即启动」或等系统时长:照片 + 时钟正常;UnitedU 自己的屏保开着时触发系统屏保,照片从同一张接着播;按任意键回到原来的应用。
+5. 屏保图库:「屏保图库 ▸」看图;长按缩略图约 0.6 秒弹「删除这张图片?」,默认焦点在「取消」;删一张后焦点落在补上来的那张。
+6. 设置页六行,「屏保启动」下面的小字随图库空 / 待机关 / 其余三种情况变化。
