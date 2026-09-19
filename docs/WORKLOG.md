@@ -872,7 +872,7 @@ worktree `.claude/worktrees/leftover-fixes`,分支 `leftover-fixes`,base `49760b
 
 ## 2026-09-19 · M4b(行管理 · 原地移动 · 输入源)
 
-worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs/superpowers/specs/2026-09-19-m4b-rows-move-inputs-design.md`(§0 决定表 + Rulings A–M,2026-09-19 16:45 Gordon 过目「按现在的方案做」;个别交互细节在实施中续有敲定,`8987baf`)、plan `docs/superpowers/plans/2026-09-19-m4b-rows-move-inputs.md`(6 个任务)。SDD 台账 `.superpowers/sdd/2026-09-19-m4b-rows-move-inputs/`(gitignored,裁定编号 M4b-R1…R16 均在其中,下面只给摘要)。
+worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs/superpowers/specs/2026-09-19-m4b-rows-move-inputs-design.md`(§0 决定表 + Rulings A–M,2026-09-19 16:45 Gordon 过目「按现在的方案做」;个别交互细节在实施中续有敲定,`8987baf`)、plan `docs/superpowers/plans/2026-09-19-m4b-rows-move-inputs.md`(6 个任务)。SDD 台账 `.superpowers/sdd/2026-09-19-m4b-rows-move-inputs/`(gitignored,裁定编号 M4b-R1…R17 均在其中,下面只给摘要)。
 
 **六个任务**(commit 均在 `m4b` 分支):
 
@@ -887,7 +887,7 @@ worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs
 
 中途两次合并:`24858e6` 把 leftover-fixes(`d8553de`)并进 m4b(Task 4 需要它的 `keepInView` 与 GearMenu 看门狗,提前合并而不是等它终审,Ruling M4b-R9);`f36f502` 把 main(leftover-fixes 终审修复波 + 文档 + spec 更新)并进 m4b,供 Task 6 起手。
 
-**Rulings 摘要**(决定内容见 spec §0 决定表,逐条理由与「错了的代价」在台账 M4b-R1…R16,不重复抄):调度类(R1 T1/T2 与 leftover-fixes 并行、R2/R4/R8 把几个任务的模拟器验证挪到合适的窗口、R9 提前合并 leftover-fixes)、计数器类(R5「隐藏/恢复输入源」用 `revision++` 而不是 spec 原写的 `settingsRevision++`,因为后者不重建首页行,这一点后来 Task 5 的移动写盘 `revision++` 也照此先例)、字符串与 API 类(R6 `ActionRow.hintArg`、R7 输入源菜单不复用「应用」措辞、R11 zh-TW「應用程式」等文案定案)、行为类(R10 改名时把回落图标存下来避免图标跳变、R12 编辑页初始焦点只等「即将被换掉的占位卡」而不是等「数据是否刷新」这种更宽条件、R14–R16 原地移动确定键松开才放下 / 音量键放行 / 未动行原样保留 / 移进已有该应用的行原地不动)、遗留类(R3 commit trailer 用实际写代码的模型「Sonnet 5」、R13 编辑页卡片菜单误显示齿轮菜单「Settings」标题的问题挪进最终修复轮)。
+**Rulings 摘要**(决定内容见 spec §0 决定表,逐条理由与「错了的代价」在台账 M4b-R1…R17,不重复抄):调度类(R1 T1/T2 与 leftover-fixes 并行、R2/R4/R8 把几个任务的模拟器验证挪到合适的窗口、R9 提前合并 leftover-fixes、R17 Task 6 的任务评审与本节最后这轮终审并行跑,Task 6 的发现并入最终修复轮一起处理)、计数器类(R5「隐藏/恢复输入源」用 `revision++` 而不是 spec 原写的 `settingsRevision++`,因为后者不重建首页行,这一点后来 Task 5 的移动写盘 `revision++` 也照此先例)、字符串与 API 类(R6 `ActionRow.hintArg`、R7 输入源菜单不复用「应用」措辞、R11 zh-TW「應用程式」等文案定案)、行为类(R10 改名时把回落图标存下来避免图标跳变、R12 编辑页初始焦点只等「即将被换掉的占位卡」而不是等「数据是否刷新」这种更宽条件、R14–R16 原地移动确定键松开才放下 / 音量键放行 / 未动行原样保留 / 移进已有该应用的行原地不动)、遗留类(R3 commit trailer 用实际写代码的模型「Sonnet 5」、R13 编辑页卡片菜单误显示齿轮菜单「Settings」标题的问题挪进最终修复轮)。
 
 **单测数演进**:Task1 后 213 → Task2 后 218 → Task3 后 220 → 与 leftover-fixes 合并(`24858e6`)后 228 → Task4 后 235 → Task5 后 245 → 与 main 合并(`f36f502`)后 247 → Task6 回归未发现问题,247 不变。
 

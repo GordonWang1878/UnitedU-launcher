@@ -612,6 +612,9 @@ fun EditScreen(
                     acting = null; retarget(ri, pi)
                 },
                 nonce = focusNonce,
+                // 标题用这张卡的显示名,不传的话 GearMenu 落回「设置」标题(M4b-R13,终审 Important #2)——
+                // 与首页长按卡片菜单同一套取法:自定义标题优先,查不到就用应用名,再查不到用包名兜底。
+                title = titles[pkg] ?: all?.get(pkg)?.label ?: pkg,
             )
         }
 

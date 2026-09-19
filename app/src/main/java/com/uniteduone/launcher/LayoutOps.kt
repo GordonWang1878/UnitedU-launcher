@@ -27,7 +27,10 @@ internal fun renameRow(rows: List<LayoutRow>, index: Int, name: String): List<La
     if (clean.isEmpty() || index !in rows.indices) return rows
     if (clean == rows[index].name) return rows
     return rows.mapIndexed { i, r ->
-        if (i == index) r.copy(name = clean, icon = r.icon ?: effectiveRowIconId(r.name, null)) else r
+        // 用 effectiveRowIconId(r.name, r.icon) 而不是 r.icon ?: effectiveRowIconId(r.name, null):
+        // 后者只在 icon 为 null 时才回落,存了非法 id(比如手改坏的文件)的行会被原样带过去;
+        // 前者连非法 id 也一并纠正(终审 Minor #4)。
+        if (i == index) r.copy(name = clean, icon = effectiveRowIconId(r.name, r.icon)) else r
     }
 }
 

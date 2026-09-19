@@ -46,6 +46,9 @@ class LayoutOpsTest {
         assertEquals("tv", renameRow(three, 1, "直播")[1].icon)
         val games = listOf(LayoutRow("Play", icon = "games", apps = listOf("g")))
         assertEquals(LayoutRow("Fun", icon = "games", apps = listOf("g")), renameRow(games, 0, "Fun")[0])
+        // 存了非法 id 的行(手改坏的文件)改名时也被纠正,不能把垃圾 id 原样带过去(终审 Minor #4)
+        val invalid = listOf(LayoutRow("VIDEO", icon = "bogus", apps = listOf("z")))
+        assertEquals("movie", renameRow(invalid, 0, "影视")[0].icon)
         // 别的行不动;空名、与现名相同(去空白后)都原样返回同一个 list——不写盘,也不钉图标
         assertEquals(null, renameRow(three, 2, "Kids")[0].icon)
         assertSame(three, renameRow(three, 2, "  "))

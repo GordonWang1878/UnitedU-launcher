@@ -447,11 +447,15 @@ class MainActivity : ComponentActivity() {
             }
             // **首页被盖住 = 移动态取消**(M4b spec §0-9「进待机、任何浮层要打开 → 等同取消」)。移动态下按键全被
             // dispatchKeyEvent 截走,遥控器开不出任何浮层;剩下的来路是待机计时到点,以及指针事件(鼠标 / 触摸点到齿轮)
-            // ——都在这一处收口,不去每个浮层的入口各判一次。守卫的两个量都是 key(铁律 6);
-            // 不是闩(铁律 7):cancelMove 本身读活状态,写盘途中(committing)它什么都不做,由写盘结果决定去留。
+            // ——都在这一处收口,不去每个浮层的入口各判一次。三个量都是 key(铁律 6),committing 也算一个:
+            // 本效果调的 cancelMove() 内部另有一层守卫——写盘途中(committing)它什么都不做,由写盘结果决定去留;
+            // 这层内层守卫若不进本效果的 key,写盘失败把 committing 落回 false(dropMove)时本效果不会重跑,
+            // cancelMove() 就再也没有第二次机会执行——moveBlocked 已经为真、moving 也还在,移动态却继续挂着
+            // (终审 Important #1,2026-09-19 实测复现:standby 或浮层恰好在写盘期间打开)。不是闩(铁律 7):
+            // moving 只在 endMove 里归零,这里的三个 key 只决定「要不要再调用一次 cancelMove」。
             val moveBlocked = editing || menuOpen || overlay || homeOverlay || idle
             val inMove = moving != null
-            LaunchedEffect(moveBlocked, inMove) {
+            LaunchedEffect(moveBlocked, inMove, moving?.committing == true) {
                 if (moveBlocked && inMove) cancelMove()
             }
             // 屏保按钮的请求(见 screensaverRequests 的 KDoc):声明在计时效果之后、再等一帧,保证后写(R3)。
@@ -820,8 +824,11 @@ class MainActivity : ComponentActivity() {
                     moveDownTime = event.downTime
                     onMoveKey(event)
                 }
-                KeyEvent.ACTION_UP -> {
-                    if (inMovePress) moveDownTime = -1L
+                KeyEvent.ACTION_UP -> if (inMovePress) {
+                    // 只处理「这一下 UP 的按压确实在移动态里 DOWN 过」的那一次(见 inMovePress 的定义)。
+                    // `moving != null` 单独成立却 inMovePress 为假的分支只在 DOWN 时有意义(见上面 ACTION_DOWN
+                    // 那一支);UP 这里额外判一次是防御性加固,不改变任何已知路径的行为(终审 Minor #3)。
+                    moveDownTime = -1L
                     onMoveKeyUp(event)
                 }
             }
