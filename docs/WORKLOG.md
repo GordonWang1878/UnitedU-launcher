@@ -780,3 +780,11 @@ HEAD `c0cf5a6`(接 `8d82355`),worktree 仍是 `m5-standby`。终审复查的完�
 - Gordon 报 M5 清单 9 项**全部通过**(时间线、屏保画面、屏保按钮、系统屏保、图库删图、设置六行、轮播时按 HOME、20 张以上翻页、冷启动系统屏保)。M5 关闭;路线图见 DESIGN §11。
 - 同一句里 Gordon 下令「推」:main 连同 M8 对比报告、M5 全部提交一起推 GitHub(结果见下一条)。
 - M5 的 DreamService spike 分支 `worktree-agent-a21dcfb91b5103162`(1 个提交 `4f184b7`,已被 `UnitedUDream` 取代;worktree 早已不在)改存为本地标签 `spike/m5-dream`,分支删除。
+
+## 2026-09-19 · 推送完成;开 gtv 线(全 app 复刻 Google TV)
+
+- **推送**:`origin/main` = `142d9b2`(16 个提交)。`c46c0ef`(差距报告 + 19 张截图,约 5 MB)单独推,前两次 `curl 52 Empty reply from server`,隔 20 s 第 3 次过;其余提交一次推完。做法已补进 CLAUDE.md「推 GitHub 的坑」。
+- **前提纠正**:差距报告对标的「Google TV」其实是模拟器自带的 `com.google.android.tvlauncher` 7.7.15(Android TV Home,旧一代),不是 Google TV(`com.google.android.apps.tv.launcherx`);A95L 是国行索尼,系统里根本没有 Google TV 桌面(`pm list packages` 只有 `com.oversea.aslauncher`、`com.dangbei.TVHomeLauncher`、`com.gordonwang.tvhome`、UnitedU)。真 Google TV 唯一可量的一手来源是官方 google-tv 模拟器镜像。
+- **Gordon 第一轮拍板(grilling)**:①对标真 Google TV——下载 `system-images;android-34;google-tv;arm64-v8a`(`arm64-v8a-34_r03.zip`,869,585,766 B,sha1 `a5ecfa06ee6e4b5d5262d47dffb84136ce1645d1`,dl-ssl.google.com)建第二台 AVD 实测,开机向导里的 Google 条款由我点同意(他已在卡上同意);不登 Google 账号(密码不代输);②范围全 app(首页 + 设置、菜单、对话框、选择器、编辑页、引导、关于),首页先做;③「Google 的壳、UnitedU 的内容」——布局照搬,推荐位换成用户自己的东西(如大海报位放壁纸),换壁纸 / 主题色 / 屏保 / 卡片标题保留、外观改 Google 样式,每项落点下一轮逐项定;④独立包名 `com.uniteduone.launcher.gtv`(应用名「UnitedU GTV」)与 UnitedU 并存安装,设置与图片各存各的。
+- 差距报告遗留的两个决定(6 h 子集、M8 有意偏离改不改)并入 gtv 线,不再单独决定。
+- 估时:实测约半天;实施全 app 约 8 个工作日(首页约 4 天先出)。

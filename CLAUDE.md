@@ -43,7 +43,7 @@ adb emu kill                                     # 关闭
 
 真机(Sony A95L)只在里程碑真机验收用;开发全程走模拟器。真机 adb 走「无线调试」(**不是** 5555),**配对会跨会话保留,装包前别先向 Gordon 要配对码**(2026-09-17 实证,见 WORKLOG 当日 M7 合并一节):先 `adb connect 192.168.1.22:38673`(连接端口以电视「无线调试」主页面显示的为准;IP 走 DHCP);报 `No route to host` 就 `adb kill-server` 后重连同一地址(本机 adb 后台进程的问题,不是电视);报 `Connection refused` 才请 Gordon 读电视页面上的新端口(mDNS 广播的端口可能是休眠前的过期记录,端口扫描也扫不到真端口;mDNS 发现要 `ADB_MDNS_OPENSCREEN=1`);真机的 adb 序列号形如 `adb-…-1F8N2S (2)._adb-tls-connect._tcp`,**带空格**,脚本里 `adb devices` 要按 tab 切分、`-s` 参数加引号(2026-09-18 M8 装包时 awk 默认切分取到半截序列号报 device not found);只有连上后 `offline` / 认证失败才需重配:电视「使用配对码配对设备」拿码,`printf '<码>\n' | adb pair <IP:配对端口>`(管道喂码,参数形式会 protocol fault),再 connect。
 
-**推 GitHub 的坑**(2026-09-19 实证):本机 `github.com` 解析到 Surge fake-IP(198.18.x.x),流量走代理节点;带截图的大包(>1 MB)在默认设置下会在上传后被断(`unable to rewind rpc post data` / `remote end hung up`)。Surge 里 GitHub 策略改到稳定节点后,用 `git -c http.version=HTTP/1.1 -c http.postBuffer=157286400 push origin main` 可以推上去(1.18 MB 约 78 秒)。zsh 里写 refspec 要 `"${sha}:refs/heads/main"`,否则 `:r` 被当成修饰符吃掉。
+**推 GitHub 的坑**(2026-09-19 实证):本机 `github.com` 解析到 Surge fake-IP(198.18.x.x),流量走代理节点;带截图的大包(>1 MB)在默认设置下会在上传后被断(`unable to rewind rpc post data` / `remote end hung up`)。Surge 里 GitHub 策略改到稳定节点后,用 `git -c http.version=HTTP/1.1 -c http.postBuffer=157286400 push origin main` 可以推上去(1.18 MB 约 78 秒)。更大的包(2026-09-19 那次 5 MB 截图提交)仍会报 `curl 52 Empty reply from server`:把大提交单独先推(`git push origin <sha>:refs/heads/main`),失败隔 20 s 重试(实测第 3 次过),其余小提交再一次推完。zsh 里写 refspec 要 `"${sha}:refs/heads/main"`,否则 `:r` 被当成修饰符吃掉。
 
 ## 文档分流(每轮工作收尾前必查同步)
 
