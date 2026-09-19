@@ -19,17 +19,28 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 data class MenuItem(val label: String, val hint: String, val action: () -> Unit)
 
 /**
- * 菜单浮层。齿轮菜单、编辑页条目菜单、首页长按卡片菜单共用这一份。
- * @param title 标题;null = 沿用齿轮菜单的「设置」。长按菜单传该卡的显示名。
+ * 菜单浮层。齿轮菜单、编辑页条目菜单、首页长按卡片菜单、编辑页行菜单共用这一份。
+ * @param title 标题;null = 沿用齿轮菜单的「设置」。长按菜单传该卡的显示名,行菜单传行名。
+ * @param compact 条目多到一屏放不下时用(编辑页行菜单,最多 7 项):条目上下内边距 13 → 8dp、标题单行截断。
+ *   菜单是一整块不滚动的 Column(铁律 1),放不下时最后几项会被量扁——2026-09-19 模拟器实测 7 项:
+ *   英文把「按返回键关闭」挤成 6px,中文(CJK 回落字体行高更大)连「删除此行」的说明都挤没了。
+ *   默认 false:其它菜单外观不变。
  */
 @Composable
-fun GearMenu(items: List<MenuItem>, onDismiss: () -> Unit, nonce: Int = 0, title: String? = null) {
+fun GearMenu(
+    items: List<MenuItem>,
+    onDismiss: () -> Unit,
+    nonce: Int = 0,
+    title: String? = null,
+    compact: Boolean = false,
+) {
     val rowFocus = remember(items.size) { List(items.size.coerceAtLeast(1)) { FocusRequester() } }
     // 下面两个循环都在协程里跑,读的必须是**当前**这一份 requester:items.size 一变 remember 就换新表,
     // 捕获启动时那一份的话,旧表挂不上任何节点,requestFocus 次次抛、被 runCatching 吞掉,循环空转。
@@ -84,6 +95,9 @@ fun GearMenu(items: List<MenuItem>, onDismiss: () -> Unit, nonce: Int = 0, title
         ) {
             BasicText(
                 text = title ?: stringResource(R.string.menu_settings_title),
+                // 紧凑模式下标题只占一行:行名最长 40 字,折成两三行又会把菜单撑出屏幕
+                maxLines = if (compact) 1 else Int.MAX_VALUE,
+                overflow = if (compact) TextOverflow.Ellipsis else TextOverflow.Clip,
                 style = TextStyle(
                     fontFamily = Theme.Sans,
                     fontWeight = FontWeight.Medium,
@@ -106,6 +120,7 @@ fun GearMenu(items: List<MenuItem>, onDismiss: () -> Unit, nonce: Int = 0, title
                     },
                     isFirst = i == 0,
                     isLast = i == items.lastIndex,
+                    compact = compact,
                 )
             }
 
@@ -133,6 +148,7 @@ private fun MenuRow(
     onFocusChange: (Boolean) -> Unit = {},
     isFirst: Boolean = false,
     isLast: Boolean = false,
+    compact: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
     val highlight = LocalThemeColors.current.highlight
@@ -158,7 +174,7 @@ private fun MenuRow(
             )
             .onFocusChanged { focused = it.isFocused; onFocusChange(it.isFocused) }
             .clickable(onClick = item.action)
-            .padding(horizontal = 16.dp, vertical = 13.dp),
+            .padding(horizontal = 16.dp, vertical = if (compact) 8.dp else 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 聚焦时左侧竖条指示器

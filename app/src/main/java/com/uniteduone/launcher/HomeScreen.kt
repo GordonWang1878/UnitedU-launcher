@@ -574,11 +574,17 @@ fun HomeScreen(
         val rt = renameTarget
         if (rt != null) {
             TitleDialog(
-                ref = rt,
+                key = rt.pkg,
                 current = titles[rt.pkg] ?: "",
+                heading = stringResource(R.string.title_dialog_title),
+                // 输入源卡:清空恢复系统名(title_dialog_hint_input);应用卡:清空恢复应用名。
+                hint = stringResource(
+                    if (rt.kind == RowKind.INPUTS) R.string.title_dialog_hint_input else R.string.title_dialog_hint,
+                ),
                 onSave = { onRenameSave(rt, it) },
                 onCancel = onRenameCancel,
                 nonce = focusNonce,
+                subtitle = rt.label.ifBlank { rt.pkg },
             )
         }
     }
