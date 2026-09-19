@@ -124,7 +124,12 @@ fun TitleDialog(ref: CardRef, current: String, onSave: (String) -> Unit, onCance
             )
             Spacer(Modifier.height(12.dp))
             BasicText(
-                text = stringResource(R.string.title_dialog_hint),
+                // title_dialog_hint 原句写死「清空恢复应用名」;输入源卡换 title_dialog_hint_input
+                // (「清空恢复系统名」,同 card_menu_rename_input_desc 的用词)——M4b 跟进复审:
+                // 这个对话框本身是应用/输入源两行共用的(design/M4b spec 都没有另开一个),这里是
+                // 该 API 能给的最小改法,就地按 ref.kind 换一个资源 id;真正把 TitleDialog 变成
+                // 完全不认识「应用/输入源」区别的通用组件,留给 Task 4(这里不做那次重构)。
+                text = stringResource(if (ref.kind == RowKind.INPUTS) R.string.title_dialog_hint_input else R.string.title_dialog_hint),
                 style = TextStyle(fontFamily = Theme.Sans, color = Theme.FooterHintText, fontSize = 10.sp),
             )
         }

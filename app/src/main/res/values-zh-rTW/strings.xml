@@ -238,4 +238,8 @@
     <string name="settings_restore_hidden_inputs">恢復隱藏的輸入源</string>
     <string name="settings_hidden_inputs_count">%1$d 個</string>
     <string name="toast_inputs_restored">已恢復全部輸入源</string>
+    <string name="card_menu_open_input">打開輸入源</string>
+    <string name="card_menu_open_input_desc">切到這個輸入源</string>
+    <string name="card_menu_rename_input_desc">改卡片上顯示的名字,清空恢復系統名稱</string>
+    <string name="title_dialog_hint_input">確定儲存 · 返回取消 · 清空恢復系統名稱</string>
 </resources>

@@ -1128,15 +1128,24 @@ class MainActivity : ComponentActivity() {
     /** 长按菜单项。顺序与文案见 design §2;RENAME 在 Task 5 接对话框,本任务先不列出。 */
     private fun cardMenuItems(ref: CardRef): List<MenuItem> = cardMenuActions(ref.kind).mapNotNull { action ->
         when (action) {
-            CardAction.OPEN -> MenuItem(getString(R.string.card_menu_open), getString(R.string.card_menu_open_desc)) {
-                closeCardMenu()
-                // 按 ref.kind 分流(M4b):输入源卡的 pkg 存的是输入 id,不是包名——同 HomeScreen
-                // 卡片本身点击时的分流(CategoryRow.onClick)一样,不能一律走 Apps.launch。
-                val ok = when (ref.kind) {
-                    RowKind.INPUTS -> Inputs.launch(this, ref.pkg)
-                    RowKind.APPS -> Apps.launch(this, ref.pkg)
+            // 文案按 ref.kind 分流(M4b 跟进复审):card_menu_open(_desc) 写死「应用」,
+            // 输入源卡不能借用——换成不提「应用」两个字的 card_menu_open_input(_desc)。
+            CardAction.OPEN -> {
+                val (labelRes, descRes) = if (ref.kind == RowKind.INPUTS) {
+                    R.string.card_menu_open_input to R.string.card_menu_open_input_desc
+                } else {
+                    R.string.card_menu_open to R.string.card_menu_open_desc
                 }
-                if (!ok) toast(getString(R.string.toast_cant_open_app, ref.label))
+                MenuItem(getString(labelRes), getString(descRes)) {
+                    closeCardMenu()
+                    // 按 ref.kind 分流:输入源卡的 pkg 存的是输入 id,不是包名——同 HomeScreen
+                    // 卡片本身点击时的分流(CategoryRow.onClick)一样,不能一律走 Apps.launch。
+                    val ok = when (ref.kind) {
+                        RowKind.INPUTS -> Inputs.launch(this, ref.pkg)
+                        RowKind.APPS -> Apps.launch(this, ref.pkg)
+                    }
+                    if (!ok) toast(getString(R.string.toast_cant_open_app, ref.label))
+                }
             }
             CardAction.UNINSTALL -> MenuItem(getString(R.string.card_menu_uninstall), getString(R.string.card_menu_uninstall_desc)) {
                 closeCardMenu()
@@ -1145,7 +1154,12 @@ class MainActivity : ComponentActivity() {
                 }.isSuccess
                 if (!ok) toast(getString(R.string.toast_uninstall_failed))
             }
-            CardAction.RENAME -> MenuItem(getString(R.string.card_menu_rename), getString(R.string.card_menu_rename_desc)) {
+            // 标题(card_menu_rename「修改标题」/「Rename Card」)三种语言都不提「应用」,两种行共用；
+            // 说明文字原句提到「应用」,输入源卡换 card_menu_rename_input_desc(M4b 跟进复审)。
+            CardAction.RENAME -> MenuItem(
+                getString(R.string.card_menu_rename),
+                getString(if (ref.kind == RowKind.INPUTS) R.string.card_menu_rename_input_desc else R.string.card_menu_rename_desc),
+            ) {
                 closeCardMenu(); renameTarget = ref
             }
             CardAction.CHANGE_ICON -> MenuItem(getString(R.string.card_menu_icon), getString(R.string.card_menu_icon_desc)) {

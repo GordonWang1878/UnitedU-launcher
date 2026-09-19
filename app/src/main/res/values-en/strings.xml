@@ -240,4 +240,8 @@
     <string name="settings_restore_hidden_inputs">Restore Hidden Inputs</string>
     <string name="settings_hidden_inputs_count">%1$d hidden</string>
     <string name="toast_inputs_restored">All inputs restored</string>
+    <string name="card_menu_open_input">Open Input</string>
+    <string name="card_menu_open_input_desc">Switch the TV to this input</string>
+    <string name="card_menu_rename_input_desc">Change the name on the card; clear it to restore the system name</string>
+    <string name="title_dialog_hint_input">OK saves · Back cancels · empty restores the system name</string>
 </resources>
