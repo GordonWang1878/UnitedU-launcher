@@ -230,4 +230,12 @@
     <string name="toast_stock_launcher_not_found">找不到原厂桌面</string>
     <string name="toast_restored">已恢复默认设置</string>
     <string name="toast_system_screensaver_unavailable">打不开系统屏保设置</string>
+    <!-- M4b -->
+    <string name="menu_hide_input">隐藏</string>
+    <string name="menu_hide_input_desc">从桌面隐藏这个输入源</string>
+    <string name="toast_input_hidden">已隐藏「%1$s」,可在 设置 → 布局 → 恢复隐藏的输入源 找回</string>
+    <string name="toast_input_hide_failed">没能隐藏,请稍后再试</string>
+    <string name="settings_restore_hidden_inputs">恢复隐藏的输入源</string>
+    <string name="settings_hidden_inputs_count">%1$d 个</string>
+    <string name="toast_inputs_restored">已恢复全部输入源</string>
 </resources>

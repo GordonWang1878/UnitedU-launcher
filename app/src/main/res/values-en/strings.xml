@@ -232,4 +232,12 @@
     <string name="toast_stock_launcher_not_found">Stock launcher not found</string>
     <string name="toast_restored">Defaults restored</string>
     <string name="toast_system_screensaver_unavailable">Can\'t open system screensaver settings</string>
+    <!-- M4b -->
+    <string name="menu_hide_input">Hide</string>
+    <string name="menu_hide_input_desc">Hide this input from the home screen</string>
+    <string name="toast_input_hidden">Hid “%1$s” — bring it back in Settings → Layout → Restore Hidden Inputs</string>
+    <string name="toast_input_hide_failed">Couldn\'t hide it, try again</string>
+    <string name="settings_restore_hidden_inputs">Restore Hidden Inputs</string>
+    <string name="settings_hidden_inputs_count">%1$d hidden</string>
+    <string name="toast_inputs_restored">All inputs restored</string>
 </resources>

@@ -134,6 +134,13 @@ fun SettingsScreen(
     reloadNonce: Int = 0,
     /** 屏保图库版本(M5):MainActivity 删图后 +1,本页据此重数图库(「屏保启动」行的提示)。 */
     galleryVersion: Int = 0,
+    /**
+     * 布局 / 应用数据版本(M4b):与首页 `HomeScreen` 共用 `MainActivity` 的同一颗 `revision`——
+     * 「隐藏输入源」「恢复隐藏的输入源」两个动作都要让首页把卡片行重建一遍(不能挂
+     * `settingsRevision`:那颗只重读 settings.json、明确不重建首页行,见 MainActivity 里它的 KDoc),
+     * 本页「恢复隐藏的输入源」那一行的计数就顺着同一颗车重读,不必再开一颗专用计数器。
+     */
+    revision: Int = 0,
 ) {
     val ctx = LocalContext.current
     var s by remember { mutableStateOf(SettingsStore.read(ctx)) }
@@ -164,6 +171,9 @@ fun SettingsScreen(
             // M5 两条:不写盘,本页快照不会过期,原样转交。
             openScreensaverGallery = actions.openScreensaverGallery,
             openSystemScreensaver = actions.openSystemScreensaver,
+            // M4b:写的是 hidden-inputs.json,不是 settings.json——本页的 `s` 快照不会过期,原样转交
+            // (同上面两条 M5 动作同一个理由);计数靠 hiddenInputs 那颗 produceState 跟 revision 重读。
+            restoreHiddenInputs = actions.restoreHiddenInputs,
         )
     }
 
@@ -185,8 +195,16 @@ fun SettingsScreen(
         value = withContext(Dispatchers.IO) { scanScreensaverLibrary(ctx).size }
     }
 
+    // 隐藏的输入源数(M4b spec §0-11):「恢复隐藏的输入源」行的计数与出现/消失,做法照上面的
+    // screensaverImages——IO 线程数,key 带 revision(见它的参数 KDoc:「隐藏」「恢复」两个动作
+    // 都靠它让首页重建行,这里跟着同一颗车重读)与 covered。−1 = 还没数完,不会提前把这一行露出来——
+    // 下面 settingsGroups 的插入条件是 `hiddenInputs > 0`,−1 与 0 同样不露出。
+    val hiddenInputs by produceState(-1, revision, covered) {
+        value = withContext(Dispatchers.IO) { HiddenInputs.read(ctx).size }
+    }
+
     // 内容模型(分组 / 行 / 当前档位)全在 SettingsModel.kt 里,这里只画和管焦点。
-    val groups = settingsGroups(s, { transform -> update(transform) }, liveActions, screensaverImages)
+    val groups = settingsGroups(s, { transform -> update(transform) }, liveActions, screensaverImages, hiddenInputs)
 
     // 模糊/亮度改动后 300 ms 防抖通知首页重处理壁纸。用「上次通知过的值」比对,不用一次性布尔闩
     // (铁律 7):首次组合两者相等不发;改回原值也会再发一次,预览不会卡在旧参数上。
@@ -627,7 +645,9 @@ private fun ActionRowItem(
         RowFrame(focused = focused, label = stringResource(action.labelRes)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 BasicText(
-                    text = stringResource(action.hintRes),
+                    // hintArg 非 null = 带格式参数的文案(目前只有「恢复隐藏的输入源」的「%1$d 个」),
+                    // 与 SettingRow 里 optionArgs 的解析方式同一个道理(见 ActionRow.hintArg 的 KDoc)。
+                    text = action.hintArg?.let { stringResource(action.hintRes, it) } ?: stringResource(action.hintRes),
                     style = TextStyle(
                         fontFamily = Theme.Sans,
                         color = if (focused) Theme.SecondaryText else Theme.FooterHintText,

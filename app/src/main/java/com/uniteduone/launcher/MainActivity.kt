@@ -333,6 +333,8 @@ class MainActivity : ComponentActivity() {
                     // M5:屏保图库与换壁纸同一套(只置 pickerTarget,叠在设置页上),关掉后设置页把焦点接回这一行。
                     openScreensaverGallery = { openScreensaverPool() },
                     openSystemScreensaver = { openSystemScreensaverSettings() },
+                    // M4b:布局组「恢复隐藏的输入源」行,只在 hiddenInputs > 0 时存在。
+                    restoreHiddenInputs = ::restoreHiddenInputs,
                 )
             }
             // 设置页关闭时 leaveSettings() 会让 revision++,壁纸选图 / 轮播 / 滑块预览走的是
@@ -597,6 +599,9 @@ class MainActivity : ComponentActivity() {
                         reloadNonce = settingsReloadNonce,
                         // 图库版本(M5):删图后 +1,设置页据此重数图库(「屏保启动」行的提示)。
                         galleryVersion = galleryVersion,
+                        // M4b:「隐藏 / 恢复输入源」都靠它让首页重建卡片行,设置页的隐藏数顺着它重读
+                        // (见 SettingsScreen 里这个参数的 KDoc——不能挂 settingsRevision,那颗不重建首页行)。
+                        revision = revision,
                     )
                 }
                 // 「恢复默认」确认框(spec §4)。叠在设置页之上,与选择器同属「设置页的子界面」——
@@ -1125,7 +1130,13 @@ class MainActivity : ComponentActivity() {
         when (action) {
             CardAction.OPEN -> MenuItem(getString(R.string.card_menu_open), getString(R.string.card_menu_open_desc)) {
                 closeCardMenu()
-                if (!Apps.launch(this, ref.pkg)) toast(getString(R.string.toast_cant_open_app, ref.label))
+                // 按 ref.kind 分流(M4b):输入源卡的 pkg 存的是输入 id,不是包名——同 HomeScreen
+                // 卡片本身点击时的分流(CategoryRow.onClick)一样,不能一律走 Apps.launch。
+                val ok = when (ref.kind) {
+                    RowKind.INPUTS -> Inputs.launch(this, ref.pkg)
+                    RowKind.APPS -> Apps.launch(this, ref.pkg)
+                }
+                if (!ok) toast(getString(R.string.toast_cant_open_app, ref.label))
             }
             CardAction.UNINSTALL -> MenuItem(getString(R.string.card_menu_uninstall), getString(R.string.card_menu_uninstall_desc)) {
                 closeCardMenu()
@@ -1160,6 +1171,24 @@ class MainActivity : ComponentActivity() {
                     // 失败只有一种原因:那一行/那个包已经不在盘上了(别处刚改过 layout.json)。
                     // 不能再报「顺序没能存下来」—— 那是写盘失败的文案,会把人引到错误的方向。
                     else toast(getString(R.string.toast_remove_failed))
+                }
+            }
+            // 输入源行专属(M4b spec §0-11)。从桌面隐藏这个输入源,能在设置页「布局 → 恢复隐藏的
+            // 输入源」一键找回。写盘(tmp → fsync → rename)放 IO 线程,与 REMOVE 同构;时序也同构——
+            // 先关菜单让还原效果把焦点落回这张卡(它此刻还在),写完 revision++ 才让那一行变短、
+            // 焦点按夹过的列号送到同行邻卡(design §1「行变短时索引夹取」,与卸载/移除同一套机制)。
+            // **不能挂 settingsRevision**:那颗只重读 settings.json、明确不重建首页行(见其字段 KDoc),
+            // 挂它的话卡片写完盘也不会消失。
+            CardAction.HIDE -> MenuItem(getString(R.string.menu_hide_input), getString(R.string.menu_hide_input_desc)) {
+                closeCardMenu()
+                lifecycleScope.launch {
+                    val ok = withContext(Dispatchers.IO) { HiddenInputs.set(this@MainActivity, ref.pkg, true) }
+                    if (ok) {
+                        toast(getString(R.string.toast_input_hidden, ref.label))
+                        revision++
+                    } else {
+                        toast(getString(R.string.toast_input_hide_failed))
+                    }
                 }
             }
         }
@@ -1269,6 +1298,27 @@ class MainActivity : ComponentActivity() {
         toast(getString(R.string.toast_icon_restored))
         revision++
         focusNonce++
+    }
+
+    /**
+     * 设置页「布局 → 恢复隐藏的输入源」(M4b spec §0-11):一次性清空 hidden-inputs.json。
+     * `revision++`(不是 settingsRevision——理由同 [cardMenuItems] 里 HIDE 那支的注释)让首页把
+     * 之前隐藏的卡片重新排回输入源行,同时让设置页自己的 hiddenInputs 计数跟着重读、这一行归零后消失
+     * (焦点交给 SettingsScreen 现成的看门狗接到相邻行,不需要新写焦点代码)。
+     * 没有专门的失败文案:`HiddenInputs.clear` 只在外置存储写失败时才返回 false,与
+     * [deletePoolImage] 删不掉时的处理同一个姿势——只记日志,不拿一条用户可能永远不会撞见的
+     * 错误路径去换一个没人要求过的新字符串。
+     */
+    private fun restoreHiddenInputs() {
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) { HiddenInputs.clear(this@MainActivity) }
+            if (ok) {
+                toast(getString(R.string.toast_inputs_restored))
+                revision++
+            } else {
+                android.util.Log.w("UnitedU", "恢复隐藏的输入源写盘失败")
+            }
+        }
     }
 
     /**

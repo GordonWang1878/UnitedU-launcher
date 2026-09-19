@@ -13,8 +13,11 @@ class CardMenuTest {
         )
     }
 
-    @Test fun inputCardsGetNoMenu() {
-        assertTrue(cardMenuActions(RowKind.INPUTS).isEmpty())
+    @Test fun inputCardsGetThreeActions() {
+        assertEquals(
+            listOf(CardAction.OPEN, CardAction.RENAME, CardAction.HIDE),
+            cardMenuActions(RowKind.INPUTS),
+        )
     }
 
     @Test fun newAppPredicate() {

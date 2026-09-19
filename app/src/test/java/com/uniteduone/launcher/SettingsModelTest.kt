@@ -12,7 +12,7 @@ import org.junit.Test
  */
 class SettingsModelTest {
 
-    /** 把 [SettingsActions] 的七条动作各记一笔,断言「按下去真的调到了那一条」。 */
+    /** 把 [SettingsActions] 的八条动作各记一笔,断言「按下去真的调到了那一条」。 */
     private class Recorder {
         val fired = mutableListOf<String>()
         val languages = mutableListOf<String>()
@@ -24,6 +24,7 @@ class SettingsModelTest {
             applyLanguage = { lang -> languages += lang },
             openScreensaverGallery = { fired += "openScreensaverGallery" },
             openSystemScreensaver = { fired += "openSystemScreensaver" },
+            restoreHiddenInputs = { fired += "restoreHiddenInputs" },
         )
     }
 
@@ -215,5 +216,38 @@ class SettingsModelTest {
                 .filter { it.id != "screensaverAfter" }
                 .all { it.noteRes == null },
         )
+    }
+
+    // ---- M4b「恢复隐藏的输入源」(布局组第四行,只在有隐藏项时出现)----
+
+    /** hiddenInputs 有默认值 0,不传时与「今天」(没有这一行)完全一致——这条顺带钉住那个默认值。 */
+    @Test fun hiddenInputsZeroKeepsLayoutGroupUnchanged() {
+        fun layoutRowIds(hiddenInputs: Int?) = (
+            if (hiddenInputs == null) {
+                settingsGroups(Settings(), {}, Recorder().actions, someImages)
+            } else {
+                settingsGroups(Settings(), {}, Recorder().actions, someImages, hiddenInputs = hiddenInputs)
+            }
+            ).first { it.id == GroupId.LAYOUT }.rows.map { it.id }
+        val expected = listOf("cardsPerRow", "showTitles", "showInputRow")
+        assertEquals(expected, layoutRowIds(0))
+        // 不传第五个参数(19 处既有调用全是这样)必须等价于显式传 0。
+        assertEquals(expected, layoutRowIds(null))
+    }
+
+    @Test fun hiddenInputsPositiveAddsRestoreRowAfterShowInputRow() {
+        val r = Recorder()
+        val g = settingsGroups(Settings(), {}, r.actions, someImages, hiddenInputs = 2)
+        val layout = g.first { it.id == GroupId.LAYOUT }.rows
+        assertEquals(
+            listOf("cardsPerRow", "showTitles", "showInputRow", "restoreHiddenInputs"),
+            layout.map { it.id },
+        )
+        val row = layout.last() as ActionRow
+        assertEquals(R.string.settings_restore_hidden_inputs, row.labelRes)
+        assertEquals(R.string.settings_hidden_inputs_count, row.hintRes)
+        assertEquals(2, row.hintArg)
+        row.onActivate()
+        assertEquals(listOf("restoreHiddenInputs"), r.fired)
     }
 }
