@@ -29,6 +29,13 @@ data class Settings(
     val showDate: Boolean = true,
     val idleAfterMs: Long = 180_000L,
     val idleContent: IdleContent = IdleContent.CLOCK_ONLY,
+    /**
+     * 进入待机后再过多久进自定义屏保(M5 spec §0「屏保启动」);0 = 关。待机时长为「关」时改从最后一次按键算
+     * (两个时刻的换算在 [standbyPlan])。合法值见 [VALID_SCREENSAVER_AFTER_MS];旧文件没有这个键 → 默认 5 分。
+     */
+    val screensaverAfterMs: Long = 300_000L,
+    /** 屏保换图间隔(「屏保轮播设置」,桌面与系统屏保共用)。合法值见 [VALID_SCREENSAVER_INTERVAL_MS]。 */
+    val screensaverIntervalMs: Long = 30_000L,
     // ---- M3 壁纸(spec §1)。默认全零/空 ⇒ 首页观感与 M2 逐位一致 ----
     // (「主题化壁纸」开关 wallpaperThemed 2026-09-16 整个删掉:壁纸不再染色;旧文件里的键按未知键忽略。)
     /** library/wallpapers/ 里的文件名;空 = 未指定(解析顺序见 Wallpapers.resolveSource)。 */
@@ -60,6 +67,10 @@ internal val VALID_CARDS_PER_ROW = intArrayOf(5, 6, 8)
 internal val VALID_IDLE_AFTER_MS = longArrayOf(0L, 60_000L, 180_000L, 300_000L, 600_000L)
 internal val VALID_WALLPAPER_ROTATE_MS = longArrayOf(0L, 300_000L, 1_800_000L, 86_400_000L)
 internal val VALID_LANGUAGES = listOf("system", "zh-CN", "zh-TW", "en")
+
+// M5(spec §3):「屏保启动」「屏保轮播设置」两行的唯一合法取值,同样一份表两处读(夹取 + 分段控件的档位顺序)。
+internal val VALID_SCREENSAVER_AFTER_MS = longArrayOf(0L, 60_000L, 300_000L, 600_000L, 1_800_000L)
+internal val VALID_SCREENSAVER_INTERVAL_MS = longArrayOf(30_000L, 60_000L, 300_000L)
 
 private fun snapRotateMs(v: Long?): Long =
     if (v != null && VALID_WALLPAPER_ROTATE_MS.contains(v)) v else 0L
@@ -93,6 +104,14 @@ private fun snapCardsPerRow(v: Int?): Int {
 
 private fun snapIdleAfterMs(v: Long?): Long =
     if (v != null && VALID_IDLE_AFTER_MS.contains(v)) v else 180_000L
+
+/** 不在表里(手改的 12345、解析不出数字)→ 默认 5 分(spec §3「解析时不在表里就夹回默认」)。 */
+private fun snapScreensaverAfterMs(v: Long?): Long =
+    if (v != null && VALID_SCREENSAVER_AFTER_MS.contains(v)) v else 300_000L
+
+/** 不在表里 → 默认 30 秒。 */
+private fun snapScreensaverIntervalMs(v: Long?): Long =
+    if (v != null && VALID_SCREENSAVER_INTERVAL_MS.contains(v)) v else 30_000L
 
 // ---- 极简、零依赖的“扁平 JSON”读写 -----------------------------------------
 // org.json 在纯 JVM 单元测试里用不了:Android 的 unit-test 桩 jar 对它每个方法调用都抛
@@ -146,6 +165,8 @@ fun parseSettings(json: String): Settings {
             idleContent = extractString(json, "idleContent")
                 ?.let { name -> runCatching { IdleContent.valueOf(name) }.getOrNull() }
                 ?: d.idleContent,
+            screensaverAfterMs = snapScreensaverAfterMs(extractLong(json, "screensaverAfterMs")),
+            screensaverIntervalMs = snapScreensaverIntervalMs(extractLong(json, "screensaverIntervalMs")),
             wallpaperFile = sanitizeWallpaperFileName(extractString(json, "wallpaperFile")),
             wallpaperRotateMs = snapRotateMs(extractLong(json, "wallpaperRotateMs")),
             wallpaperRotatedAt = clampEpoch(extractLong(json, "wallpaperRotatedAt")),
@@ -187,6 +208,8 @@ fun Settings.toJson(): String {
         append("  \"showDate\": $showDate,\n")
         append("  \"idleAfterMs\": $idleAfterMs,\n")
         append("  \"idleContent\": \"${idleContent.name}\",\n")
+        append("  \"screensaverAfterMs\": $screensaverAfterMs,\n")
+        append("  \"screensaverIntervalMs\": $screensaverIntervalMs,\n")
         append("  \"wallpaperFile\": \"${esc(wallpaperFile)}\",\n")
         append("  \"wallpaperRotateMs\": $wallpaperRotateMs,\n")
         append("  \"wallpaperRotatedAt\": $wallpaperRotatedAt,\n")

@@ -39,6 +39,7 @@ adb emu kill                                     # 关闭
 - 抓动画过程:`settings put global animator_duration_scale 10`(Compose 动画照这个倍率放慢,screencap 每帧约 0.5 s 也采得到),测完 `settings delete global animator_duration_scale`。
 - 注入按键之间留 ~0.4 s:零间隔连发会跑在 Compose 异步焦点效果前面。
 - uiautomator 不报全透明节点(真待机时 `focused="true"` 为 0,焦点其实还在);TV 设置应用卡片的 content-desc 也是「Settings」,与齿轮同名 —— 脚本按 bounds 区分,且确定键之前先断言焦点文案,否则会启动卡片对应的应用。
+- 系统屏保(M5 `UnitedUDream`):`cmd dreams start-dreaming` 要 root,这台 AVD 是「user」build(`adb root` 报 `cannot run as root in production builds`),此路不通;`am start -n com.android.systemui/.Somnambulator` 会成功拉起且不报错,但屏保**没有真的进入**(`dumpsys dreams` 仍是 `mCurrentDream=null`)——是静默假成功,不能只看 `am start` 有没有报错,要用 `dumpsys dreams | grep mCurrentDream` 或 `dumpsys window | grep mCurrentFocus`(应为 `…/android.service.dreams.DreamActivity`)确认。实测可用的是「到点自动触发」,但比 `screensaver_activate_on_sleep 1` 多两个前提,少一个就直接 Asleep 跳过 Dreaming、或者永远不超时:`adb shell dumpsys battery set usb 1`(标记「已充电」)+ `settings put global stay_on_while_plugged_in 0`(默认 1,充电态会导致永不超时休眠)。全套:`settings put secure screensaver_components com.uniteduone.launcher/.UnitedUDream` + `screensaver_enabled 1` + `screensaver_activate_on_sleep 1` + `settings put system screen_off_timeout 15000` + 上面两条 battery/stay-awake 调整,发一次真实按键(建立新鲜的 last-user-activity 基线)后连续等 20–30s、**中途不要插入任何 adb shell 命令**(见下一条卡死),`mCurrentFocus` 会变成 DreamActivity;任意键结束屏保。另有一个独立的模拟器坑:系统会不定期把 `SCREEN_BRIGHT_WAKE_LOCK 'UndimDetectorWakeLock'`(uid=1000)卡在持有状态,卡住就永远不超时——`dumpsys power | grep -A3 "^Wake Locks:"` 看到它时,一次干净的 `KEYCODE_SLEEP` → `KEYCODE_WAKEUP` 能可靠解开(`Wake Locks: size=0`)。测完把三个 secure 键(`screensaver_components`/`screensaver_enabled`/`screensaver_activate_on_sleep`)、`screen_off_timeout`、`stay_on_while_plugged_in` 连同 `dumpsys battery reset` 一起还原(真机的屏保由 Gordon 在系统设置里开)。
 
 真机(Sony A95L)只在里程碑真机验收用;开发全程走模拟器。真机 adb 走「无线调试」(**不是** 5555),**配对会跨会话保留,装包前别先向 Gordon 要配对码**(2026-09-17 实证,见 WORKLOG 当日 M7 合并一节):先 `adb connect 192.168.1.22:38673`(连接端口以电视「无线调试」主页面显示的为准;IP 走 DHCP);报 `No route to host` 就 `adb kill-server` 后重连同一地址(本机 adb 后台进程的问题,不是电视);报 `Connection refused` 才请 Gordon 读电视页面上的新端口(mDNS 广播的端口可能是休眠前的过期记录,端口扫描也扫不到真端口;mDNS 发现要 `ADB_MDNS_OPENSCREEN=1`);真机的 adb 序列号形如 `adb-…-1F8N2S (2)._adb-tls-connect._tcp`,**带空格**,脚本里 `adb devices` 要按 tab 切分、`-s` 参数加引号(2026-09-18 M8 装包时 awk 默认切分取到半截序列号报 device not found);只有连上后 `offline` / 认证失败才需重配:电视「使用配对码配对设备」拿码,`printf '<码>\n' | adb pair <IP:配对端口>`(管道喂码,参数形式会 protocol fault),再 connect。
 
@@ -103,6 +104,8 @@ adb emu kill                                     # 关闭
    | 编辑页 | EditScreen 看门狗 + 显式重定位。「换卡片图」的选择器**替换**编辑页(开着时 EditScreen 不在组合里,它没有 `covered` 让路开关);关掉后编辑页重建,由 MainActivity 的 `editTarget`(layout 行号, 包名)种子定位回同一张卡 |
    | 添加应用列表 | AppPicker(逐项 requester) |
    | 图片选择器 / 屏保图库 / 默认桌面卡 / 导入图片页 | 各自的初始焦点循环(nonce) |
+   | 屏保图库的删除确认框(M5) | ConfirmDialog 自己的 nonce + focusedBtn 循环(默认在取消);关掉后(删除 / 取消都 `focusNonce++`)由图库网格的 nonce 循环接回原位置,`focusedIdx` 夹到新长度;删空换成空态,空态自己的循环接住 |
+   | 屏保图库的全屏预览(M5 起可达) | 自己的初始焦点循环;关掉时焦点随节点销毁,图库用本地计数 `previewCloses` 并进网格的 nonce,让网格循环再跑一轮接回 |
 
 4. **「有没有焦点」只信控件自己上报,不要用根节点的 `onFocusChanged`。**
    曾经用根节点的 `hasFocus && !isFocused` 当判据,它在多数路径上是对的,

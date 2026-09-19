@@ -26,8 +26,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * 桌面主界面。这里只管三件事:待机计时、返回键不退出、齿轮菜单的入口。
- * 视觉全在 HomeScreen / AppCard / Clock 里,规格见 docs/DESIGN-custom-launcher.md §4。
+ * 桌面主界面。统筹待机计时、返回键不退出、齿轮菜单入口,以及设置页/选择器/引导等浮层的开关状态。
+ * 视觉全在 HomeScreen / AppCard / Clock 里,规格见 docs/DESIGN-unitedu-open-source.md §4。
  */
 private const val PICK_WALLPAPER = "__wallpaper__"
 private const val VIEW_SCREENSAVER_POOL = "__screensaver_pool__"
@@ -102,15 +102,42 @@ class MainActivity : ComponentActivity() {
      *  X-plore 的 GET_CONTENT 不响应 D-pad(2026-09-11 真机确认),所以换壁纸/换图标
      *  改为用内置选择器,图片通过 adb push 到 files/library/ 预先放好。 */
     private var pickerTarget by mutableStateOf<String?>(null)
-    /** 待机(超时淡出)。**必须住在 Activity 里**,因为唤醒发生在 dispatchKeyEvent。 */
-    private var idle by mutableStateOf(false)
     /**
-     * 屏保按钮(M8 spec §1.5)的「立即待机」请求计数。**不能直接写 `idle = true`**:按下确认键的那次
-     * dispatchKeyEvent 已经刷新了 lastInput,待机计时效果随之在同一次重组里重启并把 idle 写回 false。
-     * 所以走一个独立的请求计数:它的效果声明在计时效果之后、先等一帧再写 idle = true,稳赢那次重启。
-     * 唤醒仍由 dispatchKeyEvent 吞掉下一次按键(与超时待机同一条路);不是闩——每次点击都是一次新计数(铁律 7)。
+     * 待机与自定义屏保(M5 spec §1)。**一个值装两个布尔量**,只取 [StandbyFlags] 的三个常量:
+     * 不变量「屏保 ⇒ 待机」由它的构造函数钉死,两个量一次写完、没有「只写了一半」的中间态。
+     * 读者照旧按布尔量读([idle] / [screensaverActive]),`idle` 原有的五个消费者一个字都不用改。
+     * **必须住在 Activity 里**,因为唤醒发生在 dispatchKeyEvent。
+     */
+    private var standby by mutableStateOf(StandbyFlags.NORMAL)
+    /** 待机:首页内容淡出 + 下一个按键当唤醒吞掉。自定义屏保时同样为真(spec §1 表)。 */
+    private val idle: Boolean get() = standby.idle
+    /** 自定义屏保:全屏轮播屏保图库。只在 [idle] 为真时可能为真。 */
+    private val screensaverActive: Boolean get() = standby.screensaverActive
+    /**
+     * 屏保按钮的请求计数(M8 spec §1.5;M5 spec §1.3 起 = 立刻进自定义屏保、跳过待机,图库空时退为待机)。
+     * **不能在点击回调里直接写状态**:按下确认键的那次 dispatchKeyEvent 已经刷新了 lastInput,
+     * 计时效果随之在同一次重组里重启、把状态写回正常。所以走一个独立的请求计数:它的效果声明在
+     * 计时效果之后、先等一帧再写(R3),稳赢那次重启。唤醒仍由 dispatchKeyEvent 吞掉下一次按键
+     * (与超时进入同一条路);不是闩——每次点击都是一次新计数(铁律 7)。
      */
     private var screensaverRequests by mutableStateOf(0)
+    /**
+     * 屏保图库版本(M5 spec §3 / §5):删图后 +1。设置页的图库计数(「屏保启动」行的提示)与图库查看器的
+     * 文件列表都以它为 key 重读。只增不减,不是闩(铁律 7)。
+     */
+    private var galleryVersion by mutableStateOf(0)
+    /**
+     * 屏保图库网格当前聚焦的那张图(PickerGrid 上报:得到报文件、失去报 null)。长按确定键据此弹删除确认框。
+     * 只在 [pickerTarget] == [VIEW_SCREENSAVER_POOL] 时有意义(长按那一支先判它);网格离开组合时报 null,
+     * [openScreensaverPool] 打开时再清一次——下一次会话在第一次焦点上报之前也读不到上一次的旧文件。
+     */
+    private var poolFocusedFile by mutableStateOf<java.io.File?>(null)
+    /**
+     * 删除确认框开着的那张图;null = 没开(M5 spec §5)。确定([deletePoolImage] 删完才清)、取消 / 返回
+     * (onCancelDelete)各自清它,[openScreensaverPool] 打开时再兜底清一次:不会有「上次没清掉、下次一打开图库
+     * 就蹦出确认框」的路(铁律 7)。
+     */
+    private var poolDeleteTarget by mutableStateOf<java.io.File?>(null)
     /** 菜单是从齿轮按钮打开的(true)还是从遥控器三条杠键打开的(false)。
      *  关闭菜单时 HomeScreen 据此决定焦点恢复到齿轮还是原来的卡片。 */
     private var menuFromGear = true
@@ -303,6 +330,9 @@ class MainActivity : ComponentActivity() {
                     // 重建后的位置由 onSaveInstanceState/onCreate 经 Bundle 还原(见 settingsPos 的
                     // KDoc),SettingsScreen 拿 initialPos 当 remember 的种子把焦点落回同一行。
                     applyLanguage = ::applyLanguage,
+                    // M5:屏保图库与换壁纸同一套(只置 pickerTarget,叠在设置页上),关掉后设置页把焦点接回这一行。
+                    openScreensaverGallery = { openScreensaverPool() },
+                    openSystemScreensaver = { openSystemScreensaverSettings() },
                 )
             }
             // 设置页关闭时 leaveSettings() 会让 revision++,壁纸选图 / 轮播 / 滑块预览走的是
@@ -320,20 +350,8 @@ class MainActivity : ComponentActivity() {
             // key 带上 followWallpaperColor、wallpaperFile 与 revision:换壁纸(handlePick 只
             // settingsRevision++,不再 recreate)会让 homeSettings.wallpaperFile 变、这里跟着重跑;
             // 开关跟随、回到设置页同样触发。preset 路径是纯内存查表,直接同步解析。
-            val presetColors = remember(homeSettings.themePresetId) {
-                ThemePresets.byId(homeSettings.themePresetId).colors()
-            }
-            val wallpaperColors by produceState<ThemeColors?>(
-                null, homeSettings.followWallpaperColor, homeSettings.wallpaperFile, revision,
-            ) {
-                value = if (!homeSettings.followWallpaperColor) null
-                else withContext(Dispatchers.IO) {
-                    wallpaperThemeColors(this@MainActivity, homeSettings.wallpaperFile)
-                }
-            }
-            val themeColors =
-                if (homeSettings.followWallpaperColor) wallpaperColors ?: presetColors
-                else presetColors
+            // M5:解析本体搬到 ThemeResolve.kt 的 rememberThemeColors——系统屏保(UnitedUDream)走同一条路(spec §4)。
+            val themeColors = rememberThemeColors(this@MainActivity, homeSettings, revision)
             // 壁纸渲染输入:文件名 + 模糊 + 亮度,**不带主题色**(「主题化壁纸」2026-09-16 整个删掉,
             // 壁纸不再染色)。所以换预设、开关跟随、壁纸取色落地都不会让 spec 变,壁纸不会被无谓地重处理。
             //
@@ -354,8 +372,9 @@ class MainActivity : ComponentActivity() {
             // 第一下按键却被当唤醒吃掉,症状就是「按了没反应」。
             // 长时间停在这两个界面由电视自己的系统屏保接管(实测存在 DreamActivity)。
             // **整屏浮层开着时不进入待机**(M7 T4:原来只挡了导入页)。选择器现在叠在常驻首页之上,
-            // 底下那层照旧在计时;不挡的话在「换壁纸」里挑图挑够三分钟,首页会在选择器的半透明
-            // 蒙版底下淡出、屏保渐入,而下一个按键还要被 dispatchKeyEvent 当唤醒吞掉。
+            // 底下那层照旧在计时;不挡的话在「换壁纸」里挑图挑够时间,首页会先淡出进入待机、
+            // 再等屏保时长用完才渐入自定义屏保(M5 spec §1:待机与屏保是先后两个互斥状态,
+            // 不是一步耦合),而下一个按键还要被 dispatchKeyEvent 当唤醒吞掉。
             // 与 menuOpen 同一处理:既是 key 也是守卫(铁律 6)。
             val overlay = overlayOpen
             // 长按卡片菜单与「修改标题」对话框同理(终审 Important #3):输入法显示着时每个按键都被它先吃掉,
@@ -365,20 +384,58 @@ class MainActivity : ComponentActivity() {
             // 待机时长/内容改由设置页驱动(Task 3):idleAfterMs 既是 key 也是守卫(铁律 6)——
             // 用户把它从「关」改成别的值(或反过来)时,这条 effect 必须以新 key 重启,
             // 否则「关」之后再打开待机,要等到下一次别的 key 变化才会生效。
+            // M5:screensaverAfterMs 同理(铁律 6)——两个时刻都由 standbyPlan 从同一次按键起算(spec §1.1)。
             val idleAfterMs = homeSettings.idleAfterMs
-            LaunchedEffect(touched, editing, menuOpen, overlay, homeOverlay, idleAfterMs) {
-                idle = false
+            val screensaverAfterMs = homeSettings.screensaverAfterMs
+            LaunchedEffect(touched, editing, menuOpen, overlay, homeOverlay, idleAfterMs, screensaverAfterMs) {
+                standby = StandbyFlags.NORMAL
                 if (editing || menuOpen || overlay || homeOverlay) return@LaunchedEffect
-                // 0 = 关,永不待机。
-                if (idleAfterMs == 0L) return@LaunchedEffect
-                delay(idleAfterMs)
-                idle = true
+                val plan = standbyPlan(idleAfterMs, screensaverAfterMs)
+                var waited = 0L
+                val standbyAt = plan.standbyAt
+                if (standbyAt != null) {
+                    delay(standbyAt)
+                    waited = standbyAt
+                    // 只升不降:屏保按钮可能已经把状态推到了屏保,这一拍不能把它拉回待机
+                    // (spec 的写法是「只写 idle = true」;打包成一个值之后,等价写法就是 atLeastStandby()——
+                    // 已经 idle 就原样不动,只有 NORMAL 才被抬到 STANDBY)。判断抽到 StandbySchedule.kt,
+                    // 与屏保按钮效果共用同一份逻辑,JVM 单测覆盖(终审 Important 2)。
+                    standby = standby.atLeastStandby()
+                }
+                // 屏保「关」:停在待机(待机也「关」就是什么都不发生)。
+                val screensaverAt = plan.screensaverAt ?: return@LaunchedEffect
+                delay(screensaverAt - waited)
+                // 到点才查图库(spec §1.1):空 → 停在待机,下一个键照常只负责唤醒;非空 → 进屏保。
+                if (withContext(Dispatchers.IO) { hasScreensaverImages(this@MainActivity) }) {
+                    standby = StandbyFlags.SCREENSAVER
+                }
             }
-            // 屏保按钮的请求(见 screensaverRequests 的 KDoc):声明在计时效果之后、再等一帧,保证后写。
+            // 屏保按钮的请求(见 screensaverRequests 的 KDoc):声明在计时效果之后、再等一帧,保证后写(R3)。
+            // M5 spec §1.3:有图 → 立刻进自定义屏保、跳过待机;图库空 → 退为进待机;空图库 +「不淡出」→ 空操作,
+            // 下一个键不被吞(「不淡出」的待机没有任何可见效果,进了只会白吞一个键)。NO_FADE 的判断从调用点
+            // 移到这里:有图时「不淡出」也能进屏保。idleContentNow 是按下那一刻的设置(本效果随请求计数重启)。
+            // 目标状态的判断抽到 StandbySchedule.screensaverButtonTarget,与本效果共用同一份逻辑,JVM 单测覆盖
+            // (终审 Important 2)。
+            val idleContentNow = homeSettings.idleContent
             LaunchedEffect(screensaverRequests) {
                 if (screensaverRequests == 0) return@LaunchedEffect
+                // 这次请求触发那一刻的按键时间戳:按钮那下 dispatchKeyEvent 已经刷新过 lastInput
+                // (先于 screensaverRequests 这颗计数器的写入,见其 KDoc),这里捕获的就是「这次点击」
+                // 本身,不是更早的一次。
+                val at = lastInput
                 withFrameNanos { }
-                idle = true
+                val hasImages = withContext(Dispatchers.IO) { hasScreensaverImages(this@MainActivity) }
+                // **异步跳转(等帧 + IO 扫描)之后的一次性复查,不是重启型守卫**——不进 key。铁律 6 管的是
+                // 「守卫值必须同时是 key,否则效果不会在它变化时重启」;这里反过来,故意不想因为这些量的
+                // 变化重启整个效果,只想在真正落笔之前再看一眼当下是否仍然成立。期间若又来一次按键
+                // (计时效果随之以新 key 重启、把状态写回 NORMAL)或打开了菜单/浮层,这次写入就该放弃——
+                // 否则要么把 SCREENSAVER 盖在一个更新的状态之上,要么在浮层开着时违反「浮层 ⇒ 绝不待机」,
+                // 让轮播在打开的菜单底下渐入、下一下按键还被当唤醒错吞。
+                if (lastInput != at || editing || menuOpen || overlayOpen || cardMenu != null || renameTarget != null) {
+                    return@LaunchedEffect
+                }
+                val target = screensaverButtonTarget(hasImages, idleContentNow)
+                if (target != null) standby = target
             }
             // 壁纸轮播。守卫读的两个量就是 key(铁律 6):rotate() 写盘后 settingsRevision++ 重读 settings,
             // rotatedAt 变 → 本 effect 以新 key 重启、再等一个间隔;重启 app 后按剩余时间续等。
@@ -410,11 +467,9 @@ class MainActivity : ComponentActivity() {
             // 是在此之前读的;不重读的话,从 M2 升上来、开着「跟随壁纸主色」的用户整个首次会话
             // 都看不到壁纸主色(见 Wallpapers.prepare 的 KDoc)。
             Wallpaper(this@MainActivity, wallpaperSpec, onSettingsChanged = { settingsRevision++ })
-            // NO_FADE(Task 3):干脆不组合 Screensaver——M5 之前待机不淡出时就是「什么都不发生」
-            // (spec §6),屏保图片一张都不该解码,不只是不显示。
-            if (homeSettings.idleContent != IdleContent.NO_FADE) {
-                Screensaver(this@MainActivity, idle)
-            }
+            // 自定义屏保层(M5 spec §1.4 第 2 层):只看 screensaverActive。不再因「不淡出」不组合——
+            // 待机显示只管待机,「不淡出」时屏保照样会来(spec §0);没进屏保时 alpha 为 0,一张图都不画。
+            Screensaver(active = screensaverActive, intervalMs = homeSettings.screensaverIntervalMs)
             // BLACK(Task 3):在屏保之上叠一层纯黑,随 idle 淡入淡出;配合 HomeScreen 里
             // 时钟自己的 clockAlpha 一起淡出,才是「整屏全黑」而不是黑底衬着屏保/时钟。
             // **待机演示(spec §3.2)也要能让这层变黑**:目标值同时看真实待机与演示值
@@ -431,7 +486,8 @@ class MainActivity : ComponentActivity() {
             val blackIdle = idle || demoActive
             val blackContent = activeDemoIdle ?: homeSettings.idleContent
             val blackAlpha = animateFloatAsState(
-                targetValue = if (blackIdle && blackContent == IdleContent.BLACK) 1f else 0f,
+                // 进自定义屏保时黑层淡出、照片亮出来(M5 spec §1.4 第 3 层)——「全黑」只管待机。
+                targetValue = if (blackIdle && blackContent == IdleContent.BLACK && !screensaverActive) 1f else 0f,
                 animationSpec = tween(if (blackIdle) 1200 else 400),
                 label = "blackAlpha",
             )
@@ -484,15 +540,15 @@ class MainActivity : ComponentActivity() {
                 HomeScreen(
                     previewing = overlayOpen,
                     idle = idle,
+                    screensaver = screensaverActive,
                     idleContent = homeSettings.idleContent,
                     demoIdle = activeDemoIdle,
                     menuItems = menu,
                     menuOpen = menuOpen,
                     onMenuOpenChange = { if (it) { menuFromGear = true; menuOpen = true } else closeMenu() },
-                    // 屏保按钮 = 立即进入待机(spec §1.5),走请求计数(见 screensaverRequests 的 KDoc)。
-                    // NO_FADE 下待机没有任何可见效果(HomeScreen 的 contentAlpha 恒为 1、黑幕不升),
-                    // 请求只会白白吞掉下一个按键当唤醒,所以这一档不发请求,按钮不动作。
-                    onScreensaver = { if (homeSettings.idleContent != IdleContent.NO_FADE) screensaverRequests++ },
+                    // 屏保按钮 = 立刻进自定义屏保、跳过待机(M5 spec §1.3),走请求计数(见 screensaverRequests 的 KDoc)。
+                    // 「不淡出」的判断移进了请求效果:有图时照样进屏保,只有空图库 +「不淡出」才是空操作。
+                    onScreensaver = { screensaverRequests++ },
                     focusNonce = focusNonce,
                     revision = revision,
                     menuFromGear = menuFromGear,
@@ -539,6 +595,8 @@ class MainActivity : ComponentActivity() {
                         // 恢复默认写盘落地之后才 ++ 一次(见其 KDoc,T7 复审 Important #1)——
                         // 与 confirmRestore/covered 解耦,不受「dismiss 抢在写盘完成前跑完」影响。
                         reloadNonce = settingsReloadNonce,
+                        // 图库版本(M5):删图后 +1,设置页据此重数图库(「屏保启动」行的提示)。
+                        galleryVersion = galleryVersion,
                     )
                 }
                 // 「恢复默认」确认框(spec §4)。叠在设置页之上,与选择器同属「设置页的子界面」——
@@ -618,9 +676,17 @@ class MainActivity : ComponentActivity() {
                 onSelect = { file -> handlePick(file) },
                 onDismiss = { pickerTarget = null; focusNonce++ },
             )
+            // M5 spec §5:长按缩略图删图。长按识别在 dispatchKeyEvent(「图库光着」那一支),这里只接线:
+            // 网格上报聚焦的文件、确认框的目标与两个按钮。确认框自己负责焦点;关掉后(删除 / 取消都 focusNonce++)
+            // 由网格的 nonce 循环把焦点接回原位置。
             VIEW_SCREENSAVER_POOL -> ScreensaverPoolViewer(
                 directory = Paths.screensaverLibrary(this),
                 nonce = focusNonce,
+                refresh = galleryVersion,
+                onFocusedFile = { poolFocusedFile = it },
+                deleteTarget = poolDeleteTarget,
+                onConfirmDelete = ::deletePoolImage,
+                onCancelDelete = { poolDeleteTarget = null; focusNonce++ },
                 onDismiss = { pickerTarget = null; focusNonce++ },
             )
             VIEW_IMPORT -> ImportScreen(
@@ -684,7 +750,8 @@ class MainActivity : ComponentActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         lastInput = System.currentTimeMillis()
         if (idle) {
-            idle = false
+            // 待机与自定义屏保一样:任意键回到正常,这一下只负责唤醒(spec §1.2)。
+            standby = StandbyFlags.NORMAL
             wakeDownTime = event.downTime
             return true
         }
@@ -749,6 +816,19 @@ class MainActivity : ComponentActivity() {
                     if (cardMenuActions(ref.kind).isNotEmpty()) cardMenu = ref
                     return true
                 }
+            }
+            // 屏保图库「光着」(M5 spec §5):图库开着、确认框没开、网格上有聚焦的缩略图。满 LONG_PRESS_MS 弹删除
+            // 确认框,整下吞掉(同 longPressDownTime 手法:UP 落不到缩略图上,不会顺带打开全屏预览)。
+            // 与上面的 homeBare 天然互斥:homeBare 要求 !overlayOpen,而图库开着时 pickerTarget != null。
+            // 全屏预览开着时网格失焦、poolFocusedFile 已报 null,这一支不成立 = 预览里长按无效。
+            val poolBare = pickerTarget == VIEW_SCREENSAVER_POOL && poolDeleteTarget == null && poolFocusedFile != null
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount > 0 && poolBare
+                && event.eventTime - event.downTime >= LONG_PRESS_MS
+            ) {
+                longPressDownTime = event.downTime
+                window.decorView.playSoundEffect(SoundEffectConstants.CLICK)
+                poolDeleteTarget = poolFocusedFile
+                return true
             }
         }
         // 长按确认键不应重复点击:电视 UI 里没有连按同一按钮的场景,
@@ -1097,6 +1177,19 @@ class MainActivity : ComponentActivity() {
             .onFailure { toast(getString(R.string.toast_open_failed, it.message)) }
     }
 
+    /**
+     * 设置页「系统屏保 ▸」(M5 spec §3):系统屏保设置页;解析不到(`ActivityNotFoundException`)退到系统设置首页;
+     * 两个都打不开才 toast。不检测系统当前选的是不是 UnitedU(spec §8:隐藏设置键,读不可靠)。
+     * 回来时 onResume 的 focusNonce++ 让设置页把焦点送回这一行(ON_PAUSE 起冻结)。
+     */
+    private fun openSystemScreensaverSettings() {
+        for (action in listOf(Settings.ACTION_DREAM_SETTINGS, Settings.ACTION_SETTINGS)) {
+            val ok = runCatching { startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
+            if (ok) return
+        }
+        toast(getString(R.string.toast_system_screensaver_unavailable))
+    }
+
     private fun pickWallpaper() {
         if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
         closeMenu()
@@ -1110,15 +1203,34 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * 屏保图库查看器的入口。**齿轮菜单 / 设置页本轮都没有按钮调它**(spec §1:四项菜单里
-     * 「屏保图库」被移除;§2.2 待机组的屏保子项要等 M5)——保留函数与 [VIEW_SCREENSAVER_POOL]
-     * 只是不删掉这条已经写好、M5 会直接复用的路径,不是死代码判断失误。
+     * 屏保图库查看器的入口:设置页「待机与屏保 → 屏保图库 ▸」(M5 spec §3)。叠在设置页之上,
+     * 关掉后 focusNonce++ 让设置页把焦点接回这一行(设置页 `covered` 期间冻结目标)。
+     * 打开时清掉删图的两个量:它们只属于一次图库会话,旧值不能带进新会话(见两个字段的 KDoc)。
      */
-    @Suppress("unused")
     private fun openScreensaverPool() {
         if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
         closeMenu()
+        poolDeleteTarget = null
+        poolFocusedFile = null
         pickerTarget = VIEW_SCREENSAVER_POOL
+    }
+
+    /**
+     * 图库删图的「删除」键(M5 spec §5)。顺序照 spec:IO 线程删文件 → 播放器重扫 → 图库版本 +1 →
+     * 收确认框 → focusNonce++(网格按 nonce 把焦点落回原位置)。确认框留到删完才收:收掉那一刻焦点随它的
+     * 按钮销毁,紧接着的 nonce 让网格接回,中间没有「谁都不管」的空档。开头比对目标:过期的调用直接忽略。
+     * 删不掉(文件还在)只记日志——列表按盘上实况重读,那张图留在原处,用户看得见结果。
+     */
+    private fun deletePoolImage(file: java.io.File) {
+        if (poolDeleteTarget != file) return
+        lifecycleScope.launch {
+            val gone = withContext(Dispatchers.IO) { file.delete() || !file.exists() }
+            if (!gone) android.util.Log.w("UnitedU", "屏保图删不掉: ${file.name}")
+            ScreensaverPlayer.rescan(this@MainActivity)
+            galleryVersion++
+            poolDeleteTarget = null
+            focusNonce++
+        }
     }
 
     private fun openHomeSettings() {
@@ -1227,22 +1339,3 @@ class MainActivity : ComponentActivity() {
         })
     }
 }
-
-/**
- * followWallpaperColor 打开时,从当前壁纸主色推导界面强调色(经 LocalThemeColors 供给每个界面)。
- * **必须在 IO 线程调用**:取色会解一张缩略图并跑 Palette(实现见 [Wallpapers.paletteAccent])。
- *
- * accent 用取到的色,highlight 由 [highlightFrom] 混白 55% 推得 —— 与非金预设 highlight 同一手法。
- * 任何一步落空(没壁纸、解不出、Palette 抽不到色)返回 null,调用方回落到选中预设,绝不崩、绝不留黑。
- *
- * 取到的色只喂界面强调色,壁纸本身**不染色**(「主题化壁纸」2026-09-16 删掉,壁纸管线不再认识主题色)。
- */
-private fun wallpaperThemeColors(ctx: android.content.Context, wallpaperFile: String): ThemeColors? =
-    Wallpapers.resolveSource(ctx, wallpaperFile)
-        ?.let { Wallpapers.paletteAccent(ctx, it) }
-        ?.let { rgb ->
-            // 壁纸主色可能很暗 / 很灰,先提亮到可读地板再当强调色(见 usableAccent);
-            // 否则深色主题色压在 #0A0A0A 的设置页上,分组标题等文字直接消失。
-            val accent = androidx.compose.ui.graphics.Color(usableAccent(rgb) or 0xFF000000.toInt())
-            ThemeColors(accent, highlightFrom(accent))
-        }

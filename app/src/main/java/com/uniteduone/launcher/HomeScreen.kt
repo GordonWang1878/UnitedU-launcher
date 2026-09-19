@@ -2,13 +2,8 @@ package com.uniteduone.launcher
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.BasicText
@@ -21,13 +16,10 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
@@ -46,12 +38,17 @@ import androidx.compose.ui.unit.sp
  * [demoIdle](M7 T6,spec §3.2)非 null 时会**覆盖**这两个:设置页「待机内容」行拿着焦点
  * 期间,不管真实 [idle] 是不是待机,都按 `demoIdle` 演示对应内容,离开该行即恢复。
  * 只影响这里的 `contentAlpha`/`clockAlpha` 两个动画,`Screensaver` 不参与(它是
- * `MainActivity` 单独组合的另一层,读的是真实 `idle`)。
+ * `MainActivity` 单独组合的另一层,M5 起读的是 `screensaverActive`)。
+ *
+ * [screensaver](M5 spec §1.4)为真 = 自定义屏保:行 / 渐变 / pill 一律淡出(「不淡出」也不例外——
+ * 照片上不该浮着一排卡片),大字时钟恒亮并加淡阴影(「全黑」待机进屏保时,时钟随照片一起亮出来)。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun HomeScreen(
     idle: Boolean,
+    /** 自定义屏保(M5 spec §1.4)。只在 [idle] 为真时可能为真(MainActivity 的 StandbyFlags 钉死)。 */
+    screensaver: Boolean = false,
     /** 待机时屏幕上显示什么(design 待机 §,Task 3);默认与老行为一致。 */
     idleContent: IdleContent = IdleContent.CLOCK_ONLY,
     /** 待机演示(M7 T6,spec §3.2):非 null 时覆盖 [idle]/[idleContent] 驱动的两个淡出动画。 */
@@ -408,16 +405,18 @@ fun HomeScreen(
         val effectiveIdleContent = demoIdle ?: idleContent
         // 待机用 alpha 淡出,不用 AnimatedVisibility——后者自带裁剪,会把超出屏幕的
         // 第三行整块切掉(实测 MUSIC 行因此始终不可见)。
-        // NO_FADE(Task 3):恒 1,卡片/行标题/齿轮都不淡出——M5 之前的行为,什么都不发生。
+        // NO_FADE(Task 3):待机时恒 1,卡片/行标题/pill 都不淡出。**自定义屏保例外**(M5 spec §0 / §1.4):
+        // 「不淡出」只管待机显示,屏保照样全屏——照片上不能浮着一排卡片,所以 screensaver 为真时一律淡出。
         val contentAlpha by animateFloatAsState(
-            targetValue = if (effectiveIdle && effectiveIdleContent != IdleContent.NO_FADE) 0f else 1f,
+            targetValue = if (screensaver || (effectiveIdle && effectiveIdleContent != IdleContent.NO_FADE)) 0f else 1f,
             animationSpec = tween(if (effectiveIdle) 1200 else 400),
             label = "contentAlpha",
         )
         // 时钟默认待机也留着(CLOCK_ONLY/NO_FADE);只有 BLACK 时钟才跟着淡出,
         // 配合 MainActivity 在 Screensaver 之上叠的黑色蒙版,整屏才会真正全黑。
+        // 自定义屏保时恒 1(M5 spec §1.4):「全黑」待机进屏保那一刻,时钟随照片一起亮出来。
         val clockAlpha by animateFloatAsState(
-            targetValue = if (effectiveIdle && effectiveIdleContent == IdleContent.BLACK) 0f else 1f,
+            targetValue = if (!screensaver && effectiveIdle && effectiveIdleContent == IdleContent.BLACK) 0f else 1f,
             animationSpec = tween(if (effectiveIdle) 1200 else 400),
             label = "clockAlpha",
         )
@@ -439,8 +438,10 @@ fun HomeScreen(
         )
 
         // hero 主体(spec §2.1 第 3 层):不随 shift 走;第 1 行起淡出、待机时回到 1(heroAlpha),BLACK 待机再随 clockAlpha 淡出。
+        // 自定义屏保时加淡阴影(M5 spec §1.5):照片可能很亮。
         HeroClock(
             showDate = showDate,
+            shadow = screensaver,
             modifier = Modifier
                 .padding(start = Theme.SidePadding, top = HomeLayout.HERO_TOP.dp)
                 .alpha(heroAlpha * clockAlpha),
@@ -685,105 +686,6 @@ private fun CategoryRow(
                     downTarget = downTarget,
                 )
             }
-        }
-    }
-}
-
-private val SCREENSAVER_IMAGE_EXTS = setOf("jpg", "jpeg", "png", "webp")
-
-/**
- * 屏保层。从 library/screensavers/ 读取全部图片,待机时轮播:
- * 交叉淡入(Crossfade)切换 + Ken Burns 缓慢缩放。
- * 图库为空时什么都不画,待机行为不变(只是首页内容淡出)。
- * HDR 通路:每张图用 RGBA_F16 解码,保留 Ultra HDR gain map。
- */
-@Composable
-fun Screensaver(ctx: Context, idle: Boolean) {
-    // 图库只靠 adb push 改动,应用收不到任何通知,所以进入待机那一刻重扫一遍。
-    // 用进程启动时的快照会把已删的文件也排进轮播:解不出来 → 那 30 秒只剩壁纸。
-    // 唤醒时不重扫(保留上一份),淡出期间才有图可画。
-    val imageFiles by produceState<List<java.io.File>>(emptyList(), ctx, idle) {
-        if (!idle) return@produceState
-        value = withContext(Dispatchers.IO) {
-            migrateOldScreensaver(ctx)
-            Paths.screensaverLibrary(ctx).listFiles()
-                ?.filter { it.isFile && it.extension.lowercase() in SCREENSAVER_IMAGE_EXTS }
-                ?.sortedBy { it.name }
-                ?: emptyList()
-        }
-    }
-
-    // 空图库并进目标值而不是提前 return:动画状态从一开始就在组合里,
-    // 首次待机才有 0→1 的淡入(animateFloatAsState 首次组合会直接落在目标值上)。
-    val layerAlpha by animateFloatAsState(
-        targetValue = if (idle && imageFiles.isNotEmpty()) 1f else 0f,
-        animationSpec = tween(if (idle) 1200 else 400),
-        label = "screensaverAlpha",
-    )
-    if (layerAlpha == 0f) return
-
-    var displayIndex by remember { mutableStateOf(0) }
-    LaunchedEffect(idle, imageFiles.size) {
-        if (!idle || imageFiles.size <= 1) return@LaunchedEffect
-        while (true) {
-            delay(Theme.ScreensaverIntervalMs)
-            displayIndex = (displayIndex + 1) % imageFiles.size
-        }
-    }
-    val safeIndex = if (imageFiles.isNotEmpty()) displayIndex % imageFiles.size else 0
-
-    Box(Modifier.fillMaxSize().alpha(layerAlpha)) {
-        Crossfade(
-            targetState = safeIndex,
-            animationSpec = tween(Theme.ScreensaverCrossfadeMs),
-            label = "screensaverCrossfade",
-        ) { index ->
-            ScreensaverSlot(imageFiles.getOrNull(index))
-        }
-    }
-}
-
-@Composable
-private fun ScreensaverSlot(file: java.io.File?) {
-    file ?: return
-    val bmp by produceState<android.graphics.Bitmap?>(null, file.absolutePath) {
-        value = withContext(Dispatchers.IO) {
-            runCatching {
-                Apps.decodeScaled(file.absolutePath, 1920, 1080, android.graphics.Bitmap.Config.RGBA_F16)
-            }.getOrNull()
-        }
-    }
-    val b = bmp ?: return
-    val scale = remember { Animatable(1.0f) }
-    LaunchedEffect(file.absolutePath) {
-        scale.snapTo(1.0f)
-        scale.animateTo(
-            targetValue = Theme.ScreensaverZoom,
-            animationSpec = tween(
-                durationMillis = (Theme.ScreensaverIntervalMs + Theme.ScreensaverCrossfadeMs).toInt(),
-                easing = LinearEasing,
-            ),
-        )
-    }
-    Image(
-        bitmap = b.asImageBitmap(),
-        contentDescription = null,
-        contentScale = ContentScale.Crop,
-        modifier = Modifier.fillMaxSize().scale(scale.value),
-    )
-}
-
-/**
- * 把旧版单张 screensaver.jpg/png 迁移到图库目录。只在图库为空时迁移一次。
- */
-private fun migrateOldScreensaver(ctx: Context) {
-    val dir = Paths.screensaverLibrary(ctx)
-    if (dir.listFiles()?.any { it.isFile } == true) return
-    for (old in listOf(Paths.screensaver(ctx), Paths.screensaverPng(ctx))) {
-        if (old.exists()) {
-            val dest = java.io.File(dir, old.name)
-            old.renameTo(dest)
-            break
         }
     }
 }

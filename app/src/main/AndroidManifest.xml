@@ -76,5 +76,22 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- M5 系统屏保(spec §4):UnitedU 在电视「屏幕保护程序」列表里的那一项,画面与桌面自定义屏保一致、
+             共用播放进度。BIND_DREAM_SERVICE = 只有系统能绑定;系统来绑,exported 必须为 true。
+             清单条目取自 spike 4f184b7(2026-09-16 A95L 上确认会出现在系统屏保列表里)。 -->
+        <service
+            android:name=".UnitedUDream"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_DREAM_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.dreams.DreamService" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.dream"
+                android:resource="@xml/dream" />
+        </service>
     </application>
 </manifest>

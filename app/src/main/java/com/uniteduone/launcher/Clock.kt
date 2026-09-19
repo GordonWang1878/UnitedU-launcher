@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -56,10 +59,12 @@ private fun rememberClockState(): ClockState {
 
 /**
  * M8 hero 主体:大字时钟 84sp Medium + 日期 24sp(spec §1.4),颜色 accent(spec §0「accent 落点」)。
- * 位置由调用方给(HomeScreen:左对齐 SidePadding、顶 HomeLayout.HERO_TOP);不可聚焦。
+ * 位置由调用方给(HomeScreen / UnitedUDream:左对齐 SidePadding、顶 HomeLayout.HERO_TOP);不可聚焦。
+ * [shadow](M5 spec §1.5):自定义屏保 / 系统屏保轮播照片时为真——照片可能很亮,时间与日期各加一层淡阴影
+ * (黑 α0.55、下移 2、模糊 16);不做描边、不做底板,平时不加(壁纸本来就压暗过)。
  */
 @Composable
-fun HeroClock(modifier: Modifier = Modifier, showDate: Boolean = true) {
+fun HeroClock(modifier: Modifier = Modifier, showDate: Boolean = true, shadow: Boolean = false) {
     val accent = LocalThemeColors.current.accent
     val state = rememberClockState()
     val locale = AppLocale.current ?: Locale.getDefault()
@@ -67,19 +72,27 @@ fun HeroClock(modifier: Modifier = Modifier, showDate: Boolean = true) {
     // SimpleDateFormat 出生时就把时区绑死:tzTick 变(换时区 / 校时 / 改 12-24 开关)就重建,不能只看 pattern。
     val timeFmt = remember(state.tzTick, timePattern, locale) { SimpleDateFormat(timePattern, locale) }
     val dateFmt = remember(state.tzTick, datePattern, locale) { SimpleDateFormat(datePattern, locale) }
+    val textShadow = if (shadow) {
+        Shadow(color = Color.Black.copy(alpha = 0.55f), offset = Offset(0f, 2f), blurRadius = 16f)
+    } else {
+        null
+    }
     Column(modifier) {
         BasicText(
             text = timeFmt.format(state.now),
             style = TextStyle(
                 fontFamily = Theme.Sans, fontWeight = FontWeight.Medium,
-                fontSize = 84.sp, lineHeight = 84.sp, color = accent,
+                fontSize = 84.sp, lineHeight = 84.sp, color = accent, shadow = textShadow,
             ),
         )
         if (showDate) {
             BasicText(
                 text = dateFmt.format(state.now),
                 modifier = Modifier.padding(top = 8.dp),
-                style = TextStyle(fontFamily = Theme.Sans, fontSize = 24.sp, color = accent.copy(alpha = 0.85f)),
+                style = TextStyle(
+                    fontFamily = Theme.Sans, fontSize = 24.sp,
+                    color = accent.copy(alpha = 0.85f), shadow = textShadow,
+                ),
             )
         }
     }

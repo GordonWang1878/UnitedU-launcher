@@ -32,6 +32,7 @@ sealed interface RowSpec {
  * [zeroAt] 只对 SLIDER 有意义:代表 0 的档位(双向亮度滑块是 5,填充从它画到当前档)。
  * [optionArgs] 与 [optionRes] 一一对应:非 null 时该项文案是带格式参数的(如「%1$d 分」的 1/3/5/10),
  * 界面按 `stringResource(res, arg)` 解析 —— 一个资源 id 要出现在同一行的好几档里,光靠 id 分不开。
+ * [noteRes](M5 spec §3):标签下方一行小字提示;null = 不画。目前只有「屏保启动」行用它(计时起点 / 图库为空)。
  */
 data class ControlRow(
     override val id: String,
@@ -42,6 +43,7 @@ data class ControlRow(
     val selected: Int,
     val zeroAt: Int = 0,
     val optionArgs: List<Int?> = emptyList(),
+    val noteRes: Int? = null,
     val onSelect: (Int) -> Unit,
 ) : RowSpec
 
@@ -68,7 +70,7 @@ internal val LANGUAGE_OPTION_RES: List<Int> = listOf(
 )
 
 /**
- * 设置页要做、但**只有 Activity 做得了**的五件事(开子界面、切语言)。
+ * 设置页要做、但**只有 Activity 做得了**的七件事(开子界面、切语言、跳系统页)。
  * 模型只管把它们挂到对应的行上,不认识 `Context`;真正的实现在 `MainActivity`。
  */
 class SettingsActions(
@@ -78,7 +80,23 @@ class SettingsActions(
     val restoreDefaults: () -> Unit,
     /** 取值是 [VALID_LANGUAGES] 里的一项。T8 起它 = 写盘 + `recreate()`;在那之前只写盘。 */
     val applyLanguage: (String) -> Unit,
+    /** M5:打开屏保图库(叠在设置页上;设置页 `covered` 让路,关掉后焦点回同一行)。 */
+    val openScreensaverGallery: () -> Unit,
+    /** M5:跳系统屏保设置页;解析不到退到系统设置首页,两个都打不开 toast(spec §3)。 */
+    val openSystemScreensaver: () -> Unit,
 )
+
+/**
+ * 「屏保启动」行的行内提示(M5 spec §3):图库为空 →「不会进入」;待机时长为「关」→「从最后一次按键算」;
+ * 否则 →「从进入待机算」。屏保启动本身是「关」时不画提示——计时起点与图库都跟它无关了。
+ * [screensaverImages] = −1 表示设置页还没数完(IO 在途),按非空处理,不在打开的那一瞬间误报「图库为空」。
+ */
+internal fun screensaverAfterNoteRes(idleAfterMs: Long, screensaverAfterMs: Long, screensaverImages: Int): Int? = when {
+    screensaverAfterMs == 0L -> null
+    screensaverImages == 0 -> R.string.settings_screensaver_note_empty
+    idleAfterMs == 0L -> R.string.settings_screensaver_note_from_input
+    else -> R.string.settings_screensaver_note_after_standby
+}
 
 /**
  * 按当前设置 [s] 生成整棵内容树。[update] 是「读-改-写一次完成」的写入口
@@ -92,6 +110,8 @@ fun settingsGroups(
     s: Settings,
     update: ((Settings) -> Settings) -> Unit,
     actions: SettingsActions,
+    /** 屏保图库张数(M5:「屏保启动」行的提示要分「图库为空」);−1 = 设置页还没数完。 */
+    screensaverImages: Int,
 ): List<GroupSpec> {
     val onOff = listOf(R.string.settings_off, R.string.settings_on)
     fun toggle(id: String, labelRes: Int, value: Boolean, write: (Settings, Boolean) -> Settings) =
@@ -213,6 +233,48 @@ fun settingsGroups(
                     selected = IdleContent.entries.indexOf(s.idleContent).coerceAtLeast(0),
                     onSelect = { i -> update { it.copy(idleContent = IdleContent.entries[i]) } },
                 ),
+                // M5 spec §3:进入待机后再过多久进自定义屏保;行内小字说明计时起点 / 图库为空(screensaverAfterNoteRes)。
+                ControlRow(
+                    id = "screensaverAfter", labelRes = R.string.settings_screensaver_after,
+                    kind = CtrlKind.SEGMENTED,
+                    optionRes = listOf(
+                        R.string.settings_idle_off,
+                        R.string.settings_idle_minutes,
+                        R.string.settings_idle_minutes,
+                        R.string.settings_idle_minutes,
+                        R.string.settings_idle_minutes,
+                    ),
+                    optionArgs = listOf(null, 1, 5, 10, 30),
+                    count = VALID_SCREENSAVER_AFTER_MS.size,
+                    // 读盘已夹过;万一找不到退到默认 5 分(第 2 档),不让下标变成 −1。
+                    selected = VALID_SCREENSAVER_AFTER_MS.indexOf(s.screensaverAfterMs).let { if (it < 0) 2 else it },
+                    noteRes = screensaverAfterNoteRes(s.idleAfterMs, s.screensaverAfterMs, screensaverImages),
+                    onSelect = { i -> update { it.copy(screensaverAfterMs = VALID_SCREENSAVER_AFTER_MS[i]) } },
+                ),
+                ControlRow(
+                    id = "screensaverInterval", labelRes = R.string.settings_screensaver_interval,
+                    kind = CtrlKind.SEGMENTED,
+                    optionRes = listOf(
+                        R.string.settings_seconds,
+                        R.string.settings_idle_minutes,
+                        R.string.settings_idle_minutes,
+                    ),
+                    optionArgs = listOf(30, 1, 5),
+                    count = VALID_SCREENSAVER_INTERVAL_MS.size,
+                    selected = VALID_SCREENSAVER_INTERVAL_MS.indexOf(s.screensaverIntervalMs).coerceAtLeast(0),
+                    onSelect = { i -> update { it.copy(screensaverIntervalMs = VALID_SCREENSAVER_INTERVAL_MS[i]) } },
+                ),
+                // 两条动作行(spec §3):图库叠在设置页上;系统屏保跳系统页。都只有 Activity 做得了,走 actions。
+                ActionRow(
+                    "screensaverGallery",
+                    R.string.settings_screensaver_gallery,
+                    R.string.settings_screensaver_gallery_desc,
+                ) { actions.openScreensaverGallery() },
+                ActionRow(
+                    "systemScreensaver",
+                    R.string.settings_system_screensaver,
+                    R.string.settings_system_screensaver_desc,
+                ) { actions.openSystemScreensaver() },
             ),
         ),
         GroupSpec(

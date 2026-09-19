@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- M5 系统屏保的元数据(spec §4,取自 spike 4f184b7)。不设 settingsActivity:屏保的设置都在 UnitedU 设置页「待机与屏保」组。 -->
+<dream xmlns:android="http://schemas.android.com/apk/res/android" />
