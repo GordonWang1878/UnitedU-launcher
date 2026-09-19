@@ -788,3 +788,10 @@ HEAD `c0cf5a6`(接 `8d82355`),worktree 仍是 `m5-standby`。终审复查的完�
 - **Gordon 第一轮拍板(grilling)**:①对标真 Google TV——下载 `system-images;android-34;google-tv;arm64-v8a`(`arm64-v8a-34_r03.zip`,869,585,766 B,sha1 `a5ecfa06ee6e4b5d5262d47dffb84136ce1645d1`,dl-ssl.google.com)建第二台 AVD 实测,开机向导里的 Google 条款由我点同意(他已在卡上同意);不登 Google 账号(密码不代输);②范围全 app(首页 + 设置、菜单、对话框、选择器、编辑页、引导、关于),首页先做;③「Google 的壳、UnitedU 的内容」——布局照搬,推荐位换成用户自己的东西(如大海报位放壁纸),换壁纸 / 主题色 / 屏保 / 卡片标题保留、外观改 Google 样式,每项落点下一轮逐项定;④独立包名 `com.uniteduone.launcher.gtv`(应用名「UnitedU GTV」)与 UnitedU 并存安装,设置与图片各存各的。
 - 差距报告遗留的两个决定(6 h 子集、M8 有意偏离改不改)并入 gtv 线,不再单独决定。
 - 估时:实测约半天;实施全 app 约 8 个工作日(首页约 4 天先出)。
+
+## 2026-09-19 · 顺序改定:先做精简版 main,再开 gtv 线
+
+- Gordon 在第二轮(Q5 main 在 gtv 期间做什么)叫停 gtv:**先把 main 剩余的 bug 全修掉、功能欠缺(M4b)补完,任何 UI 美化先不做;做完再从新 main fork gtv 线**——对应我给的三个选项里的「先做精简版 main」(修 bug + M4b 约 5 个工作日,跳过 M8b 换皮,1.0 等对比完再发)。
+- 我原推荐「先 gtv、main 只修 bug」(理由:M4b 的新界面先按旧样式做、gtv 再复刻一遍约多 1 天);Gordon 选先 main,换来功能早到、两条线零并行。
+- 已执行:提前开的 `gtv` 分支指针删除(与 main 同一提交,无独有内容),等 main 做完从新 main 重开;Google TV 镜像已下载并校验(sha1 一致)、解压到 `~/Library/Android/sdk/system-images/android-34/google-tv/arm64-v8a/` 备用,AVD 未建、实测未做。gtv 第一轮四个决定(真 Google TV 实测 / 全 app / Google 的壳我们的内容 / 独立包名并存)保留有效,重开时从「实测 → 逐项对照表」接着问。
+- 精简版 main 的范围:①遗留 bug(M5 终审遗留九项 + M5 已知未修 + M8 终审遗留六项 + M7 冷启动菜单无焦点,见本文件各节);②M4b:行管理(1–5 行增删 / 命名 / 图标)、原地移动、输入源逐项隐藏 / 改名、HDMI-CEC 父子去重。不做:M8b 二级界面换皮、行尾「+」卡、差距报告 6 h 子集(都归 gtv 线)。
