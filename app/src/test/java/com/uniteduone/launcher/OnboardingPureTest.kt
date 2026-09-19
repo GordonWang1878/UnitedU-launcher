@@ -13,9 +13,9 @@ import org.junit.Test
 class OnboardingPureTest {
 
     private val fixture = listOf(
-        "VIDEO" to listOf("com.v1", "com.v2", "com.v3"),
-        "LIVE" to listOf("com.l1", "com.l2"),
-        "MUSIC" to listOf("com.m1", "com.m2"),
+        LayoutRow("VIDEO", apps = listOf("com.v1", "com.v2", "com.v3")),
+        LayoutRow("LIVE", apps = listOf("com.l1", "com.l2")),
+        LayoutRow("MUSIC", apps = listOf("com.m1", "com.m2")),
     )
 
     // ---- 第 2 步:写盘的两种布局 ------------------------------------------------
@@ -24,9 +24,9 @@ class OnboardingPureTest {
         val planned = plannedLayout(fixture, setOf("com.m2", "com.v3", "com.v1", "com.m1"))
         assertEquals(
             listOf(
-                "VIDEO" to listOf("com.v1", "com.v3"),
-                "LIVE" to emptyList(),
-                "MUSIC" to listOf("com.m1", "com.m2"),
+                LayoutRow("VIDEO", apps = listOf("com.v1", "com.v3")),
+                LayoutRow("LIVE", apps = emptyList()),
+                LayoutRow("MUSIC", apps = listOf("com.m1", "com.m2")),
             ),
             planned,
         )
@@ -34,38 +34,38 @@ class OnboardingPureTest {
 
     @Test fun plannedLayoutKeepsEmptyRowsSoTheEditPageStillHasTheirAddButtons() {
         val planned = plannedLayout(fixture, setOf("com.l2"))
-        assertEquals(listOf("VIDEO", "LIVE", "MUSIC"), planned.map { it.first })
-        assertEquals(listOf(emptyList(), listOf("com.l2"), emptyList<String>()), planned.map { it.second })
+        assertEquals(listOf("VIDEO", "LIVE", "MUSIC"), planned.map { it.name })
+        assertEquals(listOf(emptyList(), listOf("com.l2"), emptyList<String>()), planned.map { it.apps })
     }
 
     @Test fun plannedLayoutNeverAddsInstalledAppsThatAreNotInTheDefaultTable() {
         // 零推荐(spec §0):已装但不在分类表里的应用一个都不铺。
         val planned = plannedLayout(fixture, setOf("com.v2", "com.some.other.app", "com.uniteduone.launcher"))
-        assertEquals(listOf("com.v2"), planned.flatMap { it.second })
+        assertEquals(listOf("com.v2"), planned.flatMap { it.apps })
     }
 
     @Test fun plannedLayoutWithNothingInstalledIsAllEmptyAndEqualsSkipped() {
         val planned = plannedLayout(DEFAULT_LAYOUT, emptySet())
-        assertEquals(listOf("VIDEO", "LIVE", "MUSIC"), planned.map { it.first })
-        assertTrue(planned.all { it.second.isEmpty() })
+        assertEquals(listOf("VIDEO", "LIVE", "MUSIC"), planned.map { it.name })
+        assertTrue(planned.all { it.apps.isEmpty() })
         // 「继续」在一个都没装的机器上与「跳过」写下同一份文件(brief:plan 为空时继续 = 跳过)。
         assertEquals(skippedLayout(DEFAULT_LAYOUT), planned)
     }
 
     @Test fun skippedLayoutKeepsTheThreeDefaultRowsWithNoApps() {
         val skipped = skippedLayout(DEFAULT_LAYOUT)
-        assertEquals(listOf("VIDEO", "LIVE", "MUSIC"), skipped.map { it.first })
-        assertEquals(List(3) { emptyList<String>() }, skipped.map { it.second })
+        assertEquals(listOf("VIDEO", "LIVE", "MUSIC"), skipped.map { it.name })
+        assertEquals(List(3) { emptyList<String>() }, skipped.map { it.apps })
     }
 
     @Test fun defaultLayoutIsTheBuiltInThreeRowTable() {
         // DEFAULT_LAYOUT 由 Layout.DEFAULT 改名而来:行序与每行第一个包钉住,防改名时顺手改了内容。
-        assertEquals(listOf("VIDEO", "LIVE", "MUSIC"), DEFAULT_LAYOUT.map { it.first })
+        assertEquals(listOf("VIDEO", "LIVE", "MUSIC"), DEFAULT_LAYOUT.map { it.name })
         assertEquals(
             listOf("com.ktcp.tvvideo", "com.newtv.cboxtv", "com.dangbei.dbmusic.sonyos.tab"),
-            DEFAULT_LAYOUT.map { it.second.first() },
+            DEFAULT_LAYOUT.map { it.apps.first() },
         )
-        assertEquals(11, DEFAULT_LAYOUT.sumOf { it.second.size })
+        assertEquals(11, DEFAULT_LAYOUT.sumOf { it.apps.size })
     }
 
     // ---- 第 2 步:屏幕上列出的计划 ----------------------------------------------
@@ -83,7 +83,7 @@ class OnboardingPureTest {
     }
 
     @Test fun planViewFallsBackToPackageNameWhenLabelIsBlankOrMissing() {
-        val view = planView(listOf("LIVE" to listOf("com.l1", "com.l2")), mapOf("com.l1" to "  "))
+        val view = planView(listOf(LayoutRow("LIVE", apps = listOf("com.l1", "com.l2"))), mapOf("com.l1" to "  "))
         assertEquals(listOf("LIVE" to listOf("com.l1" to "com.l1", "com.l2" to "com.l2")), view)
     }
 

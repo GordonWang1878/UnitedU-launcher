@@ -74,10 +74,10 @@ fun EditScreen(
     val titles by produceState(emptyMap<String, String>(), revision) {
         value = withContext(Dispatchers.IO) { Titles.read(ctx) }
     }
-    var rows by remember { mutableStateOf(Layout.read(ctx).map { it.first to it.second.toMutableList() }) }
+    var rows by remember { mutableStateOf(Layout.read(ctx)) }
     var picking by remember { mutableStateOf<Int?>(null) }        // 正在给第几行加应用
     var acting by remember { mutableStateOf<Pair<Int, Int>?>(null) } // (行, 位置) 的操作菜单
-    val needed = remember(rows) { rows.flatMap { it.second }.toSet() }
+    val needed = remember(rows) { rows.flatMap { it.apps }.toSet() }
     // 和 HomeScreen 一样挪到 IO:同步解码 11 张 banner 会让进编辑界面卡一下
     // 用 null 区分「还在加载」和「加载失败/真的空」—— 与首页同一做法。
     // 用 emptyMap 当初值时,失败结果与初值**结构相等**,mutableStateOf 不触发重组、
@@ -160,7 +160,7 @@ fun EditScreen(
         val ri = t.first.coerceIn(0, rows.lastIndex.coerceAtLeast(0))
         // **按包名查列号**,不信任首页传来的渲染列号(两边的行内容不一样,见 initialTarget 的 KDoc)。
         // 查不到(那一行刚被别处改过)就退到行首,至少落在正确的那一行上,绝不乱指一张卡。
-        val ci = rows.getOrNull(ri)?.second?.indexOf(t.second) ?: -1
+        val ci = rows.getOrNull(ri)?.apps?.indexOf(t.second) ?: -1
         if (ci >= 0) retarget(ri, ci) else retarget(ri, 0)
     }
 
@@ -200,7 +200,7 @@ fun EditScreen(
         if (retargeting) return@LaunchedEffect
         if (picking != null || acting != null) return@LaunchedEffect
         if (focusedCell != null) return@LaunchedEffect
-        if (all == null && rows.any { it.second.isNotEmpty() }) return@LaunchedEffect
+        if (all == null && rows.any { it.apps.isNotEmpty() }) return@LaunchedEffect
         repeat(3) { withFrameNanos {} }
         if (focusedCell != null) return@LaunchedEffect
         var frames = 0
@@ -227,7 +227,7 @@ fun EditScreen(
         // 夹到 pkgs.size(**含行尾加号那一格**),与下面的挂点用同一个夹法。
         // 少了这一致性:目标被设成加号那一格,而挂点只夹到 lastIndex、加号只在空行时接 requester,
         // 于是焦点只能送到最后一张卡,判据恒不成立、循环跑满 60 帧,每帧把焦点拽回去。
-        val cap = rows.getOrNull(ri)?.second?.size ?: 0
+        val cap = rows.getOrNull(ri)?.apps?.size ?: 0
         val want = ri to (focusTarget.getOrNull(ri) ?: 0).coerceIn(0, cap)
     
     // retargeting 是派生量(retargetTick != retargetDone),由 retarget() 递增 tick、
@@ -243,7 +243,7 @@ fun EditScreen(
 
     val scope = rememberCoroutineScope()
     fun persist() {
-        val snapshot = rows.map { it.first to it.second.toList() }
+        val snapshot = rows
         scope.launch {
             val ok = withContext(Dispatchers.IO) { Layout.write(ctx, snapshot) }
             if (!ok) android.widget.Toast.makeText(
@@ -262,7 +262,7 @@ fun EditScreen(
         if (a != null || p != null) {
             val ri = a?.first ?: p ?: 0
             picking = null; acting = null
-            retarget(ri, a?.second ?: rows[ri].second.size)
+            retarget(ri, a?.second ?: rows[ri].apps.size)
         } else onExit()
     }
 
@@ -291,7 +291,9 @@ fun EditScreen(
                 modifier = Modifier.padding(start = Theme.SidePadding, bottom = 18.dp),
                 style = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 12.sp),
             )
-            rows.forEachIndexed { ri, (name, pkgs) ->
+            rows.forEachIndexed { ri, row ->
+                val name = row.name
+                val pkgs = row.apps
                 Column(
                     Modifier.padding(bottom = Theme.EditRowSpacing),
                     verticalArrangement = Arrangement.spacedBy(Theme.EditRowTitleGap),
@@ -391,7 +393,7 @@ fun EditScreen(
 
         // acting 指向的卡片可能已经不在了(比如它所在的行被别处改短)。
         // **不在组合期写状态**:清空动作放进 LaunchedEffect,组合期只负责不渲染。
-        val actingPkg = acting?.let { (ri, pi) -> rows.getOrNull(ri)?.second?.getOrNull(pi) }
+        val actingPkg = acting?.let { (ri, pi) -> rows.getOrNull(ri)?.apps?.getOrNull(pi) }
         LaunchedEffect(acting, actingPkg) { if (acting != null && actingPkg == null) acting = null }
         acting?.let { (ri, pi) ->
             val pkg = actingPkg ?: return@let
@@ -401,20 +403,20 @@ fun EditScreen(
                     if (pi > 0) add(MenuItem(stringResource(R.string.edit_move_left), stringResource(R.string.edit_move_left_desc)) {
                         if (pi > 0) {
                             rows = rows.mapIndexed { i, r ->
-                                if (i == ri) r.first to r.second.toMutableList().also {
+                                if (i == ri) r.copy(apps = r.apps.toMutableList().also {
                                     it.add(pi - 1, it.removeAt(pi))
-                                } else r
+                                }) else r
                             }
                             persist(); retarget(ri, pi - 1)
                         }
                         acting = null
                     })
-                    if (pi < rows[ri].second.lastIndex) add(MenuItem(stringResource(R.string.edit_move_right), stringResource(R.string.edit_move_right_desc)) {
-                        if (pi < rows[ri].second.size - 1) {
+                    if (pi < rows[ri].apps.lastIndex) add(MenuItem(stringResource(R.string.edit_move_right), stringResource(R.string.edit_move_right_desc)) {
+                        if (pi < rows[ri].apps.size - 1) {
                             rows = rows.mapIndexed { i, r ->
-                                if (i == ri) r.first to r.second.toMutableList().also {
+                                if (i == ri) r.copy(apps = r.apps.toMutableList().also {
                                     it.add(pi + 1, it.removeAt(pi))
-                                } else r
+                                }) else r
                             }
                             persist(); retarget(ri, pi + 1)
                         }
@@ -427,7 +429,7 @@ fun EditScreen(
                     })
                     add(MenuItem(stringResource(R.string.edit_remove), stringResource(R.string.edit_remove_desc)) {
                         rows = rows.mapIndexed { i, r ->
-                            if (i == ri) r.first to r.second.toMutableList().also { it.removeAt(pi) } else r
+                            if (i == ri) r.copy(apps = r.apps.toMutableList().also { it.removeAt(pi) }) else r
                         }
                         // 移出之后那一格没了,焦点落到它原来位置的前一格(行空了就是加号)
                         persist(); acting = null; retarget(ri, (pi - 1).coerceAtLeast(0))
@@ -444,14 +446,14 @@ fun EditScreen(
             AppPicker(
                 nonce = focusNonce,
                 ctx = ctx,
-                exclude = rows.flatMap { it.second }.toSet(),
+                exclude = rows.flatMap { it.apps }.toSet(),
                 onPick = { pkg ->
                     rows = rows.mapIndexed { i, r ->
-                        if (i == ri) r.first to r.second.toMutableList().also { it.add(pkg) } else r
+                        if (i == ri) r.copy(apps = r.apps.toMutableList().also { it.add(pkg) }) else r
                     }
                     // 刚加进来的那张卡就是新的行尾,焦点落到它身上
                     persist(); picking = null
-                    retarget(ri, rows[ri].second.lastIndex.coerceAtLeast(0))
+                    retarget(ri, rows[ri].apps.lastIndex.coerceAtLeast(0))
                 },
                 // 注:AppPicker 自己没有 BackHandler,取消走的是本文件上方那个 —— 目标也在那里设。
 

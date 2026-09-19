@@ -612,7 +612,7 @@ private fun CategoryRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            RowIcon(row.name, row.kind, tint = accent)
+            RowIcon(row.name, row.kind, row.icon, tint = accent)
             BasicText(
                 text = row.name,
                 // 行标题 = titleMedium 16sp Medium(spec §1.4),颜色 accent(spec §0「accent 落点」)
@@ -708,13 +708,13 @@ private fun buildInputRow(ctx: Context): Row? {
 
 private fun buildRows(ctx: Context): List<Row> {
     val layout = Layout.read(ctx)
-    val needed = layout.flatMap { it.second }.toSet()
+    val needed = layout.flatMap { it.apps }.toSet()
     val all = Apps.load(ctx, needed, withBitmaps = needed, withLabels = needed)
     // **layoutRow 必须在 filter 之前定下来**:下面那个 filter 会整行丢掉空行,
     // 丢掉之后剩下行的下标就不再等于它们在 layout.json 里的下标。
     // 「移除 / 移动位置」写的是 layout.json,拿渲染下标去写就会打在别人那一行上。
-    return layout.mapIndexed { layoutIndex, (name, pkgs) ->
-        Row(name = name, apps = pkgs.mapNotNull { all[it] }, layoutRow = layoutIndex)
+    return layout.mapIndexed { layoutIndex, row ->
+        Row(name = row.name, icon = row.icon, apps = row.apps.mapNotNull { all[it] }, layoutRow = layoutIndex)
     }.filter { it.apps.isNotEmpty() }
     // ⚠️ 这个 filter 不只是显示意图,**它同时是焦点的不变量**:
     // upTarget/downTarget 指向相邻行的 rowFocus,而 rowFocus 只挂在非空行的卡片上。
