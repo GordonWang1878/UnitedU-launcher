@@ -38,6 +38,19 @@ class LayoutOpsTest {
         assertEquals(MAX_TITLE_CHARS, renameRow(three, 0, "x".repeat(100))[0].name.length)
     }
 
+    @Test fun renameKeepsTheVisibleIcon() {
+        // 没存图标的旧行靠名字回落(MUSIC → music):改名时把这个图标存下来,否则 "Kids" 会回落成 tv
+        assertEquals("music", renameRow(three, 2, "Kids")[2].icon)
+        assertEquals("movie", renameRow(three, 0, "影视")[0].icon)
+        // 已经存了图标的行照旧
+        assertEquals("tv", renameRow(three, 1, "直播")[1].icon)
+        val games = listOf(LayoutRow("Play", icon = "games", apps = listOf("g")))
+        assertEquals(LayoutRow("Fun", icon = "games", apps = listOf("g")), renameRow(games, 0, "Fun")[0])
+        // 别的行不动;空名仍原样返回同一个 list
+        assertEquals(null, renameRow(three, 2, "Kids")[0].icon)
+        assertSame(three, renameRow(three, 2, "  "))
+    }
+
     @Test fun setIconAcceptsOnlyKnownIds() {
         assertEquals("games", setRowIcon(three, 2, "games")[2].icon)
         assertSame(three, setRowIcon(three, 2, "bogus"))

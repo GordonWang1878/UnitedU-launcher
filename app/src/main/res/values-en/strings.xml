@@ -78,7 +78,7 @@
 
     <!-- edit_* : Edit Rows screen -->
     <string name="edit_title">Edit Rows</string>
-    <string name="edit_hint">Select an app and press OK to reorder, change art, or remove it. The plus sign at the end of each row adds apps. Press Back to exit.</string>
+    <string name="edit_hint">Select an app and press OK to reorder, change art, or remove it. The plus sign at the end of each row adds apps or manages the row. Press Back to exit.</string>
     <string name="edit_toast_order_not_saved">The order couldn\'t be saved and will reset after restart</string>
     <string name="edit_move_left">Move Left</string>
     <string name="edit_move_left_desc">Move one spot earlier in this row</string>

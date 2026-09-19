@@ -76,7 +76,7 @@
 
     <!-- edit_* : 編輯分欄畫面 -->
     <string name="edit_title">編輯分欄</string>
-    <string name="edit_hint">選取應用程式後按確定:調整順序、換圖、移出。每行最後的加號可以新增。按返回鍵離開。</string>
+    <string name="edit_hint">選取應用程式後按確定:調整順序、換圖、移出。每行最後的加號:新增應用程式、管理這一行。按返回鍵離開。</string>
     <string name="edit_toast_order_not_saved">順序沒能存下來,重新啟動後會變回原樣</string>
     <string name="edit_move_left">往左移</string>
     <string name="edit_move_left_desc">在這一行裡前移一位</string>
