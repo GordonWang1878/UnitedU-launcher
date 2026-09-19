@@ -96,7 +96,7 @@ adb emu kill                                     # 关闭
    | 界面 / 浮层 | 恢复责任方 |
    |---|---|
    | 首页卡片/pill 组(设置 / 屏保两个按钮,账本里都是 row = -1) | HomeScreen 看门狗 + 还原效果(选择器、设置页等整屏浮层都叠在常驻首页上,`covered` 期间冻结 `tgtRow/tgtIdx/tgtGear`,关掉后按它还原;编辑页仍整体替换首页,回来落 (0,0)) |
-   | 齿轮菜单 / 长按卡片菜单 | GearMenu 自己的初始焦点循环(nonce,退出判据是 `holder == i` 的自报,铁律 2)+ `holder == null` 看门狗(3 帧宽限后重请求 `focusedIdx`,每轮最多 60 帧封顶,守卫与 key 同为 `holder == null`,铁律 6);再次丢焦点时 key 翻转、看门狗重新武装,不是一次性闩(铁律 7) |
+   | 齿轮菜单 / 长按卡片菜单 | GearMenu 自己的初始焦点循环(nonce,退出判据是 `holder != null` 的自报——菜单里任意一项持有焦点即算落地,铁律 2)+ `holder == null` 看门狗(3 帧宽限后重请求 `focusedIdx`,每轮最多 60 帧封顶,守卫与 key 同为 `holder == null`,铁律 6);再次丢焦点时 key 翻转、看门狗重新武装,不是一次性闩(铁律 7) |
    | 修改标题对话框 | TitleDialog(nonce + focused,四向 Cancel) |
    | 设置页两栏 | SettingsScreen 看门狗(二维账本 pane/group/rowOf,`covered` 让路,`reloadNonce` 重读;`ON_PAUSE` 起冻结目标,回到前台才放开) |
    | 确认框(恢复默认) | ConfirmDialog(nonce + focusedBtn) |
@@ -104,8 +104,8 @@ adb emu kill                                     # 关闭
    | 首次引导 | Onboarding(每步 nonce + 逐项 requester + 看门狗;`ON_PAUSE` 起冻结目标) |
    | 编辑页 | EditScreen 看门狗 + 显式重定位。「换卡片图」的选择器**替换**编辑页(开着时 EditScreen 不在组合里,它没有 `covered` 让路开关);关掉后编辑页重建,由 MainActivity 的 `editTarget`(layout 行号, 包名)种子定位回同一张卡 |
    | 添加应用列表 | AppPicker(逐项 requester) |
-   | 图片选择器(壁纸 / 默认桌面卡 / 导入图片) | 各自的初始焦点循环(nonce);均以固定 `covered = false` 调用 `PickerGrid`,不涉及下一行屏保图库那整套机制 |
-   | 屏保图库的图片网格(`PickerGrid`) | 初始定位效果以 `(nonce, covered, focusRequesters)` 为 key,退出判据是目标格自报 `holderIdx == i`(铁律 2,不信 `requestFocus()` 的返回值);另配一个只在 `holderIdx == null && !covered` 时才跑、不封顶的看门狗兜底(3 帧宽限)。`covered = previewIndex >= 0 \|\| deleteTarget != null`,预览或删图确认框任一在场就让路。**教训**:只以 nonce 为 key 的循环落地之后,如果异步重扫(`produceState` 在 IO 线程跑)换了文件列表,`remember(items.size)` 会把 `focusRequesters` 整表换新——旧循环早已跑完退出,没人知道表换了;必须把 `focusRequesters` 本身也编进 key,表一换这里就重新跑一轮,retarget 到新表上 |
+   | 图片选择器(壁纸 / 换卡片图) | `WallpaperPicker` 与 `IconPicker` 各自的初始焦点循环(nonce)。这两个是仅有的两处调用 `PickerGrid` 的地方(ImagePicker.kt:80,126),都固定传 `covered = false`,不涉及下一行屏保图库那整套机制。同样整屏浮层的「默认桌面」卡(`HomeSettingsCard`)与「导入图片」(`ImportScreen`)不经过 `PickerGrid`,各自另有一套(nonce 初始焦点循环) |
+   | 屏保图库的图片网格(`PickerGrid`) | 初始定位效果以 `(nonce, covered, focusRequesters)` 为 key,退出判据是目标格自报 `holderIdx == i`(铁律 2,不信 `requestFocus()` 的返回值);另配一个只在 `holderIdx == null && !covered` 时才跑、每轮最多 60 帧封顶的看门狗兜底(3 帧宽限;再丢一次焦点 key 翻转、自动重新武装,铁律 7,写法与 GearMenu、SettingsScreen 的看门狗同形状)。两条效果读的都是 `rememberUpdatedState` 包过的 requesters,不怕定位效果之外的看门狗在循环跑到一半时 `focusRequesters` 整表换新。`covered = previewIndex >= 0 \|\| deleteTarget != null`,预览或删图确认框任一在场就让路。**教训**:只以 nonce 为 key 的循环落地之后,如果异步重扫(`produceState` 在 IO 线程跑)换了文件列表,`remember(items.size)` 会把 `focusRequesters` 整表换新——旧循环早已跑完退出,没人知道表换了;必须把 `focusRequesters` 本身也编进 key,表一换这里就重新跑一轮,retarget 到新表上 |
    | 屏保图库的删除确认框(M5) | `ConfirmDialog` 自己的 nonce + `focusedBtn` 循环(默认在取消);关掉后 `deleteTarget` 变 null 让 `PickerGrid` 的 `covered` 翻回 false,由图库网格的循环接回原位置(`covered` 翻回 false 触发上一行的定位效果 + 看门狗);`focusedIdx` 经 `clampedFocusedIdx` 自动夹到新长度;删空换成空态,空态自己的循环接住 |
    | 屏保图库的全屏预览(M5 起可达) | 自己的焦点循环,以外层 nonce(`MainActivity.focusNonce`)为 key(回到前台会重落;判据是自报的 `focused`,得失都报,不是只增不减的 `landed`);开着时网格的循环让路——`PickerGrid` 的 `covered`(预览或删图确认框任一在场即为 true);关掉后 `covered` 翻回 false,网格循环重跑接回 `focusedIdx` |
 

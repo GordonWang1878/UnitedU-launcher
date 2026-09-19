@@ -232,6 +232,10 @@ private fun PickerGrid(
     val focusRequesters = remember(items.size) {
         List(items.size.coerceAtLeast(1)) { FocusRequester() }
     }
+    // 效果里读的必须是**当前**这一份 requester(同 GearMenu 的写法):items.size 一变 remember 就换新表;
+    // 定位效果的 key 里带着 focusRequesters,换表会重跑没问题,但看门狗的 key 里没有它——如果直接捕获
+    // 看门狗启动那一刻的表,新表在它循环跑到一半时才到,它还在挂空的旧表上重试。
+    val requesters by rememberUpdatedState(focusRequesters)
     var focusedIdx by remember { mutableStateOf(0) }
     // fix round 1:删图后 focusedIdx 可能落在新列表的界外(删的正是末张)——统一在这里夹一次,
     // 定位效果、看门狗、渲染时的 focused 判据都读这一个,不再各处各夹各的。
@@ -251,7 +255,8 @@ private fun PickerGrid(
     // (covered 从 true 变 false,复用下面的定位效果)照 press 补发一个 Cancel 解开。
     // **SnapshotStateList,不是普通 List**(fix round 1):补发 Cancel 只清得掉 indication 观察到的
     // 那条流,foundation 的 ClickableNode 自己另有一份「当前哪个键按着」的记录绑在旧 source 对象上,
-    // 外部发不进去——不换一个新对象,同一格下一次确定键会被当成「这键还按着」,按压视觉从此哑掉。
+    // 外部发不进去——不换一个新对象,同一格下一次确定键会被当成「这键还按着」而丢一次按压视觉
+    // (只丢那一下,不是从此往后每次都哑掉:ClickableNode 处理完那次被吞的按键,内部记录就翻篇了)。
     // 换成可写的 list,发完 Cancel 顺手把那一格的元素替换成新对象,下面的收集效果会跟着 source
     // 这个 key 自动重订阅,ClickableNode 也会因为 interactionSource 参数变了而丢掉旧记录。
     val interactionSources = remember(items.size) {
@@ -308,6 +313,8 @@ private fun PickerGrid(
         // 被长按的那格,covered 期间焦点没有别处可去,所以就是它自己)。没有卡住的格子 press 为 null,不发。
         pendingPress.forEachIndexed { i, press ->
             if (press != null) {
+                // tryEmit(Cancel) 只是让这条流的观察者(indication)体面收尾——保险丝而已;
+                // 真正解开 ClickableNode 内部「这键还按着」那份记录的是下面换新对象这一步。
                 interactionSources[i].tryEmit(PressInteraction.Cancel(press))
                 pendingPress[i] = null
                 // 见 interactionSources 声明处的注释:换新对象,ClickableNode 才会真正忘掉这一格
@@ -321,24 +328,29 @@ private fun PickerGrid(
         var frames = 0
         while (holderIdx != i && frames < 60) {
             withFrameNanos { }
-            runCatching { focusRequesters[i].requestFocus() }
+            runCatching { requesters[i].requestFocus() }
             frames++
         }
     }
 
     // **焦点看门狗**:上面那条管「我想去哪」,这条管「焦点莫名其妙没了」——旧格随删除被销毁、
     // 定位效果又恰好在新列表到达前已经打满 60 帧(或全打在行将销毁的旧格上、次次抛异常)时,
-    // 谁都不会再补请求。不靠「在猜得到的几个时刻补请求」(铁律 3),镜像 SettingsScreen 的写法:
-    // 守卫 covered / holderIdx==null 都在 key 里(铁律 6)。
+    // 谁都不会再补请求。不靠「在猜得到的几个时刻补请求」(铁律 3),镜像 SettingsScreen(以及
+    // GearMenu 那份同形状的看门狗)的写法:守卫 covered / holderIdx==null 都在 key 里(铁律 6);
+    // 每轮最多 60 帧封顶,再丢一次焦点时 key 翻转、自动重新武装(铁律 7)——不会在请求注定落空
+    // (比如 items 为空)时每帧空转到网格关掉为止。读 requesters 而不是 focusRequesters:这条效果
+    // 的 key 里没有 focusRequesters,循环已经在跑的时候如果删图换了表,直接捕获的旧表会挂空。
     LaunchedEffect(holderIdx == null, covered) {
         if (covered || holderIdx != null) return@LaunchedEffect
         // D-pad 换格 / 节点销毁时得、失可能分属相邻两帧:旧格先报丢、新格下一帧才报得,
         // 中间那一帧的 null 不算真丢(与 HomeScreen / SettingsScreen 看门狗同一手法)。
         repeat(3) { withFrameNanos {} }
         if (holderIdx != null) return@LaunchedEffect
-        while (holderIdx == null && !covered) {
+        var frames = 0
+        while (holderIdx == null && frames < 60) {
+            runCatching { requesters[focusedIdx.coerceIn(0, requesters.lastIndex)].requestFocus() }
             withFrameNanos { }
-            runCatching { focusRequesters[focusedIdx.coerceIn(0, focusRequesters.lastIndex)].requestFocus() }
+            frames++
         }
     }
 
@@ -441,8 +453,13 @@ private fun ThumbCard(
     thumbHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
-    val thumb by produceState<Bitmap?>(null, item) {
-        value = when (item) {
+    // R5(实测复现):produceState 换 key 时只重启协程,value 不会先跳回 null——删图导致列表整体
+    // 前移一格时,这一格的 item 已经指向新文件,但旧协程解出来的旧 Bitmap 还挂在 value 上,新协程
+    // 解码完成前的这几帧会显示上一个占用者的缩略图(标题与 onFocusedFile 那时已经是新文件了)。
+    // 把状态连同产出它的 item 一起存;渲染时只认「item 与当前一致」那一份,过期的那份自然被滤掉,
+    // 不需要手动清零——效果与「换 key 就重置」等价,但不用在协程开头多写一次 value = null。
+    val thumb by produceState<Pair<PickerItem, Bitmap?>?>(null, item) {
+        val bmp = when (item) {
             is PickerItem.Original -> item.bitmap
             is PickerItem.Library -> withContext(Dispatchers.IO) {
                 runCatching {
@@ -456,6 +473,7 @@ private fun ThumbCard(
                 }.getOrNull()
             }
         }
+        value = item to bmp
     }
 
     val label = when (item) {
@@ -473,7 +491,8 @@ private fun ThumbCard(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        val bmp = thumb
+        // PickerItem.Library 是 data class,按 file 判等:只认还没被换下去的那一份。
+        val bmp = thumb?.takeIf { it.first == item }?.second
         if (bmp != null) {
             Image(
                 bitmap = bmp.asImageBitmap(),
@@ -536,12 +555,12 @@ fun ScreensaverPoolViewer(
     onDismiss: () -> Unit,
 ) {
     val ctx = LocalContext.current
-    // IO 线程扫、与播放器同一条规则(scanScreensaverLibrary)——原来在主线程按自己的扩展名表列目录,两份口径。
+    // IO 线程扫,走 safeScan(与播放器同一条「失败记日志、退回 null」的规则,内部调的还是
+    // scanScreensaverLibrary)——这里原来是 runCatching{...}.getOrDefault(emptyList()),失败
+    // 被默默吞掉、不留日志,和主线程按自己一套扩展名表列目录的老口径一样,都统一掉了。
     // produceState 的值跨 key 保留:删图后 refresh+1 重扫期间仍显示旧列表,不会闪一下空态。null = 首次还没扫完。
     val scanned by produceState<List<File>?>(null, refresh) {
-        value = withContext(Dispatchers.IO) {
-            runCatching { scanScreensaverLibrary(ctx) }.getOrDefault(emptyList())
-        }
+        value = withContext(Dispatchers.IO) { safeScan(ctx) ?: emptyList() }
     }
     val files = scanned ?: emptyList()
     var previewIndex by remember { mutableStateOf(-1) }

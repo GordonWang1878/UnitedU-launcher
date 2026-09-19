@@ -178,11 +178,13 @@ fun SettingsScreen(
         s = SettingsStore.read(ctx)
     }
 
-    // 屏保图库张数(M5 spec §3):「屏保启动」行的提示要分「图库为空」。IO 线程数(与播放器同一条扫描规则,
-    // 见 scanScreensaverLibrary);key 带图库版本(删图后 +1)与 covered——从导入页 / 图库查看器回来时重数一次,
+    // 屏保图库张数(M5 spec §3):「屏保启动」行的提示要分「图库为空」。IO 线程数,走 safeScan
+    // (与播放器同一条扫描规则,内部调的还是 scanScreensaverLibrary,失败记日志退回 null——这里
+    // 原来直接调 scanScreensaverLibrary,没有 runCatching,扫描异常会冒出这条协程崩到主线程);
+    // 失败按 0 张处理。key 带图库版本(删图后 +1)与 covered——从导入页 / 图库查看器回来时重数一次,
     // 手机上传也会改图库。−1 = 还没数完,模型按非空处理。produceState 没有守卫,不涉及铁律 6。
     val screensaverImages by produceState(-1, galleryVersion, covered) {
-        value = withContext(Dispatchers.IO) { scanScreensaverLibrary(ctx).size }
+        value = withContext(Dispatchers.IO) { safeScan(ctx)?.size ?: 0 }
     }
 
     // 内容模型(分组 / 行 / 当前档位)全在 SettingsModel.kt 里,这里只画和管焦点。
