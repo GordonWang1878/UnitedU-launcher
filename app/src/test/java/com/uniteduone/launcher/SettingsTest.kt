@@ -55,7 +55,7 @@ class SettingsTest {
         }
     }
 
-    @Test fun themePresetIdFallsBackToGoldWhenAbsentOrBlank() {
+    @Test fun themePresetIdFallsBackToMaterialWhenAbsentOrBlank() {
         assertEquals("material", parseSettings("""{}""").themePresetId)
         assertEquals("material", parseSettings("""{"themePresetId": ""}""").themePresetId)
         assertEquals("sunset", parseSettings("""{"themePresetId": "sunset"}""").themePresetId)

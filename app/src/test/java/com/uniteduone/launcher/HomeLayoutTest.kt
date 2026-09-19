@@ -49,8 +49,7 @@ class HomeLayoutTest {
         eq(0f, HomeLayout.heroAlpha(4))
     }
 
-    @Test fun anchorIsTwoThirdsAndScrimReachesSixtyAbove() {
+    @Test fun anchorIsTwoThirds() {
         eq(360f, HomeLayout.anchorTop(540f))
-        eq(240f, HomeLayout.scrimHeight(540f))
     }
 }

@@ -69,7 +69,7 @@ fun EditScreen(
 ) {
     val ctx = LocalContext.current
     // 与首页同一套卡片档位尺寸,编辑页的卡片才会和首页一样大。见 Theme.cardMetrics。
-    val metrics = Theme.cardMetrics(cardsPerRow, showTitles)
+    val metrics = Theme.cardMetrics(cardsPerRow)
     // 自定义标题表,revision 变化(改过标题)时重读;与首页同一份数据源。
     val titles by produceState(emptyMap<String, String>(), revision) {
         value = withContext(Dispatchers.IO) { Titles.read(ctx) }
