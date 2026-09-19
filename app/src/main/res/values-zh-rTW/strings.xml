@@ -249,7 +249,7 @@
     <string name="edit_row_rename">重新命名此行</string>
     <string name="edit_row_rename_desc">改這一行的名字</string>
     <string name="edit_row_icon">更換此行圖示</string>
-    <string name="edit_row_icon_desc">換行名前面的小圖示</string>
+    <string name="edit_row_icon_desc">更換行名前的圖示</string>
     <string name="edit_row_up">此行上移</string>
     <string name="edit_row_up_desc">和上面一行對調</string>
     <string name="edit_row_down">此行下移</string>

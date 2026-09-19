@@ -67,3 +67,22 @@ internal fun rowIconVector(id: String): ImageVector = when (id) {
     "photos" -> Icons.Outlined.PhotoLibrary
     else -> Icons.Outlined.Apps   // "apps"
 }
+
+/**
+ * 行图标 id → 选择器里显示的名字(`row_icon_<id>`)。与上面的 [rowIconVector] 放在一起:加一个 id 要两张表一起改;
+ * 漏写的 id 会静默掉进 else(显示成「应用」)——RowIconsTest 逐个核对每个 [ROW_ICON_IDS] 都对到自己那条。
+ */
+internal fun rowIconLabel(id: String): Int = when (id) {
+    "movie" -> R.string.row_icon_movie
+    "tv" -> R.string.row_icon_tv
+    "live" -> R.string.row_icon_live
+    "music" -> R.string.row_icon_music
+    "games" -> R.string.row_icon_games
+    "kids" -> R.string.row_icon_kids
+    "tools" -> R.string.row_icon_tools
+    "education" -> R.string.row_icon_education
+    "sports" -> R.string.row_icon_sports
+    "news" -> R.string.row_icon_news
+    "photos" -> R.string.row_icon_photos
+    else -> R.string.row_icon_apps   // "apps"
+}

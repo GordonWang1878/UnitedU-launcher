@@ -46,9 +46,10 @@ class LayoutOpsTest {
         assertEquals("tv", renameRow(three, 1, "直播")[1].icon)
         val games = listOf(LayoutRow("Play", icon = "games", apps = listOf("g")))
         assertEquals(LayoutRow("Fun", icon = "games", apps = listOf("g")), renameRow(games, 0, "Fun")[0])
-        // 别的行不动;空名仍原样返回同一个 list
+        // 别的行不动;空名、与现名相同(去空白后)都原样返回同一个 list——不写盘,也不钉图标
         assertEquals(null, renameRow(three, 2, "Kids")[0].icon)
         assertSame(three, renameRow(three, 2, "  "))
+        assertSame(three, renameRow(three, 2, " MUSIC "))
     }
 
     @Test fun setIconAcceptsOnlyKnownIds() {

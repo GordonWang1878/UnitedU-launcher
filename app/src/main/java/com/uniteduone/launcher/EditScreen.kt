@@ -223,17 +223,24 @@ fun EditScreen(
         if (ci >= 0) retarget(ri, ci) else retarget(ri, 0)
     }
 
-    // 与首页同一套:**从 ON_PAUSE 就冻结**、ON_RESUME 再显式恢复。
-    // 编辑界面原本两半都没有,只靠看门狗,而看门狗第一行是「已经有焦点就返回」——
-    // 从 X-plore 换完图回来时 Compose 已经抢先把焦点给了 (0,0),恢复被自己的守卫吞掉。
-    // 注:本页出现时 Activity 已是 RESUMED,addObserver 会当场补发 ON_CREATE/ON_START/ON_RESUME,
-    // 所以进页那一刻这里也会 retarget 一次(目标就是初始的 (0, 0),与上面那次待办同一个)。
-    // 两个事件做同一件事:冻结目标 = 安排一次「回到当前这一格」的重定位(M4b)。原来 ON_PAUSE 只 retargetTick++,
-    // 重定位效果随即按**上一次**显式重定位的行号跑一遍——半透明的系统设置面板盖着时帧照常走,焦点会被拽回那一行。
+    // ON_PAUSE 与 ON_RESUME 做同一件事:把「当前这一格」重新安排成一次重定位(M4b)。
+    // 编辑界面原本只靠看门狗,而看门狗第一行是「已经有焦点就返回」——从 X-plore 换完图回来时
+    // Compose 已经抢先把焦点给了 (0,0),恢复被自己的守卫吞掉;ON_RESUME 这一次显式重定位就是为它补的。
+    // **它实际做到的冻结只有重定位效果跑一轮那么长**(通常一帧:焦点本来就在那一格时一次请求都不发、当场追平),
+    // 不是首页 `restoring` 那种从 ON_PAUSE 一直冻到回来(HomeScreen 的生命周期观察者)——这一轮之后
+    // Compose 再动焦点,目标照样跟着走,ON_RESUME 还原的是那时记下的格。只有需要真的请求、而 Activity 已 STOPPED
+    // (帧时钟暂停)时,这一轮才会挂到回前台。本轮不加新的冻结机制(复审 minor 2)。
+    // 原来 ON_PAUSE 只 retargetTick++:重定位效果随即按**上一次**显式重定位的行号跑一遍——半透明的系统设置面板
+    // 盖着时帧照常走,焦点会被拽回那一行。
+    // 本页出现时 Activity 已是 RESUMED,addObserver 会当场补发 ON_CREATE/ON_START/ON_RESUME;那一刻初始重定位
+    // 还没追平,下面的守卫让它什么都不做。**已有待办重定位时一律不插手**(复审 minor 1):待办自带行列,
+    // 在这里按 focusTarget 重写一遍会把还没写进新表的目标列(retargetCol)冲掉。
     // **经 rememberUpdatedState 调**:观察者只在进页时建一次,直接写在里面的话捕获的是第一次组合的
     // focusTarget 与 retarget;新建 / 删行让那张表整张换新之后,读到的是旧表里的列号——2026-09-19 模拟器实测:
     // 删一行后停在 Kids 第 3 格,开一下系统设置面板再返回,焦点落回 Kids 第 1 格。
-    val holdHere by rememberUpdatedState { retarget(focusRow, focusTarget.getOrElse(focusRow) { 0 }) }
+    val holdHere by rememberUpdatedState {
+        if (!retargeting) retarget(focusRow, focusTarget.getOrElse(focusRow) { 0 })
+    }
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
         val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
@@ -288,25 +295,30 @@ fun EditScreen(
     // 落到第一行第一张。而跳转是静默的,下一步操作会打在别的行上 ——
     // 复审就因此误删了 VIDEO 行的一个应用。HomeScreen 那份早就是双条件,这里漏了。
     LaunchedEffect(retargetTick) {
-        // **先等卡片数据与当前 rows 对上**(M4b spec §0-16 的根因,2026-09-19 模拟器实测):
-        // 数据没到时每一格都是加载占位 PendingCard。焦点若先落在占位上,数据一到占位被真卡**整格替换**
-        // (不同的 composable = 新节点),焦点随旧节点消失;Android 的 View.clearFocus 当场
-        // rootViewRequestFocus → AndroidComposeView.requestFocus(FOCUS_DOWN),Compose 从根的左上角
-        // 往下找——那一刻新卡还没摆好,唯一幸存的可聚焦节点是各行的「+」,于是落在第 1 行的「+」。
-        // 那次上报又发生在重定位完成之后(retargeting 已经是 false),把 focusTarget[0] 改写成「+」,
-        // 看门狗看到「有焦点」也不管——进编辑页焦点就停在「+」上。「添加应用」之后新卡同样先是占位,
-        // 按同一机理焦点会被甩到第 1 行第 1 张卡(推断,未在旧包上复现)。等数据对上了再请求,焦点就不会落在注定被替换的节点上;
-        // 等待期间 retargeting 为真,冻结着目标。数据加载失败也会对上(空 map → 未安装卡),不会卡住。
-        snapshotFlow {
-            val need = rows.flatMap { it.apps }.toSet()
-            need.isEmpty() || loadedFor?.first == need
-        }.first { it }
         val ri = retargetRow.coerceIn(0, requesters.lastIndex)
         // 夹到 pkgs.size(**含行尾加号那一格**),与下面的挂点用同一个夹法。
         // 少了这一致性:目标被设成加号那一格,而挂点只夹到 lastIndex、加号只在空行时接 requester,
         // 于是焦点只能送到最后一张卡,判据恒不成立、循环跑满 60 帧,每帧把焦点拽回去。
         val cap = rows.getOrNull(ri)?.apps?.size ?: 0
         val col = retargetCol.coerceIn(0, cap)
+        // **目标格若是注定被整格替换的加载占位,先等它换完**(M4b spec §0-16 的根因,2026-09-19 模拟器实测):
+        // 数据没到时,旧 map 里查不到的包渲染成加载占位 PendingCard。焦点若先落在占位上,数据一到占位被真卡
+        // **整格替换**(不同的 composable = 新节点),焦点随旧节点消失;Android 的 View.clearFocus 当场
+        // rootViewRequestFocus → AndroidComposeView.requestFocus(FOCUS_DOWN),Compose 从根的左上角
+        // 往下找——那一刻新卡还没摆好,唯一幸存的可聚焦节点是各行的「+」,于是落在第 1 行的「+」。
+        // 那次上报又发生在重定位完成之后(retargeting 已经是 false),把 focusTarget[0] 改写成「+」,
+        // 看门狗看到「有焦点」也不管——进编辑页焦点就停在「+」上。
+        // **只等目标格自己**(fix round 1,复审 Important #1):目标是「+」(不会被替换)、或者它的包在旧 map 里
+        // (渲染成真卡,重载后原地重组、不换节点)就不等。原来是「等整份数据与 rows 对上」:移出一张卡 /
+        // 删一个非空行让 needed 变小、整份重载,落到邻卡 / 上一行「+」要白等一次整轮 Apps.load——这段时间
+        // 页面冻结、看门狗让路,焦点停在浮层关掉时 Compose 给的地方(第一张卡),此时按确定就打在别的应用上。
+        // 仍要等的:进页(数据还没有)、刚添加的应用、旧 map 里本来就没有的(未安装)邻卡。
+        // 等待期间 retargeting 为真,冻结着目标;加载失败也会对上(空 map → 未安装卡),不会卡住。
+        snapshotFlow {
+            val pkg = rows.getOrNull(ri)?.apps?.getOrNull(col)
+            val need = rows.flatMap { it.apps }.toSet()
+            pkg == null || loadedFor?.first == need || loadedFor?.second?.containsKey(pkg) == true
+        }.first { it }
         // 写进**当前**这张表(见 retargetCol 的注释);挂点随之重组到这一格。
         if (ri <= focusTarget.lastIndex) focusTarget[ri] = col
         val want = ri to col

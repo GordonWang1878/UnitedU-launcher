@@ -194,19 +194,3 @@ private fun IconCell(
         )
     }
 }
-
-/** 图标 id → 选择器里显示的名字(`row_icon_<id>`)。 */
-private fun rowIconLabel(id: String): Int = when (id) {
-    "movie" -> R.string.row_icon_movie
-    "tv" -> R.string.row_icon_tv
-    "live" -> R.string.row_icon_live
-    "music" -> R.string.row_icon_music
-    "games" -> R.string.row_icon_games
-    "kids" -> R.string.row_icon_kids
-    "tools" -> R.string.row_icon_tools
-    "education" -> R.string.row_icon_education
-    "sports" -> R.string.row_icon_sports
-    "news" -> R.string.row_icon_news
-    "photos" -> R.string.row_icon_photos
-    else -> R.string.row_icon_apps
-}
