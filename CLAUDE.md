@@ -39,6 +39,7 @@ adb emu kill                                     # 关闭
 - 抓动画过程:`settings put global animator_duration_scale 10`(Compose 动画照这个倍率放慢,screencap 每帧约 0.5 s 也采得到),测完 `settings delete global animator_duration_scale`。
 - 注入按键之间留 ~0.4 s:零间隔连发会跑在 Compose 异步焦点效果前面。
 - uiautomator 不报全透明节点(真待机时 `focused="true"` 为 0,焦点其实还在);TV 设置应用卡片的 content-desc 也是「Settings」,与齿轮同名 —— 脚本按 bounds 区分,且确定键之前先断言焦点文案,否则会启动卡片对应的应用。
+- 一次指针事件会让窗口进入触摸模式,焦点脚本会把菜单 / 设置页读成「开着但焦点数 0」(2026-09-19 leftover-fixes Task 3 实证;冷启动按 MENU 无焦点的 most likely root cause:0/47 次复现于触摸模式之外,13/13 次复现于触摸模式内):`input tap`、以及 Android 14 上的 `input mouse tap`,都会把窗口切进触摸模式且跨冷启动保留;`GearMenu`、设置页这类用 foundation `clickable`(不是 tv-material `focusable()`)的行在触摸模式下 `FocusableInNonTouchMode` 直接拒绝 `requestFocus()`,要等第一下方向键才把焦点让给最上面那一项。焦点脚本开跑前先发一下 DPAD 键,或用 `dumpsys input | grep TouchMode` 确认是 0,不要直接数 `focused="true"` 就断言看门狗没生效。
 - 系统屏保(M5 `UnitedUDream`):`cmd dreams start-dreaming` 要 root,这台 AVD 是「user」build(`adb root` 报 `cannot run as root in production builds`),此路不通;`am start -n com.android.systemui/.Somnambulator` 会成功拉起且不报错,但屏保**没有真的进入**(`dumpsys dreams` 仍是 `mCurrentDream=null`)——是静默假成功,不能只看 `am start` 有没有报错,要用 `dumpsys dreams | grep mCurrentDream` 或 `dumpsys window | grep mCurrentFocus`(应为 `…/android.service.dreams.DreamActivity`)确认。实测可用的是「到点自动触发」,但比 `screensaver_activate_on_sleep 1` 多两个前提,少一个就直接 Asleep 跳过 Dreaming、或者永远不超时:`adb shell dumpsys battery set usb 1`(标记「已充电」)+ `settings put global stay_on_while_plugged_in 0`(默认 1,充电态会导致永不超时休眠)。全套:`settings put secure screensaver_components com.uniteduone.launcher/.UnitedUDream` + `screensaver_enabled 1` + `screensaver_activate_on_sleep 1` + `settings put system screen_off_timeout 15000` + 上面两条 battery/stay-awake 调整,发一次真实按键(建立新鲜的 last-user-activity 基线)后连续等 20–30s、**中途不要插入任何 adb shell 命令**(见下一条卡死),`mCurrentFocus` 会变成 DreamActivity;任意键结束屏保。另有一个独立的模拟器坑:系统会不定期把 `SCREEN_BRIGHT_WAKE_LOCK 'UndimDetectorWakeLock'`(uid=1000)卡在持有状态,卡住就永远不超时——`dumpsys power | grep -A3 "^Wake Locks:"` 看到它时,一次干净的 `KEYCODE_SLEEP` → `KEYCODE_WAKEUP` 能可靠解开(`Wake Locks: size=0`)。测完把三个 secure 键(`screensaver_components`/`screensaver_enabled`/`screensaver_activate_on_sleep`)、`screen_off_timeout`、`stay_on_while_plugged_in` 连同 `dumpsys battery reset` 一起还原(真机的屏保由 Gordon 在系统设置里开)。
 
 真机(Sony A95L)只在里程碑真机验收用;开发全程走模拟器。真机 adb 走「无线调试」(**不是** 5555),**配对会跨会话保留,装包前别先向 Gordon 要配对码**(2026-09-17 实证,见 WORKLOG 当日 M7 合并一节):先 `adb connect 192.168.1.22:38673`(连接端口以电视「无线调试」主页面显示的为准;IP 走 DHCP);报 `No route to host` 就 `adb kill-server` 后重连同一地址(本机 adb 后台进程的问题,不是电视);报 `Connection refused` 才请 Gordon 读电视页面上的新端口(mDNS 广播的端口可能是休眠前的过期记录,端口扫描也扫不到真端口;mDNS 发现要 `ADB_MDNS_OPENSCREEN=1`);真机的 adb 序列号形如 `adb-…-1F8N2S (2)._adb-tls-connect._tcp`,**带空格**,脚本里 `adb devices` 要按 tab 切分、`-s` 参数加引号(2026-09-18 M8 装包时 awk 默认切分取到半截序列号报 device not found);只有连上后 `offline` / 认证失败才需重配:电视「使用配对码配对设备」拿码,`printf '<码>\n' | adb pair <IP:配对端口>`(管道喂码,参数形式会 protocol fault),再 connect。
@@ -95,7 +96,7 @@ adb emu kill                                     # 关闭
    | 界面 / 浮层 | 恢复责任方 |
    |---|---|
    | 首页卡片/pill 组(设置 / 屏保两个按钮,账本里都是 row = -1) | HomeScreen 看门狗 + 还原效果(选择器、设置页等整屏浮层都叠在常驻首页上,`covered` 期间冻结 `tgtRow/tgtIdx/tgtGear`,关掉后按它还原;编辑页仍整体替换首页,回来落 (0,0)) |
-   | 齿轮菜单 / 长按卡片菜单 | GearMenu 自己的初始焦点循环(nonce) |
+   | 齿轮菜单 / 长按卡片菜单 | GearMenu 自己的初始焦点循环(nonce,退出判据是 `holder != null` 的自报——菜单里任意一项持有焦点即算落地,铁律 2)+ `holder == null` 看门狗(3 帧宽限后重请求 `focusedIdx`,每轮最多 60 帧封顶,守卫与 key 同为 `holder == null`,铁律 6);再次丢焦点时 key 翻转、看门狗重新武装,不是一次性闩(铁律 7) |
    | 修改标题对话框 | TitleDialog(nonce + focused,四向 Cancel) |
    | 设置页两栏 | SettingsScreen 看门狗(二维账本 pane/group/rowOf,`covered` 让路,`reloadNonce` 重读;`ON_PAUSE` 起冻结目标,回到前台才放开) |
    | 确认框(恢复默认) | ConfirmDialog(nonce + focusedBtn) |
@@ -103,9 +104,10 @@ adb emu kill                                     # 关闭
    | 首次引导 | Onboarding(每步 nonce + 逐项 requester + 看门狗;`ON_PAUSE` 起冻结目标) |
    | 编辑页 | EditScreen 看门狗 + 显式重定位。「换卡片图」的选择器**替换**编辑页(开着时 EditScreen 不在组合里,它没有 `covered` 让路开关);关掉后编辑页重建,由 MainActivity 的 `editTarget`(layout 行号, 包名)种子定位回同一张卡 |
    | 添加应用列表 | AppPicker(逐项 requester) |
-   | 图片选择器 / 屏保图库 / 默认桌面卡 / 导入图片页 | 各自的初始焦点循环(nonce) |
-   | 屏保图库的删除确认框(M5) | ConfirmDialog 自己的 nonce + focusedBtn 循环(默认在取消);关掉后(删除 / 取消都 `focusNonce++`)由图库网格的 nonce 循环接回原位置,`focusedIdx` 夹到新长度;删空换成空态,空态自己的循环接住 |
-   | 屏保图库的全屏预览(M5 起可达) | 自己的初始焦点循环;关掉时焦点随节点销毁,图库用本地计数 `previewCloses` 并进网格的 nonce,让网格循环再跑一轮接回 |
+   | 图片选择器(壁纸 / 换卡片图) | `WallpaperPicker` 与 `IconPicker` 各自的初始焦点循环(nonce)。这两个是仅有的两处调用 `PickerGrid` 的地方(ImagePicker.kt:80,126),都固定传 `covered = false`,不涉及下一行屏保图库那整套机制。同样整屏浮层的「默认桌面」卡(`HomeSettingsCard`)与「导入图片」(`ImportScreen`)不经过 `PickerGrid`,各自另有一套(nonce 初始焦点循环) |
+   | 屏保图库的图片网格(`PickerGrid`) | 初始定位效果以 `(nonce, covered, focusRequesters)` 为 key,退出判据是目标格自报 `holderIdx == i`(铁律 2,不信 `requestFocus()` 的返回值);另配一个只在 `holderIdx == null && !covered` 时才跑、每轮最多 60 帧封顶的看门狗兜底(3 帧宽限;再丢一次焦点 key 翻转、自动重新武装,铁律 7,写法与 GearMenu、SettingsScreen 的看门狗同形状)。两条效果读的都是 `rememberUpdatedState` 包过的 requesters,不怕定位效果之外的看门狗在循环跑到一半时 `focusRequesters` 整表换新。`covered = previewIndex >= 0 \|\| deleteTarget != null`,预览或删图确认框任一在场就让路。**教训**:只以 nonce 为 key 的循环落地之后,如果异步重扫(`produceState` 在 IO 线程跑)换了文件列表,`remember(items.size)` 会把 `focusRequesters` 整表换新——旧循环早已跑完退出,没人知道表换了;必须把 `focusRequesters` 本身也编进 key,表一换这里就重新跑一轮,retarget 到新表上 |
+   | 屏保图库的删除确认框(M5) | `ConfirmDialog` 自己的 nonce + `focusedBtn` 循环(默认在取消);关掉后 `deleteTarget` 变 null 让 `PickerGrid` 的 `covered` 翻回 false,由图库网格的循环接回原位置(`covered` 翻回 false 触发上一行的定位效果 + 看门狗);`focusedIdx` 经 `clampedFocusedIdx` 自动夹到新长度;删空换成空态,空态自己的循环接住 |
+   | 屏保图库的全屏预览(M5 起可达) | 自己的焦点循环,以外层 nonce(`MainActivity.focusNonce`)为 key(回到前台会重落;判据是自报的 `focused`,得失都报,不是只增不减的 `landed`);开着时网格的循环让路——`PickerGrid` 的 `covered`(预览或删图确认框任一在场即为 true);关掉后 `covered` 翻回 false,网格循环重跑接回 `focusedIdx` |
 
 4. **「有没有焦点」只信控件自己上报,不要用根节点的 `onFocusChanged`。**
    曾经用根节点的 `hasFocus && !isFocused` 当判据,它在多数路径上是对的,

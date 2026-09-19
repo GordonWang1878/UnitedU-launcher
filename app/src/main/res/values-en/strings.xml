@@ -130,7 +130,7 @@
     <string name="settings_group_clock">Clock</string>
     <string name="settings_group_standby">Standby &amp; Screensaver</string>
     <string name="settings_group_wallpaper">Wallpaper</string>
-    <string name="settings_wallpaper_rotate">Auto-change wallpaper</string>
+    <string name="settings_wallpaper_rotate">Auto-Change Wallpaper</string>
     <string name="settings_rotate_daily">Daily</string>
     <string name="settings_wallpaper_blur">Blur</string>
     <string name="settings_wallpaper_brightness">Brightness</string>
@@ -152,15 +152,15 @@
     <string name="settings_idle_black">Black</string>
     <string name="settings_idle_nofade">No Fade</string>
     <!-- M5 "Standby & Screensaver" group, four new rows (spec §3, §6); minutes reuse settings_idle_minutes, "Off" reuses settings_idle_off -->
-    <string name="settings_screensaver_after">Screensaver starts</string>
+    <string name="settings_screensaver_after">Screensaver Starts</string>
     <string name="settings_screensaver_note_empty">Gallery empty, won\'t start</string>
     <string name="settings_screensaver_note_from_input">From the last key press</string>
     <string name="settings_screensaver_note_after_standby">After standby begins</string>
-    <string name="settings_screensaver_interval">Slideshow interval</string>
+    <string name="settings_screensaver_interval">Slideshow Interval</string>
     <string name="settings_seconds">%1$d s</string>
-    <string name="settings_screensaver_gallery">Screensaver gallery</string>
+    <string name="settings_screensaver_gallery">Screensaver Gallery</string>
     <string name="settings_screensaver_gallery_desc">View; hold OK to delete</string>
-    <string name="settings_system_screensaver">System screensaver</string>
+    <string name="settings_system_screensaver">System Screensaver</string>
     <string name="settings_system_screensaver_desc">Pick UnitedU in system settings</string>
     <string name="settings_on">On</string>
     <string name="settings_off">Off</string>
@@ -232,4 +232,5 @@
     <string name="toast_stock_launcher_not_found">Stock launcher not found</string>
     <string name="toast_restored">Defaults restored</string>
     <string name="toast_system_screensaver_unavailable">Can\'t open system screensaver settings</string>
+    <string name="toast_pool_delete_failed">Couldn\'t delete “%1$s”</string>
 </resources>

@@ -75,10 +75,10 @@ fun ScreensaverContent(intervalMs: Long, modifier: Modifier = Modifier) {
 /**
  * 每张图的呈现(spec §2「不变」):RGBA_F16 解码保留 Ultra HDR gain map;解码尺寸封顶 1920×1080
  * ——桌面与系统屏保叠放时两层各解一张,别再放大内存(spec §9)。Ken Burns 放大到 1.08,
- * 时长 = 轮播间隔 + 交叉淡入(原来写死 30 s + 2 s)。
+ * 时长 = 轮播间隔 + 交叉淡入(原来写死 30 s + 2 s)。屏保图库的全屏预览也用它(间隔传 `Theme.ScreensaverIntervalMs`)。
  */
 @Composable
-private fun ScreensaverSlot(file: File?, intervalMs: Long) {
+internal fun ScreensaverSlot(file: File?, intervalMs: Long) {
     file ?: return
     val bmp by produceState<Bitmap?>(null, file.absolutePath) {
         value = withContext(Dispatchers.IO) {

@@ -3,6 +3,7 @@ package com.uniteduone.launcher
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -64,6 +65,11 @@ fun AppCard(
     downTarget: FocusRequester? = null,
     /** 卡片下方一行小字;null = 不显示。 */
     title: String? = null,
+    /**
+     * 本卡不显示标题、但同屏应用行显示时,照样空出标题那一行的高度:每一行的高度才都等于
+     * HomeLayout.rowPitch,纵向锚点不会因为输入源行少 20dp 而整体偏移(M8 终审遗留)。
+     */
+    reserveTitleSpace: Boolean = false,
     /** 无横幅回落卡的底色(图标边缘色);null 或有横幅时不铺。 */
     fallbackColor: Color? = null,
     /** 主题化卡片:去色→染 accent。 */
@@ -152,6 +158,9 @@ fun AppCard(
                 ),
                 modifier = Modifier.padding(top = metrics.titleGap).width(metrics.cardWidth).height(metrics.titleLine),
             )
+        } else if (reserveTitleSpace) {
+            // 与上面标题那一行等高(padding titleGap + 行高 titleLine),只占位不画
+            Spacer(Modifier.height(metrics.titleGap + metrics.titleLine))
         }
     }
 }

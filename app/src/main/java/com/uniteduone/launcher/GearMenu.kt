@@ -31,15 +31,38 @@ data class MenuItem(val label: String, val hint: String, val action: () -> Unit)
 @Composable
 fun GearMenu(items: List<MenuItem>, onDismiss: () -> Unit, nonce: Int = 0, title: String? = null) {
     val rowFocus = remember(items.size) { List(items.size.coerceAtLeast(1)) { FocusRequester() } }
+    // 下面两个循环都在协程里跑,读的必须是**当前**这一份 requester:items.size 一变 remember 就换新表,
+    // 捕获启动时那一份的话,旧表挂不上任何节点,requestFocus 次次抛、被 runCatching 吞掉,循环空转。
+    val requesters by rememberUpdatedState(rowFocus)
     var focusedIdx by remember { mutableStateOf(0) }
-    var landed by remember { mutableStateOf(false) }
+    /** 现在持有焦点的那一项(只信控件自报,铁律 4);null = 菜单里没有。与 focusedIdx(回来落哪)分开(铁律 5)。 */
+    var holder by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(nonce) {
-        landed = false
-        val i = focusedIdx.coerceIn(0, rowFocus.lastIndex)
+        val i = focusedIdx.coerceIn(0, requesters.lastIndex)
         var frames = 0
-        while (!landed && frames < 60) {
+        while (holder == null && frames < 60) {
             withFrameNanos { }
-            runCatching { rowFocus[i].requestFocus() }
+            runCatching { requesters[i].requestFocus() }
+            frames++
+        }
+    }
+    // **看门狗**(铁律 3):初始循环只管「打开 / nonce 变」那一拍,落地之后焦点再被清掉时它早已退出,
+    // 没有人会再请求。守卫与 key 都是 holder == null(铁律 6)。每轮最多 60 帧:落地后再丢
+    // (holder 由非 null 变回 null,key 翻转)自然重新武装,不是闩(铁律 7);也不会在请求注定
+    // 落空时每帧空转到菜单关掉为止 —— 下面这种情况就是注定落空:
+    // **触摸模式下两个循环都落不下**(2026-09-19 模拟器实测,M7「装包后约 4 s 按 MENU,菜单开着
+    // 但焦点数为 0,第一下 DOWN 才落到第 1 项」最可能的根因:复现脚本非触摸模式下 0/47 次复现,
+    // 触摸模式下 13/13 次复现)。菜单项用的是 foundation 的 clickable,它自带
+    // FocusableInNonTouchMode(canFocus = inputMode != Touch);之前的指针事件(触摸屏、鼠标都算)
+    // 让窗口进了触摸模式,这个状态跨冷启动带进新窗口,而 MENU 既不是导航键也不是打字键,不会让窗口
+    // 离开触摸模式。第一下方向键才让框架退出触摸模式、把默认焦点给最上面那项,并吃掉这一下。
+    LaunchedEffect(holder == null) {
+        if (holder != null) return@LaunchedEffect
+        repeat(3) { withFrameNanos { } }   // 换项时 lost / got 可能分属相邻两帧,中间那一帧的 null 不算丢
+        var frames = 0
+        while (holder == null && frames < 60) {
+            runCatching { requesters[focusedIdx.coerceIn(0, requesters.lastIndex)].requestFocus() }
+            withFrameNanos { }
             frames++
         }
     }
@@ -78,7 +101,10 @@ fun GearMenu(items: List<MenuItem>, onDismiss: () -> Unit, nonce: Int = 0, title
                 MenuRow(
                     item = item,
                     modifier = Modifier.focusRequester(rowFocus[i]),
-                    onFocused = { landed = true; focusedIdx = i },
+                    onFocusChange = { got ->
+                        // 得失顺序保护(同 HomeScreen.report):只有「本项仍是持有者」时 lost 才作废
+                        if (got) { holder = i; focusedIdx = i } else if (holder == i) holder = null
+                    },
                     isFirst = i == 0,
                     isLast = i == items.lastIndex,
                 )
@@ -104,7 +130,8 @@ fun GearMenu(items: List<MenuItem>, onDismiss: () -> Unit, nonce: Int = 0, title
 private fun MenuRow(
     item: MenuItem,
     modifier: Modifier = Modifier,
-    onFocused: () -> Unit = {},
+    /** 得到 / 失去都报(铁律 4):GearMenu 的看门狗靠「失去」知道菜单里已经没有焦点。 */
+    onFocusChange: (Boolean) -> Unit = {},
     isFirst: Boolean = false,
     isLast: Boolean = false,
 ) {
@@ -130,7 +157,7 @@ private fun MenuRow(
                 )
                 else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent))
             )
-            .onFocusChanged { focused = it.isFocused; if (it.isFocused) onFocused() }
+            .onFocusChanged { focused = it.isFocused; onFocusChange(it.isFocused) }
             .clickable(onClick = item.action)
             .padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,

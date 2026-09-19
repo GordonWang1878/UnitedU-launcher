@@ -106,6 +106,10 @@ dependencies {
     // 钉 1.0.0:1.1.0 依赖 Compose 1.10,超出本 BOM。M8 2026-09-17。
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-compose:1.9.3")
+    // UnitedUDream 直接用 LifecycleRegistry / setViewTreeLifecycleOwner / SavedStateRegistryController,
+    // 显式声明、不靠 activity-compose 的传递依赖;版本 = 声明时实际解析到的版本(M5 终审遗留)
+    implementation("androidx.lifecycle:lifecycle-runtime:2.8.3")
+    implementation("androidx.savedstate:savedstate:1.2.1")
     implementation(platform("androidx.compose:compose-bom:2024.10.01"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")

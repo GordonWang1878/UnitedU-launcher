@@ -31,21 +31,22 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import kotlinx.coroutines.delay
-
-private val IMAGE_EXTS = setOf("jpg", "jpeg", "png", "webp")
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 
 private sealed class PickerItem {
     data class Original(val bitmap: Bitmap) : PickerItem()
@@ -190,6 +191,20 @@ private fun EmptyState(title: String, nonce: Int, onDismiss: () -> Unit) {
     }
 }
 
+/**
+ * 图片网格视窗的首行(铁律 1:不用 verticalScroll,位移自己算)。焦点行还在视窗里就不动;
+ * 往上出界 → 焦点行成为首行;往下出界 → 焦点行成为视窗里最后一个完整可见的行。
+ * [visibleRows] ≤ 0 按 1 算(防御:量出来之前不会用到)。
+ */
+internal fun keepInView(focusedRow: Int, firstVisible: Int, visibleRows: Int): Int {
+    val v = visibleRows.coerceAtLeast(1)
+    return when {
+        focusedRow < firstVisible -> focusedRow
+        focusedRow >= firstVisible + v -> focusedRow - v + 1
+        else -> firstVisible
+    }
+}
+
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 private fun PickerGrid(
@@ -203,6 +218,11 @@ private fun PickerGrid(
     onRestoreOriginal: (() -> Unit)?,
     onDismiss: () -> Unit,
     /**
+     * 网格上盖着别的浮层(全屏预览 / 删图确认框):它们自己负责焦点(铁律 3),网格的初始焦点循环让路——
+     * 否则回到前台时(MainActivity.onResume → focusNonce++)这里会把焦点从预览底下抢走(M5 遗留)。
+     */
+    covered: Boolean = false,
+    /**
      * 当前聚焦的图库文件(M5 spec §5,长按删图用):缩略图得到焦点报文件、失去报 null;只有屏保图库传它。
      * 全屏预览 / 确认框盖上来时网格失焦 → 报 null → 长按不生效。
      */
@@ -212,22 +232,124 @@ private fun PickerGrid(
     val focusRequesters = remember(items.size) {
         List(items.size.coerceAtLeast(1)) { FocusRequester() }
     }
+    // 效果里读的必须是**当前**这一份 requester(同 GearMenu 的写法):items.size 一变 remember 就换新表;
+    // 定位效果的 key 里带着 focusRequesters,换表会重跑没问题,但看门狗的 key 里没有它——如果直接捕获
+    // 看门狗启动那一刻的表,新表在它循环跑到一半时才到,它还在挂空的旧表上重试。
+    val requesters by rememberUpdatedState(focusRequesters)
     var focusedIdx by remember { mutableStateOf(0) }
-    var landed by remember { mutableStateOf(false) }
+    // fix round 1:删图后 focusedIdx 可能落在新列表的界外(删的正是末张)——统一在这里夹一次,
+    // 定位效果、看门狗、渲染时的 focused 判据都读这一个,不再各处各夹各的。
+    val clampedFocusedIdx = focusedIdx.coerceIn(0, focusRequesters.lastIndex)
     /**
      * **现在**持有焦点的那一格(只信控件自报,铁律 4);null = 网格里没有。与 [focusedIdx] 分开(铁律 5):
-     * 后者是「回来时落哪」的目标,失焦时不清;这一个失焦就清,长按判据只认它。
+     * 后者是「回来时落哪」的目标,失焦时不清;这一个失焦就清,长按判据、定位效果的退出条件、
+     * 看门狗都只认它(fix round 1:换掉了原来只增不减的 landed——旧格被销毁时没人把它拨回
+     * false,循环会在假的「已经落地」上直接跳过)。
      */
     var holderIdx by remember { mutableStateOf<Int?>(null) }
-    val scroll = rememberScrollState()
 
-    LaunchedEffect(nonce) {
-        landed = false
-        val i = focusedIdx.coerceIn(0, focusRequesters.lastIndex)
+    // 遗留 #8(实测复现,2026-09-19 模拟器):长按识别在 MainActivity.dispatchKeyEvent(组合树外),
+    // 它把长按之后那次 DPAD_CENTER 的 key-up 吞掉——clickable 默认内建的 MutableInteractionSource
+    // 因此永远等不到配对的 Release/Cancel,indication(按压暗色)永久卡住,直到进程重来都不会自己解开。
+    // 每格自带一份 interactionSource + 记下「当前是否有未配对的 Press」;确认框 / 预览关闭那一刻
+    // (covered 从 true 变 false,复用下面的定位效果)照 press 补发一个 Cancel 解开。
+    // **SnapshotStateList,不是普通 List**(fix round 1):补发 Cancel 只清得掉 indication 观察到的
+    // 那条流,foundation 的 ClickableNode 自己另有一份「当前哪个键按着」的记录绑在旧 source 对象上,
+    // 外部发不进去——不换一个新对象,同一格下一次确定键会被当成「这键还按着」而丢一次按压视觉
+    // (只丢那一下,不是从此往后每次都哑掉:ClickableNode 处理完那次被吞的按键,内部记录就翻篇了)。
+    // 换成可写的 list,发完 Cancel 顺手把那一格的元素替换成新对象,下面的收集效果会跟着 source
+    // 这个 key 自动重订阅,ClickableNode 也会因为 interactionSource 参数变了而丢掉旧记录。
+    val interactionSources = remember(items.size) {
+        List(items.size.coerceAtLeast(1)) { MutableInteractionSource() }.toMutableStateList()
+    }
+    val pendingPress = remember(items.size) {
+        arrayOfNulls<PressInteraction.Press?>(items.size.coerceAtLeast(1))
+    }
+    interactionSources.forEachIndexed { i, source ->
+        LaunchedEffect(source) {
+            source.interactions.collect { interaction ->
+                when (interaction) {
+                    is PressInteraction.Press -> pendingPress[i] = interaction
+                    is PressInteraction.Release, is PressInteraction.Cancel -> pendingPress[i] = null
+                }
+            }
+        }
+    }
+
+    // 铁律 1:原来的 heightIn(max = 600.dp).verticalScroll(...) 换成「裁剪视窗 + 整块自算位移」,
+    // 与 HomeScreen 纵向那套同一招。视窗外的行照常组合(图库张数有限,可接受)。
+    val density = LocalDensity.current
+    // 一份 val 两处用(fix round 1):下面 verticalArrangement 的行距与这里的位移算术必须是
+    // 同一个数,分写两处迟早改一处漏一处、量出来的间距和实际渲染的间距对不上。
+    val rowGap = 8.dp
+    val rowGapPx = with(density) { rowGap.roundToPx() }
+    /** 一行缩略图的实测高度(首行量出来,各行等高);0 = 还没量到,此时不位移。 */
+    var rowHeightPx by remember { mutableStateOf(0) }
+    /** 视窗实测高度(≤ 600dp)。 */
+    var viewportPx by remember { mutableStateOf(0) }
+    /** 视窗顶上是第几行:只在某格报「得到焦点」时由 [keepInView] 推进。 */
+    var firstVisibleRow by remember { mutableStateOf(0) }
+    val pitchPx = rowHeightPx + rowGapPx
+    val visibleRows =
+        if (rowHeightPx > 0 && viewportPx > 0) ((viewportPx + rowGapPx) / pitchPx).coerceAtLeast(1) else rows.size
+    // 删图后行数变少:首行夹回合法范围,末页不会留一截空白
+    val firstRow = firstVisibleRow.coerceIn(0, (rows.size - visibleRows).coerceAtLeast(0))
+    val yShift by animateDpAsState(
+        targetValue = with(density) { (-(firstRow * pitchPx)).toDp() },
+        animationSpec = tween(Theme.MotionInMs, easing = Theme.MotionEasing),
+        label = "pickerYShift",
+    )
+
+    // **定位效果**:进入 / nonce 变 / 浮层刚让路时把焦点送到 clampedFocusedIdx。
+    // fix round 1(reviewer 实测复现,HEAD 4deae96 删完聚焦到背后盖住的设置页):删图后的重扫是
+    // 异步的(produceState 在 IO 线程跑,见 [ScreensaverPoolViewer]),covered 变 false 那一刻
+    // items 常常还是删除前的旧列表——原来只以 (nonce, covered) 为 key,请求打在这批旧
+    // focusRequesters 上;新列表一到,`remember(items.size)` 把 focusRequesters 整表换新,而这个
+    // 效果的 key 都没变、不会重跑,从此没有人再请求焦点。**把 focusRequesters 也编进 key**:
+    // 它一变(items.size 变,亦即任何一次删除)这里就跟着重跑,用的是换新之后那一批。
+    LaunchedEffect(nonce, covered, focusRequesters) {
+        if (covered) return@LaunchedEffect
+        // 遗留 #8:浮层刚让路,可能留了一个卡住的 Press(不一定是当前聚焦格——长按发生时聚焦的是
+        // 被长按的那格,covered 期间焦点没有别处可去,所以就是它自己)。没有卡住的格子 press 为 null,不发。
+        pendingPress.forEachIndexed { i, press ->
+            if (press != null) {
+                // tryEmit(Cancel) 只是让这条流的观察者(indication)体面收尾——保险丝而已;
+                // 真正解开 ClickableNode 内部「这键还按着」那份记录的是下面换新对象这一步。
+                interactionSources[i].tryEmit(PressInteraction.Cancel(press))
+                pendingPress[i] = null
+                // 见 interactionSources 声明处的注释:换新对象,ClickableNode 才会真正忘掉这一格
+                // 的按键状态,下一次确定键才会重新出现按压视觉。
+                interactionSources[i] = MutableInteractionSource()
+            }
+        }
+        // 退出条件是目标格自己报了 holderIdx == i(铁律 2),不再信只增不减的 landed——
+        // 旧格被销毁那一刻不会有人把它拨回未落地,循环会在假的「已经落地」上直接跳过。
+        val i = clampedFocusedIdx
         var frames = 0
-        while (!landed && frames < 60) {
+        while (holderIdx != i && frames < 60) {
             withFrameNanos { }
-            runCatching { focusRequesters[i].requestFocus() }
+            runCatching { requesters[i].requestFocus() }
+            frames++
+        }
+    }
+
+    // **焦点看门狗**:上面那条管「我想去哪」,这条管「焦点莫名其妙没了」——旧格随删除被销毁、
+    // 定位效果又恰好在新列表到达前已经打满 60 帧(或全打在行将销毁的旧格上、次次抛异常)时,
+    // 谁都不会再补请求。不靠「在猜得到的几个时刻补请求」(铁律 3),镜像 SettingsScreen(以及
+    // GearMenu 那份同形状的看门狗)的写法:守卫 covered / holderIdx==null 都在 key 里(铁律 6);
+    // 每轮最多 60 帧封顶,再丢一次焦点时 key 翻转、自动重新武装(铁律 7)——不会在请求注定落空
+    // (比如 items 为空)时每帧空转到网格关掉为止。读 requesters 而不是 focusRequesters:这条效果
+    // 的 key 里没有 focusRequesters,循环已经在跑的时候如果删图换了表,直接捕获的旧表会挂空。
+    LaunchedEffect(holderIdx == null, covered) {
+        if (covered || holderIdx != null) return@LaunchedEffect
+        // D-pad 换格 / 节点销毁时得、失可能分属相邻两帧:旧格先报丢、新格下一帧才报得,
+        // 中间那一帧的 null 不算真丢(与 HomeScreen / SettingsScreen 看门狗同一手法)。
+        repeat(3) { withFrameNanos {} }
+        if (holderIdx != null) return@LaunchedEffect
+        var frames = 0
+        while (holderIdx == null && frames < 60) {
+            runCatching { requesters[focusedIdx.coerceIn(0, requesters.lastIndex)].requestFocus() }
+            withFrameNanos { }
             frames++
         }
     }
@@ -255,17 +377,28 @@ private fun PickerGrid(
             modifier = Modifier.padding(bottom = 4.dp),
         )
 
-        Column(
+        Box(
             modifier = Modifier
                 .heightIn(max = 600.dp)
-                .verticalScroll(scroll),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .clipToBounds()
+                .onSizeChanged { viewportPx = it.height },
+        ) {
+        Column(
+            modifier = Modifier
+                // **必须 unbounded**(铁律 1 的另一半):不放开测量,超出 600dp 的行会被压扁 / 量成 0 高,
+                // offset 发生在测量之后救不回来
+                .wrapContentHeight(Alignment.Top, unbounded = true)
+                .offset(y = yShift),
+            verticalArrangement = Arrangement.spacedBy(rowGap),
         ) {
         rows.forEachIndexed { rowIdx, rowItems ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = if (rowIdx == 0) Modifier.onSizeChanged { rowHeightPx = it.height } else Modifier,
+            ) {
                 rowItems.forEachIndexed { colIdx, item ->
                     val idx = rowIdx * columns + colIdx
-                    val focused = focusedIdx == idx
+                    val focused = clampedFocusedIdx == idx
                     ThumbCard(
                         item = item,
                         focused = focused,
@@ -280,12 +413,18 @@ private fun PickerGrid(
                                 if (rowIdx == rows.lastIndex) down = FocusRequester.Cancel
                             }
                             .onFocusChanged {
-                                if (it.isFocused) { focusedIdx = idx; landed = true }
+                                if (it.isFocused) {
+                                    focusedIdx = idx
+                                    firstVisibleRow = keepInView(rowIdx, firstVisibleRow, visibleRows)
+                                }
                                 // 得失顺序保护(同 HomeScreen.report):只有「本格仍是持有者」时 lost 才作废,
                                 // 新格先报 got、旧格后报 lost 时不会把新格抹掉。
                                 if (it.isFocused) holderIdx = idx else if (holderIdx == idx) holderIdx = null
                             }
-                            .clickable {
+                            .clickable(
+                                interactionSource = interactionSources[idx],
+                                indication = LocalIndication.current,
+                            ) {
                                 when (item) {
                                     is PickerItem.Original -> onRestoreOriginal?.invoke()
                                     is PickerItem.Library -> onSelectFile(item.file)
@@ -294,6 +433,7 @@ private fun PickerGrid(
                     )
                 }
             }
+        }
         }
         }
 
@@ -313,8 +453,13 @@ private fun ThumbCard(
     thumbHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
-    val thumb by produceState<Bitmap?>(null, item) {
-        value = when (item) {
+    // R5(实测复现):produceState 换 key 时只重启协程,value 不会先跳回 null——删图导致列表整体
+    // 前移一格时,这一格的 item 已经指向新文件,但旧协程解出来的旧 Bitmap 还挂在 value 上,新协程
+    // 解码完成前的这几帧会显示上一个占用者的缩略图(标题与 onFocusedFile 那时已经是新文件了)。
+    // 把状态连同产出它的 item 一起存;渲染时只认「item 与当前一致」那一份,过期的那份自然被滤掉,
+    // 不需要手动清零——效果与「换 key 就重置」等价,但不用在协程开头多写一次 value = null。
+    val thumb by produceState<Pair<PickerItem, Bitmap?>?>(null, item) {
+        val bmp = when (item) {
             is PickerItem.Original -> item.bitmap
             is PickerItem.Library -> withContext(Dispatchers.IO) {
                 runCatching {
@@ -328,6 +473,7 @@ private fun ThumbCard(
                 }.getOrNull()
             }
         }
+        value = item to bmp
     }
 
     val label = when (item) {
@@ -345,7 +491,8 @@ private fun ThumbCard(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        val bmp = thumb
+        // PickerItem.Library 是 data class,按 file 判等:只认还没被换下去的那一份。
+        val bmp = thumb?.takeIf { it.first == item }?.second
         if (bmp != null) {
             Image(
                 bitmap = bmp.asImageBitmap(),
@@ -388,13 +535,17 @@ private const val MAX_ICON_ITEMS = 16
  * (M5 spec §5;长按识别在 MainActivity.dispatchKeyEvent,这里只画与上报)。
  * [refresh] = 图库版本,删图后 +1,文件列表据此重读。
  * [deleteTarget] 非 null 时在自身之上画 [ConfirmDialog]:它自己负责焦点(nonce + focusedBtn,默认在取消);
- * 关掉后(删除 / 取消都 focusNonce++)由网格的 nonce 循环把焦点接回原位置——删掉的那格由下一张补上,
- * 删的是末张就夹到上一张(`focusedIdx` 夹到新长度);删空换成空态,空态自己的循环接住焦点。
+ * 关掉后(删除 / 取消都 focusNonce++)由 [PickerGrid] 接回焦点——删掉的那格由下一张补上,删的是末张
+ * 就夹到上一张(读的时候夹,见 PickerGrid 的 clampedFocusedIdx)。**重扫是异步的**(下面的
+ * produceState 在 IO 线程跑):covered 变 false 那一刻 items 常常还是删除前的旧列表,新列表一到 focusRequesters
+ * 因 items.size 变而整表换新——PickerGrid 的定位效果把 focusRequesters 也编进 key 应对这一步,
+ * 另配一个只认「有没有人持有焦点」的看门狗兜底(fix round 1,镜像 SettingsScreen 那一份的写法;
+ * 这一段实测复现过焦点漏给背后盖住的设置页,删最后一张 / 小图库删任意一张都会中招)。
+ * 删空换成空态,空态自己的循环接住焦点。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun ScreensaverPoolViewer(
-    directory: File,
     nonce: Int = 0,
     refresh: Int = 0,
     onFocusedFile: (File?) -> Unit = {},
@@ -403,17 +554,16 @@ fun ScreensaverPoolViewer(
     onCancelDelete: () -> Unit = {},
     onDismiss: () -> Unit,
 ) {
-    val files = remember(directory, refresh) {
-        directory.listFiles()
-            ?.filter { it.isFile && it.extension.lowercase() in IMAGE_EXTS }
-            ?.sortedBy { it.name }
-            ?: emptyList()
+    val ctx = LocalContext.current
+    // IO 线程扫,走 safeScan(与播放器同一条「失败记日志、退回 null」的规则,内部调的还是
+    // scanScreensaverLibrary)——这里原来是 runCatching{...}.getOrDefault(emptyList()),失败
+    // 被默默吞掉、不留日志,和主线程按自己一套扩展名表列目录的老口径一样,都统一掉了。
+    // produceState 的值跨 key 保留:删图后 refresh+1 重扫期间仍显示旧列表,不会闪一下空态。null = 首次还没扫完。
+    val scanned by produceState<List<File>?>(null, refresh) {
+        value = withContext(Dispatchers.IO) { safeScan(ctx) ?: emptyList() }
     }
+    val files = scanned ?: emptyList()
     var previewIndex by remember { mutableStateOf(-1) }
-    // 全屏预览关掉时,它拿着的焦点随节点一起销毁,外层没有人会补请求(铁律 3:浮层自己负责恢复)。
-    // M5 让图库重新可达(设置页入口),这条路因此变成常规路径。本地计数并进网格的 nonce:两个量都只增不减,
-    // 任何一个变了和就变,网格的初始焦点循环据此再跑一轮,落回 focusedIdx。
-    var previewCloses by remember { mutableStateOf(0) }
 
     androidx.activity.compose.BackHandler { onDismiss() }
     Box(
@@ -421,22 +571,23 @@ fun ScreensaverPoolViewer(
             .background(Color.Black.copy(alpha = 0.85f)),
         contentAlignment = Alignment.Center,
     ) {
-        if (files.isEmpty()) {
-            PoolEmptyState(nonce, onDismiss)
-        } else {
-            PickerGrid(
+        when {
+            scanned == null -> Unit   // 首次扫描中(几十毫秒):只有半透明底
+            files.isEmpty() -> PoolEmptyState(nonce, onDismiss)
+            else -> PickerGrid(
                 items = files.map { PickerItem.Library(it) },
                 title = stringResource(R.string.picker_screensaver_pool_title, files.size),
                 columns = 3,
                 thumbWidth = 170.dp,
                 thumbHeight = 96.dp,
-                nonce = nonce + previewCloses,
+                nonce = nonce,
                 onSelectFile = { file ->
                     val idx = files.indexOf(file)
                     if (idx >= 0) previewIndex = idx
                 },
                 onRestoreOriginal = null,
                 onDismiss = onDismiss,
+                covered = previewIndex >= 0 || deleteTarget != null,
                 onFocusedFile = onFocusedFile,
             )
         }
@@ -446,7 +597,8 @@ fun ScreensaverPoolViewer(
         ScreensaverPreview(
             files = files,
             startIndex = previewIndex,
-            onDismiss = { previewIndex = -1; previewCloses++ },
+            nonce = nonce,
+            onDismiss = { previewIndex = -1 },
         )
     }
 
@@ -516,15 +668,17 @@ private fun PoolEmptyState(nonce: Int, onDismiss: () -> Unit) {
     }
 }
 
+/** @param nonce 外层焦点 nonce(MainActivity.focusNonce):回到前台等时刻 +1,预览据此重新落焦点。 */
 @Composable
 private fun ScreensaverPreview(
     files: List<File>,
     startIndex: Int,
+    nonce: Int,
     onDismiss: () -> Unit,
 ) {
     var index by remember { mutableStateOf(startIndex) }
     val fr = remember { FocusRequester() }
-    var landed by remember { mutableStateOf(false) }
+    var focused by remember { mutableStateOf(false) }
 
     androidx.activity.compose.BackHandler { onDismiss() }
 
@@ -533,7 +687,7 @@ private fun ScreensaverPreview(
             .fillMaxSize()
             .background(Color.Black)
             .focusRequester(fr)
-            .onFocusChanged { if (it.isFocused) landed = true }
+            .onFocusChanged { focused = it.isFocused }
             .onKeyEvent { event ->
                 if (event.type == KeyEventType.KeyDown) {
                     when (event.key) {
@@ -550,7 +704,7 @@ private fun ScreensaverPreview(
             animationSpec = tween(500),
             label = "previewCrossfade",
         ) { idx ->
-            PreviewSlot(files.getOrNull(idx))
+            ScreensaverSlot(files.getOrNull(idx), Theme.ScreensaverIntervalMs)
         }
 
         var showInfo by remember { mutableStateOf(true) }
@@ -574,43 +728,14 @@ private fun ScreensaverPreview(
         }
     }
 
-    LaunchedEffect(Unit) {
-        landed = false
+    // 以 nonce 为 key(原来是 Unit,只落一次地):回到前台时 nonce 变,预览自己把焦点要回来。
+    // 判据是自报的 focused(得失都报),不是只写 true 的 landed——已经有焦点时这里一次都不请求。
+    LaunchedEffect(nonce) {
         var frames = 0
-        while (!landed && frames < 60) {
+        while (!focused && frames < 60) {
             withFrameNanos { }
             runCatching { fr.requestFocus() }
             frames++
         }
     }
-}
-
-@Composable
-private fun PreviewSlot(file: File?) {
-    file ?: return
-    val bmp by produceState<android.graphics.Bitmap?>(null, file.absolutePath) {
-        value = withContext(Dispatchers.IO) {
-            runCatching {
-                Apps.decodeScaled(file.absolutePath, 1920, 1080, android.graphics.Bitmap.Config.RGBA_F16)
-            }.getOrNull()
-        }
-    }
-    val b = bmp ?: return
-    val scale = remember { Animatable(1.0f) }
-    LaunchedEffect(file.absolutePath) {
-        scale.snapTo(1.0f)
-        scale.animateTo(
-            targetValue = Theme.ScreensaverZoom,
-            animationSpec = tween(
-                durationMillis = (Theme.ScreensaverIntervalMs + Theme.ScreensaverCrossfadeMs).toInt(),
-                easing = LinearEasing,
-            ),
-        )
-    }
-    Image(
-        bitmap = b.asImageBitmap(),
-        contentDescription = null,
-        contentScale = ContentScale.Crop,
-        modifier = Modifier.fillMaxSize().scale(scale.value),
-    )
 }
