@@ -768,3 +768,8 @@ HEAD `c0cf5a6`(接 `8d82355`),worktree 仍是 `m5-standby`。终审复查的完�
   - `androidx.lifecycle` / `androidx.savedstate` 目前只是 `activity-compose` 等库带进来的传递依赖,`UnitedUDream.kt` 却直接 import 了 `Lifecycle`/`LifecycleRegistry`/`SavedStateRegistry` 等类——应在 `app/build.gradle.kts` 里显式声明这两个 artifact,不依赖传递版本;
   - 英文设置项大小写不一致:M2/M3 的 `settings_idle_after`("Standby Timeout")、`settings_idle_content`("Standby Display")是 Title Case,M5 新增四行——`settings_screensaver_after`("Screensaver starts")、`settings_screensaver_interval`("Slideshow interval")、`settings_screensaver_gallery`("Screensaver gallery")、`settings_system_screensaver`("System screensaver")——是 Sentence case,同一组内两种风格混着(`app/src/main/res/values-en/strings.xml:147-163`);
   - `ScreensaverPlayer` 的引用计数语义(`refs`/`attach`/`detach`)现在只在模拟器上人工验过,没有注入 scanner 的 JVM 单测,补一份能挡住未来的回归。
+
+## 2026-09-19 · M5 并入 main(本地)
+
+- `m5-standby` 9 个提交(7 个任务 + 终审修复两笔)经子代理逐任务实施、逐任务审查、fable 整分支终审(0 Critical;2 Important 已修并复核),`merge --no-ff` 并入本地 main = `5ad9096`;并后 main 上单测 203/203、`assembleRelease` 绿。worktree 与分支已删;SDD 台账归档在 `.superpowers/sdd/2026-09-19-m5-standby-screensaver/`(gitignored)。
+- **待 Gordon**:① 电视 adb 连上后装包做真机验收(M5 一节的 A95L 清单 9 项;第 4 项要他先在系统设置里打开屏保并选 UnitedU);② 验完说「推」再推 GitHub(main 另有 3 个文档提交因网络未推上);③ Google TV 对比报告的两个决定(6 小时子集、M8 有意偏离是否改回原生)。
