@@ -266,13 +266,17 @@ fun EditScreen(
         retarget(pos.row, pos.col)
     }
     /**
-     * 放下(确定键短按松开)。没动过就不写盘(同首页)。焦点留在原地:它此刻就在被搬的卡上,
-     * 目标(focusRow / focusTarget)也已是这一格——最后一步的 retarget() 写的,搬运中焦点上报改不动它。
+     * 放下(确定键短按松开)。没动过就不写盘(同首页)。显式再调一次 `retarget(c.pos.row, c.pos.col)`,
+     * 不能只信「焦点已经在那儿」:多数时候确实已经在,循环一次就追平(铁律 2 的判据当场成立,
+     * 代价一次多余的重组);但被搬的应用如果在搬运途中被卸载/禁用,松开这一刻的重载会把这一格的
+     * AppCard 整个换成 MissingCard——节点换新,系统把焦点收去 (0,0),而账本(focusRow/focusTarget)
+     * 搬运期间全程冻结、没人上报丢焦点,看门狗见着「有节点在报」也就不出手,焦点会停在 (0,0) 出不来。
      */
     fun dropCarry() {
         val c = carry ?: return
         carry = null
         if (rows != c.original) persist()
+        retarget(c.pos.row, c.pos.col)
     }
     /**
      * 取消:整份 rows 原样放回、不写盘,焦点回出发格。入口:返回键(搬运专用的 BackHandler,本页那个兜底)、
@@ -321,8 +325,13 @@ fun EditScreen(
     val holdHere by rememberUpdatedState {
         if (!retargeting) retarget(focusRow, focusTarget.getOrElse(focusRow) { 0 })
     }
-    // 退到后台 = 搬运取消(M4b spec §0-18,同首页 §0-9)。**先取消、再 holdHere**:取消安排的是回出发格的重定位,
-    // 之后 holdHere 看到已有待办就不插手——顺序反过来的话,它会先把「被搬的卡现在那一格」安排一遍。
+    // 退到后台 = 搬运取消(M4b spec §0-18,同首页 §0-9)。**先取消、再 holdHere**:两次调用同步挤在
+    // 这一个回调里,中间不会插进一次组合。holdHere 的判据 `retargeting` 是行 206 那个普通 val,
+    // 只在组合时重算一次,认不出 cancelCarry() 里 retarget() 刚做的 retargetTick++(那是对活的 State
+    // 的写入;这个 val 要等下一次组合才追得上)——holdHere 读到的其实是这一轮回调开始前、上一次组合
+    // 算出的旧值。真正接住的是 focusRow / focusTarget 本身:它们是 `by remember { mutableStateOf }`,
+    // cancelCarry() 已经把它们同步写成出发格,holdHere 紧接着照这两个活的量再调一次 retarget(),
+    // 原样落回同一格——只是多一次 tick、重定位效果空转一轮就追平,不是「看见已有待办就不插手」。
     // 同样经 rememberUpdatedState 调(理由见 holdHere)。
     val pauseCarry by rememberUpdatedState { cancelCarry() }
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle

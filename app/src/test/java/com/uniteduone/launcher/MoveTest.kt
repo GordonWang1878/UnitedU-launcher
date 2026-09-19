@@ -156,4 +156,40 @@ class MoveTest {
         assertEquals(listOf("d", "c"), r[1].apps)   // 第 2 列越过 B 的行尾 → 放在行尾
         assertEquals(MovePos(1, 1), p)
     }
+
+    @Test fun editRightAtTheRowEndIsANoOp() {
+        val (r, p) = moveInLayout(layout, MovePos(0, 2), MoveDir.RIGHT)
+        assertSame(layout, r); assertEquals(MovePos(0, 2), p)
+    }
+
+    @Test fun editVerticalMoveIntoTheMiddleOfALongerRowKeepsTheColumn() {
+        val rows = listOf(
+            LayoutRow("A", apps = listOf("a0", "a1")),
+            LayoutRow("B", apps = listOf("b0", "b1", "b2", "b3")),
+        )
+        // 第 1 列没有越过 B 的行尾(4 张)→ 原列保留,落在 B 中间,不是被夹到行尾
+        val (r, p) = moveInLayout(rows, MovePos(0, 1), MoveDir.DOWN)
+        assertEquals(listOf("a0"), r[0].apps)
+        assertEquals(listOf("b0", "a1", "b1", "b2", "b3"), r[1].apps)
+        assertEquals(MovePos(1, 1), p)
+    }
+
+    @Test fun editUntouchedRowsKeepIdentityAndTheMovedFromRowKeepsItsIcon() {
+        val rows = listOf(
+            LayoutRow("A", icon = "movie", apps = listOf("a0", "a1")),
+            LayoutRow("B", icon = "music", apps = listOf("b0")),
+            LayoutRow("C", icon = "tv", apps = listOf("c0")),
+        )
+        val (r, p) = moveInLayout(rows, MovePos(0, 0), MoveDir.DOWN)
+        assertSame(rows[2], r[2])         // 没碰到的行原样是同一个引用
+        assertEquals("movie", r[0].icon)  // 被移空一张的源行只改 apps,name/icon 原样留着
+        assertEquals(MovePos(1, 0), p)
+    }
+
+    @Test fun editOutOfRangePosIsANoOp() {
+        val (r1, p1) = moveInLayout(layout, MovePos(9, 0), MoveDir.DOWN)
+        assertSame(layout, r1); assertEquals(MovePos(9, 0), p1)
+        val (r2, p2) = moveInLayout(layout, MovePos(0, 9), MoveDir.RIGHT)
+        assertSame(layout, r2); assertEquals(MovePos(0, 9), p2)
+    }
 }
