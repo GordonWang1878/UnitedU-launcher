@@ -233,10 +233,14 @@ private fun PickerGrid(
         List(items.size.coerceAtLeast(1)) { FocusRequester() }
     }
     var focusedIdx by remember { mutableStateOf(0) }
-    var landed by remember { mutableStateOf(false) }
+    // fix round 1:删图后 focusedIdx 可能落在新列表的界外(删的正是末张)——统一在这里夹一次,
+    // 定位效果、看门狗、渲染时的 focused 判据都读这一个,不再各处各夹各的。
+    val clampedFocusedIdx = focusedIdx.coerceIn(0, focusRequesters.lastIndex)
     /**
      * **现在**持有焦点的那一格(只信控件自报,铁律 4);null = 网格里没有。与 [focusedIdx] 分开(铁律 5):
-     * 后者是「回来时落哪」的目标,失焦时不清;这一个失焦就清,长按判据只认它。
+     * 后者是「回来时落哪」的目标,失焦时不清;这一个失焦就清,长按判据、定位效果的退出条件、
+     * 看门狗都只认它(fix round 1:换掉了原来只增不减的 landed——旧格被销毁时没人把它拨回
+     * false,循环会在假的「已经落地」上直接跳过)。
      */
     var holderIdx by remember { mutableStateOf<Int?>(null) }
 
@@ -244,9 +248,14 @@ private fun PickerGrid(
     // 它把长按之后那次 DPAD_CENTER 的 key-up 吞掉——clickable 默认内建的 MutableInteractionSource
     // 因此永远等不到配对的 Release/Cancel,indication(按压暗色)永久卡住,直到进程重来都不会自己解开。
     // 每格自带一份 interactionSource + 记下「当前是否有未配对的 Press」;确认框 / 预览关闭那一刻
-    // (covered 从 true 变 false,复用下面同一个 LaunchedEffect)照 press 补发一个 Cancel 解开。
+    // (covered 从 true 变 false,复用下面的定位效果)照 press 补发一个 Cancel 解开。
+    // **SnapshotStateList,不是普通 List**(fix round 1):补发 Cancel 只清得掉 indication 观察到的
+    // 那条流,foundation 的 ClickableNode 自己另有一份「当前哪个键按着」的记录绑在旧 source 对象上,
+    // 外部发不进去——不换一个新对象,同一格下一次确定键会被当成「这键还按着」,按压视觉从此哑掉。
+    // 换成可写的 list,发完 Cancel 顺手把那一格的元素替换成新对象,下面的收集效果会跟着 source
+    // 这个 key 自动重订阅,ClickableNode 也会因为 interactionSource 参数变了而丢掉旧记录。
     val interactionSources = remember(items.size) {
-        List(items.size.coerceAtLeast(1)) { MutableInteractionSource() }
+        List(items.size.coerceAtLeast(1)) { MutableInteractionSource() }.toMutableStateList()
     }
     val pendingPress = remember(items.size) {
         arrayOfNulls<PressInteraction.Press?>(items.size.coerceAtLeast(1))
@@ -265,7 +274,10 @@ private fun PickerGrid(
     // 铁律 1:原来的 heightIn(max = 600.dp).verticalScroll(...) 换成「裁剪视窗 + 整块自算位移」,
     // 与 HomeScreen 纵向那套同一招。视窗外的行照常组合(图库张数有限,可接受)。
     val density = LocalDensity.current
-    val rowGapPx = with(density) { 8.dp.roundToPx() }
+    // 一份 val 两处用(fix round 1):下面 verticalArrangement 的行距与这里的位移算术必须是
+    // 同一个数,分写两处迟早改一处漏一处、量出来的间距和实际渲染的间距对不上。
+    val rowGap = 8.dp
+    val rowGapPx = with(density) { rowGap.roundToPx() }
     /** 一行缩略图的实测高度(首行量出来,各行等高);0 = 还没量到,此时不位移。 */
     var rowHeightPx by remember { mutableStateOf(0) }
     /** 视窗实测高度(≤ 600dp)。 */
@@ -283,7 +295,14 @@ private fun PickerGrid(
         label = "pickerYShift",
     )
 
-    LaunchedEffect(nonce, covered) {
+    // **定位效果**:进入 / nonce 变 / 浮层刚让路时把焦点送到 clampedFocusedIdx。
+    // fix round 1(reviewer 实测复现,HEAD 4deae96 删完聚焦到背后盖住的设置页):删图后的重扫是
+    // 异步的(produceState 在 IO 线程跑,见 [ScreensaverPoolViewer]),covered 变 false 那一刻
+    // items 常常还是删除前的旧列表——原来只以 (nonce, covered) 为 key,请求打在这批旧
+    // focusRequesters 上;新列表一到,`remember(items.size)` 把 focusRequesters 整表换新,而这个
+    // 效果的 key 都没变、不会重跑,从此没有人再请求焦点。**把 focusRequesters 也编进 key**:
+    // 它一变(items.size 变,亦即任何一次删除)这里就跟着重跑,用的是换新之后那一批。
+    LaunchedEffect(nonce, covered, focusRequesters) {
         if (covered) return@LaunchedEffect
         // 遗留 #8:浮层刚让路,可能留了一个卡住的 Press(不一定是当前聚焦格——长按发生时聚焦的是
         // 被长按的那格,covered 期间焦点没有别处可去,所以就是它自己)。没有卡住的格子 press 为 null,不发。
@@ -291,15 +310,35 @@ private fun PickerGrid(
             if (press != null) {
                 interactionSources[i].tryEmit(PressInteraction.Cancel(press))
                 pendingPress[i] = null
+                // 见 interactionSources 声明处的注释:换新对象,ClickableNode 才会真正忘掉这一格
+                // 的按键状态,下一次确定键才会重新出现按压视觉。
+                interactionSources[i] = MutableInteractionSource()
             }
         }
-        landed = false
-        val i = focusedIdx.coerceIn(0, focusRequesters.lastIndex)
+        // 退出条件是目标格自己报了 holderIdx == i(铁律 2),不再信只增不减的 landed——
+        // 旧格被销毁那一刻不会有人把它拨回未落地,循环会在假的「已经落地」上直接跳过。
+        val i = clampedFocusedIdx
         var frames = 0
-        while (!landed && frames < 60) {
+        while (holderIdx != i && frames < 60) {
             withFrameNanos { }
             runCatching { focusRequesters[i].requestFocus() }
             frames++
+        }
+    }
+
+    // **焦点看门狗**:上面那条管「我想去哪」,这条管「焦点莫名其妙没了」——旧格随删除被销毁、
+    // 定位效果又恰好在新列表到达前已经打满 60 帧(或全打在行将销毁的旧格上、次次抛异常)时,
+    // 谁都不会再补请求。不靠「在猜得到的几个时刻补请求」(铁律 3),镜像 SettingsScreen 的写法:
+    // 守卫 covered / holderIdx==null 都在 key 里(铁律 6)。
+    LaunchedEffect(holderIdx == null, covered) {
+        if (covered || holderIdx != null) return@LaunchedEffect
+        // D-pad 换格 / 节点销毁时得、失可能分属相邻两帧:旧格先报丢、新格下一帧才报得,
+        // 中间那一帧的 null 不算真丢(与 HomeScreen / SettingsScreen 看门狗同一手法)。
+        repeat(3) { withFrameNanos {} }
+        if (holderIdx != null) return@LaunchedEffect
+        while (holderIdx == null && !covered) {
+            withFrameNanos { }
+            runCatching { focusRequesters[focusedIdx.coerceIn(0, focusRequesters.lastIndex)].requestFocus() }
         }
     }
 
@@ -338,7 +377,7 @@ private fun PickerGrid(
                 // offset 发生在测量之后救不回来
                 .wrapContentHeight(Alignment.Top, unbounded = true)
                 .offset(y = yShift),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(rowGap),
         ) {
         rows.forEachIndexed { rowIdx, rowItems ->
             Row(
@@ -347,7 +386,7 @@ private fun PickerGrid(
             ) {
                 rowItems.forEachIndexed { colIdx, item ->
                     val idx = rowIdx * columns + colIdx
-                    val focused = focusedIdx == idx
+                    val focused = clampedFocusedIdx == idx
                     ThumbCard(
                         item = item,
                         focused = focused,
@@ -364,7 +403,6 @@ private fun PickerGrid(
                             .onFocusChanged {
                                 if (it.isFocused) {
                                     focusedIdx = idx
-                                    landed = true
                                     firstVisibleRow = keepInView(rowIdx, firstVisibleRow, visibleRows)
                                 }
                                 // 得失顺序保护(同 HomeScreen.report):只有「本格仍是持有者」时 lost 才作废,
@@ -478,8 +516,13 @@ private const val MAX_ICON_ITEMS = 16
  * (M5 spec §5;长按识别在 MainActivity.dispatchKeyEvent,这里只画与上报)。
  * [refresh] = 图库版本,删图后 +1,文件列表据此重读。
  * [deleteTarget] 非 null 时在自身之上画 [ConfirmDialog]:它自己负责焦点(nonce + focusedBtn,默认在取消);
- * 关掉后(删除 / 取消都 focusNonce++)由网格的 nonce 循环把焦点接回原位置——删掉的那格由下一张补上,
- * 删的是末张就夹到上一张(`focusedIdx` 夹到新长度);删空换成空态,空态自己的循环接住焦点。
+ * 关掉后(删除 / 取消都 focusNonce++)由 [PickerGrid] 接回焦点——删掉的那格由下一张补上,删的是末张
+ * 就夹到上一张(读的时候夹,见 PickerGrid 的 clampedFocusedIdx)。**重扫是异步的**(下面的
+ * produceState 在 IO 线程跑):covered 变 false 那一刻 items 常常还是删除前的旧列表,新列表一到 focusRequesters
+ * 因 items.size 变而整表换新——PickerGrid 的定位效果把 focusRequesters 也编进 key 应对这一步,
+ * 另配一个只认「有没有人持有焦点」的看门狗兜底(fix round 1,镜像 SettingsScreen 那一份的写法;
+ * 这一段实测复现过焦点漏给背后盖住的设置页,删最后一张 / 小图库删任意一张都会中招)。
+ * 删空换成空态,空态自己的循环接住焦点。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
