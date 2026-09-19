@@ -40,11 +40,10 @@ internal fun scanScreensaverLibrary(ctx: Context): List<File> {
 
 /**
  * 状态机与屏保按钮的「图库非空」判据(spec §1.1 / §1.3)。**必须在 IO 线程调用。**
- * 扫描抛异常(外置存储被拔、权限变化)按空图库处理:调用方都在 LaunchedEffect 里,
- * 异常冒出去就是在主线程崩掉整个桌面。
+ * 扫描失败(外置存储被拔、权限变化)按空图库处理;调用方都在 LaunchedEffect 里,
+ * 异常冒出去就是在主线程崩掉整个桌面。失败时由 [safeScan] 记录日志。
  */
-internal fun hasScreensaverImages(ctx: Context): Boolean =
-    runCatching { scanScreensaverLibrary(ctx).isNotEmpty() }.getOrDefault(false)
+internal fun hasScreensaverImages(ctx: Context): Boolean = safeScan(ctx)?.isNotEmpty() ?: false
 
 /** 把旧版单张 screensaver.jpg/png 迁移到图库目录。只在图库为空时迁移一次。 */
 private fun migrateOldScreensaver(ctx: Context) {
