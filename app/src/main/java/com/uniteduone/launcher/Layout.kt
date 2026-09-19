@@ -5,6 +5,9 @@ import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 
+/** layout.json 的一行(M4b):名字、可选的图标 id(见 RowIcons.kt;null = 按名字回落)、有序的包名。 */
+data class LayoutRow(val name: String, val icon: String? = null, val apps: List<String> = emptyList())
+
 /**
  * 内置分类表(= 缺省布局):三行,每行是「国行电视上常见、我们认得出该归哪一类」的包。
  *
@@ -13,21 +16,28 @@ import org.json.JSONObject
  * 直接读它;放在 `object Layout` 里也能读,但那样纯函数就平白依赖了一个会碰 `Log` / `org.json`
  * 的对象。它仍然只有这一份:[Layout.read] 的三处回落、引导的「按已装过滤」读的都是它。
  */
-internal val DEFAULT_LAYOUT: List<Pair<String, List<String>>> = listOf(
-    "VIDEO" to listOf(
-        "com.ktcp.tvvideo", "com.gitvdemo.video", "com.cibn.tv",
-        "com.starcor.mango", "com.xiaodianshi.tv.yst",
+internal val DEFAULT_LAYOUT: List<LayoutRow> = listOf(
+    LayoutRow(
+        name = "VIDEO",
+        apps = listOf(
+            "com.ktcp.tvvideo", "com.gitvdemo.video", "com.cibn.tv",
+            "com.starcor.mango", "com.xiaodianshi.tv.yst",
+        ),
     ),
-    "LIVE" to listOf("com.newtv.cboxtv", "com.huya.nftv", "cn.miguvideo.migutv"),
-    "MUSIC" to listOf(
-        "com.dangbei.dbmusic.sonyos.tab", "com.netease.cloudmusic.tv",
-        "com.tencent.qqmusictv",
+    LayoutRow(name = "LIVE", apps = listOf("com.newtv.cboxtv", "com.huya.nftv", "cn.miguvideo.migutv")),
+    LayoutRow(
+        name = "MUSIC",
+        apps = listOf(
+            "com.dangbei.dbmusic.sonyos.tab", "com.netease.cloudmusic.tv",
+            "com.tencent.qqmusictv",
+        ),
     ),
 )
 
 /**
  * layout.json 形如:
- *   {"rows":[{"name":"VIDEO","apps":["com.a","com.b"]}, ...]}
+ *   {"rows":[{"name":"VIDEO","icon":"movie","apps":["com.a","com.b"]}, ...]}
+ * `icon` 是可选字段(M4b 起,见 RowIcons.kt):缺失或不认识的 id 一律按名字回落,不影响读取。
  * 缺失或损坏时回落到内置默认([DEFAULT_LAYOUT]),并把默认写回磁盘,方便 adb 拉下来改。
  *
  * **「文件缺失就写默认」是首次引导三态判定的前提**(spec §8):任何跑过旧版本的用户都一定有
@@ -36,7 +46,7 @@ internal val DEFAULT_LAYOUT: List<Pair<String, List<String>>> = listOf(
 object Layout {
     private const val TAG = "UnitedU"
 
-    fun read(ctx: Context): List<Pair<String, List<String>>> {
+    fun read(ctx: Context): List<LayoutRow> {
         if (Paths.baseOrNull(ctx) == null) {
             Log.w(TAG, "外部存储没挂上,这次用内存里的默认布局,不写盘")
             return DEFAULT_LAYOUT
@@ -56,10 +66,15 @@ object Layout {
             (0 until rows.length()).map { i ->
                 val r = rows.getJSONObject(i)
                 val apps = r.getJSONArray("apps")
-                r.getString("name") to (0 until apps.length())
-                    .map { apps.getString(it).trim() }
-                    .filter { it.isNotEmpty() }
-                    .distinct()   // 同一行里重复的包名会让列表 key 撞车,状态和焦点会挂到错卡片上
+                LayoutRow(
+                    name = r.getString("name"),
+                    // 缺失 / 非法 id 一律 null,渲染时按名字回落(老文件原样可读)
+                    icon = r.optString("icon", "").takeIf { isRowIconId(it) },
+                    apps = (0 until apps.length())
+                        .map { apps.getString(it).trim() }
+                        .filter { it.isNotEmpty() }
+                        .distinct(),   // 同一行里重复的包名会让列表 key 撞车,状态和焦点会挂到错卡片上
+                )
             }
         } catch (e: Throwable) {
             // 把坏文件留证但改名,并写回默认值——否则每次开机都静默退回默认,
@@ -75,17 +90,17 @@ object Layout {
     fun removeFromRow(ctx: Context, rowIndex: Int, pkg: String): Boolean {
         val rows = read(ctx)
         val row = rows.getOrNull(rowIndex) ?: return false
-        if (pkg !in row.second) return false
-        return write(ctx, rows.mapIndexed { i, r -> if (i == rowIndex) r.first to r.second.filter { it != pkg } else r })
+        if (pkg !in row.apps) return false
+        return write(ctx, rows.mapIndexed { i, r -> if (i == rowIndex) r.copy(apps = r.apps.filter { it != pkg }) else r })
     }
 
     /**
      * 纯函数:把一个包从所有行里去掉。一行都没命中时返回**同一个** list(调用方用 `!==` 判断要不要写盘)。
      * 行名、行序、其余包的顺序都不动;整行空了也保留(空行只是没有卡片,不是损坏——`read` 只把「零行」当损坏)。
      */
-    fun withoutPackage(rows: List<Pair<String, List<String>>>, pkg: String): List<Pair<String, List<String>>> {
-        if (rows.none { pkg in it.second }) return rows
-        return rows.map { r -> if (pkg in r.second) r.first to r.second.filter { it != pkg } else r }
+    fun withoutPackage(rows: List<LayoutRow>, pkg: String): List<LayoutRow> {
+        if (rows.none { pkg in it.apps }) return rows
+        return rows.map { r -> if (pkg in r.apps) r.copy(apps = r.apps.filter { it != pkg }) else r }
     }
 
     /**
@@ -105,13 +120,17 @@ object Layout {
      * @return 是否真的落盘了。**调用方必须告诉用户失败**——只 Log 的话,界面上顺序已经变了,
      *   重启后又变回原样,用户只会觉得「我排的顺序总是丢」。
      */
-    fun write(ctx: Context, rows: List<Pair<String, List<String>>>): Boolean {
+    fun write(ctx: Context, rows: List<LayoutRow>): Boolean {
         val base = Paths.baseOrNull(ctx) ?: return false
         val tmp = java.io.File(base, "layout.json.tmp")
         return try {
             val arr = JSONArray()
-            rows.forEach { (name, apps) ->
-                arr.put(JSONObject().put("name", name).put("apps", JSONArray(apps)))
+            rows.forEach { row ->
+                arr.put(
+                    JSONObject().put("name", row.name)
+                        .also { o -> row.icon?.let { o.put("icon", it) } }
+                        .put("apps", JSONArray(row.apps)),
+                )
             }
             // rename 只保证「要么旧要么新」,不保证内容已经到介质上;不 fsync 的话
             // 断电可能留下一个长度正确但内容全是 0 的文件。

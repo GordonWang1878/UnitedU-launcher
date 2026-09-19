@@ -134,6 +134,13 @@ fun SettingsScreen(
     reloadNonce: Int = 0,
     /** 屏保图库版本(M5):MainActivity 删图后 +1,本页据此重数图库(「屏保启动」行的提示)。 */
     galleryVersion: Int = 0,
+    /**
+     * 布局 / 应用数据版本(M4b):与首页 `HomeScreen` 共用 `MainActivity` 的同一颗 `revision`——
+     * 「隐藏输入源」「恢复隐藏的输入源」两个动作都要让首页把卡片行重建一遍(不能挂
+     * `settingsRevision`:那颗只重读 settings.json、明确不重建首页行,见 MainActivity 里它的 KDoc),
+     * 本页「恢复隐藏的输入源」那一行的计数就顺着同一颗车重读,不必再开一颗专用计数器。
+     */
+    revision: Int = 0,
 ) {
     val ctx = LocalContext.current
     var s by remember { mutableStateOf(SettingsStore.read(ctx)) }
@@ -164,6 +171,9 @@ fun SettingsScreen(
             // M5 两条:不写盘,本页快照不会过期,原样转交。
             openScreensaverGallery = actions.openScreensaverGallery,
             openSystemScreensaver = actions.openSystemScreensaver,
+            // M4b:写的是 hidden-inputs.json,不是 settings.json——本页的 `s` 快照不会过期,原样转交
+            // (同上面两条 M5 动作同一个理由);计数靠 hiddenInputs 那颗 produceState 跟 revision 重读。
+            restoreHiddenInputs = actions.restoreHiddenInputs,
         )
     }
 
@@ -187,8 +197,16 @@ fun SettingsScreen(
         value = withContext(Dispatchers.IO) { safeScan(ctx)?.size ?: 0 }
     }
 
+    // 隐藏的输入源数(M4b spec §0-11):「恢复隐藏的输入源」行的计数与出现/消失,做法照上面的
+    // screensaverImages——IO 线程数,key 带 revision(见它的参数 KDoc:「隐藏」「恢复」两个动作
+    // 都靠它让首页重建行,这里跟着同一颗车重读)与 covered。−1 = 还没数完,不会提前把这一行露出来——
+    // 下面 settingsGroups 的插入条件是 `hiddenInputs > 0`,−1 与 0 同样不露出。
+    val hiddenInputs by produceState(-1, revision, covered) {
+        value = withContext(Dispatchers.IO) { HiddenInputs.read(ctx).size }
+    }
+
     // 内容模型(分组 / 行 / 当前档位)全在 SettingsModel.kt 里,这里只画和管焦点。
-    val groups = settingsGroups(s, { transform -> update(transform) }, liveActions, screensaverImages)
+    val groups = settingsGroups(s, { transform -> update(transform) }, liveActions, screensaverImages, hiddenInputs)
 
     // 模糊/亮度改动后 300 ms 防抖通知首页重处理壁纸。用「上次通知过的值」比对,不用一次性布尔闩
     // (铁律 7):首次组合两者相等不发;改回原值也会再发一次,预览不会卡在旧参数上。
@@ -235,6 +253,27 @@ fun SettingsScreen(
         lifecycle.addObserver(obs)
         onDispose { lifecycle.removeObserver(obs) }
     }
+    /**
+     * **行数变化时同步夹回目标,而不是等定位效果异步补救**(M4b fix round 1,ON_PAUSE 那条冻结手法
+     * 的第三次应用)。「恢复隐藏的输入源」是 SettingsModel 里第一个「屏幕开着、且可能正被聚焦时,
+     * 行数本身会变」的行(`listOfNotNull`,随 `hiddenInputs` 归零整行消失)——节点被摘掉的同一帧里,
+     * Compose 自己的焦点重定向可能落到账本目标以外的任意节点(它不认识 `rowOf` 这本账,只按 UI 树的
+     * 空间关系找候选);那次「意外落地」一样会经 [report] 报 `got=true`,不在它发生前挡住就会把
+     * `rowOf[group]` 悄悄改写成那个意外位置(铁律 5)。定位效果是异步的(挂起协程),
+     * 等它开始跑时这个意外上报可能早就发生过了,所以夹取与冻结必须放在组合阶段**同步**做:
+     * 这一段每次重组都跑,行数一旦让 `rowOf[group]` 越界,当场把它夹回新的最后一行、
+     * 同时置真 [restoring] 挡住后续任何一次意外上报的目标写入(仍放行 [focusedCell] 的更新——
+     * 它要如实反映「焦点现在真的在哪」,下面的定位效果才知道还没落对地方、要继续抢)。
+     * 收口交给下面的定位效果:它的 key 多了 `rows.size`(铁律 6:会让「目标已经不存在」这件事
+     * 发生的量,必须同时进它的 key,才能促它重跑),一旦这里置真 `restoring`、行数又变了,
+     * 它就会重新跑、把焦点真的送到这个刚夹好的目标上——**只在那一行自报 `isFocused` 时才收手**,
+     * 不是「随便哪儿有焦点就算数」。只判 `pane == PANE_R`:左栏的 `groupReq` 数量固定(七个分组
+     * 不会变),不会有这个问题;`rowOf[group]` 本来就只在右栏取值时才有意义。
+     */
+    if (pane == PANE_R && rowOf[group] > rows.lastIndex) {
+        rowOf[group] = rows.lastIndex.coerceAtLeast(0)
+        restoring = true
+    }
     // 每一项一个 requester(铁律 3 的实现约束:逐项挂,恢复才有地方落)。
     // 右栏按「组内行号」挂:同一时刻只有当前组的行在组合里,下标 0..rows.lastIndex 一定挂得上,
     // 而所有落点都夹在这个区间内(见 targetOf),不会去请求一个没挂上的 requester。
@@ -275,10 +314,12 @@ fun SettingsScreen(
         moveNonce++
     }
 
-    // **定位效果**:三件事共用这一条 —— ①首次进入(落左栏当前组);②切栏(moveNonce);
-    // ③从子界面 / 别的应用回来(covered 落下、focusNonce++)时把焦点接回同一格。
+    // **定位效果**:四件事共用这一条 —— ①首次进入(落左栏当前组);②切栏(moveNonce);
+    // ③从子界面 / 别的应用回来(covered 落下、focusNonce++)时把焦点接回同一格;
+    // ④当前组行数变化(rows.size,M4b fix round 1)——上面那段同步夹取已经把目标改对、
+    // `restoring` 置了真,这里重跑才是真正把焦点送过去、并且只认目标自报的那一步。
     // 守卫 `covered` 就是 key(铁律 6)。
-    LaunchedEffect(focusNonce, covered, moveNonce) {
+    LaunchedEffect(focusNonce, covered, moveNonce, rows.size) {
         if (covered) { restoring = true; return@LaunchedEffect }
         restoring = true
         val (want, req) = targetOf()
@@ -629,7 +670,9 @@ private fun ActionRowItem(
         RowFrame(focused = focused, label = stringResource(action.labelRes)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 BasicText(
-                    text = stringResource(action.hintRes),
+                    // hintArg 非 null = 带格式参数的文案(目前只有「恢复隐藏的输入源」的「%1$d 个」),
+                    // 与 SettingRow 里 optionArgs 的解析方式同一个道理(见 ActionRow.hintArg 的 KDoc)。
+                    text = action.hintArg?.let { stringResource(action.hintRes, it) } ?: stringResource(action.hintRes),
                     style = TextStyle(
                         fontFamily = Theme.Sans,
                         color = if (focused) Theme.SecondaryText else Theme.FooterHintText,

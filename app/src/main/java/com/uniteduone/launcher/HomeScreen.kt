@@ -6,6 +6,7 @@ import kotlinx.coroutines.withContext
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -99,6 +100,17 @@ fun HomeScreen(
      * (还要额外一条「消费完清掉」的窄路,正是铁律 7 要避免的东西)。
      */
     previewing: Boolean = false,
+    /**
+     * **首页原地移动态**(M4b spec §3,状态住在 MainActivity)。非空时:行一律画 [MoveState.rows](不读 `loaded`),
+     * 被搬的那张卡描 accent 边,屏幕底部一行提示;焦点的目标格就是 [MoveState.pos]——还原效果以它为 key 与目标,
+     * 看门狗以它为目标。它**不并进 `covered`**:移动态没有浮层,焦点始终在被搬的卡上,首页的两个焦点效果照常工作,
+     * 只是目标换成了它。期间焦点上报不改 `tgtRow`/`tgtIdx`(首页自己的记忆冻结,结束时由 [moveLanding] 一次写入)。
+     */
+    moving: MoveState? = null,
+    /** 移动态结束时焦点该落的那一格(见 [MoveLanding]):还原效果把它写进 `tgtRow`/`tgtIdx`,每个落点只写一次。 */
+    moveLanding: MoveLanding? = null,
+    /** 这一次组合画出来的行(含置顶的输入源行)。MainActivity 进移动态时拿最近一份当工作副本。 */
+    onRowsShown: (List<Row>) -> Unit = {},
 ) {
     val ctx = LocalContext.current
     // 卡片档位尺寸:5/6/8 三档统一由 HomeLayout 按张数推导,不再有「6 是标定常量、5/8 反推」的特例。见 Theme.cardMetrics。
@@ -133,13 +145,14 @@ fun HomeScreen(
     ) {
         value = withContext(Dispatchers.IO) {
             val appRows = runCatching { buildRows(ctx) }.getOrDefault(emptyList())
+            // titles 要在输入源行之前读出:buildInputRow 用它给改过名的输入源换标签(applyInputPrefs)。
+            val titles = runCatching { Titles.read(ctx) }.getOrDefault(emptyMap())
             // 输入源行放**最上面**:design §2 把「输入源」当独立顶层类目,置顶与之相符;
             // 且置顶后应用行的相对次序、以及「开机焦点落在最上一行」的直觉都不变。
-            // 枚举为空(非电视 / 没有硬件输入)时返回 null,这一行干脆不存在 —— 焦点账本
+            // 枚举为空(非电视 / 没有硬件输入 / 全部隐藏)时返回 null,这一行干脆不存在 —— 焦点账本
             // 只认非空行,不会挂空 requester(见 buildRows 结尾那条不变量)。
-            val inputRow = if (showInputRow) runCatching { buildInputRow(ctx) }.getOrNull() else null
+            val inputRow = if (showInputRow) runCatching { buildInputRow(ctx, titles) }.getOrNull() else null
             val rows = if (inputRow != null) listOf(inputRow) + appRows else appRows
-            val titles = runCatching { Titles.read(ctx) }.getOrDefault(emptyMap())
             // 「新应用」计数:与首页同一趟 IO 算(应用已经枚举过一次),onLayout 只看应用行
             // ——输入源行的 packageName 存的是输入 id,不是真的包名。
             // 基线还没建立(newAppsSeenAt == 0:onCreate 那次基线写盘失败,比如外置存储开机时还没挂上)
@@ -154,10 +167,33 @@ fun HomeScreen(
         // 重组一起看到,不会出现「新数据已到但还标着不新鲜」的中间态。
         loadedRevision = revision
     }
-    val rows = loaded?.first.orEmpty()
     val titles = loaded?.second.orEmpty()
     /** 数据还没跟上当前 revision(重读在途)。冻结目标用,见 loadedRevision 的注释。 */
     val stale = loadedRevision != revision
+    /** 上一次组合画出来的行。普通引用、不是快照状态:只在下面 `rows` 的第二支里读,而那一支的两个条件翻转本身就会触发重组。 */
+    val onScreen = remember { arrayOf<List<Row>>(emptyList()) }
+    val rows = when {
+        // 移动态:画工作副本,每按一步就是一次列表重排(M4b spec §3)
+        moving != null -> moving.rows
+        // **刚放下、写了盘、revision++ 的重读还在路上**:落地之前继续画搬好的那一份(= 上一次组合画的)。
+        // 退回 loaded 的话,卡片会先跳回搬之前的位置、几百毫秒后再跳到新位置。取消不走这一支(wrote = false):
+        // 取消要的正是 loaded 里原来的样子。其余任何重读期间 onScreen 本来就等于 loaded 的旧值,这一支与原行为相同。
+        stale && moveLanding?.wrote == true -> onScreen[0]
+        else -> loaded?.first.orEmpty()
+    }
+    SideEffect {
+        onScreen[0] = rows
+        onRowsShown(rows)
+    }
+    /**
+     * 还原效果的「数据不新鲜就冻结」。**移动态期间不冻**:那时画的是工作副本,与在途的重读无关——冻住的话,
+     * 后台某个应用恰好更新(revision++)的那几百毫秒里,每搬一步焦点都追不过去,停在换过来的邻卡上。
+     */
+    val frozen = stale && moving == null
+    /** 移动态的目标格(见 [moving] 的 KDoc);null = 不在移动态,目标照旧是 tgtRow/tgtIdx。 */
+    val moveTarget = moving?.pos
+    // 焦点回调在事件发生时才执行,读的是**最近一次组合**的移动态,不是回调被创建那一刻的。
+    val movingNow by rememberUpdatedState(moving)
     // 开机后焦点要自己落到第一张卡片上,否则方向键第一下没有反应。
     val firstCard = remember { FocusRequester() }
     // 每行一个 requester。当前行(tgtRow)的挂在它记住的那一格,用来把焦点**还原到离开前那张卡**;
@@ -247,7 +283,9 @@ fun HomeScreen(
         // 不挡住的话目标被这一下定成齿轮,行数据到达后还原效果反而主动把焦点拽回齿轮,
         // 开机第一屏的焦点就从第一张卡变成了右上角(2026-09-17 冷启动三连实测)。
         // 卡片那两个目标不必判:卡片本身就是数据到了才存在,这条件对它们是隐含成立的。
-        if (got && !restoring && loaded != null) tgtGear = row == -1
+        // **移动态期间也不更新**(与卡片那两个目标同一条,铁律 5「每一个分量」):那时的目标归 MainActivity 的
+        // moving.pos 管,首页自己的记忆冻结,结束时由落点(moveLanding)一次写入。
+        if (got && !restoring && loaded != null && movingNow == null) tgtGear = row == -1
         // focusedCell 自己的得失顺序保护留着:只有「本格仍是持有者」才作废。导航时若两张卡的
         // 得失顺序颠倒(新卡先报 got、旧卡后报 lost),旧卡那次 lost 不会把新卡抹掉。
         if (got) focusedCell = row to idx
@@ -259,7 +297,8 @@ fun HomeScreen(
     // 数据重载(移除、卸载、后台 PACKAGE_*)之后节点原地换卡、没有任何焦点事件——这里按新 rows 再派生一次。
     // 两个 key 都只是被读的量,没有守卫,不存在铁律 6 那种「守卫不在 key 里」的洞;
     // 也没有闩(铁律 7):每次 rows 或 focusedCell 变化都是一次全新求值。
-    LaunchedEffect(loaded, focusedCell) { onFocusedCard(cardAt(focusedCell)) }
+    // key 用**画出来的** rows 而不是 loaded(M4b):移动态每搬一步、取消时画回原样,rows 都变而 loaded 不变。
+    LaunchedEffect(rows, focusedCell) { onFocusedCard(cardAt(focusedCell)) }
     // 配置里的包一个都装不到时,卡片一张都没有,焦点无处可落;而这时唯一能自救的
     // 控件正是齿轮。不能指望框架的隐式 focus-enter——这份代码在别处恰恰拒绝依赖它。
     val gearFocus = remember { FocusRequester() }
@@ -296,7 +335,17 @@ fun HomeScreen(
         if (!menuOpen && menuWasOpen && menuFromGear) gearNonce = focusNonce
         menuWasOpen = menuOpen
     }
-    LaunchedEffect(focusNonce, rows.size, rows.isEmpty(), covered, stale) {
+    /**
+     * 最近一次已经写进目标格的落点(按对象身份比对)。初值取**本页创建那一刻**已有的落点:那是上一个首页实例的,
+     * 这一个不该再应用它(首页只在冷启动 / 进出编辑页时重建,那两条路本来就该落在第一张卡)。
+     * 不是闩(铁律 7):每次移动态结束 MainActivity 都给一个新对象,比对自然不成立,不需要任何人清。
+     */
+    var appliedLanding by remember { mutableStateOf(moveLanding) }
+    // **key 里多了 moveTarget 与 moveLanding**(M4b 原地移动):移动态下每搬一步 moving.pos 就变,本效果随之重启、
+    // 把焦点送到被搬的卡的新位置——目标变了效果就重跑,守卫与 key 成对(铁律 6)。移动态结束(放下 / 取消)时
+    // moveTarget 变回 null、moveLanding 换成新对象,本效果再跑一次,把落点写进首页自己的目标格。
+    // stale 换成了 frozen(= stale && 不在移动态,见其 KDoc),同样既是 key 又是守卫。
+    LaunchedEffect(focusNonce, rows.size, rows.isEmpty(), covered, frozen, moveTarget, moveLanding) {
         // 除「浮层开着」外的每条分支都要把 restoring 放掉,否则用户自己的导航从此更新不了目标。
         // **浮层开着时反过来要把它按住**(`restoring = covered` 而不是恒 false):
         // 浮层关掉的那一帧,canFocus 从 false 回到 true,Compose 的默认恢复会抢在本效果重启之前
@@ -315,8 +364,18 @@ fun HomeScreen(
         // 焦点卡的节点被销毁、Compose 把焦点塞给 (0,0),那次上报就把目标改写成第一行第一张,
         // 随后的还原只会把焦点送回那里。冻到数据新鲜为止,还原效果再按夹过的列号把焦点送到
         // 同行邻卡(design §1 的「行变短时索引夹取」)。
-        if (focusNonce == 0 || rows.isEmpty() || covered || stale) {
-            restoring = covered || stale; return@LaunchedEffect
+        if (focusNonce == 0 || rows.isEmpty() || covered || frozen) {
+            restoring = covered || frozen; return@LaunchedEffect
+        }
+        // **移动态刚结束:落点成为首页的目标格**(放下 = 卡的新位置,取消 = 出发那一格)。写在守卫**之后**:
+        // 放下后要等重读落地(frozen)才写,那时 tgtIdx 已按新数据的行数建好;浮层开着(covered)时同理等它关掉。
+        // 冻结期间 restoring 为真,焦点上报本来就改不了目标,晚写不会被谁抢先改掉。
+        val landing = moveLanding
+        if (moveTarget == null && landing != null && landing !== appliedLanding) {
+            appliedLanding = landing
+            tgtGear = false
+            tgtRow = landing.pos.row
+            if (landing.pos.row in tgtIdx.indices) tgtIdx[landing.pos.row] = landing.pos.col
         }
         // **回齿轮这条路也必须主动请求**,不能像以前那样早退、把它交给看门狗(M7 T4 实测):
         // 看门狗只在「树里一个焦点都没有」时才动手,而它开头要等 3 帧(躲 D-pad 导航的得失间隙)——
@@ -327,7 +386,8 @@ fun HomeScreen(
         // 两者都是「读的量」不是守卫,与 tgtRow/tgtIdx 同例,不进 key(进了会在每次导航时重跑还原)。
         restoring = true
         var frames = 0
-        if (tgtGear || focusNonce == gearNonce) {
+        // 移动态下焦点只去被搬的那张卡,不回齿轮
+        if (moveTarget == null && (tgtGear || focusNonce == gearNonce)) {
             // 退出条件同样只信控件自报(铁律 2):设置 / 屏保两个 pill 都会 report(-1, col, true),
             // 两者都算「回到顶栏」——按 focusedCell?.first 判,不钉死某一列(col 0/1 都算数)。
             while (frames < 60 && focusedCell?.first != -1) {
@@ -338,7 +398,8 @@ fun HomeScreen(
             restoring = false
             return@LaunchedEffect
         }
-        val r = tgtRow.coerceIn(0, rowFocus.lastIndex)
+        // 移动态:目标 = 被搬的卡现在的位置(MainActivity 的 moving.pos);否则 = 首页记住的那一格。
+        val r = (moveTarget?.row ?: tgtRow).coerceIn(0, rowFocus.lastIndex)
         // 退出条件必须**同时**满足「树里真的有焦点」和「落在目标格上」:
         // 只看「当前格 == 目标格」的话,丢焦点时没人把「当前」作废,条件一开始就成立、
         // 循环一次都不跑;只看「有没有焦点」的话,Compose 抢先给了第一张卡就会提前退出。
@@ -346,7 +407,7 @@ fun HomeScreen(
         // 行变短后「目标 = 第 5 格」而焦点只可能落到第 4 格,条件恒不成立,
         // 循环会跑满 60 帧、期间每帧把焦点拽回同一格,用户按的方向键当场被撤销。
         val cap = rows.getOrNull(r)?.apps?.lastIndex?.coerceAtLeast(0) ?: 0
-        val want = r to (tgtIdx.getOrNull(r) ?: 0).coerceIn(0, cap)
+        val want = r to (moveTarget?.col ?: tgtIdx.getOrNull(r) ?: 0).coerceIn(0, cap)
         while (frames < 60 && focusedCell != want) {
             withFrameNanos { }
             runCatching { rowFocus[r].requestFocus() }
@@ -374,13 +435,15 @@ fun HomeScreen(
         // 与还原效果同一判据:冻结过的目标优先,`gearNonce` 管「菜单刚关掉」那一拍。
         // `tgtGear` 不进 key 也不违反铁律 6:它只在焦点真的落下时才变,而那一下必定同时改写
         // `focusedCell`(已经是 key),本效果照样会以新值重启;而且它不是守卫,只决定送去哪儿。
-        val useGear = tgtGear || focusNonce == gearNonce
+        // 移动态:目标是被搬的那张卡(moveTarget 只决定送去哪儿、不是守卫;它一变还原效果就重启、
+        // restoring 随之置真,本效果以 restoring 这个 key 重启让路,不会拿着旧目标跟还原效果抢)。
+        val useGear = moveTarget == null && (tgtGear || focusNonce == gearNonce)
         val target = when {
             useGear && loaded != null -> gearFocus
             // 落点用「那一行记住的那一格」而不是第一行第一张 —— rowFocus 正好挂在那里
             // (upTarget/downTarget 用的就是它)。冷启动时两者是同一个节点,不构成回归。
             rows.isNotEmpty() ->
-                rowFocus.getOrNull(tgtRow.coerceIn(0, rowFocus.lastIndex)) ?: firstCard
+                rowFocus.getOrNull((moveTarget?.row ?: tgtRow).coerceIn(0, rowFocus.lastIndex)) ?: firstCard
             loaded != null -> gearFocus     // 空桌面:焦点给齿轮
             else -> return@LaunchedEffect   // 还在加载,什么都还没建出来
         }
@@ -424,6 +487,12 @@ fun HomeScreen(
         // 下方新露出的行始终在暗层里。待机时随内容一起淡出。
         val scrimTop = anchorTop - HomeLayout.SCRIM_LEAD.dp + shift
         val surface = androidx.tv.material3.MaterialTheme.colorScheme.surface
+        // 首页提示文字的字样:空桌面求救那句与移动态底部提示共用一份(M4b spec §0-10「沿用现有提示文字样式」)
+        val hintStyle = TextStyle(
+            fontFamily = Theme.Sans,
+            color = androidx.tv.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
+            fontSize = 15.sp,
+        )
         Box(
             Modifier
                 .fillMaxWidth()
@@ -477,11 +546,7 @@ fun HomeScreen(
                 BasicText(
                     text = stringResource(R.string.home_empty_apps_hint),
                     modifier = Modifier.padding(start = Theme.SidePadding),
-                    style = TextStyle(
-                        fontFamily = Theme.Sans,
-                        color = androidx.tv.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
-                        fontSize = 15.sp,
-                    ),
+                    style = hintStyle,
                 )
             }
             rows.forEachIndexed { rowIndex, row ->
@@ -501,14 +566,23 @@ fun HomeScreen(
                     // 取代原来「每行记住自己的列」——那条规则依赖历史,同一个起点会落到不同列,看着像随机)。
                     // 实现:非当前行的 requester 挂在「当前行的列」经该行长度夹取后的格子上;当前行(tgtRow)仍挂自己记住的列,
                     // 还原效果与顶栏 pill 的下键都靠它回到离开前那一格。tgtRow/tgtIdx 在浮层 / 还原期间冻结,挂点随之稳定。
-                    targetIndex = if (rowIndex == tgtRow) tgtIdx.getOrElse(rowIndex) { 0 } else tgtIdx.getOrElse(tgtRow) { 0 },
+                    // 移动态:每一行的 requester 都挂在被搬的卡的列上(夹到该行长度)——被搬的卡所在那一行
+                    // 就正好挂在它身上,还原效果与看门狗请求的就是它。
+                    targetIndex = when {
+                        moveTarget != null -> moveTarget.col
+                        rowIndex == tgtRow -> tgtIdx.getOrElse(rowIndex) { 0 }
+                        else -> tgtIdx.getOrElse(tgtRow) { 0 }
+                    },
+                    carried = if (moveTarget?.row == rowIndex) moveTarget.col else -1,
                     onFocusChange = { idx, got ->
                         report(rowIndex, idx, got)
                         if (got) {
+                            // 纵向锚定照常跟着焦点走:被搬的卡换到哪一行,那一行就被推到锚点上
                             activeRow = rowIndex
                             // 还原过程中不更新目标:否则 Compose 抢先把焦点给了第一张卡,
                             // 这次焦点事件就把目标改写成 0,还原当场失效。
-                            if (!restoring) { tgtRow = rowIndex; tgtIdx[rowIndex] = idx }
+                            // 移动态期间也不更新:目标归 moving.pos 管,首页的记忆冻结到落点写入(铁律 5)。
+                            if (!restoring && movingNow == null) { tgtRow = rowIndex; tgtIdx[rowIndex] = idx }
                         }
                     },
                 )
@@ -545,6 +619,20 @@ fun HomeScreen(
             }
         }
 
+        // 移动态底部提示(M4b spec §0-10:视觉只加描边与这一行)。字样沿用首页提示文字;垫一层与 scrim 底端
+        // 同色同透明度的底:焦点行下面那一行的行标题正好露在屏幕底部,不垫的话两行字叠在一起认不出来。
+        if (moving != null) {
+            BasicText(
+                text = stringResource(R.string.home_move_hint),
+                style = hintStyle,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = HomeLayout.PILL_TOP.dp)
+                    .background(surface.copy(alpha = 0.8f), RoundedCornerShape(percent = 50))
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+            )
+        }
+
         if (menuOpen) {
             GearMenu(
                 items = menuItems.map { item ->
@@ -573,11 +661,17 @@ fun HomeScreen(
         val rt = renameTarget
         if (rt != null) {
             TitleDialog(
-                ref = rt,
+                key = rt.pkg,
                 current = titles[rt.pkg] ?: "",
+                heading = stringResource(R.string.title_dialog_title),
+                // 输入源卡:清空恢复系统名(title_dialog_hint_input);应用卡:清空恢复应用名。
+                hint = stringResource(
+                    if (rt.kind == RowKind.INPUTS) R.string.title_dialog_hint_input else R.string.title_dialog_hint,
+                ),
                 onSave = { onRenameSave(rt, it) },
                 onCancel = onRenameCancel,
                 nonce = focusNonce,
+                subtitle = rt.label.ifBlank { rt.pkg },
             )
         }
     }
@@ -597,6 +691,8 @@ private fun CategoryRow(
     upTarget: FocusRequester?,
     downTarget: FocusRequester?,
     targetIndex: Int,
+    /** 移动态里被搬的卡在本行第几列;-1 = 不在本行(或不在移动态)。 */
+    carried: Int = -1,
     onFocusChange: (Int, Boolean) -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -612,7 +708,7 @@ private fun CategoryRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            RowIcon(row.name, row.kind, tint = accent)
+            RowIcon(row.name, row.kind, row.icon, tint = accent)
             BasicText(
                 text = row.name,
                 // 行标题 = titleMedium 16sp Medium(spec §1.4),颜色 accent(spec §0「accent 落点」)
@@ -658,6 +754,7 @@ private fun CategoryRow(
                     reserveTitleSpace = showTitles,
                     fallbackColor = app.fallbackColor?.let { Color(it) },
                     themed = themedCards,
+                    moving = index == carried,
                     onClick = {
                         // 唯一按种类分流的地方:应用行启动包,输入源行切信号源
                         //(packageName 里存的是输入 id)。其余焦点/渲染全部与种类无关。
@@ -695,11 +792,13 @@ private fun CategoryRow(
 /**
  * 输入源行。把每个硬件输入伪装成 [AppEntry](packageName 存输入 id、card=null 走文字回退),
  * 从而与应用行**共用** AppCard / CategoryRow / 整套纵向焦点账本。
- * 枚举为空(非电视、或没有硬件输入)时返回 null —— 这一行不渲染,焦点账本只挂非空行,
+ * 枚举为空(非电视、或没有硬件输入、或全部被隐藏)时返回 null —— 这一行不渲染,焦点账本只挂非空行,
  * 与 buildRows 结尾那条不变量同源。标题走本地化字符串;ctx.getString 在 IO 线程可安全调用。
+ * HDMI-CEC 父子去重见 [dedupeCec];隐藏 / 改名见 [applyInputPrefs]——[titles] 与卡片标题共用
+ * titles.json(key = 输入 id),名字只换卡上文字,不受「卡片标题」开关影响。
  */
-private fun buildInputRow(ctx: Context): Row? {
-    val inputs = Inputs.load(ctx)
+private fun buildInputRow(ctx: Context, titles: Map<String, String>): Row? {
+    val inputs = applyInputPrefs(dedupeCec(Inputs.load(ctx)), HiddenInputs.read(ctx), titles)
     if (inputs.isEmpty()) return null
     return Row(
         name = ctx.getString(R.string.home_input_row_title),
@@ -710,13 +809,13 @@ private fun buildInputRow(ctx: Context): Row? {
 
 private fun buildRows(ctx: Context): List<Row> {
     val layout = Layout.read(ctx)
-    val needed = layout.flatMap { it.second }.toSet()
+    val needed = layout.flatMap { it.apps }.toSet()
     val all = Apps.load(ctx, needed, withBitmaps = needed, withLabels = needed)
     // **layoutRow 必须在 filter 之前定下来**:下面那个 filter 会整行丢掉空行,
     // 丢掉之后剩下行的下标就不再等于它们在 layout.json 里的下标。
     // 「移除 / 移动位置」写的是 layout.json,拿渲染下标去写就会打在别人那一行上。
-    return layout.mapIndexed { layoutIndex, (name, pkgs) ->
-        Row(name = name, apps = pkgs.mapNotNull { all[it] }, layoutRow = layoutIndex)
+    return layout.mapIndexed { layoutIndex, row ->
+        Row(name = row.name, icon = row.icon, apps = row.apps.mapNotNull { all[it] }, layoutRow = layoutIndex)
     }.filter { it.apps.isNotEmpty() }
     // ⚠️ 这个 filter 不只是显示意图,**它同时是焦点的不变量**:
     // upTarget/downTarget 指向相邻行的 rowFocus,而 rowFocus 只挂在非空行的卡片上。

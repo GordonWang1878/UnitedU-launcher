@@ -1,5 +1,6 @@
 package com.uniteduone.launcher
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,8 +32,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.tv.material3.Border
 import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.MaterialTheme
@@ -74,10 +77,22 @@ fun AppCard(
     fallbackColor: Color? = null,
     /** 主题化卡片:去色→染 accent。 */
     themed: Boolean = false,
+    /**
+     * 首页原地移动态里被搬的那张卡(M4b spec §0-10):描边换成主题 accent,粗细与库默认同为 3dp,形状沿用卡片自己的圆角。
+     * **聚焦与否都画**:每搬一步,焦点要晚一两帧才追到新位置,那几帧里被搬的卡也得认得出来。
+     */
+    moving: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
     val accent = LocalThemeColors.current.accent
     val scheme = MaterialTheme.colorScheme
+    // Border 的默认形状 = 元素自己的形状(这里即 8dp 圆角的卡片),与库默认聚焦描边的 8dp 圆角同形——只换了颜色。
+    val border = if (moving) {
+        val carried = Border(BorderStroke(HomeLayout.FOCUS_BORDER.dp, accent))
+        CardDefaults.border(border = carried, focusedBorder = carried)
+    } else {
+        CardDefaults.border()
+    }
     val cardTint = if (themed) ColorFilter.colorMatrix(ColorMatrix(cardTintMatrix(accent.toArgb() and 0xFFFFFF))) else null
     // 容器色:有图的卡透明(横幅铺满,库的 clip 裁圆角);主题化统一铺深 accent 底;图标回落卡铺边缘色;
     // 连图都没有(文字回落)用库的 surfaceVariant #49454F。accent 不进卡片中间(M7 §10.5)——只有主题化开关是用户主动要的例外。
@@ -113,7 +128,8 @@ fun AppCard(
                 focusedContainerColor = container,
                 pressedContainerColor = container,
             ),
-            // scale / border / glow 用库默认:1.1、3dp colorScheme.border、Glow.None
+            // scale / glow 用库默认:1.1、Glow.None;border 平时也是库默认(3dp colorScheme.border),只有被搬的卡换色
+            border = border,
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 val bmp = app.card

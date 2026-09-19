@@ -27,7 +27,7 @@
     <string name="card_menu_icon">更改图标</string>
     <string name="card_menu_icon_desc">从图库选一张 16:9 的图</string>
     <string name="card_menu_move">移动位置</string>
-    <string name="card_menu_move_desc">进入编辑分栏并定位到这张卡</string>
+    <string name="card_menu_move_desc">在桌面上直接挪动这张卡</string>
     <string name="card_menu_remove">从当前分类移除</string>
     <string name="card_menu_remove_desc">应用本身不会被卸载</string>
     <!-- title_dialog_* : 「修改标题」对话框 -->
@@ -76,7 +76,7 @@
 
     <!-- edit_* : 编辑分栏界面 -->
     <string name="edit_title">编辑分栏</string>
-    <string name="edit_hint">选中应用按确定:调顺序、换图、移出。每行末尾的加号可以添加。返回键退出。</string>
+    <string name="edit_hint">选中应用按确定:调顺序、换图、移出。每行末尾的加号:添加应用、管理这一行。返回键退出。</string>
     <string name="edit_toast_order_not_saved">顺序没能存下来,重启后会变回原样</string>
     <string name="edit_move_left">往左移</string>
     <string name="edit_move_left_desc">在这一行里前移一位</string>
@@ -231,4 +231,53 @@
     <string name="toast_restored">已恢复默认设置</string>
     <string name="toast_system_screensaver_unavailable">打不开系统屏保设置</string>
     <string name="toast_pool_delete_failed">「%1$s」没能删掉</string>
+    <!-- M4b -->
+    <string name="menu_hide_input">隐藏</string>
+    <string name="menu_hide_input_desc">从桌面隐藏这个输入源</string>
+    <string name="toast_input_hidden">已隐藏「%1$s」,可在 设置 → 布局 → 恢复隐藏的输入源 找回</string>
+    <string name="toast_input_hide_failed">没能隐藏,请稍后再试</string>
+    <string name="settings_restore_hidden_inputs">恢复隐藏的输入源</string>
+    <string name="settings_hidden_inputs_count">%1$d 个</string>
+    <string name="toast_inputs_restored">已恢复全部输入源</string>
+    <string name="card_menu_open_input">打开输入源</string>
+    <string name="card_menu_open_input_desc">切到这个输入源</string>
+    <string name="card_menu_rename_input_desc">改卡片上显示的名字,清空恢复系统名</string>
+    <string name="title_dialog_hint_input">确定保存 · 返回取消 · 清空恢复系统名</string>
+    <!-- edit_row_* / row_icon_* : 编辑页行菜单(行尾「+」)、行改名、行图标选择器、删行确认框(M4b Task 4) -->
+    <string name="edit_row_add_app">添加应用</string>
+    <string name="edit_row_add_app_desc">从已安装的应用里挑</string>
+    <string name="edit_row_rename">重命名此行</string>
+    <string name="edit_row_rename_desc">改这一行的名字</string>
+    <string name="edit_row_icon">更换此行图标</string>
+    <string name="edit_row_icon_desc">更换行名前的图标</string>
+    <string name="edit_row_up">此行上移</string>
+    <string name="edit_row_up_desc">和上面一行对调</string>
+    <string name="edit_row_down">此行下移</string>
+    <string name="edit_row_down_desc">和下面一行对调</string>
+    <string name="edit_row_new">在下方新建一行</string>
+    <string name="edit_row_new_desc">在这一行下面加一个空行</string>
+    <string name="edit_row_delete">删除此行</string>
+    <string name="edit_row_delete_desc">行里的应用不会被卸载</string>
+    <string name="edit_new_row_name">新行</string>
+    <string name="edit_row_rename_heading">重命名此行</string>
+    <string name="edit_row_rename_hint">确定保存 · 返回取消 · 清空不会改名</string>
+    <string name="edit_row_icon_heading">选择行图标</string>
+    <string name="edit_row_delete_confirm_title">删除「%1$s」?</string>
+    <string name="edit_row_delete_confirm_body">这一行的 %1$d 个应用会从桌面移除,不会卸载。</string>
+    <string name="edit_row_delete_ok">删除</string>
+    <string name="row_icon_movie">影片</string>
+    <string name="row_icon_tv">电视</string>
+    <string name="row_icon_live">直播</string>
+    <string name="row_icon_music">音乐</string>
+    <string name="row_icon_games">游戏</string>
+    <string name="row_icon_kids">儿童</string>
+    <string name="row_icon_tools">工具</string>
+    <string name="row_icon_education">学习</string>
+    <string name="row_icon_sports">运动</string>
+    <string name="row_icon_news">资讯</string>
+    <string name="row_icon_photos">相册</string>
+    <string name="row_icon_apps">应用</string>
+    <!-- home_move_hint / toast_move_failed : 首页原地移动态(M4b Task 5) -->
+    <string name="home_move_hint">← → 移动 · ↑ ↓ 换行 · 确定 放下 · 返回 取消</string>
+    <string name="toast_move_failed">没能保存新位置,请稍后再试</string>
 </resources>

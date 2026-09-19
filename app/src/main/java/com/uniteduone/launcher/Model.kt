@@ -20,13 +20,15 @@ data class AppEntry(
  *  (启动应用 vs 切换输入源)和行标题图标,不碰焦点不变量。 */
 enum class RowKind { APPS, INPUTS }
 
-/** 一行。应用行名字固定(VIDEO / LIVE / MUSIC),由 layout.json 决定成员与顺序;
+/** 一行。应用行名字与图标来自 layout.json(M4b 起可在编辑页改),由 layout.json 决定成员与顺序;
  *  输入源行名字是本地化标题,成员由 [Inputs] 枚举。
  *  输入源行把每个输入伪装成 [AppEntry](packageName 存输入 id,card=null 走文字回退),
  *  从而**原样复用** AppCard / CategoryRow / 整套纵向焦点账本 —— 只在点击处按 [kind] 分流。 */
 data class Row(
     val name: String,
     val apps: List<AppEntry>,
+    /** layout.json 里存的图标 id;null = 按名字回落,见 RowIcons.kt。输入源行不用。 */
+    val icon: String? = null,
     val kind: RowKind = RowKind.APPS,
     /**
      * 这一行在 **layout.json** 里的下标;输入源行没有对应条目,记 -1。

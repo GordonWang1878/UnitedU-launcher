@@ -6,15 +6,19 @@ import org.junit.Test
 
 class LayoutTest {
     private val rows = listOf(
-        "VIDEO" to listOf("com.a", "com.b"),
-        "LIVE" to listOf("com.b", "com.c"),
-        "MUSIC" to listOf("com.b"),
+        LayoutRow("VIDEO", apps = listOf("com.a", "com.b")),
+        LayoutRow("LIVE", apps = listOf("com.b", "com.c")),
+        LayoutRow("MUSIC", apps = listOf("com.b")),
     )
 
     @Test fun withoutPackageRemovesFromEveryRowAndKeepsOrder() {
         val next = Layout.withoutPackage(rows, "com.b")
         assertEquals(
-            listOf("VIDEO" to listOf("com.a"), "LIVE" to listOf("com.c"), "MUSIC" to emptyList()),
+            listOf(
+                LayoutRow("VIDEO", apps = listOf("com.a")),
+                LayoutRow("LIVE", apps = listOf("com.c")),
+                LayoutRow("MUSIC", apps = emptyList()),
+            ),
             next,
         )
     }

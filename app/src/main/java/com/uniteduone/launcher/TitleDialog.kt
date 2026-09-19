@@ -37,7 +37,6 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -45,14 +44,29 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * 「修改标题」对话框(spec §3):一个文本框是唯一可聚焦项,系统输入法负责输入。
+ * 单行改名对话框(spec §3;M4b 起通用化):一个文本框是唯一可聚焦项,系统输入法负责输入。
+ * 不认识「卡片 / 输入源 / 行」:标题、提示、清空的含义都由调用方给——首页改卡片标题、编辑页改行名共用这一份。
  * 焦点账本:初始焦点只信自报 isFocused,nonce 变化重请求(铁律 2、3);守卫 `focused` 同时是 key(铁律 6)。
- * 确定(IME Done / 确定键)保存;返回取消;清空 = 恢复应用名。
+ * 确定(IME Done / 确定键)保存;返回取消。
+ *
+ * @param key 这次改的是谁(卡片的包名 / 输入 id、编辑页的 `"row-<行号>"`);换了对象,输入框里的草稿随之重置。
+ * @param heading 标题(如「修改标题」「重命名此行」)。
+ * @param hint 底部一行小字:确定 / 返回 / 清空各是什么意思。
+ * @param subtitle 标题下一行小字(卡片改名 = 这张卡的显示名);null = 不画这一行。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
-fun TitleDialog(ref: CardRef, current: String, onSave: (String) -> Unit, onCancel: () -> Unit, nonce: Int) {
-    var text by remember(ref.pkg) { mutableStateOf(current) }
+fun TitleDialog(
+    key: String,
+    current: String,
+    heading: String,
+    hint: String,
+    onSave: (String) -> Unit,
+    onCancel: () -> Unit,
+    nonce: Int,
+    subtitle: String? = null,
+) {
+    var text by remember(key) { mutableStateOf(current) }
     val fr = remember { FocusRequester() }
     var focused by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -75,14 +89,16 @@ fun TitleDialog(ref: CardRef, current: String, onSave: (String) -> Unit, onCance
             Modifier.clip(RoundedCornerShape(14.dp)).background(Theme.DialogSurface).width(420.dp).padding(24.dp),
         ) {
             BasicText(
-                text = stringResource(R.string.title_dialog_title),
+                text = heading,
                 style = TextStyle(fontFamily = Theme.Sans, fontWeight = FontWeight.Medium, color = highlight, fontSize = 16.sp),
             )
-            Spacer(Modifier.height(6.dp))
-            BasicText(
-                text = ref.label.ifBlank { ref.pkg },
-                style = TextStyle(fontFamily = Theme.Sans, color = Theme.HintText, fontSize = 12.sp),
-            )
+            if (subtitle != null) {
+                Spacer(Modifier.height(6.dp))
+                BasicText(
+                    text = subtitle,
+                    style = TextStyle(fontFamily = Theme.Sans, color = Theme.HintText, fontSize = 12.sp),
+                )
+            }
             Spacer(Modifier.height(16.dp))
             BasicTextField(
                 value = text,
@@ -124,7 +140,7 @@ fun TitleDialog(ref: CardRef, current: String, onSave: (String) -> Unit, onCance
             )
             Spacer(Modifier.height(12.dp))
             BasicText(
-                text = stringResource(R.string.title_dialog_hint),
+                text = hint,
                 style = TextStyle(fontFamily = Theme.Sans, color = Theme.FooterHintText, fontSize = 10.sp),
             )
         }

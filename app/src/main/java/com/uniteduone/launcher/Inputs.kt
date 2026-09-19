@@ -10,11 +10,13 @@ import android.util.Log
 /**
  * 一个可切换的电视输入源(HDMI / 分量 / 复合 / 内置调谐器等)。
  * [id] 是 [TvInputInfo.getId] 返回的稳定标识,启动时用它构造 passthrough URI。
+ * [parentId] 是 HDMI-CEC 子设备所在端口的输入 id([TvInputInfo.getParentId]);端口本身为 null。
  */
 data class InputEntry(
     val id: String,
     val label: String,
     val isPassthrough: Boolean,
+    val parentId: String? = null,
 )
 
 /**
@@ -36,9 +38,8 @@ object Inputs {
      * 读标签用 [TvInputInfo.loadLabel]:系统给的就是「HDMI 1 / 分量 / 电视」这类。
      * 拿不到标签时按类型兜一个可读名(见 [fallbackLabel])。
      *
-     * ⚠️ **未做父子(HDMI-CEC)去重**:连了 CEC 设备的 HDMI 口会既有端口输入(HDMI 1)
-     * 又有子设备输入(如 PlayStation),两者都会列出来。去重 / 每输入改名隐藏是 M4 的活
-     * (要长按菜单),这里先全量列出,留给真机 pass 判断观感。
+     * 父子(HDMI-CEC)去重见 [dedupeCec]:连了 CEC 设备的 HDMI 口会既有端口输入(HDMI 1)
+     * 又有子设备输入(如 PlayStation),这里全量列出,去重是调用方(HomeScreen)的活。
      */
     fun load(ctx: Context): List<InputEntry> {
         val tim = runCatching {
@@ -59,6 +60,7 @@ object Inputs {
                     id = info.id,
                     label = label.ifEmpty { fallbackLabel(info) },
                     isPassthrough = info.isPassthroughInput,
+                    parentId = info.parentId,
                 )
             }.getOrNull()
         }

@@ -7,7 +7,7 @@ package com.uniteduone.launcher
  * 判定;返回键往哪一步走;`recreate()` 之后步骤号怎么还原。`Onboarding.kt` 只画和管焦点,
  * `MainActivity` 只接线——它们不再各自另写一份判断。
  *
- * 布局的内存形状与 `Layout.read`/`Layout.write` 一致:行名 → 该行的包名(有序)。
+ * 布局的内存形状与 `Layout.read`/`Layout.write` 一致:`LayoutRow`(有序)。
  */
 
 /** 引导一共三步:1 语言 / 2 铺应用 / 3 设默认桌面。 */
@@ -23,14 +23,14 @@ internal const val ONBOARDING_STEPS = 3
  *   于是「从未安装的默认条目」就此从文件里消失,之后装上也不会自己冒出来。
  */
 internal fun plannedLayout(
-    default: List<Pair<String, List<String>>>,
+    default: List<LayoutRow>,
     installed: Set<String>,
-): List<Pair<String, List<String>>> =
-    default.map { (name, pkgs) -> name to pkgs.filter { it in installed } }
+): List<LayoutRow> =
+    default.map { it.copy(apps = it.apps.filter { p -> p in installed }) }
 
 /** 第 2 步「跳过」:三行保留、`apps` 清空(spec §8)。桌面从空白开始,由用户自己在编辑分栏里添加。 */
-internal fun skippedLayout(default: List<Pair<String, List<String>>>): List<Pair<String, List<String>>> =
-    default.map { it.first to emptyList() }
+internal fun skippedLayout(default: List<LayoutRow>): List<LayoutRow> =
+    default.map { it.copy(apps = emptyList()) }
 
 /**
  * 第 2 步屏幕上的「将放到桌面的应用」:就是 [planned](= [plannedLayout] 的结果)去掉空行,
@@ -40,12 +40,12 @@ internal fun skippedLayout(default: List<Pair<String, List<String>>>): List<Pair
  * 列表里绝不出现一个没有名字的空位。
  */
 internal fun planView(
-    planned: List<Pair<String, List<String>>>,
+    planned: List<LayoutRow>,
     labels: Map<String, String>,
 ): List<Pair<String, List<Pair<String, String>>>> =
-    planned.mapNotNull { (name, pkgs) ->
-        if (pkgs.isEmpty()) null
-        else name to pkgs.map { pkg -> pkg to (labels[pkg]?.takeIf { it.isNotBlank() } ?: pkg) }
+    planned.mapNotNull { row ->
+        if (row.apps.isEmpty()) null
+        else row.name to row.apps.map { pkg -> pkg to (labels[pkg]?.takeIf { it.isNotBlank() } ?: pkg) }
     }
 
 /**

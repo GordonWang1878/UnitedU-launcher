@@ -32,6 +32,8 @@ object Paths {
     fun settingsBad(ctx: Context) = File(base(ctx), "settings.json.bad")
     fun titlesJson(ctx: Context) = File(base(ctx), "titles.json")
     fun titlesBad(ctx: Context) = File(base(ctx), "titles.json.bad")
+    fun hiddenInputsJson(ctx: Context) = File(base(ctx), "hidden-inputs.json")
+    fun hiddenInputsBad(ctx: Context) = File(base(ctx), "hidden-inputs.json.bad")
     fun wallpaper(ctx: Context) = File(base(ctx), "wallpaper.jpg")
     fun wallpaperPng(ctx: Context) = File(base(ctx), "wallpaper.png")
     fun screensaver(ctx: Context) = File(base(ctx), "screensaver.jpg")

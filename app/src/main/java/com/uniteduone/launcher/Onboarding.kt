@@ -527,7 +527,7 @@ internal fun resolveOnboarding(ctx: Context): Boolean {
  */
 @WorkerThread
 internal fun installedDefaultApps(ctx: Context): Map<String, String> {
-    val wanted = DEFAULT_LAYOUT.flatMap { it.second }.toSet()
+    val wanted = DEFAULT_LAYOUT.flatMap { it.apps }.toSet()
     return Apps.load(ctx, extraPackages = wanted, withBitmaps = emptySet(), withLabels = wanted)
         .filterKeys { it in wanted }
         .mapValues { it.value.label }

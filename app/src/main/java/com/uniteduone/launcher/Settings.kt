@@ -17,6 +17,7 @@ enum class IdleContent { CLOCK_ONLY, BLACK, NO_FADE }
  * 手改坏的文件也生不出非法状态(比如 rowCount=99、cardsPerRow=7 这种)。
  */
 data class Settings(
+    /** 不用,行数以 layout.json 为准(M4b spec §0-5)。 */
     val rowCount: Int = 3,
     val cardsPerRow: Int = 6,
     val showTitles: Boolean = false,
