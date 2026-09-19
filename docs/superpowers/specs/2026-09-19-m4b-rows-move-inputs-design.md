@@ -2,7 +2,7 @@
 
 > 上游:`docs/DESIGN-unitedu-open-source.md` §2(应用行 1–5 行、名字、图标 id;输入源可隐藏 / 改名;移动位置 = 首页原地移动态);`docs/superpowers/specs/2026-09-15-m4-card-menu-design.md` §0(M4 / M4b 切分);`docs/superpowers/specs/2026-09-16-m7-settings-design.md` §2(「行数」归 M4b 编辑页:行的增删就是改行数);WORKLOG 2026-09-19(Gordon 定「先把 bug 修完、功能欠缺做完,任何 UI 美化先不做」)。
 >
-> **状态**:2026-09-19 无人值守窗口里起草。DESIGN §2 已经定死的照搬;DESIGN 没说的交互细节是我按规格做的**裁定(Ruling)**,集中在 §0,每条写了「错了的代价」,等 Gordon 回来过目、可改。
+> **状态**:2026-09-19 无人值守窗口里起草。DESIGN §2 已经定死的照搬;DESIGN 没说的交互细节是我按规格做的**裁定(Ruling)**,集中在 §0,每条写了「错了的代价」。**Gordon 2026-09-19 16:45 过目后确认「按现在的方案做」**(Rulings A–M 全部照此实施)。
 >
 > 代码事实(引文件:行)来自 2026-09-19 的代码调查;真机输入源来自同日 A95L `dumpsys tv_input`(只读)。
 
