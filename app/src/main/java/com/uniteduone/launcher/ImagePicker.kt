@@ -45,8 +45,6 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import kotlinx.coroutines.delay
 
-private val IMAGE_EXTS = setOf("jpg", "jpeg", "png", "webp")
-
 private sealed class PickerItem {
     data class Original(val bitmap: Bitmap) : PickerItem()
     data class Library(val file: File) : PickerItem()
