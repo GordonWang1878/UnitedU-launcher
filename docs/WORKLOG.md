@@ -862,3 +862,10 @@ worktree `.claude/worktrees/leftover-fixes`,分支 `leftover-fixes`,base `49760b
 顺带记一笔非缺陷的观察:第一次改动任意设置字段会把 `Settings` 对象整份重新序列化落盘,此前只存在于内存默认值、从未写过盘的 `screensaverAfterMs`/`screensaverIntervalMs` 两个字段因此在这轮测试后首次出现在 `settings.json` 里——数值(300000/5min、30000/30s)与测试开始前设置页已经显示选中的值一致,不代表任何行为变化,记录以防以后被误读成「这轮改动动过屏保设置」。
 
 证据:97 份 `uiautomator` dump + 分阶段截图,存于 session scratchpad(未提交仓库),清单见 `task-5-report.md`(`.superpowers/` gitignored)。收尾设备状态:图库目录清空、`long_press_timeout`=400、`idleAfterMs`=180000、`showTitles`=false、`animator_duration_scale` 未变(null)、TouchMode=0,本分支 APK 仍是当前安装,前台停在首页。
+
+## 2026-09-19 · 遗留修复批并入 main(本地)
+
+- `leftover-fixes` 经 5 个任务(每个任务单独审查,T1/T2/T4/T5 各有一轮修复)+ fable 整分支终审(「修完可并」:R5 缩略图串图、图库看门狗未封顶、CLAUDE.md 焦点表两句与代码不符 → 一次修复波 `a141aeb`,复审全部通过)后,`merge --no-ff` 并入本地 main = `3b18d8b`;并后 main 单测 213/213、`assembleRelease` 绿。worktree 与分支已删;SDD 台账与各任务报告留在 `.superpowers/sdd/2026-09-19-leftover-fixes/`(gitignored)待 Gordon 看过再清。
+- 终审遗留一处:CLAUDE.md 焦点表「壁纸 / 卡片图选择器」一行说它们是「仅有的两处调用 `PickerGrid`」,其实屏保图库也调用(见下一行)——交给 M4b Task 6 改焦点表时一并更正(Ruling R10)。
+- 仍开着的 bug:鼠标 / 飞鼠点击后齿轮菜单与设置页丢焦点(Ruling R7,机理与建议修法见上面「遗留修复批」一节)。
+- 未推 GitHub(等 Gordon 说「推」)。真机清单见上面「遗留修复批」一节,与 M4b 一起验。
