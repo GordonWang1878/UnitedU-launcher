@@ -795,3 +795,10 @@ HEAD `c0cf5a6`(接 `8d82355`),worktree 仍是 `m5-standby`。终审复查的完�
 - 我原推荐「先 gtv、main 只修 bug」(理由:M4b 的新界面先按旧样式做、gtv 再复刻一遍约多 1 天);Gordon 选先 main,换来功能早到、两条线零并行。
 - 已执行:提前开的 `gtv` 分支指针删除(与 main 同一提交,无独有内容),等 main 做完从新 main 重开;Google TV 镜像已下载并校验(sha1 一致)、解压到 `~/Library/Android/sdk/system-images/android-34/google-tv/arm64-v8a/` 备用,AVD 未建、实测未做。gtv 第一轮四个决定(真 Google TV 实测 / 全 app / Google 的壳我们的内容 / 独立包名并存)保留有效,重开时从「实测 → 逐项对照表」接着问。
 - 精简版 main 的范围:①遗留 bug(M5 终审遗留九项 + M5 已知未修 + M8 终审遗留六项 + M7 冷启动菜单无焦点,见本文件各节);②M4b:行管理(1–5 行增删 / 命名 / 图标)、原地移动、输入源逐项隐藏 / 改名、HDMI-CEC 父子去重。不做:M8b 二级界面换皮、行尾「+」卡、差距报告 6 h 子集(都归 gtv 线)。
+
+## 2026-09-19 · 无人值守窗口(13:45 起约 4 小时):遗留修复批 + M4b
+
+- Gordon:「接下来 4 个小时交给你了…计划出来之后直接动手实现,发现 bug 即修复」。按 overnight 规则执行:不推、不出卡、决定写进各计划的 SDD 台账(`.superpowers/sdd/<plan>/progress.md`)、可本地并 main;目标与进度在 `.superpowers/sdd/unattended-goal-2026-09-19.md`。
+- **遗留修复批**:plan `docs/superpowers/plans/2026-09-19-leftover-fixes.md`(`49760bb`,15 条遗留 → 5 个任务),worktree `.claude/worktrees/leftover-fixes`。
+- **M4b**:spec `docs/superpowers/specs/2026-09-19-m4b-rows-move-inputs-design.md`(`8766740`/`6b1151d`,DESIGN §2 已定的照搬,其余交互细节是 Rulings A–M,等 Gordon 过目)、plan `docs/superpowers/plans/2026-09-19-m4b-rows-move-inputs.md`(`710c714`,6 个任务),worktree `.claude/worktrees/m4b`;数据层两个任务不用模拟器,与修复批并行,第 3 个任务起等修复批并入 main 后再接(依赖它的 `keepInView` 与菜单看门狗)。
+- **新发现**:①`EditScreen.kt:280` 仍用 `verticalScroll(rememberScrollState())`,违反铁律 1(此前没记过),并入 M4b Task 4;②A95L 输入源(`dumpsys tv_input`,只读):HW0 DVB 调谐器、HW1 模拟 AV、HW2–HW5 = HDMI 1–4(当时 HDMI 2/3 有线连着),**没有任何 HDMI-CEC 子输入**,CEC 去重在这台电视上暂时看不到效果,以单测为证;③`Settings.rowCount` 全仓无人读(行数以 layout.json 为准,M4b 不启用也不删)。
