@@ -14,6 +14,21 @@ internal fun dedupeCec(entries: List<InputEntry>): List<InputEntry> {
     return entries.filter { it.id !in parents }
 }
 
+/**
+ * 多个调谐器合并成一张卡(M4b spec §0-19,Gordon 2026-09-20):点调谐器卡打开的是系统通用的频道列表,
+ * 不分是哪一个调谐器(见 [Inputs.launch]),所以两张「电视」效果完全一样。只留一个:id 里不带 analog 的优先
+ * (A95L 上是索尼的 DVB 数字调谐器),同类按 id 取第一个——规则固定,改名 / 隐藏记在它的 id 上不会漂。
+ * 透传输入(HDMI 等)原样保留,顺序不变;只有一个或没有调谐器时原样返回同一个 list。
+ */
+internal fun mergeTuners(entries: List<InputEntry>): List<InputEntry> {
+    val tuners = entries.filter { !it.isPassthrough }
+    if (tuners.size <= 1) return entries
+    val keep = tuners.sortedWith(
+        compareBy<InputEntry>({ it.id.contains("analog", ignoreCase = true) }, { it.id })
+    ).first()
+    return entries.filter { it.isPassthrough || it.id == keep.id }
+}
+
 /** 先去掉隐藏的,再把改过名的换成用户起的名字(名字来自 titles.json,key = 输入 id)。 */
 internal fun applyInputPrefs(
     entries: List<InputEntry>,

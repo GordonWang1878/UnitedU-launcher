@@ -1,11 +1,14 @@
 package com.uniteduone.launcher
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Test
 
 class InputPrefsTest {
     private fun e(id: String, label: String = id, parent: String? = null) =
         InputEntry(id = id, label = label, isPassthrough = true, parentId = parent)
+
+    private fun tuner(id: String) = InputEntry(id = id, label = "电视", isPassthrough = false)
 
     @Test fun aPortWithACecDeviceShowsOnlyTheDevice() {
         val hdmi1 = e("HW2", "HDMI 1")
@@ -38,5 +41,26 @@ class InputPrefsTest {
         assertEquals(ids, parseHiddenInputs(hiddenInputsToJson(ids)))
         assertEquals(emptySet<String>(), parseHiddenInputs("{}"))
         assertEquals(emptySet<String>(), parseHiddenInputs("not json"))
+    }
+
+    @Test fun twoTunersBecomeOneAndTheDigitalOneStays() {
+        // A95L 2026-09-20 实测:数字 DVB(HW0)+ 模拟(HW1)两个调谐器,系统都叫「电视」
+        val dvb = tuner("com.sony.dtv.tvinput.dvbtuner/.DvbTvInputService/HW0")
+        val atv = tuner("com.mediatek.tis/.AnalogInputService/HW1")
+        val hdmi = e("HW2", "HDMI 1")
+        assertEquals(listOf(hdmi, dvb), mergeTuners(listOf(hdmi, atv, dvb)))
+    }
+
+    @Test fun withoutAnAnalogHintTheSmallestIdStays() {
+        val a = tuner("a/T1")
+        val b = tuner("b/T2")
+        assertEquals(listOf(a), mergeTuners(listOf(b, a)))
+    }
+
+    @Test fun oneOrNoTunerLeavesTheListAlone() {
+        val one = listOf(e("HW2", "HDMI 1"), tuner("x/HW0"))
+        assertSame(one, mergeTuners(one))
+        val none = listOf(e("HW2", "HDMI 1"), e("HW3", "HDMI 2"))
+        assertSame(none, mergeTuners(none))
     }
 }
