@@ -230,6 +230,7 @@
     <string name="toast_stock_launcher_not_found">找不到原廠桌面</string>
     <string name="toast_restored">已恢復預設設定</string>
     <string name="toast_system_screensaver_unavailable">無法開啟系統螢幕保護設定</string>
+    <string name="toast_pool_delete_failed">「%1$s」無法刪除</string>
     <!-- M4b -->
     <string name="menu_hide_input">隱藏</string>
     <string name="menu_hide_input_desc">從桌面隱藏這個輸入源</string>

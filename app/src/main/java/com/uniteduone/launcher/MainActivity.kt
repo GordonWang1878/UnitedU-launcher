@@ -685,7 +685,6 @@ class MainActivity : ComponentActivity() {
             // 网格上报聚焦的文件、确认框的目标与两个按钮。确认框自己负责焦点;关掉后(删除 / 取消都 focusNonce++)
             // 由网格的 nonce 循环把焦点接回原位置。
             VIEW_SCREENSAVER_POOL -> ScreensaverPoolViewer(
-                directory = Paths.screensaverLibrary(this),
                 nonce = focusNonce,
                 refresh = galleryVersion,
                 onFocusedFile = { poolFocusedFile = it },
@@ -1264,15 +1263,22 @@ class MainActivity : ComponentActivity() {
 
     /**
      * 图库删图的「删除」键(M5 spec §5)。顺序照 spec:IO 线程删文件 → 播放器重扫 → 图库版本 +1 →
-     * 收确认框 → focusNonce++(网格按 nonce 把焦点落回原位置)。确认框留到删完才收:收掉那一刻焦点随它的
-     * 按钮销毁,紧接着的 nonce 让网格接回,中间没有「谁都不管」的空档。开头比对目标:过期的调用直接忽略。
-     * 删不掉(文件还在)只记日志——列表按盘上实况重读,那张图留在原处,用户看得见结果。
+     * 收确认框 → focusNonce++。这三个赋值落地时,图库那边的重扫(ImagePicker.kt
+     * ScreensaverPoolViewer 的 produceState)通常还没跑完——**中间是有一段「谁都不管」的空档的**
+     * (fix round 1 之前踩过:焦点漏给背后盖住的设置页)。现在补上的办法不在这一层,而是让
+     * PickerGrid 的定位效果把 focusRequesters 也编进 key、另配一个焦点看门狗,新列表一到 /
+     * 焦点莫名其妙没了都能接住,不再依赖这里的三个赋值凑巧同一帧落地。开头比对目标:过期的调用
+     * 直接忽略。删不掉(文件还在)记日志 + toast(`toast_pool_delete_failed`)——列表按盘上实况
+     * 重读,那张图留在原处。
      */
     private fun deletePoolImage(file: java.io.File) {
         if (poolDeleteTarget != file) return
         lifecycleScope.launch {
             val gone = withContext(Dispatchers.IO) { file.delete() || !file.exists() }
-            if (!gone) android.util.Log.w("UnitedU", "屏保图删不掉: ${file.name}")
+            if (!gone) {
+                android.util.Log.w("UnitedU", "屏保图删不掉: ${file.name}")
+                toast(getString(R.string.toast_pool_delete_failed, file.name))
+            }
             ScreensaverPlayer.rescan(this@MainActivity)
             galleryVersion++
             poolDeleteTarget = null

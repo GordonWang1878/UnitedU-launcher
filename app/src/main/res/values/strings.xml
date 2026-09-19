@@ -230,6 +230,7 @@
     <string name="toast_stock_launcher_not_found">找不到原厂桌面</string>
     <string name="toast_restored">已恢复默认设置</string>
     <string name="toast_system_screensaver_unavailable">打不开系统屏保设置</string>
+    <string name="toast_pool_delete_failed">「%1$s」没能删掉</string>
     <!-- M4b -->
     <string name="menu_hide_input">隐藏</string>
     <string name="menu_hide_input_desc">从桌面隐藏这个输入源</string>
