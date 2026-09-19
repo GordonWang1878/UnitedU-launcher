@@ -937,3 +937,10 @@ worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs
 - **更正上一节「仍开着的缺口」**:其中「移动态取消效果的铁律 6 缺口(`committing` 不是 key)」与「编辑页卡片菜单显示「设置」标题」两项已由 `590dc6e` 修掉,不再开着。仍开着、留给后续的:移动中和弦按键漏出(只记一个 `downTime`)、`onlyOnDisk` 挪进 `Move.kt` 并补单测、抽 `MoveController`、输入源 / 应用启动分流去重、`HiddenInputs` 与 `Titles` 原子存储去重、输入源启动失败 toast 说「可能已被卸载」、`Layout` JSON 读写单测、`MissingCard` 的菜单标题只显示包名。
 - 未推 GitHub(等 Gordon 说「推」)。真机清单见上面「M4b」一节(13 项)与「遗留修复批」一节(4 项)。
 - **装到 A95L**(22:42):按记忆步骤直连 `192.168.1.22:38673`(一次连上),`adb install -r` 装 `6bc92b7` 的包,`Success`,`lastUpdateTime=2026-09-19 22:42:48`。只读查了一下:**电视的 HOME 角色现在是 `com.uniteduone.launcher`**(08:12 装 M5 时还是 tvhome);装包不改角色,我也没动过——多半是 Gordon 验收 M5 时自己选的。不改回,也不提议。
+
+## 2026-09-20 · 真机验收反馈(修 bug 批 + M4b)
+
+- Gordon 在 A95L 上实测:**绝大部分没问题**,报两个问题:
+  1. **编辑页不能跨行搬卡**:编辑页卡片菜单只有左移 / 右移;新建的空行在首页不显示,首页的搬运模式进不去,只能「从这一行移除」再到新行「添加应用」。→ Gordon 选:**编辑页也用搬运模式**(与首页同一套键位,空行也是落点;spec §0-18)。
+  2. **输入源里两张「电视」,点上去效果一样**:根因(只读 `dumpsys tv_input` 查实)——电视有两个调谐器类硬件输入(`TvInputHardwareInfo` id 0、1 都是 `type=2` 调谐器):`com.sony.dtv.tvinput.dvbtuner/.DvbTvInputService/HW0`(数字 DVB)与 `com.mediatek.tis/.AnalogInputService/HW1`(模拟),系统都标「电视」;`Inputs.launch` 对调谐器一律打开 `TvContract.Channels.CONTENT_URI`(系统通用频道列表),不分是哪一个,所以两张卡效果相同。更正 09-19 那条「HW1 模拟 AV」:HW1 是模拟**调谐器**,不是 AV。→ Gordon 选:**合并成一张「电视」**(spec §0-19)。
+- 计划:`docs/superpowers/plans/2026-09-20-m4b-followups.md`,worktree `.claude/worktrees/m4b-followups`。
