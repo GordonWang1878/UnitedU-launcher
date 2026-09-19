@@ -774,3 +774,9 @@ HEAD `c0cf5a6`(接 `8d82355`),worktree 仍是 `m5-standby`。终审复查的完�
 - `m5-standby` 9 个提交(7 个任务 + 终审修复两笔)经子代理逐任务实施、逐任务审查、fable 整分支终审(0 Critical;2 Important 已修并复核),`merge --no-ff` 并入本地 main = `5ad9096`;并后 main 上单测 203/203、`assembleRelease` 绿。worktree 与分支已删;SDD 台账归档在 `.superpowers/sdd/2026-09-19-m5-standby-screensaver/`(gitignored)。
 - **待 Gordon**:① 电视 adb 连上后装包做真机验收(M5 一节的 A95L 清单 9 项;第 4 项要他先在系统设置里打开屏保并选 UnitedU);② 验完说「推」再推 GitHub(main 另有 3 个文档提交因网络未推上);③ Google TV 对比报告的两个决定(6 小时子集、M8 有意偏离是否改回原生)。
 - **更正(同日)**:上一条写「电视 adb 连上后」是我没按 CLAUDE.md / 记忆先自己连——实际 `adb connect 192.168.1.22:38673` 报 `No route to host`,`adb kill-server` 后同一端口一次连上(mDNS 也自动连上),配对仍有效,与 09-17 同一形态。M5 包已 `install -r` 到 A95L(08:12);电视上 UnitedU 设置:待机 1 分、待机显示时钟、屏保启动未写过(读默认 5 分)、轮播 30 秒,图库 4 张;系统屏保仍关(`screensaver_enabled=0`,Gordon 自己的系统设置),`UnitedUDream` 已出现在系统屏保服务列表;默认桌面仍是 tvhome(不改)。
+
+## 2026-09-19 · M5 A95L 真机验收通过
+
+- Gordon 报 M5 清单 9 项**全部通过**(时间线、屏保画面、屏保按钮、系统屏保、图库删图、设置六行、轮播时按 HOME、20 张以上翻页、冷启动系统屏保)。M5 关闭;路线图见 DESIGN §11。
+- 同一句里 Gordon 下令「推」:main 连同 M8 对比报告、M5 全部提交一起推 GitHub(结果见下一条)。
+- M5 的 DreamService spike 分支 `worktree-agent-a21dcfb91b5103162`(1 个提交 `4f184b7`,已被 `UnitedUDream` 取代;worktree 早已不在)改存为本地标签 `spike/m5-dream`,分支删除。
