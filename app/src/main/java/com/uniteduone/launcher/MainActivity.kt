@@ -1125,7 +1125,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** 长按菜单项。顺序与文案见 design §2;RENAME 在 Task 5 接对话框,本任务先不列出。 */
+    /**
+     * 长按菜单项:哪几项由 [cardMenuActions] 按 `ref.kind` 定(应用行六项见 design §2,
+     * 输入源行三项见 M4b spec §0-11);这里只管每一项按下去做什么。OPEN/RENAME 的文案与动作
+     * 都会再按 `ref.kind` 二次分流(应用 vs 输入源不共用同一套「应用」措辞,也不共用启动方式)。
+     */
     private fun cardMenuItems(ref: CardRef): List<MenuItem> = cardMenuActions(ref.kind).mapNotNull { action ->
         when (action) {
             // 文案按 ref.kind 分流(M4b 跟进复审):card_menu_open(_desc) 写死「应用」,
