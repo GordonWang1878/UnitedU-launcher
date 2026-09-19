@@ -27,7 +27,7 @@
     <string name="card_menu_icon">更改圖片</string>
     <string name="card_menu_icon_desc">從圖庫選一張 16:9 的圖</string>
     <string name="card_menu_move">移動位置</string>
-    <string name="card_menu_move_desc">進入編輯分欄並定位到這張卡</string>
+    <string name="card_menu_move_desc">在桌面上直接挪動這張卡</string>
     <string name="card_menu_remove">從目前分類移除</string>
     <string name="card_menu_remove_desc">應用程式本身不會被解除安裝</string>
     <!-- title_dialog_* : 「修改標題」對話框 -->
@@ -277,4 +277,7 @@
     <string name="row_icon_news">資訊</string>
     <string name="row_icon_photos">相簿</string>
     <string name="row_icon_apps">應用程式</string>
+    <!-- home_move_hint / toast_move_failed : 首頁原地移動態(M4b Task 5) -->
+    <string name="home_move_hint">← → 移動 · ↑ ↓ 換行 · 確定 放下 · 返回 取消</string>
+    <string name="toast_move_failed">無法儲存新位置,請稍後再試</string>
 </resources>

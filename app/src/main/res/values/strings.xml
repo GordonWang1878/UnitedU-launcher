@@ -27,7 +27,7 @@
     <string name="card_menu_icon">更改图标</string>
     <string name="card_menu_icon_desc">从图库选一张 16:9 的图</string>
     <string name="card_menu_move">移动位置</string>
-    <string name="card_menu_move_desc">进入编辑分栏并定位到这张卡</string>
+    <string name="card_menu_move_desc">在桌面上直接挪动这张卡</string>
     <string name="card_menu_remove">从当前分类移除</string>
     <string name="card_menu_remove_desc">应用本身不会被卸载</string>
     <!-- title_dialog_* : 「修改标题」对话框 -->
@@ -277,4 +277,7 @@
     <string name="row_icon_news">资讯</string>
     <string name="row_icon_photos">相册</string>
     <string name="row_icon_apps">应用</string>
+    <!-- home_move_hint / toast_move_failed : 首页原地移动态(M4b Task 5) -->
+    <string name="home_move_hint">← → 移动 · ↑ ↓ 换行 · 确定 放下 · 返回 取消</string>
+    <string name="toast_move_failed">没能保存新位置,请稍后再试</string>
 </resources>

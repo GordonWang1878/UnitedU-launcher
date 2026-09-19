@@ -49,6 +49,14 @@ private const val KEY_SELF_RECREATE = "selfTriggeredRecreate"
 /** 首次引导停在第几步(T10)。只在引导开着时写;还原规则见 `onCreate` 里引导那一段。 */
 private const val KEY_ONB_STEP = "onbStep"
 
+/**
+ * 移动态下照常放行的键(M4b spec §3「其它键吞掉」的唯一例外):音量。桌面自己从不处理它们,
+ * 放行只会落到系统的音量调节,不碰任何界面状态;吞掉的话搬卡的那几秒里电视音量调不了。
+ */
+private val MOVE_PASSTHROUGH_KEYS = setOf(
+    KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE,
+)
+
 class MainActivity : ComponentActivity() {
 
     private var lastInput by mutableStateOf(System.currentTimeMillis())
@@ -173,11 +181,30 @@ class MainActivity : ComponentActivity() {
     private var cardMenu by mutableStateOf<CardRef?>(null)
     /** 「修改标题」对话框(Task 5 接线)。 */
     private var renameTarget by mutableStateOf<CardRef?>(null)
-    /** 编辑页该定位到哪张卡:「移动位置」进编辑页时,以及编辑页里「换卡片图」的选择器关掉、
-     *  编辑页重建时(M7 终审 C1)。**(layout.json 行号, 包名)** ——
+    /** 编辑页该定位到哪张卡:编辑页里「换卡片图」的选择器关掉、编辑页重建时(M7 终审 C1)。
+     *  (M4b 起长按菜单「移动位置」改为首页原地移动,不再经过这里。)**(layout.json 行号, 包名)** ——
      *  列号不能带:编辑页按 layout.json 排,里面还有装不到的包占位,渲染列号对不上。
      *  只有 `leaveEdit()` 清它;编辑期间留着无害(编辑页按「已应用的目标」比对,同一个实例只应用一次)。 */
     private var editTarget by mutableStateOf<Pair<Int, String>?>(null)
+    /**
+     * **首页原地移动态**(M4b spec §3)。唯一的一份:按键([dispatchKeyEvent] 里最先截获)改它,HomeScreen 照它画、
+     * 以它的 `pos` 为焦点目标。null = 不在移动态。进入只有 [startMove] 一条路;结束只有 [endMove] 一条路
+     * (放下写盘成功 / 什么都没动就按确定 / [cancelMove]),取消的入口见 [cancelMove] 的 KDoc。
+     */
+    private var moving by mutableStateOf<MoveState?>(null)
+    /** 移动态结束时的落点(见 [MoveLanding]);HomeScreen 的还原效果把它写进目标格。每次结束都是一个新对象,不需要清。 */
+    private var moveLanding by mutableStateOf<MoveLanding?>(null)
+    /**
+     * 首页最近一次组合画出来的行(HomeScreen 的 `onRowsShown`)。进移动态时拿它当工作副本的起点——
+     * 「首页已渲染的行」,不重读磁盘。**不是 `mutableStateOf`**:只在 [startMove] 那一刻读一次。
+     */
+    private var shownRows: List<Row> = emptyList()
+    /**
+     * 移动态里按下的那一下的 downTime:同一次按压之后的事件(重复、UP)按它认,一律吞掉——**哪怕这一下
+     * (确定 / 返回)已经结束了移动态**。不吞的话确定键的 UP 会落到被搬的卡上:tv-material 的卡在 UP 时
+     * 直接触发 onClick(不看之前有没有收到过 DOWN),放下的同时把应用打开了。与 [wakeDownTime] 同一手法。
+     */
+    private var moveDownTime = -1L
     /** 「关于」浮层(齿轮菜单第四项,spec §7):版本号 + 手动检查更新,见 AboutScreen.kt。 */
     private var about by mutableStateOf(false)
     /**
@@ -412,6 +439,15 @@ class MainActivity : ComponentActivity() {
                     standby = StandbyFlags.SCREENSAVER
                 }
             }
+            // **首页被盖住 = 移动态取消**(M4b spec §0-9「进待机、任何浮层要打开 → 等同取消」)。移动态下按键全被
+            // dispatchKeyEvent 截走,遥控器开不出任何浮层;剩下的来路是待机计时到点,以及指针事件(鼠标 / 触摸点到齿轮)
+            // ——都在这一处收口,不去每个浮层的入口各判一次。守卫的两个量都是 key(铁律 6);
+            // 不是闩(铁律 7):cancelMove 本身读活状态,写盘途中(committing)它什么都不做,由写盘结果决定去留。
+            val moveBlocked = editing || menuOpen || overlay || homeOverlay || idle
+            val inMove = moving != null
+            LaunchedEffect(moveBlocked, inMove) {
+                if (moveBlocked && inMove) cancelMove()
+            }
             // 屏保按钮的请求(见 screensaverRequests 的 KDoc):声明在计时效果之后、再等一帧,保证后写(R3)。
             // M5 spec §1.3:有图 → 立刻进自定义屏保、跳过待机;图库空 → 退为进待机;空图库 +「不淡出」→ 空操作,
             // 下一个键不被吞(「不淡出」的待机没有任何可见效果,进了只会白吞一个键)。NO_FADE 的判断从调用点
@@ -567,6 +603,9 @@ class MainActivity : ComponentActivity() {
                     renameTarget = renameTarget,
                     onRenameSave = ::onRenameSave,
                     onRenameCancel = { renameTarget = null; focusNonce++ },
+                    moving = moving,
+                    moveLanding = moveLanding,
+                    onRowsShown = { shownRows = it },
                 )
                 // **设置页叠在首页之上**(M7 T5,spec §3.1):首页留在底下继续组合,
                 // 半透明渐变遮罩底下看到的就是真正的首页 —— 改卡片大小 / 标题 / 主题色当场可见。
@@ -763,6 +802,21 @@ class MainActivity : ComponentActivity() {
             if (event.action == KeyEvent.ACTION_UP) wakeDownTime = -1L
             return true
         }
+        // **首页原地移动态**(M4b spec §3):排在 MENU、长按识别与 Compose 之前,除音量外的键一律在这里截走。
+        // 方向键搬卡、确定放下、返回取消,其余(MENU、长按、别的一切)按下去什么都不发生。
+        // 每一下按压从 DOWN 到 UP 整个吞掉:按 downTime 认(见 moveDownTime 的 KDoc),所以结束移动态的那一下
+        // (确定 / 返回)的 UP 也落不到界面上——卡片不会因为这个 UP 被「点击」,返回键也不会再触发一次返回。
+        val inMovePress = moveDownTime != -1L && event.downTime == moveDownTime
+        if ((moving != null && event.keyCode !in MOVE_PASSTHROUGH_KEYS) || inMovePress) {
+            when (event.action) {
+                KeyEvent.ACTION_DOWN -> if (moving != null) {
+                    moveDownTime = event.downTime
+                    onMoveKey(event)
+                }
+                KeyEvent.ACTION_UP -> if (inMovePress) moveDownTime = -1L
+            }
+            return true
+        }
         if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0
             && event.keyCode == KeyEvent.KEYCODE_MENU
         ) {
@@ -843,19 +897,122 @@ class MainActivity : ComponentActivity() {
             return true
         }
         val result = super.dispatchKeyEvent(event)
-        if (event.action == KeyEvent.ACTION_DOWN) {
-            val sfx = when (event.keyCode) {
-                KeyEvent.KEYCODE_DPAD_UP -> SoundEffectConstants.NAVIGATION_UP
-                KeyEvent.KEYCODE_DPAD_DOWN -> SoundEffectConstants.NAVIGATION_DOWN
-                KeyEvent.KEYCODE_DPAD_LEFT -> SoundEffectConstants.NAVIGATION_LEFT
-                KeyEvent.KEYCODE_DPAD_RIGHT -> SoundEffectConstants.NAVIGATION_RIGHT
-                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER ->
-                    SoundEffectConstants.CLICK
-                else -> -1
-            }
-            if (sfx >= 0) window.decorView.playSoundEffect(sfx)
-        }
+        if (event.action == KeyEvent.ACTION_DOWN) playKeySound(event.keyCode)
         return result
+    }
+
+    /** 方向键 / 确定键的按键音。普通导航(super.dispatchKeyEvent 之后)与移动态([onMoveKey])共用这一份映射。 */
+    private fun playKeySound(keyCode: Int) {
+        val sfx = when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_UP -> SoundEffectConstants.NAVIGATION_UP
+            KeyEvent.KEYCODE_DPAD_DOWN -> SoundEffectConstants.NAVIGATION_DOWN
+            KeyEvent.KEYCODE_DPAD_LEFT -> SoundEffectConstants.NAVIGATION_LEFT
+            KeyEvent.KEYCODE_DPAD_RIGHT -> SoundEffectConstants.NAVIGATION_RIGHT
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER ->
+                SoundEffectConstants.CLICK
+            else -> -1
+        }
+        if (sfx >= 0) window.decorView.playSoundEffect(sfx)
+    }
+
+    /**
+     * 移动态下一次按下(DOWN,含按住不放的重复)。方向键:搬一步——按住就连续搬,与普通导航按住连续移动焦点一致;
+     * 状态在这里同步改完,焦点由 HomeScreen 的还原效果按新的 `pos` 追过去,连发再快也不会跑在状态前面。
+     * 确定 = 放下,返回 = 取消,两者都只认第一下(重复 = 长按,无反应)。其余键:什么都不做(已被外层吞掉)。
+     * 写盘途中(committing)一律不动。
+     */
+    private fun onMoveKey(event: KeyEvent) {
+        val st = moving ?: return
+        if (st.committing) return
+        val dir = when (event.keyCode) {
+            KeyEvent.KEYCODE_DPAD_LEFT -> MoveDir.LEFT
+            KeyEvent.KEYCODE_DPAD_RIGHT -> MoveDir.RIGHT
+            KeyEvent.KEYCODE_DPAD_UP -> MoveDir.UP
+            KeyEvent.KEYCODE_DPAD_DOWN -> MoveDir.DOWN
+            else -> null
+        }
+        if (dir != null) {
+            playKeySound(event.keyCode)
+            val (rows, pos) = moveCard(st.rows, st.pos, dir)
+            // 到头 / 那个方向没有应用行:moveCard 原样返回同一个 list,状态不动
+            if (rows !== st.rows) moving = st.copy(rows = rows, pos = pos)
+            return
+        }
+        if (event.repeatCount > 0) return
+        when (event.keyCode) {
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                playKeySound(KeyEvent.KEYCODE_DPAD_CENTER)
+                dropMove(st)
+            }
+            KeyEvent.KEYCODE_BACK -> cancelMove()
+        }
+    }
+
+    /**
+     * 长按菜单「移动位置」:进入首页原地移动态(M4b spec §0-9)。工作副本 = 首页此刻画着的行([shownRows])。
+     * 那张卡按 **(layout 行号, 包名)** 在里面重新定位,不直接用 ref 的渲染行列号:菜单开着的这段时间里
+     * 后台重读可能已经落地、行列变了;一行之内包名唯一(`Layout.read` 做过 distinct),所以这样找不会找错
+     * ——同一个包出现在两行时,layout 行号把它们分开(spec §3「按位置追踪,不按包名找」说的正是跨行重名)。
+     * 找不到(那张卡刚被卸载)就什么都不做。存储没挂上时先提示:搬完也存不下来。
+     */
+    private fun startMove(ref: CardRef) {
+        if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
+        val rows = shownRows
+        val r = rows.indexOfFirst { it.kind == RowKind.APPS && it.layoutRow == ref.layoutRow }
+        val c = rows.getOrNull(r)?.apps?.indexOfFirst { it.packageName == ref.pkg } ?: -1
+        if (c < 0) return
+        val at = MovePos(r, c)
+        moving = MoveState(pos = at, rows = rows, original = rows, from = at)
+    }
+
+    /**
+     * 放下(确定键)。什么都没动过就直接结束,不写盘、不重读。否则先标 committing(按键与取消入口在写盘期间一律不理),
+     * IO 线程上 `Layout.write(mergeMove(盘上最新, original, 工作副本))`:成功 → 结束,焦点落在卡的新位置,
+     * `revision++` 让首页按新 layout.json 重读(**不是 settingsRevision**:那颗只重读 settings.json、不重建首页行,
+     * 挂它的话放下后首页会一直画着搬之前的旧数据);失败 → toast 并回到移动态,可以再按确定重试或按返回取消
+     * ——若这期间已经离开前台,就直接取消。
+     */
+    private fun dropMove(st: MoveState) {
+        if (st.rows == st.original) { endMove(st.pos, wrote = false); return }
+        moving = st.copy(committing = true)
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                val disk = Layout.read(this@MainActivity)
+                // 移动途中被真正卸载的包,pruneUninstalled 已经把它从盘上清掉了;工作副本里它还在,
+                // 不滤掉的话这里会把它原样写回去,编辑页从此多一张「未安装」的僵尸卡。
+                val onDisk = disk.flatMapTo(HashSet()) { it.apps }
+                val working = st.rows.map { r ->
+                    if (r.kind == RowKind.APPS) r.copy(apps = r.apps.filter { it.packageName in onDisk }) else r
+                }
+                Layout.write(this@MainActivity, mergeMove(disk, st.original, working))
+            }
+            val cur = moving?.takeIf { it.committing } ?: return@launch
+            if (ok) {
+                endMove(cur.pos, wrote = true)
+                revision++
+            } else {
+                toast(getString(R.string.toast_move_failed))
+                moving = cur.copy(committing = false)
+                if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) cancelMove()
+            }
+        }
+    }
+
+    /**
+     * 取消移动态:首页照磁盘数据原样画回(`loaded` 就是进入移动态前的样子——移动态从不写盘),焦点回出发那一格。
+     * 入口:返回键([onMoveKey];[installBackHandler] 兜底)、HOME([onNewIntent])、离开前台([onPause])、
+     * 首页被任何东西盖住或进待机(setContent 里的 moveBlocked 效果)。写盘途中不理:放下已经决定了,由写盘结果收尾。
+     */
+    private fun cancelMove() {
+        val st = moving ?: return
+        if (st.committing) return
+        endMove(st.from, wrote = false)
+    }
+
+    /** 结束移动态**只有这一条路**:清掉状态,给出落点(HomeScreen 的还原效果把焦点送到那里、写进它的目标格)。 */
+    private fun endMove(landing: MovePos, wrote: Boolean) {
+        moving = null
+        moveLanding = MoveLanding(landing, wrote)
     }
 
     /**
@@ -867,6 +1024,8 @@ class MainActivity : ComponentActivity() {
      */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        // HOME = 移动态取消(M4b spec §0-9)。通常 onPause 已经先取消过,这里是同一件事的第二道。
+        cancelMove()
         leaveEdit()
         leaveSettings()
         closeMenu()
@@ -1077,6 +1236,9 @@ class MainActivity : ComponentActivity() {
         // 长按那一下同理:「打开应用」会在 UP 之前就切走前台,那个 UP 落不回来。
         // (两者都按 downTime 匹配,留着也不会误吞后面的按键;清掉是为了不留悬空状态。)
         longPressDownTime = -1L
+        moveDownTime = -1L
+        // 离开前台(HOME、系统设置侧边面板、别的应用盖上来)= 移动态取消(M4b spec §0-9)
+        cancelMove()
     }
 
     /**
@@ -1171,10 +1333,10 @@ class MainActivity : ComponentActivity() {
                 // `tgtRow`/`tgtIdx` 在 `previewing` 期间冻着,关掉选择器就原样还原到这张卡。
                 pickIcon(ref.pkg)
             }
+            // M4b spec §0-9:首页原地移动,取代原来的「跳编辑页定位」兜底。关菜单的 focusNonce++ 与移动态的目标
+            // 同一次重组生效:还原效果按 moving.pos 把焦点送回这张卡(它此刻就在出发那一格)。
             CardAction.MOVE -> MenuItem(getString(R.string.card_menu_move), getString(R.string.card_menu_move_desc)) {
-                // 带**包名**而不是列号:编辑页按 layout.json 排,里面还留着装不到的包,
-                // 渲染列号在那边会对到另一张卡上。行号用 layout 行号,同理。
-                closeCardMenu(); editTarget = ref.layoutRow to ref.pkg; editing = true
+                closeCardMenu(); startMove(ref)
             }
             CardAction.REMOVE -> MenuItem(getString(R.string.card_menu_remove), getString(R.string.card_menu_remove_desc)) {
                 closeCardMenu()
@@ -1385,6 +1547,9 @@ class MainActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 when {
+                    // 移动态的返回键正常在 dispatchKeyEvent 里就被截走(DOWN 取消、UP 吞掉),到不了这里;
+                    // 这一支只为「返回键绕过 dispatchKeyEvent」的路(预测式返回)兜底,同样是取消。
+                    moving != null -> cancelMove()
                     // 首次引导画在最上层(T10),兜底也最先判(Onboarding 自带的 BackHandler 正常会先接管)。
                     onboarding -> stepBackInOnboarding()
                     // 「关于」页画在最上层,兜底也最先判(AboutScreen 自带的 BackHandler 正常会先接管)。

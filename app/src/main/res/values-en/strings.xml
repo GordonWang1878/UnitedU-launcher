@@ -29,7 +29,7 @@
     <string name="card_menu_icon">Change Image</string>
     <string name="card_menu_icon_desc">Pick a 16:9 image from the library</string>
     <string name="card_menu_move">Move</string>
-    <string name="card_menu_move_desc">Open Edit Rows at this card</string>
+    <string name="card_menu_move_desc">Move this card right here on the home screen</string>
     <string name="card_menu_remove">Remove from This Row</string>
     <string name="card_menu_remove_desc">The app itself is not uninstalled</string>
     <!-- title_dialog_* : the "Rename Card" dialog -->
@@ -279,4 +279,7 @@
     <string name="row_icon_news">News</string>
     <string name="row_icon_photos">Photos</string>
     <string name="row_icon_apps">Apps</string>
+    <!-- home_move_hint / toast_move_failed : in-place move on the home screen (M4b Task 5) -->
+    <string name="home_move_hint">← → Move · ↑ ↓ Change Row · OK Drop · Back Cancel</string>
+    <string name="toast_move_failed">Couldn\'t save the new position, try again</string>
 </resources>
