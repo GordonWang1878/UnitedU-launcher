@@ -796,9 +796,10 @@ private fun CategoryRow(
  * 与 buildRows 结尾那条不变量同源。标题走本地化字符串;ctx.getString 在 IO 线程可安全调用。
  * HDMI-CEC 父子去重见 [dedupeCec];隐藏 / 改名见 [applyInputPrefs]——[titles] 与卡片标题共用
  * titles.json(key = 输入 id),名字只换卡上文字,不受「卡片标题」开关影响。
+ * 多个调谐器只留一张,见 [mergeTuners]。
  */
 private fun buildInputRow(ctx: Context, titles: Map<String, String>): Row? {
-    val inputs = applyInputPrefs(dedupeCec(Inputs.load(ctx)), HiddenInputs.read(ctx), titles)
+    val inputs = applyInputPrefs(mergeTuners(dedupeCec(Inputs.load(ctx))), HiddenInputs.read(ctx), titles)
     if (inputs.isEmpty()) return null
     return Row(
         name = ctx.getString(R.string.home_input_row_title),

@@ -78,10 +78,6 @@
     <string name="edit_title">编辑分栏</string>
     <string name="edit_hint">选中应用按确定:调顺序、换图、移出。每行末尾的加号:添加应用、管理这一行。返回键退出。</string>
     <string name="edit_toast_order_not_saved">顺序没能存下来,重启后会变回原样</string>
-    <string name="edit_move_left">往左移</string>
-    <string name="edit_move_left_desc">在这一行里前移一位</string>
-    <string name="edit_move_right">往右移</string>
-    <string name="edit_move_right_desc">在这一行里后移一位</string>
     <string name="edit_change_image">换卡片图</string>
     <string name="edit_change_image_desc">选一张 16:9 的图替换</string>
     <string name="edit_remove">从这一行移出</string>
@@ -280,4 +276,6 @@
     <!-- home_move_hint / toast_move_failed : 首页原地移动态(M4b Task 5) -->
     <string name="home_move_hint">← → 移动 · ↑ ↓ 换行 · 确定 放下 · 返回 取消</string>
     <string name="toast_move_failed">没能保存新位置,请稍后再试</string>
+    <!-- edit_move_desc : 编辑页搬运模式(M4b 真机验收补丁 Task 2) -->
+    <string name="edit_move_desc">在编辑页里用方向键挪这张卡,空行也能去</string>
 </resources>
