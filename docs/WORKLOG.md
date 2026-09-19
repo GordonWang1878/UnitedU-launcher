@@ -944,3 +944,13 @@ worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs
   1. **编辑页不能跨行搬卡**:编辑页卡片菜单只有左移 / 右移;新建的空行在首页不显示,首页的搬运模式进不去,只能「从这一行移除」再到新行「添加应用」。→ Gordon 选:**编辑页也用搬运模式**(与首页同一套键位,空行也是落点;spec §0-18)。
   2. **输入源里两张「电视」,点上去效果一样**:根因(只读 `dumpsys tv_input` 查实)——电视有两个调谐器类硬件输入(`TvInputHardwareInfo` id 0、1 都是 `type=2` 调谐器):`com.sony.dtv.tvinput.dvbtuner/.DvbTvInputService/HW0`(数字 DVB)与 `com.mediatek.tis/.AnalogInputService/HW1`(模拟),系统都标「电视」;`Inputs.launch` 对调谐器一律打开 `TvContract.Channels.CONTENT_URI`(系统通用频道列表),不分是哪一个,所以两张卡效果相同。更正 09-19 那条「HW1 模拟 AV」:HW1 是模拟**调谐器**,不是 AV。→ Gordon 选:**合并成一张「电视」**(spec §0-19)。
 - 计划:`docs/superpowers/plans/2026-09-20-m4b-followups.md`,worktree `.claude/worktrees/m4b-followups`。
+
+## 2026-09-20 · 真机验收补丁并入 main(本地)并装到 A95L
+
+- plan `docs/superpowers/plans/2026-09-20-m4b-followups.md` 两个任务,SDD 执行(台账 `.superpowers/sdd/2026-09-20-m4b-followups/`,裁定 F1–F5):
+  - **多个调谐器合并成一张「电视」**(`mergeTuners`,`3d4f7ff` + 注释修 `a8cd240`):非透传输入(调谐器)不止一个时只留一个——id 不含 analog 的优先、同类按 id 取第一个;A95L 上留索尼 DVB(HW0),去掉联发科模拟(HW1)。被合并掉的那个 id 上若存过改名 / 隐藏从此不生效;隐藏留下的这张会让「电视」卡整个消失(别的输入还在就不会整行消失),设置里一键恢复。
+  - **编辑页搬运模式**(`moveInLayout` + 编辑页接线,`3f447a6`;终审小修 `9224f7a`):卡片菜单的「往左移 / 往右移」换成「移动位置」,与首页同一套键位——← → 换位,↑ ↓ 换行(空行也是落点,源行移空保留),相邻行已有同一应用 = 不动,确定键松开放下(没动过不写盘),长按确定无反应,返回 / 退到后台 / 离开编辑页 = 取消复原;搬运中 MENU 不响应、音量键照常。模拟器 8 项全过,每步焦点数恒 1。
+- 审查:Task 1 一轮修(KDoc 叠了两块);Task 2 + 整分支由 opus 合审(「可以合并」),合并前收了 4 个 minor(放下后补一次 `retarget`——搬运中应用被卸载时焦点不再落到 (0,0);ON_PAUSE 注释改正;`moveInLayout` 补 4 个单测;两处文档措辞)。留给以后:首页 / 编辑页两份移动提示条合一;搬运卡离开行尾最后一格时焦点闪一帧(与「移出」同一路径,裁定 F3)。
+- 合并:`merge --no-ff` → main `2da905e`;单测 260/260、`assembleRelease` 绿;worktree 与分支已删。01:41 `adb install -r` 装到 A95L(`lastUpdateTime=2026-09-20 01:41:46`);HOME 角色仍是 UnitedU(未动)。
+- **待 Gordon 复验**:①输入源行只剩一张「电视」,点它照旧打开频道;②编辑页新建一行 → 把别的行的卡「移动位置」↓ 搬进来 → 确定 → 回首页新行出现;③搬运中返回 = 原样;④搬运中长按确定无反应,再短按才放下。
+- 未推 GitHub(等 Gordon 说「推」)。
