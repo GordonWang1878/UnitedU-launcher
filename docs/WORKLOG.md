@@ -869,3 +869,64 @@ worktree `.claude/worktrees/leftover-fixes`,分支 `leftover-fixes`,base `49760b
 - 终审遗留一处:CLAUDE.md 焦点表「壁纸 / 卡片图选择器」一行说它们是「仅有的两处调用 `PickerGrid`」,其实屏保图库也调用(见下一行)——交给 M4b Task 6 改焦点表时一并更正(Ruling R10)。
 - 仍开着的 bug:鼠标 / 飞鼠点击后齿轮菜单与设置页丢焦点(Ruling R7,机理与建议修法见上面「遗留修复批」一节)。
 - 未推 GitHub(等 Gordon 说「推」)。真机清单见上面「遗留修复批」一节,与 M4b 一起验。
+
+## 2026-09-19 · M4b(行管理 · 原地移动 · 输入源)
+
+worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs/superpowers/specs/2026-09-19-m4b-rows-move-inputs-design.md`(§0 决定表 + Rulings A–M,2026-09-19 16:45 Gordon 过目「按现在的方案做」;个别交互细节在实施中续有敲定,`8987baf`)、plan `docs/superpowers/plans/2026-09-19-m4b-rows-move-inputs.md`(6 个任务)。SDD 台账 `.superpowers/sdd/2026-09-19-m4b-rows-move-inputs/`(gitignored,裁定编号 M4b-R1…R16 均在其中,下面只给摘要)。
+
+**六个任务**(commit 均在 `m4b` 分支):
+
+| Task | 内容 | commits | 结果 |
+|---|---|---|---|
+| 1 | `LayoutRow`(name/icon/apps)+ 行纯函数(增/删/改名/换图/交换)+ 12 个行图标 id | `b646ea6` | 审查 clean;`Icons.Outlined.Build` 在当前 compose-bom 里不存在,换 `Handyman` |
+| 2 | 输入源数据:HDMI-CEC 父子去重、`hidden-inputs.json`、名字读 `titles.json` | `38e1061` | 审查 clean |
+| 3 | 输入源卡长按菜单(打开/改名/隐藏)+ 设置页「恢复隐藏的输入源」 | `320fe24` + `afa2d09`(用词跟进) + `71a1ea1`(焦点交接修复轮) | 1 轮修复后审查 clean |
+| 4 | 编辑页行管理(行菜单、改名、换图、上下移、新建、删行)+ 去 `verticalScroll` + 首卡初始焦点 | `ab33684` + `cc224fd`(图标/提示语跟进) + `1a90dbd`(修复轮) | 1 轮修复后审查 clean |
+| 5 | 首页原地移动(换位/换行/放下/取消) | `6e98fc9` + `b932370`(松开才放下) + `8fb2cc1`(未动行原样保留、重复包不合并) | 审查 clean |
+| 6(本节)| 全量回归 + 文档 | 见下 | 无新缺陷,零额外修复提交 |
+
+中途两次合并:`24858e6` 把 leftover-fixes(`d8553de`)并进 m4b(Task 4 需要它的 `keepInView` 与 GearMenu 看门狗,提前合并而不是等它终审,Ruling M4b-R9);`f36f502` 把 main(leftover-fixes 终审修复波 + 文档 + spec 更新)并进 m4b,供 Task 6 起手。
+
+**Rulings 摘要**(决定内容见 spec §0 决定表,逐条理由与「错了的代价」在台账 M4b-R1…R16,不重复抄):调度类(R1 T1/T2 与 leftover-fixes 并行、R2/R4/R8 把几个任务的模拟器验证挪到合适的窗口、R9 提前合并 leftover-fixes)、计数器类(R5「隐藏/恢复输入源」用 `revision++` 而不是 spec 原写的 `settingsRevision++`,因为后者不重建首页行,这一点后来 Task 5 的移动写盘 `revision++` 也照此先例)、字符串与 API 类(R6 `ActionRow.hintArg`、R7 输入源菜单不复用「应用」措辞、R11 zh-TW「應用程式」等文案定案)、行为类(R10 改名时把回落图标存下来避免图标跳变、R12 编辑页初始焦点只等「即将被换掉的占位卡」而不是等「数据是否刷新」这种更宽条件、R14–R16 原地移动确定键松开才放下 / 音量键放行 / 未动行原样保留 / 移进已有该应用的行原地不动)、遗留类(R3 commit trailer 用实际写代码的模型「Sonnet 5」、R13 编辑页卡片菜单误显示齿轮菜单「Settings」标题的问题挪进最终修复轮)。
+
+**单测数演进**:Task1 后 213 → Task2 后 218 → Task3 后 220 → 与 leftover-fixes 合并(`24858e6`)后 228 → Task4 后 235 → Task5 后 245 → 与 main 合并(`f36f502`)后 247 → Task6 回归未发现问题,247 不变。
+
+**Task 6 构建**:`source scripts/env.sh && gradle --no-daemon testReleaseUnitTest assembleRelease`(worktree HEAD `f36f502`,测试结果目录先删干净再跑)→ `BUILD SUCCESSFUL`,30 suites / **247 个用例,0 失败、0 错误、0 跳过**;`app-release.apk` 2,972,024 字节,装到 `emulator-5554`(真机 `192.168.1.22:38673` 全程未碰)。
+
+**Task 6 回归**(0.4 s 键间隔,截图 + uiautomator dump,证据在 session scratchpad `m4b-t6/`,未提交仓库):
+
+| 区域 | 结果 |
+|---|---|
+| 首页四向导航 + 同列规则 | VIDEO col1↓MUSIC 落同列;MUSIC col3(末列)↓只有 2 张的 LIVE 落最后一张(col1);LIVE↑回 MUSIC 落的是当前列(col1)不是原来的 col3;顶行↑到设置 pill——与 leftover-fixes 记录的规则逐条一致 |
+| 首页两个 pill | 左右切换、末位止步、下键回到进入前的卡片 |
+| 长按菜单(应用卡六项) | Open App / Uninstall / Rename Card / Change Image / Move / Remove from This Row 齐全且顺序不变,BACK 关闭后焦点回卡片 |
+| 齿轮菜单 | MENU 打开落第 1 项(Edit Rows),DOWN 到 UnitedU Settings,OK 进设置页 |
+| 设置页布局组 | 右侧三行(Card Size / Card Titles / Input Source Row)上下边界止步、左右改值不外溢到左栏;**deferred 项:伪造 `hidden-inputs.json` → 「Restore Hidden Inputs · 1 hidden」行出现并可聚焦 → OK → 焦点当即交接到「Input Source Row」(+1.5s 后仍是,全程单一 focused 节点)→ 文件清成 `{}`**,与 Task 3 当时的验证结论一致,merge 了 Task 4/5 之后仍然成立 |
+| 屏保按钮 | 按下进入待机时钟画面(图库为空的回落),任意键唤醒回到 Screensaver pill |
+| 编辑页(Task 4 Step 9 精简版) | 进页落第 1 张卡而非「+」;行菜单按边界增减 7 项(首行无「上移」、末行无「下移」、满 5 行无「新建」);**deferred 项:12 个图标逐个可辨,「工具」(扳手+螺丝刀)混在其余 11 个纯线条图标里不突兀**;改名(VIDEO→Films)保存后行图标从「按名字回落」变成 `layout.json` 里显式的 `"icon":"movie"`,图标没有跳变;新建行至 5 行、5 行时菜单无「新建」;空行直接删、无确认框,非空行先弹确认(Cancel 回该行「+」、Delete 后落上一行「+」);Move Up / Move Down 焦点跟着被移动的行走,`layout.json` 顺序同步变化;换图标网格四边界 `Cancel` 钉住不外溢;Change Card Art 选择器 BACK 后回到原卡;**deferred 项:英文 `edit_hint` 单行(dump 量得 bounds 高 31px、宽 1662px,远小于可用宽度,不是估算)**;MENU / HOME intent 在行菜单或图标选择器开着时都直接退出编辑页回首页,不留浮层残影;force-stop 重启后布局保持;home 与 edit 两边的行名 / 图标 / 顺序一致 |
+| 原地移动(Task 5 Step 6 精简版) | 长按卡片选「Move」进入移动态,accent 描边(浅紫,比常规聚焦粗细相同、颜色不同)+ 底部提示条「← → Move · ↑ ↓ Change Row · OK Drop · Back Cancel」;同行左右换位;跨行上下按同列 / 行尾规则(顺带验证:目标行已经有这张卡时原地不动、不合并,Ruling M4b-R16 的去重规则合并 Task4/5 之后仍生效——用一张两行都有的卡试了一次,再换一张只有一行有的卡验证了真实换行);长按 OK 与 MENU 均无反应,`layout.json` 不变;短按 OK 松开落地,`layout.json` 立即与屏幕一致(新加的卡插进目标列、原行少一张);BACK 与 HOME intent 都能取消,精确复原到移动前的位置(不是复原到移动开始后又挪过的中间位置) |
+
+三项 deferred 检查(设置恢复行的焦点交接、12 个图标渲染、英文 `edit_hint` 单行)全部通过,回归全程**没有发现新缺陷**,因此本任务没有额外的修复提交,已装的 `app-release.apk` 就是 HEAD `f36f502` 的构建。
+
+**仍开着的缺口**(均为此前任务已记录、明确挪到后续处理的项,本轮只列不修):
+- 编辑页卡片菜单沿用齿轮菜单的标题「Settings」而不是卡片自己的名字(Task 4 发现,Ruling M4b-R13 挪进最终修复轮;本轮回归 `t2-changeimage-focused.xml` 再次确认现象仍在)。
+- 原地移动:和弦按键泄漏——只追踪一个 downTime,长按 OK 途中插入 BACK 可能落到卡片菜单或直接启动应用;`cancelMove` 在 `committing` 为真时提前返回,但 `committing` 不是那个 effect 的 key(铁律 6 缺口)。两项 Task 5 标注「留到最终评审」。
+- 原地移动:若上一次放下的重载还没落地又开始新的移动,取消画出的可能是重载后的顺序而非最初的 `original`;`onScreen` 数组在 `SideEffect` 里做非快照写入;`onlyOnDisk` 过滤逻辑在 `MainActivity` 里没有 JVM 测试覆盖(只在 `mergeMove`/`MoveTest` 里测了纯函数部分);`MoveController` 相关约 190 行留在 `MainActivity` 没抽出去;`PILL_TOP` 被借用当提示条边距;卡片在长按菜单打开前就消失时 `startMove` 静默不动作(`REMOVE` 会 toast,这里不会)。
+- Task 1:`Layout.read`/`write` 的 icon 字段读写没有 JVM 单测(`org.json` 在 JVM 测试环境不可用,靠审查读代码核实往返正确)。
+- Task 2:`HiddenInputs` 的读写与 `Titles` 的原子写入代码重复(约 20 行,可抽一个共享 helper)。
+- Task 3:`MainActivity.cardMenuItems` 与 `HomeScreen.CategoryRow` 里 Inputs/Apps 的启动分发逻辑重复两份;`toast_cant_open_app`(「可能已被卸载」)对输入源启动失败也复用同一句,语义不准(这个复用在 Task 3 之前就有);`restoreHiddenInputs` 写失败只记日志,没有失败 toast;设置页的行数收缩夹紧逻辑目前只有「恢复隐藏的输入源」这一条路径会触发,空分组会夹到 row 0 的分支现在还够不到(布局里没有空分组)。
+
+**A95L 真机清单**(下次真机验收一次做完;①–⑦ 是 spec §5 的验收项,⑧–⑬ 是模拟器测不出 / 测不准、需要真实遥控器或真实硬件的项):
+① 长按输入源卡 → 打开 / 改名 / 隐藏三项;改名后首页显示新名,清空恢复系统名。
+② 隐藏一个输入源 → 卡片消失 → 设置 → 布局 →「恢复隐藏的输入源 · 1 个」→ 恢复。
+③ 把输入源全部隐藏 → 输入源行消失 → 设置里恢复 → 回来。
+④ 输入源卡长按之后不再残留按压态。
+⑤(接了支持 HDMI-CEC 的设备时)同一个 HDMI 口不再出现两张卡,只剩设备名那张。
+⑥ 编辑页建到 5 行、改名、换图标、上下移、删行,首页一致。
+⑦ 首页原地移动:换位、换行、确定、返回、按 HOME。
+⑧ 7 项精简行菜单在 zh / zh-TW 下的高度(面板不滚动,footer 可见)。
+⑨ 编辑页在系统设置侧滑面板盖住时(ON_PAUSE)焦点不跑位,面板收起后还在原处。
+⑩ 用真遥控器测「确定键松开才放下,长按确定无反应」——模拟器用 `input keyevent --longpress` 模拟长按,时序和真遥控器的按键重复未必一致。
+⑪ 移动态下按音量键:确认 Sony 遥控器的音量键会不会被路由到应用(模拟器上音量键穿透、不打断移动态,真机是否也这样没验证过)。
+⑫ 移动态下按真实 HOME 键(模拟器上 `KEYCODE_HOME` 直接被原厂桌面抢走,只能用 HOME intent 代测同实例路径;真机是否同样表现为「等同取消」需要真实验证)。
+⑬ 输入源行标题在「卡片标题」开启时的行高间距(leftover-fixes #10 的布局修复,模拟器没有硬件输入源验证不到,与上面①一起验)。
