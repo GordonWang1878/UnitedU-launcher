@@ -205,6 +205,12 @@ class MainActivity : ComponentActivity() {
      * 直接触发 onClick(不看之前有没有收到过 DOWN),放下的同时把应用打开了。与 [wakeDownTime] 同一手法。
      */
     private var moveDownTime = -1L
+    /**
+     * 移动态里按满 [LONG_PRESS_MS] 的那一下确定键的 downTime:它松手时不算放下(Step 6「移动态长按确定:无反应」)。
+     * 按 downTime 认,每一下按压天然不同,不需要清(铁律 7)。由**重复事件**判长按,不看 UP 的时间戳:
+     * `input keyevent --longpress` 注入的 UP 沿用 DOWN 的 eventTime,按时间差算永远是「短按」。
+     */
+    private var moveHeldDownTime = -1L
     /** 「关于」浮层(齿轮菜单第四项,spec §7):版本号 + 手动检查更新,见 AboutScreen.kt。 */
     private var about by mutableStateOf(false)
     /**
@@ -803,7 +809,7 @@ class MainActivity : ComponentActivity() {
             return true
         }
         // **首页原地移动态**(M4b spec §3):排在 MENU、长按识别与 Compose 之前,除音量外的键一律在这里截走。
-        // 方向键搬卡、确定放下、返回取消,其余(MENU、长按、别的一切)按下去什么都不发生。
+        // 方向键搬卡、确定放下(松手时,见 onMoveKeyUp)、返回取消,其余(MENU、长按、别的一切)按下去什么都不发生。
         // 每一下按压从 DOWN 到 UP 整个吞掉:按 downTime 认(见 moveDownTime 的 KDoc),所以结束移动态的那一下
         // (确定 / 返回)的 UP 也落不到界面上——卡片不会因为这个 UP 被「点击」,返回键也不会再触发一次返回。
         val inMovePress = moveDownTime != -1L && event.downTime == moveDownTime
@@ -813,7 +819,10 @@ class MainActivity : ComponentActivity() {
                     moveDownTime = event.downTime
                     onMoveKey(event)
                 }
-                KeyEvent.ACTION_UP -> if (inMovePress) moveDownTime = -1L
+                KeyEvent.ACTION_UP -> {
+                    if (inMovePress) moveDownTime = -1L
+                    onMoveKeyUp(event)
+                }
             }
             return true
         }
@@ -918,8 +927,9 @@ class MainActivity : ComponentActivity() {
     /**
      * 移动态下一次按下(DOWN,含按住不放的重复)。方向键:搬一步——按住就连续搬,与普通导航按住连续移动焦点一致;
      * 状态在这里同步改完,焦点由 HomeScreen 的还原效果按新的 `pos` 追过去,连发再快也不会跑在状态前面。
-     * 确定 = 放下,返回 = 取消,两者都只认第一下(重复 = 长按,无反应)。其余键:什么都不做(已被外层吞掉)。
-     * 写盘途中(committing)一律不动。
+     * 返回 = 取消(只认第一下)。确定键在这里**只记长按**,放下在松手时([onMoveKeyUp]):DOWN 那一刻分不出
+     * 短按还是长按,在 DOWN 上放下的话,长按确定也会把卡放下(2026-09-19 模拟器实测),而移动态里长按应当无反应。
+     * 其余键:什么都不做(已被外层吞掉)。写盘途中(committing)一律不动。
      */
     private fun onMoveKey(event: KeyEvent) {
         val st = moving ?: return
@@ -938,13 +948,28 @@ class MainActivity : ComponentActivity() {
             if (rows !== st.rows) moving = st.copy(rows = rows, pos = pos)
             return
         }
-        if (event.repeatCount > 0) return
+        when (event.keyCode) {
+            // 与首页长按识别同一判据(同一次按压持续满 LONG_PRESS_MS 后的重复事件)
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER ->
+                if (event.repeatCount > 0 && event.eventTime - event.downTime >= LONG_PRESS_MS) {
+                    moveHeldDownTime = event.downTime
+                }
+            KeyEvent.KEYCODE_BACK -> if (event.repeatCount == 0) cancelMove()
+        }
+    }
+
+    /**
+     * 移动态下松开一个键。只有确定键有事:没按成长按、也没被系统取消(FLAG_CANCELED)的那一下 = 放下,
+     * 与普通状态下「松手才点击、按满时长是长按」同一语义。
+     */
+    private fun onMoveKeyUp(event: KeyEvent) {
+        val st = moving ?: return
+        if (st.committing || event.isCanceled || event.downTime == moveHeldDownTime) return
         when (event.keyCode) {
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
                 playKeySound(KeyEvent.KEYCODE_DPAD_CENTER)
                 dropMove(st)
             }
-            KeyEvent.KEYCODE_BACK -> cancelMove()
         }
     }
 
@@ -966,7 +991,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * 放下(确定键)。什么都没动过就直接结束,不写盘、不重读。否则先标 committing(按键与取消入口在写盘期间一律不理),
+     * 放下(确定键短按松手,见 [onMoveKeyUp])。什么都没动过就直接结束,不写盘、不重读。否则先标 committing(按键与取消入口在写盘期间一律不理),
      * IO 线程上 `Layout.write(mergeMove(盘上最新, original, 工作副本))`:成功 → 结束,焦点落在卡的新位置,
      * `revision++` 让首页按新 layout.json 重读(**不是 settingsRevision**:那颗只重读 settings.json、不重建首页行,
      * 挂它的话放下后首页会一直画着搬之前的旧数据);失败 → toast 并回到移动态,可以再按确定重试或按返回取消
@@ -1236,7 +1261,8 @@ class MainActivity : ComponentActivity() {
         // 长按那一下同理:「打开应用」会在 UP 之前就切走前台,那个 UP 落不回来。
         // (两者都按 downTime 匹配,留着也不会误吞后面的按键;清掉是为了不留悬空状态。)
         longPressDownTime = -1L
-        moveDownTime = -1L
+        // moveDownTime **故意不清**:它按 downTime 匹配,留着不会误吞别的按压;而一个在移动态里按下、
+        // 暂停期间没松开的键,它的 UP 若回到本 Activity,仍然要吞——放过去的话确定键的 UP 会「点击」焦点卡、把应用打开。
         // 离开前台(HOME、系统设置侧边面板、别的应用盖上来)= 移动态取消(M4b spec §0-9)
         cancelMove()
     }
