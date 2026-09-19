@@ -1005,11 +1005,13 @@ class MainActivity : ComponentActivity() {
                 val disk = Layout.read(this@MainActivity)
                 // 移动途中被真正卸载的包,pruneUninstalled 已经把它从盘上清掉了;工作副本里它还在,
                 // 不滤掉的话这里会把它原样写回去,编辑页从此多一张「未安装」的僵尸卡。
+                // **original 与工作副本一起滤**:mergeMove 按「可见顺序变没变」决定一行要不要改写,
+                // 只滤一边的话,没搬到、却恰好少了个被卸载包的那一行会被当成「变了」,未安装的包被挪到行尾。
                 val onDisk = disk.flatMapTo(HashSet()) { it.apps }
-                val working = st.rows.map { r ->
+                fun List<Row>.onlyOnDisk() = map { r ->
                     if (r.kind == RowKind.APPS) r.copy(apps = r.apps.filter { it.packageName in onDisk }) else r
                 }
-                Layout.write(this@MainActivity, mergeMove(disk, st.original, working))
+                Layout.write(this@MainActivity, mergeMove(disk, st.original.onlyOnDisk(), st.rows.onlyOnDisk()))
             }
             val cur = moving?.takeIf { it.committing } ?: return@launch
             if (ok) {

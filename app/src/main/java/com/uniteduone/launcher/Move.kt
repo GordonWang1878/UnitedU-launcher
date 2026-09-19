@@ -7,7 +7,9 @@ enum class MoveDir { LEFT, RIGHT, UP, DOWN }
 
 /**
  * 搬一步(M4b spec §0-9)。左右:与同行邻卡换位,到头不动。上下:落到那个方向最近的**应用行**
- * (跳过输入源行)的同一列,越过行尾就放行尾;那个方向没有应用行 → 不动。源行被移空 → 从结果里去掉
+ * (跳过输入源行)的同一列,越过行尾就放行尾;那个方向没有应用行 → 不动;**那一行里已经有同一个包 → 不动**
+ * (也不越过它去找更远的行)——一行里一个包只能有一张(`Layout.read` 做 distinct),搬进去的话放下时
+ * 会被合并掉,卡片等于从源行凭空消失(M4b Task 5 跟进裁定)。源行被移空 → 从结果里去掉
  * (首页不显示空行),落点行号随之校正。不动时返回**同一个** list 与原位置。
  */
 internal fun moveCard(rows: List<Row>, pos: MovePos, dir: MoveDir): Pair<List<Row>, MovePos> {
@@ -27,6 +29,7 @@ internal fun moveCard(rows: List<Row>, pos: MovePos, dir: MoveDir): Pair<List<Ro
             if (t !in rows.indices) return rows to pos
             val card = src.apps[pos.col]
             val target = rows[t]
+            if (target.apps.any { it.packageName == card.packageName }) return rows to pos
             val col = pos.col.coerceAtMost(target.apps.size)
             val next = rows.mapIndexed { i, r ->
                 when (i) {
@@ -44,15 +47,19 @@ internal fun moveCard(rows: List<Row>, pos: MovePos, dir: MoveDir): Pair<List<Ro
 
 /**
  * 放下时写回 layout.json 的内容(纯函数)。对磁盘上的每一行 L:
- * 新顺序 = 工作副本里 layoutRow == L 那一行的包(没有 = 被移空)+ 该行里首页原本就没显示的包(未安装的,保持相对顺序)。
+ * - **可见顺序没变**(工作副本里 layoutRow == L 那一行的包序与原来相同,含两边都没有这一行)→ 照磁盘**原样**返回。
+ *   这次没搬到的行一个字节都不动:首页没显示的包(未安装的)留在它原来的位置,装上之后还出现在原来那一格
+ *   (M4b Task 5 跟进裁定;原先每一行都会把它们挪到行尾)。
+ * - 可见顺序变了 → 新顺序 = 工作副本里那一行的包(没有 = 被移空)+ 该行里首页原本就没显示的包(保持相对顺序)。
  * 名字、图标、行序全部照磁盘;首页不显示的行(空行、全是未安装)原样保留。
  */
 internal fun mergeMove(disk: List<LayoutRow>, original: List<Row>, working: List<Row>): List<LayoutRow> =
     disk.mapIndexed { l, row ->
-        val before = original.firstOrNull { it.kind == RowKind.APPS && it.layoutRow == l } ?: return@mapIndexed row
-        val shown = before.apps.map { it.packageName }.toSet()
-        val now = working.firstOrNull { it.kind == RowKind.APPS && it.layoutRow == l }?.apps?.map { it.packageName } ?: emptyList()
-        row.copy(apps = (now + row.apps.filter { it !in shown }).distinct())
+        val before = original.firstOrNull { it.kind == RowKind.APPS && it.layoutRow == l }?.apps?.map { it.packageName }
+        val now = working.firstOrNull { it.kind == RowKind.APPS && it.layoutRow == l }?.apps?.map { it.packageName }
+        if (now == before) return@mapIndexed row
+        val shown = before.orEmpty().toSet()
+        row.copy(apps = (now.orEmpty() + row.apps.filter { it !in shown }).distinct())
     }
 
 /**

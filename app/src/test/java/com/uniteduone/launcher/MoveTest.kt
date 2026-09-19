@@ -74,4 +74,38 @@ class MoveTest {
             mergeMove(disk, original, working),
         )
     }
+
+    @Test fun mergeLeavesAnUntouchedRowExactlyAsOnDisk() {
+        // 这次只在 MUSIC 里搬;VIDEO 可见顺序没变,中间那个没装的 x 必须原地不动(不被挪到行尾)
+        val disk = listOf(
+            LayoutRow("VIDEO", apps = listOf("a", "x", "b")),
+            LayoutRow("MUSIC", icon = "music", apps = listOf("d", "e")),
+        )
+        val original = listOf(row("VIDEO", 0, "a", "b"), row("MUSIC", 1, "d", "e"))
+        val working = listOf(row("VIDEO", 0, "a", "b"), row("MUSIC", 1, "e", "d"))
+        val merged = mergeMove(disk, original, working)
+        assertSame(disk[0], merged[0])
+        assertEquals(LayoutRow("MUSIC", icon = "music", apps = listOf("e", "d")), merged[1])
+    }
+
+    @Test fun mergeJudgesARowByItsVisibleOrderNotByWhetherTheCardPassedThrough() {
+        // 卡从 VIDEO 搬出去又搬回原位:可见顺序与原来相同,这一行照磁盘原样,x 仍在中间
+        val disk = listOf(LayoutRow("VIDEO", apps = listOf("a", "x", "b")), LayoutRow("MUSIC", apps = listOf("d")))
+        val original = listOf(row("VIDEO", 0, "a", "b"), row("MUSIC", 1, "d"))
+        val working = listOf(row("VIDEO", 0, "a", "b"), row("MUSIC", 1, "d"))
+        assertEquals(disk, mergeMove(disk, original, working))
+    }
+
+    @Test fun changingRowIntoARowThatAlreadyHasTheAppIsANoOp() {
+        val rows = listOf(row("VIDEO", 0, "a", "b"), row("MUSIC", 1, "c", "a"), row("LIVE", 2, "e"))
+        // a 往下:MUSIC 已经有 a → 原地不动,也不越过 MUSIC 跳到 LIVE
+        val (r1, p1) = moveCard(rows, MovePos(0, 0), MoveDir.DOWN)
+        assertSame(rows, r1); assertEquals(MovePos(0, 0), p1)
+        // MUSIC 的 a 往上:VIDEO 已经有 a → 原地不动
+        val (r2, p2) = moveCard(rows, MovePos(1, 1), MoveDir.UP)
+        assertSame(rows, r2); assertEquals(MovePos(1, 1), p2)
+        // 左右不受影响
+        val (r3, p3) = moveCard(rows, MovePos(1, 1), MoveDir.LEFT)
+        assertEquals(listOf("a", "c"), names(r3)[1]); assertEquals(MovePos(1, 0), p3)
+    }
 }
