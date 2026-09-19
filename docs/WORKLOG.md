@@ -930,3 +930,9 @@ worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs
 ⑪ 移动态下按音量键:确认 Sony 遥控器的音量键会不会被路由到应用(模拟器上音量键穿透、不打断移动态,真机是否也这样没验证过)。
 ⑫ 移动态下按真实 HOME 键(模拟器上 `KEYCODE_HOME` 直接被原厂桌面抢走,只能用 HOME intent 代测同实例路径;真机是否同样表现为「等同取消」需要真实验证)。
 ⑬ 输入源行标题在「卡片标题」开启时的行高间距(leftover-fixes #10 的布局修复,模拟器没有硬件输入源验证不到,与上面①一起验)。
+
+## 2026-09-19 · M4b 并入 main(本地)
+
+- `m4b` 6 个任务(每个单独审查;T3/T4/T5 各有修复或跟进轮)+ fable 整分支终审(「修完可并」)→ 一次修复波 `590dc6e`(移动态取消效果补上 `committing` 这个 key,铁律 6;编辑页卡片菜单标题改为卡片名,Ruling M4b-R13;`onMoveKeyUp` 只认移动态里按下的键;`renameRow` 把非法图标 id 也归一;`Settings.rowCount` 补 KDoc;裁定编号到 R17),复审全部通过。`merge --no-ff` 并入本地 main = `6bc92b7`;并后 main 单测 247/247、`assembleRelease` 绿(APK 2,972,024 字节,sha256 前缀 `d7aeb21333b9a7a8`)。worktree 与分支已删;SDD 台账与报告留在 `.superpowers/sdd/2026-09-19-m4b-rows-move-inputs/` 待 Gordon 看过再清。
+- **更正上一节「仍开着的缺口」**:其中「移动态取消效果的铁律 6 缺口(`committing` 不是 key)」与「编辑页卡片菜单显示「设置」标题」两项已由 `590dc6e` 修掉,不再开着。仍开着、留给后续的:移动中和弦按键漏出(只记一个 `downTime`)、`onlyOnDisk` 挪进 `Move.kt` 并补单测、抽 `MoveController`、输入源 / 应用启动分流去重、`HiddenInputs` 与 `Titles` 原子存储去重、输入源启动失败 toast 说「可能已被卸载」、`Layout` JSON 读写单测、`MissingCard` 的菜单标题只显示包名。
+- 未推 GitHub(等 Gordon 说「推」)。真机清单见上面「M4b」一节(13 项)与「遗留修复批」一节(4 项)。
