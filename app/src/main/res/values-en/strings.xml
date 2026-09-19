@@ -232,4 +232,5 @@
     <string name="toast_stock_launcher_not_found">Stock launcher not found</string>
     <string name="toast_restored">Defaults restored</string>
     <string name="toast_system_screensaver_unavailable">Can\'t open system screensaver settings</string>
+    <string name="toast_pool_delete_failed">Couldn\'t delete “%1$s”</string>
 </resources>

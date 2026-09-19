@@ -680,7 +680,6 @@ class MainActivity : ComponentActivity() {
             // 网格上报聚焦的文件、确认框的目标与两个按钮。确认框自己负责焦点;关掉后(删除 / 取消都 focusNonce++)
             // 由网格的 nonce 循环把焦点接回原位置。
             VIEW_SCREENSAVER_POOL -> ScreensaverPoolViewer(
-                directory = Paths.screensaverLibrary(this),
                 nonce = focusNonce,
                 refresh = galleryVersion,
                 onFocusedFile = { poolFocusedFile = it },
@@ -1225,7 +1224,10 @@ class MainActivity : ComponentActivity() {
         if (poolDeleteTarget != file) return
         lifecycleScope.launch {
             val gone = withContext(Dispatchers.IO) { file.delete() || !file.exists() }
-            if (!gone) android.util.Log.w("UnitedU", "屏保图删不掉: ${file.name}")
+            if (!gone) {
+                android.util.Log.w("UnitedU", "屏保图删不掉: ${file.name}")
+                toast(getString(R.string.toast_pool_delete_failed, file.name))
+            }
             ScreensaverPlayer.rescan(this@MainActivity)
             galleryVersion++
             poolDeleteTarget = null
