@@ -841,3 +841,17 @@ worktree `.claude/worktrees/leftover-fixes`,分支 `leftover-fixes`,base `49760b
 ② 屏保图库放 20 张以上,翻到底再翻回、进预览、在预览里等系统屏保触发再唤醒:回来焦点仍在预览。
 ③ 装新包后 3 秒内按菜单键:菜单第 1 项已高亮。真机没有触摸屏也没有鼠标,预期不会带着触摸模式冷启动、正常通过;如果仍复现,对照上面 #9 的根因重新排查(说明真机上出现了某种指针事件)。顺带可以用飞鼠单击一下齿轮菜单或设置页再按方向键,复现 #11 描述的失焦(预期现象,不是新缺陷,验证记录用)。
 ④ 英文界面下设置「待机与屏保」组六行大小写一致(leftover #14)。
+
+**回归(Step 2,模拟器 `emulator-5554`)**:装本分支 APK(`lastUpdateTime` 18:41:29→18:44:27,替换掉此前装着的另一分支的包)。全程只用 `input keyevent`(未发任何指针事件),`dumpsys input` 里 TouchMode 全程为 0——CLAUDE.md 新记的触摸模式陷阱没有触发,焦点数没有一次读到 0,因此没有用到「先发一下方向键」的兜底。八项全部 PASS,一次失败都没有,没有触发 systematic-debugging 修复轮:
+①首页四向导航 + 同列规则:VIDEO 2 张 / MUSIC 4 张 / LIVE 2 张,VIDEO col1↓MUSIC 落同列(col1)、MUSIC col3(末列)↓只有 2 张的 LIVE 落最后一张(col1)、LIVE↑回 MUSIC 落的是当前列(col1)而不是原来下来时的列(col3)——与 WORKLOG M8 记录的同列规则逐条一致。
+②右上两个 pill(设置 / 屏保):左右切换、末位止步,下键回到进入前的卡片。
+③长按卡片菜单:长按 YouTube 卡,菜单开在「Open App」,BACK 关闭后焦点回卡片。
+④齿轮菜单:冷启动(force-stop → `-n` 启动 → 2s 内 MENU)focused=1 落在「Edit Rows」,与常规路径(MENU → DOWN → DOWN → BACK)bounds 与 Task 3 报告记录的完全一致;BACK 后焦点回原卡。
+⑤设置页「待机与屏保」六行:DOWN 一路到底、UP 一路回顶,首行 UP、末行 DOWN 均止步(无 `<none>`);行内 LEFT/RIGHT 由该行消费去改数值(不外溢到左栏或跳走焦点)。期间把 Standby Timeout 从 3 min 改到 5 min 又改到 1 min 用于验证,验完改回 3 min,`settings.json` 复原核对过。
+⑥屏保按钮:图库为空时按下进入纯时钟待机画面(黑底 + 时钟,符合空库回落设计),任意键(CENTER)回到按下前聚焦的屏保 pill。
+⑦屏保图库:新推 24 张 HSV 测试图。DOWN 到第 8 行、再 UP 回第 1 行,14 步全程 focused=1、无越界/半截可见(底部行 pin 在视窗底、顶部行 pin 在视窗顶,与 Task 2 报告的模式一致);预览进出一次(RIGHT 翻 2 张,BACK 回原格);长按 → Cancel 一次(23→23,焦点回原格);长按 → Delete 一次(24→23,焦点落补位上来的 p2-01,`focused_count` 全程为 1,没有复现 Task 2 修复前的「删除后无焦点」问题)。测完清空 24 张测试图,目录核对为空。
+⑧标题开 / 关:Card Titles Off→On 截图确认应用行标题正确显示(YouTube / Play Store 标签出现,行距随之变化);On→Off 复原,`settings.json` 的 `showTitles` 核对回 `false`。
+
+顺带记一笔非缺陷的观察:第一次改动任意设置字段会把 `Settings` 对象整份重新序列化落盘,此前只存在于内存默认值、从未写过盘的 `screensaverAfterMs`/`screensaverIntervalMs` 两个字段因此在这轮测试后首次出现在 `settings.json` 里——数值(300000/5min、30000/30s)与测试开始前设置页已经显示选中的值一致,不代表任何行为变化,记录以防以后被误读成「这轮改动动过屏保设置」。
+
+证据:97 份 `uiautomator` dump + 分阶段截图,存于 session scratchpad(未提交仓库),清单见 `task-5-report.md`(`.superpowers/` gitignored)。收尾设备状态:图库目录清空、`long_press_timeout`=400、`idleAfterMs`=180000、`showTitles`=false、`animator_duration_scale` 未变(null)、TouchMode=0,本分支 APK 仍是当前安装,前台停在首页。
