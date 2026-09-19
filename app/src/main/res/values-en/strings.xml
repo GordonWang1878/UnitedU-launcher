@@ -80,10 +80,6 @@
     <string name="edit_title">Edit Rows</string>
     <string name="edit_hint">Select an app and press OK to reorder, change art, or remove it. The plus sign at the end of each row adds apps or manages the row. Press Back to exit.</string>
     <string name="edit_toast_order_not_saved">The order couldn\'t be saved and will reset after restart</string>
-    <string name="edit_move_left">Move Left</string>
-    <string name="edit_move_left_desc">Move one spot earlier in this row</string>
-    <string name="edit_move_right">Move Right</string>
-    <string name="edit_move_right_desc">Move one spot later in this row</string>
     <string name="edit_change_image">Change Card Art</string>
     <string name="edit_change_image_desc">Pick a 16:9 image to replace it</string>
     <string name="edit_remove">Remove From Row</string>
@@ -282,4 +278,6 @@
     <!-- home_move_hint / toast_move_failed : in-place move on the home screen (M4b Task 5) -->
     <string name="home_move_hint">← → Move · ↑ ↓ Change Row · OK Drop · Back Cancel</string>
     <string name="toast_move_failed">Couldn\'t save the new position, try again</string>
+    <!-- edit_move_desc : edit-screen carry mode (M4b follow-up Task 2) -->
+    <string name="edit_move_desc">Move this card with the arrow keys, empty rows included</string>
 </resources>

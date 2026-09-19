@@ -84,3 +84,36 @@ data class MoveState(
  * 也是两个落点。[wrote] = 这次放下真的写了盘:首页重读落地之前,继续画搬好的那一份。
  */
 class MoveLanding(val pos: MovePos, val wrote: Boolean)
+
+/**
+ * 编辑页搬卡一步(M4b spec §0-18,Gordon 2026-09-20):与首页 [moveCard] 同一套键位,对象是 layout.json 的行——
+ * 空行也是合法落点(编辑页显示空行),源行被移空照样保留;编辑页没有输入源行。左右:与同行邻卡换位,到头不动。
+ * 上下:落到相邻行的同一列,越过行尾放行尾;相邻行已有同一个包 → 不动(同首页 Ruling M4b-R16);那个方向没有行 → 不动。
+ * 不动时返回同一个 list 与原位置。
+ */
+internal fun moveInLayout(rows: List<LayoutRow>, pos: MovePos, dir: MoveDir): Pair<List<LayoutRow>, MovePos> {
+    val src = rows.getOrNull(pos.row) ?: return rows to pos
+    if (pos.col !in src.apps.indices) return rows to pos
+    return when (dir) {
+        MoveDir.LEFT, MoveDir.RIGHT -> {
+            val to = if (dir == MoveDir.LEFT) pos.col - 1 else pos.col + 1
+            if (to !in src.apps.indices) return rows to pos
+            val apps = src.apps.toMutableList().apply { val t = this[pos.col]; this[pos.col] = this[to]; this[to] = t }
+            rows.mapIndexed { i, r -> if (i == pos.row) r.copy(apps = apps) else r } to pos.copy(col = to)
+        }
+        MoveDir.UP, MoveDir.DOWN -> {
+            val t = pos.row + if (dir == MoveDir.UP) -1 else 1
+            val target = rows.getOrNull(t) ?: return rows to pos
+            val pkg = src.apps[pos.col]
+            if (pkg in target.apps) return rows to pos
+            val col = pos.col.coerceAtMost(target.apps.size)
+            rows.mapIndexed { i, r ->
+                when (i) {
+                    pos.row -> r.copy(apps = r.apps.filterIndexed { c, _ -> c != pos.col })
+                    t -> r.copy(apps = r.apps.toMutableList().apply { add(col, pkg) })
+                    else -> r
+                }
+            } to MovePos(t, col)
+        }
+    }
+}

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -30,6 +31,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.platform.LocalConfiguration
@@ -43,6 +45,19 @@ import androidx.compose.ui.unit.sp
 
 /** 编辑页内容上下的留白(原来 verticalScroll 内容里的 padding(top/bottom = 40dp),自算位移按它留边)。 */
 private val EditEdgePad = 40.dp
+
+/** 编辑页搬运模式的状态(M4b spec §0-18):被搬的卡在哪一格、出发那一格、进入时的整份行。见 EditScreen 里 `carry` 的注释。 */
+private data class EditCarry(val pos: MovePos, val from: MovePos, val original: List<LayoutRow>)
+
+/**
+ * 搬运中按下的那一下的 downTime([down]),与其中按满长按时长的那一下确定键([held])。与首页移动态
+ * (MainActivity 的 moveDownTime / moveHeldDownTime)同一手法:按 downTime 认,每一下按压天然不同,不需要清(铁律 7)。
+ * 不是 Compose 状态:只在按键回调里读写,不参与组合。
+ */
+private class CarryPresses {
+    var down = -1L
+    var held = -1L
+}
 
 /**
  * 编辑页视窗的首行(铁律 1:M4b 起不用 verticalScroll,纵向位移自己算)。与图片网格同一条规则
@@ -69,9 +84,10 @@ internal fun editFirstRow(
 }
 
 /**
- * 编辑分栏(原「编辑桌面」)。范围按设计文档 Q5:应用的**进出与行内排序**、换卡片图;
+ * 编辑分栏(原「编辑桌面」)。范围按设计文档 Q5:应用的**进出与排序**、换卡片图;
  * M4b 起还管**行本身**:每行行尾的「+」打开行菜单——添加应用 / 重命名此行 / 更换此行图标 /
  * 此行上移 / 此行下移 / 在下方新建一行 / 删除此行(不适用的不列,M4b spec §0-2..8)。
+ * 卡片菜单的「移动位置」进入**搬运模式**(M4b spec §0-18):与首页原地移动同一套键位,可以跨行,空行也是落点。
  */
 @Composable
 fun EditScreen(
@@ -98,6 +114,11 @@ fun EditScreen(
      * 包名在一行里唯一(`Layout.read` 做过 distinct),按它查才落在同一张卡上。
      */
     initialTarget: Pair<Int, String>? = null,
+    /**
+     * 搬运模式开始 / 结束时各报一次(M4b spec §0-18),本页离开组合时补报 false。MainActivity 据此在搬运中不让 MENU
+     * 退出编辑页、把确定键的按下 / 重复 / 松开原样交给本页(平时它先吞掉确定键的重复事件,本页就认不出长按)。
+     */
+    onCarryingChange: (Boolean) -> Unit = {},
 ) {
     val ctx = LocalContext.current
     // 与首页同一套卡片档位尺寸,编辑页的卡片才会和首页一样大。见 Theme.cardMetrics。
@@ -121,6 +142,16 @@ fun EditScreen(
      */
     val overlayOpen = picking != null || acting != null ||
         rowMenu != null || renamingRow != null || iconRow != null || confirmDeleteRow != null
+    /**
+     * **搬运模式**(M4b spec §0-18,真机验收后补定):卡片菜单「移动位置」进入,键位与首页原地移动同一套。null = 不在搬运。
+     * 一个值装三样,理由同首页的 [MoveState]——三者总是一起变,拆成几个可空量就会有「只清了一半」的中间态:
+     * `pos` = 被搬的卡现在在哪一格(按位置追踪,同一个包可以在两行里),同时就是焦点目标;`from` = 出发那一格
+     * (取消后焦点回这里);`original` = 进入那一刻的整份 `rows`(取消时原样放回)。
+     * 搬运中 `rows` 实时跟着改(画面跟着动),**不写盘**,只有放下才 persist()。
+     * **不是浮层**:不并入 [overlayOpen],卡片照常可聚焦,焦点始终在被搬的卡上,每一步都经 retarget() 送过去;
+     * 看门狗照常兜底(它回的 focusRow 与挂点 focusTarget 在搬运中只由 retarget() 写,焦点上报改不动,见 mark())。
+     */
+    var carry by remember { mutableStateOf<EditCarry?>(null) }
     val needed = remember(rows) { rows.flatMap { it.apps }.toSet() }
     // 和 HomeScreen 一样挪到 IO:同步解码 11 张 banner 会让进编辑界面卡一下
     // 用 null 区分「还在加载」和「加载失败/真的空」—— 与首页同一做法。
@@ -208,6 +239,54 @@ fun EditScreen(
         retarget(r, rows.getOrNull(r)?.apps?.size ?: 0)
     }
 
+    // 写盘与搬运的四个动作放在一起,排在下面的生命周期观察者之前(它要调 cancelCarry)。
+    val scope = rememberCoroutineScope()
+    fun persist() {
+        val snapshot = rows
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) { Layout.write(ctx, snapshot) }
+            if (!ok) android.widget.Toast.makeText(
+                ctx, ctx.getString(R.string.edit_toast_order_not_saved), android.widget.Toast.LENGTH_LONG,
+            ).show()
+        }
+    }
+    /** 进入搬运(卡片菜单「移动位置」,菜单已收):记下整份 rows 与出发格,焦点目标 = 这张卡。 */
+    fun startCarry(ri: Int, pi: Int) {
+        val at = MovePos(ri, pi)
+        carry = EditCarry(pos = at, from = at, original = rows)
+        retarget(ri, pi)
+    }
+    /** 搬一步。到头 / 那个方向没有行 / 相邻行已有同一个应用:moveInLayout 原样返回同一个 list,什么都不动。 */
+    fun stepCarry(dir: MoveDir) {
+        val c = carry ?: return
+        val (next, pos) = moveInLayout(rows, c.pos, dir)
+        if (next === rows) return
+        rows = next
+        carry = c.copy(pos = pos)
+        retarget(pos.row, pos.col)
+    }
+    /**
+     * 放下(确定键短按松开)。没动过就不写盘(同首页)。焦点留在原地:它此刻就在被搬的卡上,
+     * 目标(focusRow / focusTarget)也已是这一格——最后一步的 retarget() 写的,搬运中焦点上报改不动它。
+     */
+    fun dropCarry() {
+        val c = carry ?: return
+        carry = null
+        if (rows != c.original) persist()
+    }
+    /**
+     * 取消:整份 rows 原样放回、不写盘,焦点回出发格。入口:返回键(搬运专用的 BackHandler,本页那个兜底)、
+     * ON_PAUSE(退到后台 / 系统设置侧板盖上来)、任何浮层要打开(下面的 overlayOpen 效果)。
+     * 离开编辑页(HOME、leaveEdit)不必调它:本页整个离开组合,搬运随之作废,而搬运中从没写过盘。
+     * 行数不变(moveInLayout 不增删行),remember(rows.size) 的几张表不换新,retarget 写进的就是当前那张。
+     */
+    fun cancelCarry() {
+        val c = carry ?: return
+        carry = null
+        rows = c.original
+        retarget(c.from.row, c.from.col)
+    }
+
     // 带着 (layout 行号, 包名) 进来(「换卡片图」的选择器关掉、本页重建),数据到位后定位一次。
     // 用「已应用的目标」比对,不用一次性布尔闩(铁律 7):同一个 initialTarget 只应用一次,
     // 换了新值自然再应用。本页被「换卡片图」的选择器替换、关掉后重建时,appliedTarget 随整页
@@ -242,11 +321,15 @@ fun EditScreen(
     val holdHere by rememberUpdatedState {
         if (!retargeting) retarget(focusRow, focusTarget.getOrElse(focusRow) { 0 })
     }
+    // 退到后台 = 搬运取消(M4b spec §0-18,同首页 §0-9)。**先取消、再 holdHere**:取消安排的是回出发格的重定位,
+    // 之后 holdHere 看到已有待办就不插手——顺序反过来的话,它会先把「被搬的卡现在那一格」安排一遍。
+    // 同样经 rememberUpdatedState 调(理由见 holdHere)。
+    val pauseCarry by rememberUpdatedState { cancelCarry() }
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
         val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
             when (e) {
-                androidx.lifecycle.Lifecycle.Event.ON_PAUSE,
+                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> { pauseCarry(); holdHere() }
                 androidx.lifecycle.Lifecycle.Event.ON_RESUME -> holdHere()
                 else -> {}
             }
@@ -366,16 +449,6 @@ fun EditScreen(
         label = "editYShift",
     )
 
-    val scope = rememberCoroutineScope()
-    fun persist() {
-        val snapshot = rows
-        scope.launch {
-            val ok = withContext(Dispatchers.IO) { Layout.write(ctx, snapshot) }
-            if (!ok) android.widget.Toast.makeText(
-                ctx, ctx.getString(R.string.edit_toast_order_not_saved), android.widget.Toast.LENGTH_LONG,
-            ).show()
-        }
-    }
     /** 行交换时,两行各自的「当前格 / 目标格」跟着行走(不交换的话横向位移会套到别的行上)。 */
     fun swapRowState(a: Int, b: Int) {
         for (list in listOf(rowFocused, focusTarget)) {
@@ -401,7 +474,10 @@ fun EditScreen(
         // 行菜单 / 改名 / 图标 / 删行确认各自带 BackHandler(组合得更晚、先接管),这里是同一种兜底:
         // 万一没接住,只收掉那一层、焦点回该行的「+」,绝不一步退出整个编辑页。
         val r = rowMenu ?: renamingRow ?: iconRow ?: confirmDeleteRow
-        if (a != null || p != null) {
+        // 搬运中:下面那个搬运专用的 BackHandler 组合得更晚、先接管;这里是同一种兜底,绝不一步退出编辑页
+        if (carry != null) {
+            cancelCarry()
+        } else if (a != null || p != null) {
             val ri = a?.first ?: p ?: 0
             picking = null; acting = null
             retarget(ri, a?.second ?: rows[ri].apps.size)
@@ -410,11 +486,75 @@ fun EditScreen(
             toRowEnd(r)
         } else onExit()
     }
+    // **搬运中的返回键 = 取消**(M4b spec §0-18)。只在搬运中存在,组合得比上面那个晚 → 先接管(OnBackPressedDispatcher
+    // 先问最后加进来的)。返回键不在下面的按键截获里处理:没开预测式返回时它照常经 onKeyUp → onBackPressed 到这里,
+    // 开了之后根本不作为按键事件下发——走 BackHandler 两种情况都接得住。
+    if (carry != null) androidx.activity.compose.BackHandler { cancelCarry() }
+
+    // 搬运中那一下按压的 downTime 与其中按满长按的那一下(见 CarryPresses)。
+    val presses = remember { CarryPresses() }
+    val view = androidx.compose.ui.platform.LocalView.current
+    /**
+     * **搬运中的按键**(M4b spec §0-18,键位与首页移动态相同,见 MainActivity.onMoveKey / onMoveKeyUp),挂在本页根节点的
+     * onPreviewKeyEvent 上:焦点在本页任何一格时,按键都先到这里、再到被聚焦的卡——方向键进不了 Compose 的焦点搜索,
+     * 确定键落不到卡片的点击上。方向键按下(含按住的重复)= 搬一步;确定键**松开**才放下,按满 [LONG_PRESS_MS] 的
+     * 那一下松开什么都不做(长按判据同首页:看重复事件,不看 UP 的时间戳——`input keyevent --longpress` 注入的 UP
+     * 沿用 DOWN 的时间);返回交给上面的 BackHandler;音量照常(同首页 [MOVE_PASSTHROUGH_KEYS]);其余一律吞掉。
+     * 确定键的按下 / 重复 / 松开,MainActivity 在搬运中原样交过来(见它的 editCarrying):平时它会先吞掉重复事件。
+     * 放下那一声由这里出(首页移动态同样是松开放下时出一声);方向键的音照旧由 MainActivity 出。
+     */
+    fun onCarryKey(e: android.view.KeyEvent): Boolean {
+        if (carry == null) {
+            // 搬运刚结束(取消)时还按着的那一下:它的 UP 照样吞掉。放过去的话确定键的 UP 会落到卡片上——
+            // tv-material 的卡在 UP 时直接触发 onClick(不看之前有没有收到过 DOWN),凭空弹出卡片菜单。
+            return e.action == android.view.KeyEvent.ACTION_UP && e.downTime == presses.down
+        }
+        if (e.keyCode == android.view.KeyEvent.KEYCODE_BACK || e.keyCode in MOVE_PASSTHROUGH_KEYS) return false
+        val ok = e.keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
+            e.keyCode == android.view.KeyEvent.KEYCODE_ENTER || e.keyCode == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER
+        when (e.action) {
+            android.view.KeyEvent.ACTION_DOWN -> {
+                presses.down = e.downTime
+                val dir = when (e.keyCode) {
+                    android.view.KeyEvent.KEYCODE_DPAD_LEFT -> MoveDir.LEFT
+                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> MoveDir.RIGHT
+                    android.view.KeyEvent.KEYCODE_DPAD_UP -> MoveDir.UP
+                    android.view.KeyEvent.KEYCODE_DPAD_DOWN -> MoveDir.DOWN
+                    else -> null
+                }
+                if (dir != null) stepCarry(dir)
+                else if (ok && e.repeatCount > 0 && e.eventTime - e.downTime >= LONG_PRESS_MS) presses.held = e.downTime
+            }
+            android.view.KeyEvent.ACTION_UP ->
+                if (ok && e.downTime == presses.down && e.downTime != presses.held && !e.isCanceled) {
+                    view.playSoundEffect(android.view.SoundEffectConstants.CLICK)
+                    dropCarry()
+                }
+        }
+        return true
+    }
+    // 把「正在搬运」报给 MainActivity(它据此在搬运中不让 MENU 退出编辑页、把确定键原样交过来)。
+    // 唯一的写入方:以它为 key,每次变化报一次;本页离开组合(HOME、换卡片图的选择器替换本页)时补报 false——不是闩(铁律 7)。
+    val carrying = carry != null
+    val reportCarrying by rememberUpdatedState(onCarryingChange)
+    DisposableEffect(carrying) {
+        reportCarrying(carrying)
+        onDispose { reportCarrying(false) }
+    }
+    // **任何浮层要打开 = 搬运取消**(M4b spec §0-18,同首页 §0-9)。在这一处收口,不去每个浮层的入口各判一次。
+    // 按键路径上开不出浮层(确定键在根上就被截走),卡片与「+」的点击在搬运中也一律不理(只可能来自指针 / 无障碍,
+    // 而搬运里画面上的格子与出发时不是同一批,照点击处开菜单可能指到别的应用)——这里是结构上的兜底。
+    // 守卫的两个量都是 key(铁律 6)。
+    LaunchedEffect(overlayOpen, carrying) {
+        if (overlayOpen && carrying) cancelCarry()
+    }
 
     Box(
         Modifier
             .fillMaxSize()
-            .background(Theme.EditScreenBackground),
+            .background(Theme.EditScreenBackground)
+            // 搬运中的按键截获(见 onCarryKey)。不在搬运时它只吞「搬运里按下、结束后才松开」的那一下 UP,其余原样放行
+            .onPreviewKeyEvent { onCarryKey(it.nativeKeyEvent) },
     ) {
         // 视窗:裁剪 + 整块自算位移。三行按首页的尺寸合计就高于屏幕,5 行 × 大档更高——
         // 当年正是因为「不滚的话 Column 会把最后一行压扁(实测 MUSIC 行的卡片被压成一条)」才上了 verticalScroll;
@@ -489,8 +629,11 @@ fun EditScreen(
                     ) {
                         pkgs.forEachIndexed { pi, pkg ->
                             val app = all?.get(pkg)
+                            // 搬运中被搬的那张:3dp accent 描边(与首页移动态同一样式,聚焦与否都画)
+                            val carried = carry?.pos?.let { it.row == ri && it.col == pi } == true
                             // requester 挂在**这一行当前聚焦的那一格**上,不是永远挂在第 0 格:
-                            // 否则「往右移一位」之后焦点回到行首,把一张卡挪三位要重走三遍。
+                            // 否则「往右移一位」之后焦点回到行首,把一张卡挪三位要重走三遍
+                            // (当年卡片菜单里的「往右移」;M4b 补丁起搬运模式的每一步同样靠它把焦点送到被搬的卡上)。
                             // 目标越过末卡(= 指向行尾加号)时,requester 归加号,见下面 AddCard
                             val want = focusTarget.getOrElse(ri) { 0 }.coerceIn(0, pkgs.size)
                             val fm = if (pi == want) Modifier.focusRequester(rowFocus[ri]) else Modifier
@@ -503,7 +646,10 @@ fun EditScreen(
                                 // 而它原本写在冻结判断之外 —— 从别的应用回来时 Compose 抢先把焦点
                                 // 给了 (0,0),这一下就把行号改成 0,恢复于是回到 VIDEO 行第 1 张,
                                 // 下一次确定打在别的应用上。铁律 5 说的「每个分量都要拆」,行号这一半漏了。
-                                if (!retargeting) { focusRow = ri; focusTarget[ri] = pi }
+                                // **搬运中同样冻结**(M4b §0-18):目标归被搬的卡(carry.pos),只由 retarget() 写。
+                                // 搬一步时被搬的卡若是源行最后一张,它的节点随之摘掉,系统当场把焦点给左上角那张卡——
+                                // 那次上报若改了目标,看门狗与视窗都会跟着跑到第 1 行去。
+                                if (!retargeting && carry == null) { focusRow = ri; focusTarget[ri] = pi }
                             }
                             val tell = { got: Boolean -> report(ri, pi, got); if (got) mark() }
                             if (app != null) {
@@ -512,7 +658,8 @@ fun EditScreen(
                                     metrics = metrics,
                                     title = if (showTitles) (titles[pkg] ?: app.label) else null,
                                     fallbackColor = app.fallbackColor?.let { Color(it) },
-                                    onClick = { acting = ri to pi },
+                                    // 搬运中点击一律不理(确定键在根上就被截走,能到这里的只有指针 / 无障碍,见 overlayOpen 那个取消效果)
+                                    onClick = { if (carry == null) acting = ri to pi },
                                     modifier = fm,
                                     onFocusChange = tell,
                                     isRowStart = pi == 0,
@@ -521,6 +668,7 @@ fun EditScreen(
                                     isRowEnd = false,
                                     isLastRow = ri == rows.lastIndex,
                                     isFirstRow = ri == 0,
+                                    moving = carried,
                                 )
                             } else if (!allFresh) {
                                 // 数据还没跟上:中性占位,别说「未安装」
@@ -531,7 +679,8 @@ fun EditScreen(
                                 MissingCard(
                                     pkg, metrics, fm, onFocusChange = tell,
                                     isRowStart = pi == 0, isLastRow = ri == rows.lastIndex, isFirstRow = ri == 0,
-                                ) { acting = ri to pi }
+                                    moving = carried,
+                                ) { if (carry == null) acting = ri to pi }
                             }
                         }
                         AddCard(
@@ -545,17 +694,34 @@ fun EditScreen(
                                 report(ri, pkgs.size, got)
                                 if (got) {
                                     rowFocused[ri] = pkgs.size
-                                    if (!retargeting) { focusRow = ri; focusTarget[ri] = pkgs.size }
+                                    // 搬运中冻结,同 mark()(第 1 行是空行时,系统兜底给的正是它的「+」)
+                                    if (!retargeting && carry == null) { focusRow = ri; focusTarget[ri] = pkgs.size }
                                 }
                             },
                             isRowStart = pkgs.isEmpty(),
                             isLastRow = ri == rows.lastIndex,
                             isFirstRow = ri == 0,
-                        ) { rowMenu = ri }   // M4b:行尾「+」= 行菜单(「添加应用」是其中第一项)
+                        ) { if (carry == null) rowMenu = ri }   // M4b:行尾「+」= 行菜单(「添加应用」是其中第一项);搬运中不理,同卡片
                         }
                 }
             }
         }
+        }
+
+        // 搬运中的底部提示(M4b spec §0-18:视觉只复用首页移动态那两样——被搬卡的 accent 描边与这一行)。
+        // 字样、位置、垫底与首页那条一致(HomeScreen 的 hintStyle 与移动态提示):onSurface α0.75 / 15sp,
+        // 距底 PILL_TOP,垫一层 surface α0.8 的胶囊底——下面一行的行标题可能正好露在屏幕底部。
+        if (carry != null) {
+            val scheme = androidx.tv.material3.MaterialTheme.colorScheme
+            BasicText(
+                text = stringResource(R.string.home_move_hint),
+                style = TextStyle(fontFamily = Theme.Sans, color = scheme.onSurface.copy(alpha = 0.75f), fontSize = 15.sp),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = HomeLayout.PILL_TOP.dp)
+                    .background(scheme.surface.copy(alpha = 0.8f), RoundedCornerShape(percent = 50))
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+            )
         }
 
         // acting 指向的卡片可能已经不在了(比如它所在的行被别处改短)。
@@ -572,28 +738,11 @@ fun EditScreen(
             val pkg = actingPkg ?: return@let
             GearMenu(
                 items = buildList {
-                    // 不适用的方向直接不列出,否则点了什么都不发生、也没有反馈
-                    if (pi > 0) add(MenuItem(stringResource(R.string.edit_move_left), stringResource(R.string.edit_move_left_desc)) {
-                        if (pi > 0) {
-                            rows = rows.mapIndexed { i, r ->
-                                if (i == ri) r.copy(apps = r.apps.toMutableList().also {
-                                    it.add(pi - 1, it.removeAt(pi))
-                                }) else r
-                            }
-                            persist(); retarget(ri, pi - 1)
-                        }
+                    // 「移动位置」= 进入搬运(M4b spec §0-18,取代原来的「往左移 / 往右移」):先收菜单,再进搬运,
+                    // 同一个回调里写完——overlayOpen 与 carry 在同一次重组里一关一开,「浮层开着就取消」的效果不会误触。
+                    add(MenuItem(stringResource(R.string.card_menu_move), stringResource(R.string.edit_move_desc)) {
                         acting = null
-                    })
-                    if (pi < rows[ri].apps.lastIndex) add(MenuItem(stringResource(R.string.edit_move_right), stringResource(R.string.edit_move_right_desc)) {
-                        if (pi < rows[ri].apps.size - 1) {
-                            rows = rows.mapIndexed { i, r ->
-                                if (i == ri) r.copy(apps = r.apps.toMutableList().also {
-                                    it.add(pi + 1, it.removeAt(pi))
-                                }) else r
-                            }
-                            persist(); retarget(ri, pi + 1)
-                        }
-                        acting = null
+                        startCarry(ri, pi)
                     })
                     add(MenuItem(stringResource(R.string.edit_change_image), stringResource(R.string.edit_change_image_desc)) {
                         // retarget 只服务「选择器没打开」(存储没就绪、已 toast)那条路:本页留在原地,焦点回这张卡。
@@ -821,14 +970,19 @@ private fun MissingCard(
     isRowStart: Boolean = false,
     isLastRow: Boolean = false,
     isFirstRow: Boolean = false,
+    /** 搬运中被搬的就是它(M4b §0-18):与 `AppCard(moving = true)` 同一道 3dp accent 描边,聚焦与否都画。 */
+    moving: Boolean = false,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(metrics.cardCorner)
+    val accent = LocalThemeColors.current.accent
     Box(
         modifier = modifier
             .size(metrics.cardWidth, metrics.cardHeight)
-            .clip(RoundedCornerShape(metrics.cardCorner))
+            .clip(shape)
             .background(if (focused) Theme.MissingCardFocusedBackground else Theme.MissingCardBackground)
+            .then(if (moving) Modifier.border(HomeLayout.FOCUS_BORDER.dp, accent, shape) else Modifier)
             // 行首/末行的边界同样要锁,理由见 AppCard:找不到候选时焦点会整棵树消失
             .focusProperties {
                 if (isRowStart) left = FocusRequester.Cancel

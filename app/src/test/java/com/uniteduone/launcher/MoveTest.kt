@@ -108,4 +108,52 @@ class MoveTest {
         val (r3, p3) = moveCard(rows, MovePos(1, 1), MoveDir.LEFT)
         assertEquals(listOf("a", "c"), names(r3)[1]); assertEquals(MovePos(1, 0), p3)
     }
+
+    private val layout = listOf(
+        LayoutRow("VIDEO", apps = listOf("a", "b", "c")),
+        LayoutRow("NEW"),                       // 编辑页里新建的空行
+        LayoutRow("MUSIC", apps = listOf("d")),
+    )
+
+    @Test fun editLeftRightSwapAndStopAtTheEnds() {
+        val (r, p) = moveInLayout(layout, MovePos(0, 1), MoveDir.RIGHT)
+        assertEquals(listOf("a", "c", "b"), r[0].apps); assertEquals(MovePos(0, 2), p)
+        val (r2, p2) = moveInLayout(layout, MovePos(0, 0), MoveDir.LEFT)
+        assertSame(layout, r2); assertEquals(MovePos(0, 0), p2)
+    }
+
+    @Test fun editDownLandsInAnEmptyRow() {
+        val (r, p) = moveInLayout(layout, MovePos(0, 2), MoveDir.DOWN)
+        assertEquals(listOf("a", "b"), r[0].apps)
+        assertEquals(listOf("c"), r[1].apps)
+        assertEquals(MovePos(1, 0), p)
+    }
+
+    @Test fun editEmptiedSourceRowStays() {
+        val (r, p) = moveInLayout(layout, MovePos(2, 0), MoveDir.UP)
+        assertEquals(3, r.size)
+        assertEquals(listOf("d"), r[1].apps)
+        assertEquals(emptyList<String>(), r[2].apps)
+        assertEquals(MovePos(1, 0), p)
+    }
+
+    @Test fun editUpIntoARowThatHasTheAppIsANoOp() {
+        val rows = listOf(LayoutRow("A", apps = listOf("x", "y")), LayoutRow("B", apps = listOf("y")))
+        val (r, p) = moveInLayout(rows, MovePos(1, 0), MoveDir.UP)
+        assertSame(rows, r); assertEquals(MovePos(1, 0), p)
+    }
+
+    @Test fun editNoRowInThatDirectionIsANoOp() {
+        val (r, p) = moveInLayout(layout, MovePos(0, 0), MoveDir.UP)
+        assertSame(layout, r); assertEquals(MovePos(0, 0), p)
+        val (r2, p2) = moveInLayout(layout, MovePos(2, 0), MoveDir.DOWN)
+        assertSame(layout, r2); assertEquals(MovePos(2, 0), p2)
+    }
+
+    @Test fun editColumnClampsToTheShorterRow() {
+        val rows = listOf(LayoutRow("A", apps = listOf("a", "b", "c")), LayoutRow("B", apps = listOf("d")))
+        val (r, p) = moveInLayout(rows, MovePos(0, 2), MoveDir.DOWN)
+        assertEquals(listOf("d", "c"), r[1].apps)   // 第 2 列越过 B 的行尾 → 放在行尾
+        assertEquals(MovePos(1, 1), p)
+    }
 }

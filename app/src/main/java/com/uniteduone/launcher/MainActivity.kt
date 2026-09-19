@@ -52,10 +52,17 @@ private const val KEY_ONB_STEP = "onbStep"
 /**
  * 移动态下照常放行的键(M4b spec §3「其它键吞掉」的唯一例外):音量。桌面自己从不处理它们,
  * 放行只会落到系统的音量调节,不碰任何界面状态;吞掉的话搬卡的那几秒里电视音量调不了。
+ * 编辑页的搬运模式(EditScreen,M4b spec §0-18)用同一份。
  */
-private val MOVE_PASSTHROUGH_KEYS = setOf(
+internal val MOVE_PASSTHROUGH_KEYS = setOf(
     KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE,
 )
+
+/**
+ * 长按 = 同一次按压持续满这么久(Gordon 2026-09-16 A95L 真机试过 0.4 s 后定为 0.6 s)。首页长按菜单、屏保图库删图、
+ * 首页移动态与编辑页搬运里的「长按确定无反应」共用这一个判据(EditScreen 的搬运按键在本文件之外,所以放顶层)。
+ */
+internal const val LONG_PRESS_MS = 600L
 
 class MainActivity : ComponentActivity() {
 
@@ -238,7 +245,14 @@ class MainActivity : ComponentActivity() {
     private var demoIdle by mutableStateOf<IdleContent?>(null)
     /** 长按识别:记下那次按压的 downTime,同一次按压之后的事件(含 UP)全吞——clickable 在 UP 才触发,不会顺带启动应用。 */
     private var longPressDownTime = -1L
-    private val LONG_PRESS_MS = 600L
+    /**
+     * 编辑页正在搬运一张卡(M4b spec §0-18)。EditScreen 以 `onCarryingChange` 上报:搬运开始 / 结束各报一次,
+     * 编辑页离开组合时补报 false——唯一的写入方是编辑页那个以它为 key 的 DisposableEffect,不是闩(铁律 7)。
+     * 搬运中 [dispatchKeyEvent]:MENU 什么都不做(不退出编辑页);确定键的按下 / 重复 / 松开原样交给编辑页
+     * (它按重复事件认长按、松开才放下),不走这里的长按识别、重复吞掉与按键音。
+     * 只在 [dispatchKeyEvent] 里读,不进任何组合与效果,所以不是 `mutableStateOf`(同 [shownRows])。
+     */
+    private var editCarrying = false
 
     /**
      * **首页之上盖着整屏浮层没有**(M7 T4 分层叠加)。写成派生属性而不是各处重算:
@@ -578,6 +592,7 @@ class MainActivity : ComponentActivity() {
                         cardsPerRow = homeSettings.cardsPerRow,
                         showTitles = homeSettings.showTitles,
                         initialTarget = editTarget,
+                        onCarryingChange = { editCarrying = it },
                     )
                 } else {
                     // 编辑页里能打开的只有「换卡片图」(pt = 包名);其余几种选择器只能从首页 / 设置页
@@ -847,7 +862,9 @@ class MainActivity : ComponentActivity() {
             // 「恢复默认」确认框开着时同理:三条杠键只关它自己,不连带关掉整个设置页——
             // 放在 `settings` 判断之前,否则会摸到下面那一支把整页一起收掉。
             if (confirmRestore) { confirmRestore = false; return true }
-            if (editing) { leaveEdit(); return true }
+            // 编辑页搬运中 MENU 什么都不做(M4b spec §0-18,同首页移动态「其余键按下去什么都不发生」);
+            // 要走先按返回取消,或确定放下。
+            if (editing) { if (!editCarrying) leaveEdit(); return true }
             if (settings) { leaveSettings(); return true }
             // 「关于」页开着时同理:三条杠键只负责关它(下载中也一并取消),不能在它底下叠出齿轮菜单——
             // 不判的话会摸到下面 `menuOpen` 那一支,在关于页蒙版后面悄悄开出一层齿轮菜单。
@@ -864,6 +881,14 @@ class MainActivity : ComponentActivity() {
             if (cardMenu != null) { closeCardMenu(); return true }
             if (menuOpen) closeMenu() else { menuFromGear = false; menuOpen = true }
             return true
+        }
+        // **编辑页搬运中**(M4b spec §0-18):确定键整下(按下 / 重复 / 松开)原样交给编辑页,不走下面的长按识别、
+        // 重复吞掉与按键音——编辑页按重复事件认长按、松开才放下,放下那一声由它自己出(与首页移动态同一套:
+        // 短按松开 = 放下 + 一声,长按 = 什么都不发生)。搬运结束后才松开的那一下 UP,编辑页按 downTime 认出来照吞。
+        if (editCarrying && (event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER || event.keyCode == KeyEvent.KEYCODE_ENTER ||
+                event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)
+        ) {
+            return super.dispatchKeyEvent(event)
         }
         if (event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER || event.keyCode == KeyEvent.KEYCODE_ENTER) {
             if (longPressDownTime != -1L && event.downTime == longPressDownTime) {
