@@ -64,7 +64,7 @@ fun HomeScreen(
     showDate: Boolean = true,
     cardsPerRow: Int = 6,
     /** 卡片标题全局开关(design §2)。开着时卡片下方多一行标题,行高随之增加
-     *  (见 Theme.cardMetrics 的 titleHeight),纵向位移沿用同一套自算逻辑。 */
+     *  (见 HomeLayout.titleHeight),纵向位移沿用同一套自算逻辑。 */
     showTitles: Boolean = false,
     /** 输入源行开关(design §2,默认关)。开着且真机枚举到硬件输入时,在应用行**上方**
      *  多渲染一行输入源;它以普通行的身份加进纵向焦点账本,种类差异只影响点击行为与行图标。 */
@@ -114,7 +114,7 @@ fun HomeScreen(
 ) {
     val ctx = LocalContext.current
     // 卡片档位尺寸:5/6/8 三档统一由 HomeLayout 按张数推导,不再有「6 是标定常量、5/8 反推」的特例。见 Theme.cardMetrics。
-    val metrics = Theme.cardMetrics(cardsPerRow, showTitles)
+    val metrics = Theme.cardMetrics(cardsPerRow)
     // **首页内嵌的浮层**:齿轮菜单、长按卡片菜单、修改标题对话框 —— 它们住在首页这棵树里面。
     val anyOverlay = menuOpen || cardMenu != null || renameTarget != null
     // **「首页被盖住了没有」只此一个判据。**内嵌的那三层(`anyOverlay`)之外,M7 T4 起还有

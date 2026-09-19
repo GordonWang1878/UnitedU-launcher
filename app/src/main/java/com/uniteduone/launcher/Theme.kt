@@ -18,10 +18,6 @@ data class CardMetrics(
     val cardSpacing: Dp,
     /** 行内上下留白:放大 10% 的溢出一半 + 描边。 */
     val rowVerticalPad: Dp,
-    /** 行标题顶到下一行行标题顶。 */
-    val rowPitch: Dp,
-    /** 标题行占的高度(开关关 = 0),已计入 rowPitch。 */
-    val titleHeight: Dp,
     val titleGap: Dp,
     val titleLine: Dp,
     val titleSize: TextUnit,
@@ -118,8 +114,6 @@ object Theme {
     val MenuItemText = Color(0xFFB0B0B0)
     /** 默认桌面卡片主按钮文字(未聚焦)。 */
     val ButtonText = Color(0xFFCFCFCF)
-    /** 应用卡片没有图标位图时的回退文字标签。 */
-    val CardFallbackText = Color(0xFFDDDDDD)
     /** 弹窗正文文字:图片选择器空态提示、选应用弹窗条目标题(未聚焦)共用。 */
     val DialogBodyText = Color(0xFFE8E8E8)
     /** 强调/高亮文字:齿轮菜单条目标题(聚焦)、默认桌面卡片当前标签共用。 */
@@ -130,7 +124,7 @@ object Theme {
     // 现在方形图标不画底、按卡片高铺满。
 
     /** 每行张数 → 一档尺寸。三档同一公式(spec §1.1),不再有「中档零回归锚点」;非法值按中档 6。 */
-    fun cardMetrics(cardsPerRow: Int, showTitles: Boolean = false): CardMetrics {
+    fun cardMetrics(cardsPerRow: Int): CardMetrics {
         val n = if (cardsPerRow in VALID_CARDS_PER_ROW) cardsPerRow else 6
         return CardMetrics(
             cardWidth = HomeLayout.cardWidth(n).dp,
@@ -138,8 +132,6 @@ object Theme {
             cardCorner = HomeLayout.CARD_CORNER.dp,
             cardSpacing = HomeLayout.CARD_SPACING.dp,
             rowVerticalPad = HomeLayout.rowVerticalPad(n).dp,
-            rowPitch = HomeLayout.rowPitch(n, showTitles).dp,
-            titleHeight = HomeLayout.titleHeight(showTitles).dp,
             titleGap = HomeLayout.CARD_TITLE_GAP.dp,
             titleLine = HomeLayout.CARD_TITLE_LINE.dp,
             titleSize = 12.sp,   // bodySmall

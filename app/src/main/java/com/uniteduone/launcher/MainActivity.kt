@@ -728,7 +728,8 @@ class MainActivity : ComponentActivity() {
             )
             // M5 spec §5:长按缩略图删图。长按识别在 dispatchKeyEvent(「图库光着」那一支),这里只接线:
             // 网格上报聚焦的文件、确认框的目标与两个按钮。确认框自己负责焦点;关掉后(删除 / 取消都 focusNonce++)
-            // 由网格的 nonce 循环把焦点接回原位置。
+            // deleteTarget 变 null 让 PickerGrid 的 covered 翻回 false,由它 (nonce, covered, focusRequesters)
+            // 那条定位效果重新跑一轮接回原位置;万一没接上,还有 holderIdx == null 的看门狗兜底。
             VIEW_SCREENSAVER_POOL -> ScreensaverPoolViewer(
                 nonce = focusNonce,
                 refresh = galleryVersion,
@@ -1453,13 +1454,14 @@ class MainActivity : ComponentActivity() {
 
     /**
      * 图库删图的「删除」键(M5 spec §5)。顺序照 spec:IO 线程删文件 → 播放器重扫 → 图库版本 +1 →
-     * 收确认框 → focusNonce++。这三个赋值落地时,图库那边的重扫(ImagePicker.kt
-     * ScreensaverPoolViewer 的 produceState)通常还没跑完——**中间是有一段「谁都不管」的空档的**
-     * (fix round 1 之前踩过:焦点漏给背后盖住的设置页)。现在补上的办法不在这一层,而是让
-     * PickerGrid 的定位效果把 focusRequesters 也编进 key、另配一个焦点看门狗,新列表一到 /
-     * 焦点莫名其妙没了都能接住,不再依赖这里的三个赋值凑巧同一帧落地。开头比对目标:过期的调用
-     * 直接忽略。删不掉(文件还在)记日志 + toast(`toast_pool_delete_failed`)——列表按盘上实况
-     * 重读,那张图留在原处。
+     * 收确认框 → focusNonce++。`galleryVersion++`/`poolDeleteTarget = null`/`focusNonce++` 这三个
+     * 赋值中间没有挂起点,总在同一帧落地——这一步不是巧合,是协程顺序执行的必然。真正不确定的是
+     * 它们和图库那边的重扫(ImagePicker.kt ScreensaverPoolViewer 的 produceState,在另一条 IO 协程
+     * 上跑)谁先谁后——**中间是有一段「谁都不管」的空档的**(fix round 1 之前踩过:焦点漏给背后
+     * 盖住的设置页)。现在补上的办法不在这一层,而是让 PickerGrid 的定位效果把 focusRequesters
+     * 也编进 key、另配一个焦点看门狗,新列表一到 / 焦点莫名其妙没了都能接住,不再单靠「这三个赋值
+     * 同一帧落地」这件事本身。开头比对目标:过期的调用直接忽略。删不掉(文件还在)记日志 + toast
+     * (`toast_pool_delete_failed`)——列表按盘上实况重读,那张图留在原处。
      */
     private fun deletePoolImage(file: java.io.File) {
         if (poolDeleteTarget != file) return

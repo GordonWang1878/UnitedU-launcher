@@ -78,8 +78,13 @@ internal class RefCounter {
     }
 }
 
-/** 扫一次图库;任何异常都当作「这次没扫到」,返回 null,调用方保留上一份列表、计时照走。 */
-private fun safeScan(app: Context): List<File>? =
+/**
+ * 扫一次图库;任何异常都当作「这次没扫到」,返回 null,调用方保留上一份列表、计时照走。
+ * internal(不是 file-private):图库查看器(ImagePicker.kt)与设置页的张数统计
+ * (SettingsScreen.kt)也走这一份——原来各自另包一层 runCatching,失败要么不记日志、
+ * 要么直接让异常冒出协程,现在统一成这一个「失败记日志、退回 null」的口径。
+ */
+internal fun safeScan(app: Context): List<File>? =
     runCatching { scanScreensaverLibrary(app) }
         .onFailure { android.util.Log.w("UnitedU", "屏保图库扫描失败", it) }
         .getOrNull()

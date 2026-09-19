@@ -50,6 +50,4 @@ object HomeLayout {
     fun heroAlpha(activeRow: Int): Float = if (activeRow <= 0) 1f else 0f
 
     fun anchorTop(screenH: Float): Float = screenH * 2f / 3f
-
-    fun scrimHeight(screenH: Float): Float = screenH - anchorTop(screenH) + SCRIM_LEAD
 }

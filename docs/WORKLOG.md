@@ -795,3 +795,77 @@ HEAD `c0cf5a6`(接 `8d82355`),worktree 仍是 `m5-standby`。终审复查的完�
 - 我原推荐「先 gtv、main 只修 bug」(理由:M4b 的新界面先按旧样式做、gtv 再复刻一遍约多 1 天);Gordon 选先 main,换来功能早到、两条线零并行。
 - 已执行:提前开的 `gtv` 分支指针删除(与 main 同一提交,无独有内容),等 main 做完从新 main 重开;Google TV 镜像已下载并校验(sha1 一致)、解压到 `~/Library/Android/sdk/system-images/android-34/google-tv/arm64-v8a/` 备用,AVD 未建、实测未做。gtv 第一轮四个决定(真 Google TV 实测 / 全 app / Google 的壳我们的内容 / 独立包名并存)保留有效,重开时从「实测 → 逐项对照表」接着问。
 - 精简版 main 的范围:①遗留 bug(M5 终审遗留九项 + M5 已知未修 + M8 终审遗留六项 + M7 冷启动菜单无焦点,见本文件各节);②M4b:行管理(1–5 行增删 / 命名 / 图标)、原地移动、输入源逐项隐藏 / 改名、HDMI-CEC 父子去重。不做:M8b 二级界面换皮、行尾「+」卡、差距报告 6 h 子集(都归 gtv 线)。
+
+## 2026-09-19 · 无人值守窗口(13:45 起约 4 小时):遗留修复批 + M4b
+
+- Gordon:「接下来 4 个小时交给你了…计划出来之后直接动手实现,发现 bug 即修复」。按 overnight 规则执行:不推、不出卡、决定写进各计划的 SDD 台账(`.superpowers/sdd/<plan>/progress.md`)、可本地并 main;目标与进度在 `.superpowers/sdd/unattended-goal-2026-09-19.md`。
+- **遗留修复批**:plan `docs/superpowers/plans/2026-09-19-leftover-fixes.md`(`49760bb`,15 条遗留 → 5 个任务),worktree `.claude/worktrees/leftover-fixes`。
+- **M4b**:spec `docs/superpowers/specs/2026-09-19-m4b-rows-move-inputs-design.md`(`8766740`/`6b1151d`,DESIGN §2 已定的照搬,其余交互细节是 Rulings A–M,等 Gordon 过目)、plan `docs/superpowers/plans/2026-09-19-m4b-rows-move-inputs.md`(`710c714`,6 个任务),worktree `.claude/worktrees/m4b`;数据层两个任务不用模拟器,与修复批并行,第 3 个任务起等修复批并入 main 后再接(依赖它的 `keepInView` 与菜单看门狗)。
+- **新发现**:①`EditScreen.kt:280` 仍用 `verticalScroll(rememberScrollState())`,违反铁律 1(此前没记过),并入 M4b Task 4;②A95L 输入源(`dumpsys tv_input`,只读):HW0 DVB 调谐器、HW1 模拟 AV、HW2–HW5 = HDMI 1–4(当时 HDMI 2/3 有线连着),**没有任何 HDMI-CEC 子输入**,CEC 去重在这台电视上暂时看不到效果,以单测为证;③`Settings.rowCount` 全仓无人读(行数以 layout.json 为准,M4b 不启用也不删)。
+
+## 2026-09-19 · 遗留修复批(leftover-fixes)
+
+worktree `.claude/worktrees/leftover-fixes`,分支 `leftover-fixes`,base `49760bb`。五个任务(SDD 台账 `.superpowers/sdd/2026-09-19-leftover-fixes/`,gitignored):T1 播放器加固 `c9cf36c`(接 `87c9718`)、T2 图库查看器 `3155ea2`(接 `4deae96`)、T3 首页与菜单焦点 `d8553de`、T4 卫生项 `0e56f75`、T5(本节 + 模拟器回归)。范围与逐项裁决见 `docs/superpowers/plans/2026-09-19-leftover-fixes.md`(遗留 #1–15 原表)与台账的 Ruling R1–R8;本节按台账 + 四份任务报告写,与计划草稿不一致处以实际做出来的为准。
+
+**逐条结果**(# 对应 plan 表序号):
+
+| # | 结果 | 说明 |
+|---|---|---|
+| 1 | 已修 | `hasScreensaverImages`/`safeScan` 包 `runCatching`,IO 异常按「没扫到」处理,不再杀掉轮播协程 |
+| 2 | 已修 | 引用计数抽成 `RefCounter`,4 个新 JVM 单测(首次 acquire、仅末次 release、多余 release 空操作、完全释放后重 acquire) |
+| 3 | 已修 | `ScreensaverPoolViewer` 改 `produceState` 在 IO 线程跑 `scanScreensaverLibrary`,与播放器共用同一份 `IMAGE_EXTS`,删掉主线程 `listFiles()` 那份重复过滤 |
+| 4 | 已修 | `PreviewSlot` 删除,预览改用共享的 `ScreensaverSlot`(`Screensaver.kt`,private → internal) |
+| 5 | 已修 | `PickerGrid` 的 `verticalScroll` 换成裁剪视窗 + `keepInView` 自算位移(铁律 1),4 个新单测 |
+| 6 | 已修 | 预览的初始焦点循环改 nonce-keyed、自报 `focused`(得失都报);网格新增 `covered` 参数,预览 / 删图确认框在场时网格的定位效果与看门狗让路 |
+| 7 | 已修 | 删图失败追加 `toast_pool_delete_failed`(三语言字符串,已核对);FUSE 存储在模拟器上造不出失败,只能代码审查确认,未实测 |
+| 8 | 复现 + 已修 | 见下方根因 |
+| 9 | 根因已查清 + 加固 | 见下方根因;不是应用内抢焦点 |
+| 10 | 已修(逻辑),效果只能真机验 | `AppCard.reserveTitleSpace` + `CategoryRow` 传参;模拟器无硬件输入源(`dumpsys tv_input` 为空),验证只做到「应用行无回归」,见下方 Ruling R2 |
+| 11 | open bug,本批不修 | 见下方 Ruling R7 |
+| 12 | 已修 | 删 `CardMetrics.rowPitch`/`titleHeight`、`CardFallbackText`、`HomeLayout.scrimHeight` 及全部引用 |
+| 13 | 已修 | 新增 `ThemeMetricsTest`(2 例,回落逻辑早已存在,测试直接 GREEN);`SettingsTest` 一处改名 |
+| 14 | 已修 | 5 行英文设置项标签统一 Title Case |
+| 15 | 已修 | `build.gradle.kts` 显式声明 `androidx.lifecycle:lifecycle-runtime:2.8.3`、`androidx.savedstate:savedstate:1.2.1`(即原来传递解析到的版本;`:app:dependencies` 比对确认其余库最终版本未变) |
+
+**#8 根因(长按取消后缩略图按压指示残留)**:长按识别在 `MainActivity.dispatchKeyEvent`(Compose 树外),它把长按之后那次 `DPAD_CENTER` 的 key-up 消费掉了——`clickable` 默认内建的 `MutableInteractionSource` 因此永远等不到配对的 `Release`,indication 永久停在按压态,直到进程重启或该格因删除被 `remember(items.size)` 整表换新才会解开。修法:`PickerGrid` 每格自带一份可写的 `MutableInteractionSource`(`toMutableStateList()`),记下未配对的 `Press`;浮层关闭(`covered` 翻回 false)时对卡住的 `Press` 补发 `PressInteraction.Cancel`,并把该格的 interactionSource 换成新对象——只发 `Cancel` 不够,foundation 的 `ClickableNode` 另有一份绑在旧 source 对象上的「键是否按着」记录,不换新对象下一次确定键会被当成「还按着」而静默失效。24 张已知 HSV 颜色的图逐格采样验证过:修复前长按+取消的格子稳定卡在真实亮度的约 70%,修复后与未触碰的格子逐字节相同(diff 0)。
+
+**#9 根因(冷启动约 4s 内按 MENU:齿轮菜单开着但焦点数 0)**:most likely root cause——触摸模式(0/47 次复现于触摸模式之外,覆盖 0.3–6s 各种延迟、force-stop 或刚装包、`-n` 或 HOME intent 启动;13/13 次复现于触摸模式内)。一次指针事件(`input tap`;Android 14 上 `input mouse tap` 同样算)会把窗口切进触摸模式且跨冷启动保留,`GearMenu` 的行用 foundation `clickable`,在触摸模式下 `FocusableInNonTouchMode` 直接拒绝 `requestFocus()`;`MENU` 键本身不是导航键也不是打字键,不会让窗口离开触摸模式,第一下方向键才让框架退出触摸模式、把焦点交给最上面一项并吃掉这一下(即 M7 记录的「第一下 DOWN 才落到第 1 项」)。当年 M7 的截图脚本自己发过一次 `input tap`,把这个态残留到了冷启动之后——没有找到任何应用内组件在焦点落地之后清掉它。根因不在应用内,但铁律 3 的看门狗仍按规矩补上(`GearMenu` 的 `holder == null` 循环,见 CLAUDE.md 表),覆盖的是另一类真实丢焦点场景——Probe 2(人为在菜单开着时销毁当前聚焦行)证明:HEAD 无看门狗时终局是焦点数 0,加了看门狗后能把焦点接回记忆的那一项(`focusedIdx`),不会退化成框架默认的最上面一项。
+
+**T2 自身复审中新发现并修复的一个焦点回归(不在原 15 条内,`3155ea2`)**:首版(`4deae96`)的网格定位效果只以 `(nonce, covered)` 为 key;删最后一张、或小图库删任意一张时,异步重扫落地后 `remember(items.size)` 把 `focusRequesters` 整表换新,而定位效果早已对着旧表跑完退出——网格最终没有任何焦点,遥控器静默地在操作背后被盖住的设置页。修法与 CLAUDE.md「屏保图库的图片网格」一行一致:把 `focusRequesters` 编进 key,退出判据从只增不减的 `landed` 换成自报的 `holderIdx == i`,另加一个 `holderIdx == null` 看门狗兜底。emulator 复验删最后一张 / 删中间 / 删到只剩一张 / 删空四种形状,全部单一焦点。
+
+**#11 open bug(Ruling R7,本批刻意不修)**:指针输入(飞鼠遥控器 = `SOURCE_MOUSE`,不止触摸屏)之后,齿轮菜单与设置页(两者的行都是 foundation `clickable`)会失焦(与 #9 同一机制),下一下方向键只落在第 1 项,不是记忆的那一项;首页不受影响(卡片 / pill 是 tv-material `focusable()`,触摸模式下仍可聚焦)。本批的看门狗对此无能为力——它的 `requestFocus()` 在触摸模式下本来就会被拒绝,brief 设想的 `focusNonce++` 兜底同理无效。真正的修法需要跨屏决定(菜单 / 设置页的行改成触摸模式下也能聚焦,或者指针 `ACTION_UP` 时调用 `requestFocusFromTouch()` 主动退出触摸模式、再把焦点送回冻结目标),留到下一批;owner 的遥控器没有指针,gtv 线会重做这些界面,优先级不高。另外发现 `GearMenu` 的看门狗**没有检查自己是不是最上层浮层**:指针点开的 `AppPicker` 叠在编辑页条目菜单之上时,~1 秒内按一下方向键会让编辑页菜单把焦点抢回来(即便 `AppPicker` 才是该拿到焦点的那个)——这是同一根问题(看门狗不知道「自己被盖住」)的另一种表现,一并记在这里,不单独立项。A95L 清单已加一条覆盖此类场景(见下方③的备注)。
+
+**Ruling R2(#10 为什么这批就修,没等 M4b)**:输入源行少 20dp 是纯粹的布局不变量(每一行高度都要等于 `HomeLayout.rowPitch`),与 M4b 要做的输入源菜单功能无关,现在修能让 M4b 的改动更小。若 M4b 之后又重排了输入源行的布局,这 5 行 `Spacer` 逻辑需要跟着重做,代价可接受。
+
+**Ruling R8(EditScreen.kt 的一行例外)**:计划严令本批不碰 `EditScreen.kt`(M4b 的地盘),但 T4 把 `Theme.cardMetrics` 的 `showTitles` 参数删掉后,`EditScreen.kt:72` 的调用点编译不过。裁定接受这一行例外——`Theme.cardMetrics(cardsPerRow)`——单行改动,与 M4b 冲突的代价最多是一次自动可解的合并冲突。
+
+**T2 审查中发现、本批未修的两个缺口(均非行为回归,记录以防日后误判成新 bug)**:①`ThumbCard` 的 `produceState<Bitmap?>(null, item)` 在 key(`item`)变化时不会把 `value` 重置回初始的 `null`,只有 producer 协程重启——列表因删除整体上移一格时,刚顶替上来的那一格会短暂(不到一帧到一秒,受解码耗时限制)显示前一个占用者的缩略图。Task 2 发现时记的 Ruling R5 说要「折进终审修复轮一起改」,但本批 T3/T4/T5 都没有安排这样一轮,截至本节仍未修——**下次要么专门开一个小任务修,要么正式撤销这条 ruling**,不要让它继续挂在「说了要修但没人认领」的状态。②`PickerGrid` 自己的焦点看门狗(`LaunchedEffect(holderIdx == null, covered)`)没有 60 帧封顶,也没有用 `rememberUpdatedState` 包 `focusRequesters`——潜伏风险是它已经在循环里时若 `items.size` 又变一次,会继续对着启动时捕获的旧表重试;同一个 `remember(items.size)` 模式还让删除后存活的聚焦格丢失原本的按压/聚焦视觉状态直到焦点再次移动。两者都是本批之前就有、本批也没有放大的既有小缺口,不阻塞验收。
+
+**单测 / 构建**(T5 在 HEAD `0e56f75` 复跑):`source scripts/env.sh && gradle --no-daemon testReleaseUnitTest assembleRelease` → BUILD SUCCESSFUL,213 个用例、0 失败、0 错误、0 跳过(25 suites);APK `app/build/outputs/apk/release/app-release.apk` 2,883,196 字节,sha256 `daede51ca3f8c89af31a7e195a01303ee76f7617ebbc86a6124e81223445eeed`。单测数演进(全项目):T1 后 207(单文件 `ScreensaverPlayerTest` 5 → 9,+4 `RefCounter` 用例)→ T2 后 211(+`PickerScrollTest` 4)→ T3 后仍 211(纯 Compose 运行时焦点改动,不可 JVM 测)→ T4 后 213(+`ThemeMetricsTest` 2)。
+
+**A95L 真机清单**(与 M4b 合并验收时用):
+① 设置里「卡片标题」+「输入源行」同开,从第 1 行一路按到最后一行,每一行的行标题都停在同一高度(不再差 20dp,对应 leftover #10)。模拟器没有硬件输入源(`dumpsys tv_input` 为空),这一行从不渲染,这条只能真机验。
+② 屏保图库放 20 张以上,翻到底再翻回、进预览、在预览里等系统屏保触发再唤醒:回来焦点仍在预览。
+③ 装新包后 3 秒内按菜单键:菜单第 1 项已高亮。真机没有触摸屏也没有鼠标,预期不会带着触摸模式冷启动、正常通过;如果仍复现,对照上面 #9 的根因重新排查(说明真机上出现了某种指针事件)。顺带可以用飞鼠单击一下齿轮菜单或设置页再按方向键,复现 #11 描述的失焦(预期现象,不是新缺陷,验证记录用)。
+④ 英文界面下设置「待机与屏保」组六行大小写一致(leftover #14)。
+
+**回归(Step 2,模拟器 `emulator-5554`)**:装本分支 APK(`lastUpdateTime` 18:41:29→18:44:27,替换掉此前装着的另一分支的包)。全程只用 `input keyevent`(未发任何指针事件),`dumpsys input` 里 TouchMode 全程为 0——CLAUDE.md 新记的触摸模式陷阱没有触发,焦点数没有一次读到 0,因此没有用到「先发一下方向键」的兜底。八项全部 PASS,一次失败都没有,没有触发 systematic-debugging 修复轮:
+①首页四向导航 + 同列规则:VIDEO 2 张 / MUSIC 4 张 / LIVE 2 张,VIDEO col1↓MUSIC 落同列(col1)、MUSIC col3(末列)↓只有 2 张的 LIVE 落最后一张(col1)、LIVE↑回 MUSIC 落的是当前列(col1)而不是原来下来时的列(col3)——与 WORKLOG M8 记录的同列规则逐条一致。
+②右上两个 pill(设置 / 屏保):左右切换、末位止步,下键回到进入前的卡片。
+③长按卡片菜单:长按 YouTube 卡,菜单开在「Open App」,BACK 关闭后焦点回卡片。
+④齿轮菜单:冷启动(force-stop → `-n` 启动 → 2s 内 MENU)focused=1 落在「Edit Rows」,与常规路径(MENU → DOWN → DOWN → BACK)bounds 与 Task 3 报告记录的完全一致;BACK 后焦点回原卡。
+⑤设置页「待机与屏保」六行:DOWN 一路到底、UP 一路回顶,首行 UP、末行 DOWN 均止步(无 `<none>`);行内 LEFT/RIGHT 由该行消费去改数值(不外溢到左栏或跳走焦点)。期间把 Standby Timeout 从 3 min 改到 5 min 又改到 1 min 用于验证,验完改回 3 min,`settings.json` 复原核对过。
+⑥屏保按钮:图库为空时按下进入纯时钟待机画面(黑底 + 时钟,符合空库回落设计),任意键(CENTER)回到按下前聚焦的屏保 pill。
+⑦屏保图库:新推 24 张 HSV 测试图。DOWN 到第 8 行、再 UP 回第 1 行,14 步全程 focused=1、无越界/半截可见(底部行 pin 在视窗底、顶部行 pin 在视窗顶,与 Task 2 报告的模式一致);预览进出一次(RIGHT 翻 2 张,BACK 回原格);长按 → Cancel 一次(23→23,焦点回原格);长按 → Delete 一次(24→23,焦点落补位上来的 p2-01,`focused_count` 全程为 1,没有复现 Task 2 修复前的「删除后无焦点」问题)。测完清空 24 张测试图,目录核对为空。
+⑧标题开 / 关:Card Titles Off→On 截图确认应用行标题正确显示(YouTube / Play Store 标签出现,行距随之变化);On→Off 复原,`settings.json` 的 `showTitles` 核对回 `false`。
+
+顺带记一笔非缺陷的观察:第一次改动任意设置字段会把 `Settings` 对象整份重新序列化落盘,此前只存在于内存默认值、从未写过盘的 `screensaverAfterMs`/`screensaverIntervalMs` 两个字段因此在这轮测试后首次出现在 `settings.json` 里——数值(300000/5min、30000/30s)与测试开始前设置页已经显示选中的值一致,不代表任何行为变化,记录以防以后被误读成「这轮改动动过屏保设置」。
+
+证据:97 份 `uiautomator` dump + 分阶段截图,存于 session scratchpad(未提交仓库),清单见 `task-5-report.md`(`.superpowers/` gitignored)。收尾设备状态:图库目录清空、`long_press_timeout`=400、`idleAfterMs`=180000、`showTitles`=false、`animator_duration_scale` 未变(null)、TouchMode=0,本分支 APK 仍是当前安装,前台停在首页。
+
+## 2026-09-19 · 遗留修复批并入 main(本地)
+
+- `leftover-fixes` 经 5 个任务(每个任务单独审查,T1/T2/T4/T5 各有一轮修复)+ fable 整分支终审(「修完可并」:R5 缩略图串图、图库看门狗未封顶、CLAUDE.md 焦点表两句与代码不符 → 一次修复波 `a141aeb`,复审全部通过)后,`merge --no-ff` 并入本地 main = `3b18d8b`;并后 main 单测 213/213、`assembleRelease` 绿。worktree 与分支已删;SDD 台账与各任务报告留在 `.superpowers/sdd/2026-09-19-leftover-fixes/`(gitignored)待 Gordon 看过再清。
+- 终审遗留一处:CLAUDE.md 焦点表「壁纸 / 卡片图选择器」一行说它们是「仅有的两处调用 `PickerGrid`」,其实屏保图库也调用(见下一行)——交给 M4b Task 6 改焦点表时一并更正(Ruling R10)。
+- 仍开着的 bug:鼠标 / 飞鼠点击后齿轮菜单与设置页丢焦点(Ruling R7,机理与建议修法见上面「遗留修复批」一节)。
+- 未推 GitHub(等 Gordon 说「推」)。真机清单见上面「遗留修复批」一节,与 M4b 一起验。
