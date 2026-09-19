@@ -654,6 +654,8 @@ private fun CategoryRow(
                     metrics = metrics,
                     // 标题开关为全局(design §2.2):输入源行不显示,自定义标题也一样受它约束。
                     title = if (showTitles && row.kind == RowKind.APPS) (titles[app.packageName] ?: app.label) else null,
+                    // 输入源行不画标题但照样占住那一行,行距与应用行一致(应用行 title 非空,走不到这一支)
+                    reserveTitleSpace = showTitles,
                     fallbackColor = app.fallbackColor?.let { Color(it) },
                     themed = themedCards,
                     onClick = {
