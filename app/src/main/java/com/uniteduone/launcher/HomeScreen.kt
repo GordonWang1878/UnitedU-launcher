@@ -133,13 +133,14 @@ fun HomeScreen(
     ) {
         value = withContext(Dispatchers.IO) {
             val appRows = runCatching { buildRows(ctx) }.getOrDefault(emptyList())
+            // titles 要在输入源行之前读出:buildInputRow 用它给改过名的输入源换标签(applyInputPrefs)。
+            val titles = runCatching { Titles.read(ctx) }.getOrDefault(emptyMap())
             // 输入源行放**最上面**:design §2 把「输入源」当独立顶层类目,置顶与之相符;
             // 且置顶后应用行的相对次序、以及「开机焦点落在最上一行」的直觉都不变。
-            // 枚举为空(非电视 / 没有硬件输入)时返回 null,这一行干脆不存在 —— 焦点账本
+            // 枚举为空(非电视 / 没有硬件输入 / 全部隐藏)时返回 null,这一行干脆不存在 —— 焦点账本
             // 只认非空行,不会挂空 requester(见 buildRows 结尾那条不变量)。
-            val inputRow = if (showInputRow) runCatching { buildInputRow(ctx) }.getOrNull() else null
+            val inputRow = if (showInputRow) runCatching { buildInputRow(ctx, titles) }.getOrNull() else null
             val rows = if (inputRow != null) listOf(inputRow) + appRows else appRows
-            val titles = runCatching { Titles.read(ctx) }.getOrDefault(emptyMap())
             // 「新应用」计数:与首页同一趟 IO 算(应用已经枚举过一次),onLayout 只看应用行
             // ——输入源行的 packageName 存的是输入 id,不是真的包名。
             // 基线还没建立(newAppsSeenAt == 0:onCreate 那次基线写盘失败,比如外置存储开机时还没挂上)
@@ -693,11 +694,13 @@ private fun CategoryRow(
 /**
  * 输入源行。把每个硬件输入伪装成 [AppEntry](packageName 存输入 id、card=null 走文字回退),
  * 从而与应用行**共用** AppCard / CategoryRow / 整套纵向焦点账本。
- * 枚举为空(非电视、或没有硬件输入)时返回 null —— 这一行不渲染,焦点账本只挂非空行,
+ * 枚举为空(非电视、或没有硬件输入、或全部被隐藏)时返回 null —— 这一行不渲染,焦点账本只挂非空行,
  * 与 buildRows 结尾那条不变量同源。标题走本地化字符串;ctx.getString 在 IO 线程可安全调用。
+ * HDMI-CEC 父子去重见 [dedupeCec];隐藏 / 改名见 [applyInputPrefs]——[titles] 与卡片标题共用
+ * titles.json(key = 输入 id),名字只换卡上文字,不受「卡片标题」开关影响。
  */
-private fun buildInputRow(ctx: Context): Row? {
-    val inputs = Inputs.load(ctx)
+private fun buildInputRow(ctx: Context, titles: Map<String, String>): Row? {
+    val inputs = applyInputPrefs(dedupeCec(Inputs.load(ctx)), HiddenInputs.read(ctx), titles)
     if (inputs.isEmpty()) return null
     return Row(
         name = ctx.getString(R.string.home_input_row_title),
