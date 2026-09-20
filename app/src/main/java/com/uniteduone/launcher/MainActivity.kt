@@ -531,11 +531,11 @@ class MainActivity : ComponentActivity() {
             Wallpaper(this@MainActivity, wallpaperSpec, onSettingsChanged = { settingsRevision++ })
             // 自定义屏保层(M5 spec §1.4 第 2 层):只看 screensaverActive。不再因「不淡出」不组合——
             // 待机显示只管待机,「不淡出」时屏保照样会来(spec §0);没进屏保时 alpha 为 0,一张图都不画。
-            // showDate 与 HomeScreen/UnitedUDream 同源(Fix R16):三处的「时钟旁带不带日期」是同一个开关。
+            // 不再传 showDate(Ruling R23,终审 2026-09-20):这一层不叠时钟了,没有时钟就没有
+            // 「时钟旁带不带日期」这回事——该开关现在只在 HomeScreen/UnitedUDream 两处生效。
             Screensaver(
                 active = screensaverActive,
                 intervalMs = homeSettings.screensaverIntervalMs,
-                showDate = homeSettings.showDate,
             )
             // BLACK(Task 3):在屏保之上叠一层纯黑,随 idle 淡入淡出;配合 HomeScreen 里
             // 时钟自己的 clockAlpha 一起淡出,才是「整屏全黑」而不是黑底衬着屏保/时钟。

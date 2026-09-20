@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -41,11 +42,13 @@ import java.util.Locale
  * 折叠是为了给它的内容行腾地方)。但我们的 hero 区(B3 裁定「留给壁纸」)本来就什么都不放,
  * 没有地方可腾,折叠只会多露一截壁纸;箭头反而让人误以为「上面还有一行没显示」。这是本分支
  * 第二处「照搬了 Google 的形式、没照搬 Google 的内容模型」——第一处是空的搜索/Apps 药丸组,
- * spec §9 已经删掉。现在药丸组 + 时钟字标这一整条 `Row` 永远画在 alpha 1,不再有第二层折叠
+ * spec §9 已经删掉。现在药丸组 + 时钟字标这一整条 `Row` 永远画在同一层,不再有第二层折叠
  * 内容、不再有 `collapsed` 参数,`TOP_BAR_COLLAPSE_MS` 常量也一并删除。
- * **待机时仍然会淡出——那是调用方(`HomeScreen`)在外层套的 `contentAlpha`,与这里删掉的
- * 折叠是两套不同的机制**:待机淡出连卡片行、hero 时钟一起淡,是「暂时不用看」;折叠只淡顶栏
- * 一处,是「腾地方」,我们没有要腾的地方,所以整个删掉,不是调小时长或换个触发条件。
+ * **待机时药丸组仍然会淡出,时钟 + 字标不一定跟着淡——那是调用方(`HomeScreen`)传进来的
+ * [pillAlpha]/[clockAlpha] 两个透明度各管一半(Ruling R23,终审 2026-09-20),与这里删掉的
+ * 折叠是两套不同的机制**:折叠曾经只淡顶栏一处、是「腾地方」,我们没有要腾的地方,所以整个
+ * 删掉,不是调小时长或换个触发条件;待机该显示什么由 HomeScreen 按 `IdleContent` 决定,
+ * 这里只负责把它算好的两个数字分别贴到药丸组与时钟字标上,不自己判断待机状态。
  */
 @Composable
 fun GtvTopBar(
@@ -57,6 +60,12 @@ fun GtvTopBar(
     rowsEmpty: Boolean,
     /** 下键落点:通常是首页记住的那一行(与 `TopPills` 同名同义)。 */
     downTarget: FocusRequester?,
+    /** 药丸组透明度(HomeScreen 的 `contentAlpha`)——待机随卡片行一起淡出的那一半。 */
+    pillAlpha: Float,
+    /** 时钟 + 字标透明度(HomeScreen 的 `topBarClockAlpha`)。**Ruling R23**:待机且档位是
+     *  `IdleContent.CLOCK_ONLY` 时钉 1,不跟药丸组一起淡出——这一档留住的正是这行小字,
+     *  其余情形(BLACK / 非待机 / 自定义屏保)与 [pillAlpha] 取值相同。 */
+    clockAlpha: Float,
     /** 时钟旁是否带日期(design §2,设置页开关透传)。 */
     showDate: Boolean,
     onSettings: () -> Unit,
@@ -67,8 +76,9 @@ fun GtvTopBar(
     onFocusChange: (Int, Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Ruling R21:不再有折叠/展开两层内容互相淡入淡出,顶栏永远是这一条 Row,画在 alpha 1
-    // (见本文件顶部 KDoc)。待机时的淡出由调用方 HomeScreen 外层的 contentAlpha 负责。
+    // Ruling R21:不再有折叠/展开两层内容互相淡入淡出,顶栏永远是这一条 Row。
+    // Ruling R23:待机时的淡出不再是外层套一份 contentAlpha 一起淡——药丸组与时钟字标现在
+    // 各自读 pillAlpha/clockAlpha,分别贴在下面两个子节点上(理由见本文件顶部 KDoc)。
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -88,10 +98,11 @@ fun GtvTopBar(
             onSettings = onSettings,
             onScreensaver = onScreensaver,
             onFocusChange = onFocusChange,
+            modifier = Modifier.alpha(pillAlpha),
         )
         // Google 在这条留白里放搜索 / Home / Apps 三个 tab;我们没有对应功能,整组省略(spec §9)。
         Spacer(Modifier.weight(1f))
-        ClockWordmark(showDate = showDate)
+        ClockWordmark(showDate = showDate, modifier = Modifier.alpha(clockAlpha))
     }
 }
 
@@ -110,10 +121,11 @@ private fun PillGroup(
     onSettings: () -> Unit,
     onScreensaver: () -> Unit,
     onFocusChange: (Int, Boolean) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val down = if (rowsEmpty) FocusRequester.Cancel else (downTarget ?: FocusRequester.Default)
     Row(
-        modifier = Modifier
+        modifier = modifier
             .height(GtvLayout.TOP_BAR_HEIGHT.dp)
             .clip(RoundedCornerShape(percent = 50))
             .background(GtvTokens.PillTrack)
@@ -176,7 +188,7 @@ private fun TopBarIconButton(
  * 「UnitedU」是品牌字标,不走 strings.xml(不需要本地化,与 Google TV 字标同理)。
  */
 @Composable
-private fun ClockWordmark(showDate: Boolean) {
+private fun ClockWordmark(showDate: Boolean, modifier: Modifier = Modifier) {
     val accent = LocalThemeColors.current.accent
     val state = rememberClockState()
     val locale = AppLocale.current ?: Locale.getDefault()
@@ -194,6 +206,7 @@ private fun ClockWordmark(showDate: Boolean) {
     }
     BasicText(
         text = text,
+        modifier = modifier,
         style = TextStyle(fontFamily = Theme.Sans, fontSize = GtvLayout.TOP_BAR_CLOCK_TEXT.sp, color = accent),
     )
 }

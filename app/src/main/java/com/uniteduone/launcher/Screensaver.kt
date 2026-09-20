@@ -9,7 +9,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -23,7 +22,6 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -31,20 +29,20 @@ import java.io.File
 /**
  * 桌面的自定义屏保层(spec §1.4 第 2 层):[active] 为真时 attach 播放器、淡入 1200 ms,为假时 detach、淡出 400 ms。
  * 计时、扫描、下标都在 [ScreensaverPlayer];这里只管淡入淡出与 attach / detach 配对。
- * 图库为空时什么都不画(播放器扫出空表,alpha 目标就是 0,[HeroClock] 跟着不出现——这一点与
- * [UnitedUDream] 图库为空时「黑底 + 时钟」不同:桌面这一层叠在真实壁纸上面,图库空着不该拿黑底
- * 盖住壁纸,那是 [MainActivity] 的 BLACK 待机层的职责,不是这里)。
+ * 图库为空时什么都不画(播放器扫出空表,alpha 目标就是 0)。
  *
- * **Fix R16(终审 2026-09-20)**:恢复丢失的 [HeroClock] 叠加。[UnitedUDream] 自己的 KDoc 一直
- * 断言「画面与桌面的自定义屏保一致——全屏轮播 + 左上大字时钟」,但 gtv 线把 HomeScreen 那个
- * HeroClock 调用点删掉后,这里从未补上、两者其实长得不一样了(见本文件改之前这里的 KDoc,
- * 如实记录过这个缺口)。现在与 [UnitedUDream.DreamContent] 同一处理:淡阴影([shadow] 恒
- * true——照片可能很亮)、同一个左上角坐标;跟着 [layerAlpha] 一起淡入淡出,不额外起一份动画,
- * 图库为空时随 `layerAlpha` 一起不出现(上一段的理由)。[showDate] 与 HomeScreen / UnitedUDream
- * 同源(MainActivity 传 `homeSettings.showDate`),三处保持同一个开关。
+ * **不叠时钟(Ruling R23,终审 2026-09-20,撤回 R16)**:R16 曾在这里叠过一份 [HeroClock]——
+ * 理由是 [UnitedUDream] 的 KDoc 断言「画面与桌面自定义屏保一致:全屏轮播 + 左上大字时钟」,
+ * 而 gtv 线把 HomeScreen 那个 HeroClock 调用点删掉后这里从未补上,两者其实长得不一样。
+ * owner 真机走查后否掉的不是「两者要不要长得一样」,是**大字时钟本身**——「我的 GTV 就是要
+ * 尽可能还原 GTV 的那个样子,你加一个大时钟,整个气氛就破坏掉了」,三个候选方案里选了「只留
+ * 顶栏小时钟」。所以这里不再叠 [HeroClock]:待机时不淡出的是 `HomeScreen` 顶栏自己的时钟 +
+ * 字标(见其顶部 KDoc 的 `topBarClockAlpha`),不是在这一层新画一份。[UnitedUDream] 保留它
+ * 自己独立的 `HeroClock`(系统屏保,R9 的裁定不受影响)——两层「不再长得一样」不是遗留缺口,
+ * 是各自的裁定,不要再往这里补。
  */
 @Composable
-fun Screensaver(active: Boolean, intervalMs: Long, showDate: Boolean = true) {
+fun Screensaver(active: Boolean, intervalMs: Long) {
     val ctx = LocalContext.current
     // attach / detach 严格成对:onDispose 读的是这一轮效果自己的 active(key 变了才换轮)。
     // 间隔变了也按一对 detach + attach 走——只可能在屏保不在时发生(设置页开着就不会进屏保)。
@@ -62,20 +60,16 @@ fun Screensaver(active: Boolean, intervalMs: Long, showDate: Boolean = true) {
     if (layerAlpha == 0f) return
     Box(Modifier.fillMaxSize().alpha(layerAlpha)) {
         ScreensaverContent(intervalMs = intervalMs, modifier = Modifier.fillMaxSize())
-        HeroClock(
-            showDate = showDate,
-            shadow = true,
-            modifier = Modifier.padding(start = GtvLayout.CONTENT_KEYLINE.dp, top = HomeLayout.HERO_TOP.dp),
-        )
     }
 }
 
 /**
  * 轮播层本体(spec §2),桌面自定义屏保 / 系统屏保 / 屏保图库全屏预览三处共用:读 [ScreensaverPlayer]
- * 的当前图,交叉淡入 + Ken Burns。**不画时钟**——时钟由调用方叠,不是每个调用方都需要:
- * 系统屏保([UnitedUDream.DreamContent])与桌面自定义屏保([Screensaver],Fix R16 补回)都在这个
- * 组件之外单独叠一层 [HeroClock];屏保图库的全屏预览([ImagePicker.kt] 的 `ScreensaverPoolViewer`)
- * 是在看图,不是在展示待机画面,不叠时钟。
+ * 的当前图,交叉淡入 + Ken Burns。**不画时钟**——时钟由调用方决定要不要叠,三个调用方现在各不相同:
+ * 系统屏保([UnitedUDream.DreamContent])在这个组件之外单独叠一层 [HeroClock](R9,未受 R23 影响);
+ * 桌面自定义屏保([Screensaver])**不叠时钟**(Ruling R23,终审 2026-09-20,撤回 Fix R16 曾经补的那份
+ * [HeroClock]——见 [Screensaver] 顶部 KDoc);屏保图库的全屏预览([ImagePicker.kt] 的
+ * `ScreensaverPoolViewer`)是在看图,不是在展示待机画面,同样不叠时钟。
  * 以**文件**而不是下标作 Crossfade 的目标:删图重扫后同一个下标可能换了图,按文件比对才会淡入而不是硬切。
  */
 @Composable
