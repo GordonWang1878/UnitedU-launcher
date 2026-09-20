@@ -9,7 +9,8 @@ import androidx.tv.material3.darkColorScheme
 /**
  * M8:tv-material 的主题壳。中性色阶 = 库的 dark 默认(surface #1C1B1F、surfaceVariant #49454F、
  * border #938F99、onSurface #E6E1E5……),primary = 当前预设 / 壁纸取色的 accent;
- * 字阶数值 = 库默认(15 档),字族全部换成 DM Sans(spec §0「字体」决策)。
+ * 字阶数值 = 库默认(15 档),字族全部换成 Theme.Sans(spec §0「字体」决策;
+ * 具体字体见 Theme.kt 的 Sans 注释,2026-09-20 起为 Google Sans Flex)。
  * 只在 MainActivity 顶层用一次,包在 LocalThemeColors 外面。
  */
 @Composable

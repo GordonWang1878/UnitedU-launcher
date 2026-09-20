@@ -28,23 +28,20 @@ object Theme {
     val Background = Color(0xFF000000)
 
     /**
-     * Projectivy 用的就是 DM Sans(2026-09-10 从它的 APK 里读 name 表确认),
-     * 字体本身是 SIL Open Font License,可以合法内置。不用系统 Roboto,否则字形一眼看得出不同。
+     * Google Sans Flex:`google/fonts` 仓库 `ofl/googlesansflex/`,SIL Open Font License 1.1,
+     * 版权行无 Reserved Font Name,随软件打包分发合法(2026-09-20 核实)。
+     * 变量字体,三个字重全部由 `wght` 轴给出 —— 不注册轴就会静默回落到 400,
+     * 与 DM Sans 那次「只注册 Normal/Bold 导致 Medium 回落」是同一个坑。
+     * **中文不受影响**:此字体无 CJK 子集,中文照旧回落系统 Noto Sans CJK。
      */
     @OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
     val Sans = FontFamily(
-        Font(R.font.dm_sans_regular, FontWeight.Normal),
-        Font(R.font.dm_sans_bold, FontWeight.Bold),
-        // Medium 必须来自**可变字体**:Projectivy 的 APK 里除了这两个静态字重,还带一个
-        // 「DM Sans 9pt」可变字体,行标题用的就是它的 500 轴。只注册 Normal/Bold 时
-        // FontWeight.Medium 会静默回落到 Normal —— 复审实测行标题 cap 矮 3.0%、竖笔细 9%,
-        // 而**同一个 15.5sp 下没有任何字号能同时补上高度和宽度**,因为差的是字形不是缩放
-        // (时钟用 Normal,实测数字高 23.02 vs 23.00 已经对上,可作对照)。
-        Font(
-            R.font.dm_sans_var,
-            FontWeight.Medium,
-            variationSettings = FontVariation.Settings(FontVariation.weight(500)),
-        ),
+        Font(R.font.google_sans_flex, FontWeight.Normal,
+            variationSettings = FontVariation.Settings(FontVariation.weight(400))),
+        Font(R.font.google_sans_flex, FontWeight.Medium,
+            variationSettings = FontVariation.Settings(FontVariation.weight(500))),
+        Font(R.font.google_sans_flex, FontWeight.Bold,
+            variationSettings = FontVariation.Settings(FontVariation.weight(700))),
     )
 
     /** 香槟白:Projectivy 里是金格 (1,5) 亮度 +80,取到的近似色。
