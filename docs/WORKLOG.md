@@ -954,3 +954,7 @@ worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs
 - 合并:`merge --no-ff` → main `2da905e`;单测 260/260、`assembleRelease` 绿;worktree 与分支已删。01:41 `adb install -r` 装到 A95L(`lastUpdateTime=2026-09-20 01:41:46`);HOME 角色仍是 UnitedU(未动)。
 - **待 Gordon 复验**:①输入源行只剩一张「电视」,点它照旧打开频道;②编辑页新建一行 → 把别的行的卡「移动位置」↓ 搬进来 → 确定 → 回首页新行出现;③搬运中返回 = 原样;④搬运中长按确定无反应,再短按才放下。
 - 未推 GitHub(等 Gordon 说「推」)。
+
+## 2026-09-20 · 补丁真机复验通过 + 推送
+
+- Gordon 在 A95L 上复验四项(输入源只剩一张「电视」、编辑页搬卡进新建的空行并落盘、搬运中返回复原、长按确定无反应)——**全部通过**,并下令「推」。修 bug 批 + M4b + 补丁到此全部真机验收完成。
