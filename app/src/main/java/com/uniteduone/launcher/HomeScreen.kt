@@ -312,7 +312,12 @@ fun HomeScreen(
     // 目前没有别处主动把焦点送到这一格——「回到顶栏」只认 gearFocus——但 GtvTopBar 的
     // 接口按两个按钮对称给,留着这颗以防以后要直接把焦点送到屏保按钮。
     val screensaverFocus = remember { FocusRequester() }
-    // 哪一行是「当前行」——决定纵向锚定位移;跟着焦点走。
+    // 哪一行是「当前行」——决定纵向锚定位移;跟着焦点走。**Task 9 起 -1 是合法值**(药丸组拿到焦点时写入,
+    // 见下面 GtvTopBar 的 onFocusChange),给 GtvTopBar 的 collapsed 参数当「焦点在不在应用行」的信号——
+    // 因为它像看门狗账本一样只在目标真的拿到焦点时才更新、中途丢焦点的空档不动它,天然不抖动,
+    // 比直接读 focusedCell(每次导航都会经过一帧 null)更适合驱动一个有动画的折叠态。
+    // 下面 activeRowSafe 的 coerceIn(0, …) 把 -1 夹回 0——纵向位移的语义不变,-1 只在这里新增的
+    // collapsed 判据里生效。
     var activeRow by remember { mutableStateOf(0) }
 
     // 垂直位置自己算,不用 verticalScroll(铁律 1)。gtv 线:hero 区固定 192dp + 顶栏 34+36dp(spec §3/§4),
@@ -593,10 +598,23 @@ fun HomeScreen(
                 canFocus = !covered,
                 rowsEmpty = rows.isEmpty(),
                 downTarget = rowFocus.getOrNull(tgtRow.coerceIn(0, rowFocus.lastIndex)),
+                // Task 9:折叠只认「焦点是不是在某一应用行」,不是「有没有卡片」——activeRow 是
+                // 唯一现成、且天然粘滞的信号(见下面 onFocusChange 里 activeRow = -1 那一行的注释)。
+                collapsed = activeRow >= 0,
                 showDate = showDate,
                 onSettings = { onMenuOpenChange(true) },
                 onScreensaver = onScreensaver,
-                onFocusChange = { col, got -> report(-1, col, got) },
+                onFocusChange = { col, got ->
+                    report(-1, col, got)
+                    // 与下面卡片行「got 时 activeRow = rowIndex」对称的另一半:药丸组拿到焦点也要
+                    // 认领 activeRow,否则它只会递增、从不归位,顶栏折叠之后就再也展不开了
+                    // (真机验收的必测路径:UP 回到顶栏必须重新展开,见 GtvTopBar 顶部 KDoc)。
+                    // 安全性:药丸组只能从第 0 行 UP 到达(CategoryRow 的 upTarget 只有 rowIndex==0
+                    // 才指向 gearFocus),这一刻 activeRow 必然已经是 0——写成 -1 后
+                    // activeRowSafe = coerceIn(0, max) 仍然夹回 0,rowShiftY(0,...) 还是原来那个值,
+                    // 不会让卡片行跟着抖一下。
+                    if (got) activeRow = -1
+                },
             )
             val newCount = loaded?.third ?: 0
             if (newCount > 0) {

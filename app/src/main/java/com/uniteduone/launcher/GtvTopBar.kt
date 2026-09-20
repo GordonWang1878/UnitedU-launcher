@@ -1,16 +1,21 @@
 package com.uniteduone.launcher
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Slideshow
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -34,7 +39,18 @@ import java.util.Locale
  * 右侧时钟 + 「UnitedU」字标。是 `TopPills`(TopPills.kt)的换皮 + 搬迁:药丸组的焦点契约
  * 原样保留——调用方仍要传 `row = -1` 给 HomeScreen 的 `report()`(见 [onFocusChange] 的 KDoc),
  * 这是首页焦点账本识别「顶栏」的唯一依据,不能变。
- * 折叠(spec §4「焦点进入应用行时收起成向上箭头」)留给 Task 9,这里只画常驻展开态。
+ *
+ * **折叠(Task 9,spec §4「焦点进入应用行时收起成向上箭头」)**:[collapsed] 为真时,药丸组 +
+ * 时钟字标那一整条 `Row` 淡出到 alpha 0,同一位置叠一个居中的向上箭头淡入——**两层都是常驻节点,
+ * 谁都不会被移除**。这是本文件改这份界面前必须知道的第 1/2 条铁律的直接推论:`PillGroup` 里
+ * `settingsFocusRequester`/`screensaverFocusRequester` 若在折叠时被移出组合,挂在它们身上的焦点
+ * 会被销毁,HomeScreen 那句「UP 从第 0 行回来」的 `gearFocus.requestFocus()` 就成了在跟一个悬空
+ * 引用打交道——静默失败,遥控器看着没反应。`canFocus` 继续只读 `covered`(浮层是否盖住首页),
+ * 和 `collapsed`(是否折叠)是两个独立的量:折叠只改看不看得见,不改能不能拿到焦点。
+ * `collapsed` 的真值来自 HomeScreen 的 `activeRow >= 0`——`activeRow` 原本只用于纵向锚定位移,
+ * 从不为负;这次顺着它「焦点真的落在某一行才更新、瞬时丢焦点不动它」的粘滞写法(与看门狗账本
+ * 同一原则:只信目标自报,不信过程中的空档)对称补了一路——药丸组拿到焦点时置 -1,天然不抖动。
+ * **200ms 的折叠时长是占位值,Google 真实曲线未实测**(见 [TOP_BAR_COLLAPSE_MS] 的注释)。
  */
 @Composable
 fun GtvTopBar(
@@ -46,6 +62,10 @@ fun GtvTopBar(
     rowsEmpty: Boolean,
     /** 下键落点:通常是首页记住的那一行(与 `TopPills` 同名同义)。 */
     downTarget: FocusRequester?,
+    /** 折叠态(Task 9):true = 焦点已进入某一应用行,整条顶栏淡出、居中向上箭头淡入。
+     *  调用方传 `HomeScreen` 的 `activeRow >= 0`。不影响 [canFocus]——折叠时药丸组依旧可以
+     *  被程序化 `requestFocus()` 命中,只是暂时看不见(见本文件顶部 KDoc)。 */
+    collapsed: Boolean,
     /** 时钟旁是否带日期(design §2,设置页开关透传)。 */
     showDate: Boolean,
     onSettings: () -> Unit,
@@ -56,31 +76,70 @@ fun GtvTopBar(
     onFocusChange: (Int, Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(
-                start = GtvLayout.CONTENT_KEYLINE.dp,
-                end = GtvLayout.CONTENT_KEYLINE.dp,
-                top = GtvLayout.TOP_BAR_TOP.dp,
-            ),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        PillGroup(
-            settingsFocusRequester = settingsFocusRequester,
-            screensaverFocusRequester = screensaverFocusRequester,
-            canFocus = canFocus,
-            rowsEmpty = rowsEmpty,
-            downTarget = downTarget,
-            onSettings = onSettings,
-            onScreensaver = onScreensaver,
-            onFocusChange = onFocusChange,
-        )
-        // Google 在这条留白里放搜索 / Home / Apps 三个 tab;我们没有对应功能,整组省略(spec §9)。
-        Spacer(Modifier.weight(1f))
-        ClockWordmark(showDate = showDate)
+    // 占位值:Google 的折叠/展开曲线实测报告 §11 列为未量项,真机验收量出实数后改这一个常量。
+    val barAlpha by animateFloatAsState(
+        targetValue = if (collapsed) 0f else 1f,
+        animationSpec = tween(TOP_BAR_COLLAPSE_MS, easing = Theme.MotionEasing),
+        label = "gtvTopBarCollapse",
+    )
+    Box(modifier = modifier.fillMaxWidth()) {
+        // 展开态内容:两层都常驻组合(铁律 1/2 的推论,见本文件顶部 KDoc)——折叠只把它淡出到
+        // alpha 0,PillGroup 里的 FocusRequester 依旧挂着、依旧能被命中。
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .alpha(barAlpha)
+                .padding(
+                    start = GtvLayout.CONTENT_KEYLINE.dp,
+                    end = GtvLayout.CONTENT_KEYLINE.dp,
+                    top = GtvLayout.TOP_BAR_TOP.dp,
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            PillGroup(
+                settingsFocusRequester = settingsFocusRequester,
+                screensaverFocusRequester = screensaverFocusRequester,
+                canFocus = canFocus,
+                rowsEmpty = rowsEmpty,
+                downTarget = downTarget,
+                onSettings = onSettings,
+                onScreensaver = onScreensaver,
+                onFocusChange = onFocusChange,
+            )
+            // Google 在这条留白里放搜索 / Home / Apps 三个 tab;我们没有对应功能,整组省略(spec §9)。
+            Spacer(Modifier.weight(1f))
+            ClockWordmark(showDate = showDate)
+        }
+        // 折叠态内容:与上面那层反向淡入淡出(1 - barAlpha),占同一块地方——高度与展开行
+        // 的量测结果相同(TOP_BAR_TOP 顶部留白 + TOP_BAR_HEIGHT 一整行),不会让下面「有 N 个
+        // 新应用」那行提示跟着上下跳。纯装饰,不接受焦点/点击:真机上按的是 UP 键,由 HomeScreen
+        // 已有的 gearFocus.requestFocus() 命中依旧挂着的药丸组,这一个箭头只负责「看得见的那半」。
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                // 顺序要紧:先 padding(外层)腾出顶部留白,height(内层)再在剩下的空间里量出
+                // 一整行——反过来的话 height 会先把总高钉死在 36dp,padding 从里面再抠掉 34dp,
+                // 图标只剩 2dp 可画(2026-09-20 模拟器实测复现:箭头缩成一个几乎看不见的小点)。
+                .padding(top = GtvLayout.TOP_BAR_TOP.dp)
+                .height(GtvLayout.TOP_BAR_HEIGHT.dp)
+                .alpha(1f - barAlpha),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.KeyboardArrowUp,
+                // 装饰性指示,不代表一个可操作控件(真正接收焦点的是隐藏起来的药丸组)。
+                contentDescription = null,
+                tint = LocalThemeColors.current.accent,
+                modifier = Modifier.size(GtvLayout.TOP_BAR_ICON.dp),
+            )
+        }
     }
 }
+
+/** 顶栏折叠/展开动效时长,ms——**占位值,Google 真实曲线未实测**
+ *  (docs/research/2026-09-20-google-tv-launcherx-measurements.md §11「顶栏折叠/展开的触发点与
+ *  动画曲线」列为实测未量项)。真机验收量出实数后改这一处,不要在别的地方另建一个数字。 */
+private const val TOP_BAR_COLLAPSE_MS = 200
 
 /**
  * 药丸组本体:换皮自 `TopPills`(TopPills.kt)——底色改 [GtvTokens.PillTrack]、
