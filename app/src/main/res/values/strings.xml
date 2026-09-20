@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">UnitedU</string>
+    <string name="app_name">UnitedU GTV</string>
 
     <!-- menu_* : 齿轮菜单与菜单项 -->
     <string name="menu_settings_title">设置</string>
