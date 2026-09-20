@@ -958,3 +958,4 @@ worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs
 ## 2026-09-20 · 补丁真机复验通过 + 推送
 
 - Gordon 在 A95L 上复验四项(输入源只剩一张「电视」、编辑页搬卡进新建的空行并落盘、搬运中返回复原、长按确定无反应)——**全部通过**,并下令「推」。修 bug 批 + M4b + 补丁到此全部真机验收完成。
+- **推送完成**(10:08,一次过):`origin/main` = `ec51330`,与本地一致;上次推送(09-19 13:16)之后的 48 个提交(修 bug 批、M4b、两个补丁、全部文档)都在上面。SDD 台账与任务报告保留在 `.superpowers/sdd/2026-09-19-leftover-fixes/`、`2026-09-19-m4b-rows-move-inputs/`、`2026-09-20-m4b-followups/`(gitignored),WORKLOG 里引用裁定时按它们查。
