@@ -138,6 +138,19 @@ object Theme {
         )
     }
 
+    /** gtv 线:三档固定尺寸。与 [cardMetrics] 并存,main 线不受影响。 */
+    fun gtvCardMetrics(size: GtvCardSize): CardMetrics = CardMetrics(
+        cardWidth = GtvLayout.cardWidth(size).dp,
+        cardHeight = GtvLayout.cardHeight(size).dp,
+        cardCorner = GtvLayout.CARD_CORNER.dp,
+        cardSpacing = GtvLayout.CARD_GAP.dp,
+        // 不缩放了,行内上下留白只需容下外扩描边
+        rowVerticalPad = (GtvLayout.FOCUS_OUTSET + GtvLayout.FOCUS_STROKE).dp,
+        titleGap = GtvLayout.CARD_TITLE_GAP.dp,
+        titleLine = GtvLayout.CARD_TITLE_LINE.dp,
+        titleSize = 14.sp,
+    )
+
     val SidePadding = HomeLayout.SIDE_PADDING.dp
     /** 焦点 / 位移动效:tv-material SurfaceScaleTokens 同一条减速曲线与进焦时长。 */
     val MotionEasing = androidx.compose.animation.core.CubicBezierEasing(0f, 0f, 0.2f, 1f)
