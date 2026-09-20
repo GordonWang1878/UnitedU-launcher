@@ -1,6 +1,5 @@
 package com.uniteduone.launcher
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,8 +40,10 @@ import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.MaterialTheme
 
 /**
- * 16:9 卡片(M8:tv-material `Card`)。放大 1.1、3dp `colorScheme.border` 描边、进 300 / 出 500 / 按下 120ms
- * 全是库默认(spec §1.2 ★),这里不再自己画光晕 / 投影 / 缩放。
+ * 16:9 卡片(M8:tv-material `Card`)。进 300 / 出 500 / 按下 120ms 仍是库默认,这里不再自己画光晕 / 投影。
+ * **焦点画法改自 Google TV 实测(gtv 线 Task 5)**:不放大、不用库默认的 3dp `colorScheme.border`——
+ * `scale`/`border` 都显式设成 1f/`Border.None`,换成 [GtvFocusStroke.gtvFocusStroke] 在布局框外
+ * `GtvLayout.FOCUS_OUTSET` dp 处画 `GtvLayout.FOCUS_STROKE` dp 细描边,颜色用主题 accent。
  * 焦点上报仍挂在传给 Card 的 modifier 上:它排在库内部 `focusable` 之前,能观察到同一个焦点目标(铁律 2 / 4)。
  * 长按由 MainActivity.dispatchKeyEvent 按 600ms 判(M4),所以 `onLongClick = null`;
  * Activity 吞掉重复事件后库只看到「短按 DOWN → UP」= 点击。
@@ -78,21 +79,23 @@ fun AppCard(
     /** 主题化卡片:去色→染 accent。 */
     themed: Boolean = false,
     /**
-     * 首页原地移动态里被搬的那张卡(M4b spec §0-10):描边换成主题 accent,粗细与库默认同为 3dp,形状沿用卡片自己的圆角。
+     * 首页原地移动态里被搬的那张卡(M4b spec §0-10,gtv 线 Task 5 改画法):描边跟普通聚焦一样画在
+     * 布局框外(不再是库默认贴边的 3dp),但换成主题 highlight(accent 混 55% 白的近白色)——
+     * 与普通聚焦描边的 accent 区分开,两者同时成立时才认得出哪张是被搬的那张。
      * **聚焦与否都画**:每搬一步,焦点要晚一两帧才追到新位置,那几帧里被搬的卡也得认得出来。
      */
     moving: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
     val accent = LocalThemeColors.current.accent
+    // 移动态的描边色:必须与下面 focused 用的 accent 不同,两者才能同时可辨(见 moving 参数上的说明)。
+    val movingColor = LocalThemeColors.current.highlight
     val scheme = MaterialTheme.colorScheme
-    // Border 的默认形状 = 元素自己的形状(这里即 8dp 圆角的卡片),与库默认聚焦描边的 8dp 圆角同形——只换了颜色。
-    val border = if (moving) {
-        val carried = Border(BorderStroke(HomeLayout.FOCUS_BORDER.dp, accent))
-        CardDefaults.border(border = carried, focusedBorder = carried)
-    } else {
-        CardDefaults.border()
-    }
+    // Google TV 实测(gtv 线 spec):聚焦**不放大**、描边画在布局框外 FOCUS_OUTSET dp 处,由
+    // GtvFocusStroke.kt 的 drawBehind 负偏移实现(见下面 Card 的 modifier 链上两条 gtvFocusStroke)。
+    // 库默认的 1.1x 缩放 / 3dp 描边都不要了,scale 显式钉 1f,border 显式钉 None——包括移动态:
+    // 它以前借的是库的 Border 机制画贴边描边,现在改用同一套 gtvFocusStroke 外扩,只是换色。
+    val border = CardDefaults.border(focusedBorder = Border.None, border = Border.None)
     val cardTint = if (themed) ColorFilter.colorMatrix(ColorMatrix(cardTintMatrix(accent.toArgb() and 0xFFFFFF))) else null
     // 容器色:有图的卡透明(横幅铺满,库的 clip 裁圆角);主题化统一铺深 accent 底;图标回落卡铺边缘色;
     // 连图都没有(文字回落)用库的 surfaceVariant #49454F。accent 不进卡片中间(M7 §10.5)——只有主题化开关是用户主动要的例外。
@@ -104,8 +107,8 @@ fun AppCard(
     }
     val shape = RoundedCornerShape(metrics.cardCorner)
     Column(
-        // 聚焦卡浮到邻居上面(3dp 描边不被右邻居盖住)。标题是 Card 外层 Column 的兄弟节点,
-        // 不在库的 graphicsLayer 缩放范围内——放大的只有卡片本身,标题始终固定大小贴在卡片下方。
+        // 聚焦卡浮到邻居上面(外扩描边不被右邻居盖住)。标题是 Card 外层 Column 的兄弟节点,
+        // 不在库的 graphicsLayer 缩放范围内——反正现在也不缩放了,标题始终固定大小贴在卡片下方。
         modifier = Modifier.zIndex(if (focused) 1f else 0f).width(metrics.cardWidth),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -113,6 +116,10 @@ fun AppCard(
             onClick = onClick,
             onLongClick = null,
             modifier = modifier
+                // 两条画在布局框外(负偏移,见 GtvFocusStroke.kt);同时成立时 moving 的 highlight 描边
+                // 排在后面、盖在 accent 描边上面——被搬的卡在搬运过程中始终认得出来。
+                .gtvFocusStroke(focused, accent, metrics.cardCorner)
+                .gtvFocusStroke(moving, movingColor, metrics.cardCorner)
                 .size(metrics.cardWidth, metrics.cardHeight)
                 .focusProperties {
                     if (isRowStart) left = FocusRequester.Cancel
@@ -128,7 +135,9 @@ fun AppCard(
                 focusedContainerColor = container,
                 pressedContainerColor = container,
             ),
-            // scale / glow 用库默认:1.1、Glow.None;border 平时也是库默认(3dp colorScheme.border),只有被搬的卡换色
+            // 不放大(Google TV 实测不缩放);glow 仍用库默认 Glow.None。描边全部让给上面
+            // 两条 gtvFocusStroke,这里钉 None,避免库自己再画一圈贴边的 3dp 描边。
+            scale = CardDefaults.scale(focusedScale = 1f),
             border = border,
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
