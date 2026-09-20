@@ -20,15 +20,38 @@ class GtvLayoutTest {
         assertEquals(173f, GtvLayout.cardPitch(GtvCardSize.MEDIUM), 0.01f)
     }
 
-    @Test fun `焦点卡永远钉在左基准线`() {
-        // 第 n 张卡聚焦时,行整体左移 n 个 pitch —— 于是它的左缘落在 CONTENT_KEYLINE
-        assertEquals(0f, GtvLayout.rowShiftX(0, GtvCardSize.MEDIUM), 0.01f)
-        assertEquals(-173f, GtvLayout.rowShiftX(1, GtvCardSize.MEDIUM), 0.01f)
-        assertEquals(-865f, GtvLayout.rowShiftX(5, GtvCardSize.MEDIUM), 0.01f)
+    // Ruling R20(终审 2026-09-20,owner 真机走查后推翻):下面几个测试断言的不再是「焦点卡永远
+    // 钉在左基准线」——那条规则照搬自 Google 无边界的推荐流,对我们「常见 5 张卡、一行本来就
+    // 装得下」的有限应用列表不成立,会把第一次按右键就整行左移一个 pitch,右边空出约 230dp
+    // 死白(真机走查复现)。改回 pre-Task-7 的规则:行放得下就不动,放不下才移够用的距离。
+    // 数值出处与推导过程见 GtvLayout.rowShiftX 的 KDoc。960f 是这台机型(1920×1080/320dpi)的
+    // screenWidthDp,与 HomeLayout.span() 默认值同一个数,不是随手挑的。
+    @Test fun `行完全放得下时,任何一张卡聚焦都不位移(R20)`() {
+        // 3 张卡的 MEDIUM 行:58(左基准线) + 153×3 + 20×2 + 58(右留白) = 615dp,960dp 屏宽绰绰有余
+        assertEquals(0f, GtvLayout.rowShiftX(0, GtvCardSize.MEDIUM, 960f), 0.01f)
+        assertEquals(0f, GtvLayout.rowShiftX(1, GtvCardSize.MEDIUM, 960f), 0.01f)
+        assertEquals(0f, GtvLayout.rowShiftX(2, GtvCardSize.MEDIUM, 960f), 0.01f)
+    }
+
+    @Test fun `行溢出时只移动刚好够用的距离,不多移(R20)`() {
+        // 8 张卡的 MEDIUM 行,聚焦第 8 张(index 7):
+        // focusRight = 58 + 153×8 + 20×7 = 1422;overRight = 1422 + 58 - 960 = 520
+        assertEquals(-520f, GtvLayout.rowShiftX(7, GtvCardSize.MEDIUM, 960f), 0.01f)
+        // 位移之后焦点卡右缘 = 1422 - 520 = 902 = 960 - CONTENT_KEYLINE(58)——刚好贴右基准线,不多不少
+        assertEquals(960f - GtvLayout.CONTENT_KEYLINE, 1422f - 520f, 0.01f)
+    }
+
+    @Test fun `临界点连续,不会跳变(R20)`() {
+        // 屏宽正好等于「focusRight(index 3) + 右留白」时位移为 0;屏宽再窄 1dp,位移就恰好是 1dp
+        val focusRightAt3 = GtvLayout.CONTENT_KEYLINE +
+            GtvLayout.cardWidth(GtvCardSize.MEDIUM) * 4 + GtvLayout.CARD_GAP * 3
+        val exactFitScreen = focusRightAt3 + GtvLayout.CONTENT_KEYLINE
+        assertEquals(0f, GtvLayout.rowShiftX(3, GtvCardSize.MEDIUM, exactFitScreen), 0.01f)
+        assertEquals(-1f, GtvLayout.rowShiftX(3, GtvCardSize.MEDIUM, exactFitScreen - 1f), 0.01f)
     }
 
     @Test fun `负索引夹到 0`() {
-        assertEquals(0f, GtvLayout.rowShiftX(-3, GtvCardSize.MEDIUM), 0.01f)
+        assertEquals(0f, GtvLayout.rowShiftX(-3, GtvCardSize.MEDIUM, 960f), 0.01f)
     }
 
     // Fix round 1(R15,2026-09-20):这个值**不再是** Google 实测的 125.5——那是用 Latin 标题

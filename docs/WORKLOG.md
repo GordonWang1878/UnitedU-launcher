@@ -1009,3 +1009,27 @@ worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs
 - **装机验证**(emulator-5554):待机 CLOCK_ONLY 用设置页的 `demoIdle` 实时预览确认 hero 区淡入时钟、BLACK 档确认无时钟;齿轮菜单四项确认带说明文字、长按菜单与行菜单确认不带;临时改 `layout.json` 插入一个不存在的包名验证编辑页的 `AppCard`/`AddCard`/`MissingCard`/`RowIconPicker` 四种可聚焦控件聚焦时是同一种外扩描边,并完整走了一遍「行 → 行尾+ → 退回」不丢焦点;首页改动前后逐屏对比无回归。`gradle test` 540/540(270×2)。
 - 没有做、留了记录(完整推导见报告):编辑页那两个非齿轮菜单没有加说明文字(ruling 未点名)、`PendingCard` 没有跟着改成外扩描边(ruling 未点名的第四种画法,占比很小)、spec §2.1/§2.2 里同样陈旧的 `rowPitch=125.5dp` 没有跟着 §2.3 一起改(ruling 只点名了字号表)。
 - 完整报告:`.superpowers/sdd/2026-09-20-gtv-line/final-fix-report.md`。未推送(等 Gordon 说「推」);未装 A95L(这条线本来就还在模拟器验证阶段,真机验收见 Task 10 的并排对比图,由 Gordon 决定 1.0 用哪一套)。
+
+## 2026-09-20 · owner 真机走查反馈:R20/R21/R22 三处修复
+
+- gtv 分支装到 A95L、与现有 UnitedU 并存后,Gordon 实机走查报了三处问题——**全部是「忠实照搬了 Google TV,但照搬本身对我们不成立」**,他的裁定不再复议,直接实现:
+  1. **R20 行横向位移从第一下按键就滑**:Task 7 的「焦点卡永远钉左基准线」照搬自 Google 无边界推荐流的模型(它的行天然比屏幕宽,「焦点卡永远最左、右边永远还有更多」对它成立)。我们的行是有限应用列表,常见 5 张卡在 MEDIUM 档只占 845dp,960dp 屏宽整行本来就装得下;按 Google 规则第一次按右键就整行左移一个 pitch(173dp),把第 1 张卡推出屏幕左侧、右边空出约 230dp 死白——真机走查看到的正是这个样子。裁定:改回 pre-Task-7(`7abf015` 之前)的规则,行放得下就不动,只在焦点卡右缘会超出屏幕右侧可视区域时才移动刚好那么多。
+  2. **R21 顶栏折叠**:Task 9 照搬 Google「焦点进内容行、顶栏收起成向上箭头」,但 Google 折叠是为了给它的内容行腾地方;我们的 hero 区(B3 裁定「留给壁纸」)本来就什么都不放,没有地方可腾,折叠只多露一截壁纸,箭头反而让人以为「上面还有一行没显示」。裁定:整个删掉折叠,顶栏永远可见——不是曲线没量出来才留着不做(spec §11 原来把它列为「等真机看过再定」的四项之一,这次直接裁定移除,不是补数据)。
+  3. **R22 hero 没有暗色渐变**:decision B3 只裁定了「hero 留给壁纸」,渐变本身在照搬时被漏掉——真机上顶栏药丸组和贴左基准线的行标题直接落在壁纸上,亮壁纸下几乎看不清。裁定:补一条左到右的暗色渐变(左近黑、图像在右侧透出来),形状参照真机截图 `docs/screenshots/gtv/01-home-default.jpg`。
+- **代码改动**(均在 `.claude/worktrees/gtv`,commit 见下,未推送):
+  - `GtvLayout.kt`:`rowShiftX` 签名加一个 `screenWidthDp: Float` 参数,公式改回 pre-Task-7 的「焦点卡右缘超出屏幕右侧可视区域才移动」;KDoc 按 R15 的先例写清「Google 的测量本身没错,错的是照搬的前提」,并保留 pre-Task-7 的推导过程与 `git show 7abf015` 的指路。
+  - `HomeScreen.kt`:`CategoryRow` 改传 `LocalConfiguration.current.screenWidthDp` 给 `rowShiftX`;移除传给 `GtvTopBar` 的 `collapsed` 参数;`activeRow` 的哨兵值从 -1 改回 0(折叠信号没了消费者,`activeRowSafe` 的 clamp 行为数值上完全等价,不会让卡片行跟着抖);新增一层横向暗色渐变 `Box`(铺满全屏、随既有 `contentAlpha` 一起在待机/屏保时淡出、画在竖直 scrim **之前**、即更底层)。
+  - `GtvTopBar.kt`:删 `barAlpha` 动画、chevron 分支与 `TOP_BAR_COLLAPSE_MS` 常量,顶栏永远画在 alpha 1;`Box` 套两层的结构简化成一层 `Row`;清理 5 个只为折叠动画服务的 import(`animateFloatAsState`/`tween`/`KeyboardArrowUp`/`draw.alpha`/`getValue`)。
+  - `GtvTokens.kt`:新增 `HeroGradientNear`/`HeroGradientFar`/`HeroGradientPlateau`/`HeroGradientFadeEnd` 四个常量,取值来自对参考截图的像素取样(见下),KDoc 注明「不是精确曲线,真机验收觉得太陡/太浅就改这三个数」。
+  - `GtvLayoutTest.kt`:`rowShiftX` 相关测试全部换新签名;原「焦点卡永远钉左基准线」的断言已不成立、删除,换成「行完全放得下时任何一张卡聚焦都不位移」「行溢出时只移动刚好够用的距离」「临界点连续不跳变」三个新测试,精确覆盖新公式。
+- **R22 取样方法**:写了一个临时 Python 脚本(scratchpad 里,未入库)用 PIL 逐像素采样 `docs/screenshots/gtv/01-home-default.jpg` 在多个 y 行、多个 x 屏宽分数下的亮度,发现暗区大致延伸到 42%~50% 屏宽仍接近纯黑,42%~88% 之间是过渡带,88% 之后基本与原图一致——用三段折线(0%→42% 维持同一近黑色,88% 淡到全透明)近似这条曲线,**不是精确复原**,GtvTokens 的 KDoc 里写明了这一点。
+- **装机验证**(emulator-5554,`com.uniteduone.launcher.gtv`,验证用的 layout.json/settings.json/壁纸库文件事后全部还原到走查前的原始内容):
+  - **R20**:临时把 `layout.json` 换成一行 3 个真实包(SHORT3:TV/YouTube/Play Store)+ 一行 6 个真实包(OVERFLOWN:上面三个再加 `com.android.tv.settings`、`com.google.android.apps.tv.launcherx`〔就是被反编译量测过的那个 launcherx〕、以及 GMS 里一个叫「Location Accuracy」的活动——这台 AVD 只有 3 个常规可启动应用,不够凑出溢出行,靠 `Apps.load` 对 `needed` 里每个包单独查 `ACTION_MAIN` 的兜底逻辑〔`Apps.kt` 行 64-66〕挖出更多系统包)。uiautomator 逐帧量 bounds 精确验证公式:
+    - SHORT3 三张卡不管聚焦哪一张,bounds 完全不变。
+    - OVERFLOWN 前 4 次右键(聚焦 index0→3)第一张卡的 bounds 分毫不差([116,609]-[422,781])。
+    - 第 4 次(聚焦 index4「Home」,右缘 903dp 只比屏宽的可视右界 902dp 多 1dp)整行只挪了 2px(1dp)——与公式在这个刁钻边界值上的预测精确吻合。
+    - 第 5 次(聚焦 index5)整行左移 348px(174dp),聚焦卡右缘精确落在屏幕右侧基准线(1804px = 1920 − 116px);被推出左边的第一张卡裁到只剩 74px(37dp)仍在无障碍树里、`focusable=true`——行尾 peeking 存活,没有被新逻辑带出回归。截图 `/tmp/gtv-r20-overflow-focused.png`(会话临时文件,未入库)。
+  - **R21**:任何一行拿到焦点、包括滚动到很深的行时,顶栏两个药丸 + 时钟字标全程可见,不再有折叠或箭头;从第 0 行按 UP 仍然落到设置药丸(该路径本来就有,未受影响)。
+  - **R22**:把参考截图本身临时当壁纸推上设备做直接对比,渐变的**形状**(左黑右亮、中段过渡)可辨且方向正确,但这个量化对比不严格——参考截图自己已经带 Google 的渐变,我方渐变叠加在上面之后左侧数值上会比参考更暗(相当于叠了两层渐变),不能据此断言「我们的渐变比 Google 陡」。真实内置壁纸(`unitedu-00-neutral.jpg`,一张本来就很暗的中性图)上效果偏弱但方向正确,毕竟这张图本身没什么亮部可以透出来。**没有做**:找一张真正独立于参考截图的亮色照片做纯净对比——生成的合成测试壁纸(纯色、色相渐变)在这台模拟器上通过 `Wallpapers.load` 的 identity 路径(blur=0/brightness=0,走 `RGBA_F16` 直接解码)会整屏变得远比原图暗,是一个**与本轮三处修复无关的既有 bug**,已用 `spawn_task` 转成后台任务(task_00b25db3)单独排查,不在这份报告里深挖。
+- `gradle test`:272×2 = 544,0 失败(比这条任务开头说的「预期 540」多 4 个,因为 R20 净增了 2 个覆盖新公式的单测,乘以 debug/release 两个 build variant)。
+- 报告:`.superpowers/sdd/2026-09-20-gtv-line/owner-feedback-fix-report.md`。未推送(等 Gordon 说「推」)。

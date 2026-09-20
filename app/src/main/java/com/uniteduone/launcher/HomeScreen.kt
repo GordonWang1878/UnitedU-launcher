@@ -315,12 +315,11 @@ fun HomeScreen(
     // 目前没有别处主动把焦点送到这一格——「回到顶栏」只认 gearFocus——但 GtvTopBar 的
     // 接口按两个按钮对称给,留着这颗以防以后要直接把焦点送到屏保按钮。
     val screensaverFocus = remember { FocusRequester() }
-    // 哪一行是「当前行」——决定纵向锚定位移;跟着焦点走。**Task 9 起 -1 是合法值**(药丸组拿到焦点时写入,
-    // 见下面 GtvTopBar 的 onFocusChange),给 GtvTopBar 的 collapsed 参数当「焦点在不在应用行」的信号——
-    // 因为它像看门狗账本一样只在目标真的拿到焦点时才更新、中途丢焦点的空档不动它,天然不抖动,
-    // 比直接读 focusedCell(每次导航都会经过一帧 null)更适合驱动一个有动画的折叠态。
-    // 下面 activeRowSafe 的 coerceIn(0, …) 把 -1 夹回 0——纵向位移的语义不变,-1 只在这里新增的
-    // collapsed 判据里生效。
+    // 哪一行是「当前行」——决定纵向锚定位移;跟着焦点走。Task 9 曾经把 -1 当合法值写进来
+    // (药丸组拿到焦点时写入),给 GtvTopBar 的 `collapsed` 参数当「焦点在不在应用行」的信号。
+    // Ruling R21(终审 2026-09-20)删掉了顶栏折叠,这个信号没有消费者了——药丸组拿到焦点时
+    // 直接写回 0(见下面 GtvTopBar 的 onFocusChange):activeRowSafe 本来就会把负值夹回 0,
+    // 数值上与写 -1 完全等价,只是不再需要一个没人读的哨兵值。
     var activeRow by remember { mutableStateOf(0) }
 
     // 垂直位置自己算,不用 verticalScroll(铁律 1)。gtv 线:hero 区固定 192dp + 顶栏 34+36dp(spec §3/§4),
@@ -499,6 +498,27 @@ fun HomeScreen(
             color = androidx.tv.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
             fontSize = 15.sp,
         )
+        // Ruling R22(终审 2026-09-20):hero 从左到右的暗色渐变——壁纸之前整块没有压暗,顶栏
+        // 药丸组与贴着 CONTENT_KEYLINE 左基准线的行标题直接落在壁纸上。参考真机截图
+        // docs/screenshots/gtv/01-home-default.jpg:图像内容在右侧,左侧近黑。数值出处见
+        // GtvTokens 里几个 HeroGradient* 常量的注释,这里只画,不重复定义参数。
+        // 铺满全屏(不只是 192dp 的 hero 条):行标题贴的是同一条左基准线,一路往下到最后一行都是,
+        // 只压 hero 那一段的话第一行以下的标题依旧没人管。画在竖直 scrim **之前**(更底层),
+        // 两者叠加的区域(左下角)由竖直 scrim 的画法决定最终颜色,不会互相抵消。
+        // 随 contentAlpha 一起淡出——待机 / 自定义屏保时两层暗色一起消失,只剩干净壁纸,
+        // 与 HomeScreen 顶部 KDoc「screensaver 为真时行 / 渐变 / 顶栏一律淡出」说的是同一件事。
+        Box(
+            Modifier
+                .fillMaxSize()
+                .alpha(contentAlpha)
+                .background(
+                    androidx.compose.ui.graphics.Brush.horizontalGradient(
+                        0f to GtvTokens.HeroGradientNear,
+                        GtvTokens.HeroGradientPlateau to GtvTokens.HeroGradientNear,
+                        GtvTokens.HeroGradientFadeEnd to GtvTokens.HeroGradientFar,
+                    ),
+                ),
+        )
         Box(
             Modifier
                 .fillMaxWidth()
@@ -627,22 +647,20 @@ fun HomeScreen(
                 canFocus = !covered,
                 rowsEmpty = rows.isEmpty(),
                 downTarget = rowFocus.getOrNull(tgtRow.coerceIn(0, rowFocus.lastIndex)),
-                // Task 9:折叠只认「焦点是不是在某一应用行」,不是「有没有卡片」——activeRow 是
-                // 唯一现成、且天然粘滞的信号(见下面 onFocusChange 里 activeRow = -1 那一行的注释)。
-                collapsed = activeRow >= 0,
                 showDate = showDate,
                 onSettings = { onMenuOpenChange(true) },
                 onScreensaver = onScreensaver,
                 onFocusChange = { col, got ->
                     report(-1, col, got)
                     // 与下面卡片行「got 时 activeRow = rowIndex」对称的另一半:药丸组拿到焦点也要
-                    // 认领 activeRow,否则它只会递增、从不归位,顶栏折叠之后就再也展不开了
-                    // (真机验收的必测路径:UP 回到顶栏必须重新展开,见 GtvTopBar 顶部 KDoc)。
+                    // 认领 activeRow,否则它会停在离开前那一行的值上,与焦点实际所在的位置
+                    // (顶栏,不是任何一行)对不上。
                     // 安全性:药丸组只能从第 0 行 UP 到达(CategoryRow 的 upTarget 只有 rowIndex==0
-                    // 才指向 gearFocus),这一刻 activeRow 必然已经是 0——写成 -1 后
-                    // activeRowSafe = coerceIn(0, max) 仍然夹回 0,rowShiftY(0,...) 还是原来那个值,
-                    // 不会让卡片行跟着抖一下。
-                    if (got) activeRow = -1
+                    // 才指向 gearFocus),这一刻 activeRow 必然已经是 0——写成 0 只是重申当前值,
+                    // activeRowSafe/rowShiftY 都不会因此变化,不会让卡片行跟着抖一下。
+                    // (Ruling R21 之前这里写的是 -1,专给已删掉的顶栏折叠动画当信号;
+                    // 折叠没了,-1 这个哨兵值没有消费者,改回语义更直接的 0。)
+                    if (got) activeRow = 0
                 },
             )
             val newCount = loaded?.third ?: 0
@@ -747,7 +765,8 @@ private fun CategoryRow(
     // 早先用的是 highlight(accent 混 55% 白后近白),六个预设的近白值肉眼几乎无差,看着「换了预设也没变」
     // (2026-09-16 Gordon 真机指出);卡片聚焦的呼吸光晕仍读 highlight,那处要浅色不刺眼。
     val accent = LocalThemeColors.current.accent
-    // 记住聚焦在第几张,用来算这一行的横向位移(焦点卡钉在左基准线,见下面 GtvLayout.rowShiftX)
+    // 记住聚焦在第几张,用来算这一行的横向位移(行放得下就不动、放不下才移够用的距离,
+    // 见下面 GtvLayout.rowShiftX 的 KDoc——R20)
     var focusedIndex by remember { mutableStateOf(0) }
     // gtv 线:标题行盒与标题到卡的间距改读 GtvLayout(Task 9b,消除纵向漂移;24→15dp 是可见的
     // 设计变化,Google 实测就是 15dp——见 docs/research/2026-09-20-google-tv-launcherx-measurements.md §3)。
@@ -779,15 +798,18 @@ private fun CategoryRow(
         // 之后按什么都没反应 —— 三行的桌面实际退化成只有第一行能用。
         // LazyRow 加 focusGroup、普通 Row 套 horizontalScroll,两种都试过,同样断。
         // 所以横向位移和上面纵向那段一样自己算:只有「不可滚动的 Row」不挡焦点。
-        // gtv 线新规则(实测 launcherx:按右键 7 次,焦点卡的左缘恒为 116 px = density 2.0 下的
-        // CONTENT_KEYLINE 58 dp,见 docs/research/2026-09-20-google-tv-launcherx-measurements.md §8):
-        // **焦点卡钉在左基准线**,行整体左移「索引 × pitch」——不再是旧的「超出右边界才移」规则
-        // (那条规则会让焦点卡的 x 随位置浮动)。超出屏幕右缘的卡不砍宽度,靠 wrapContentWidth(unbounded)
-        // + 屏幕本身的绘制裁切自然露出一截、仍可聚焦(见下面 Row 的注释)。
+        // Ruling R20(终审 2026-09-20,owner 真机走查后推翻 Task 7 的「焦点卡永远钉左基准线」):
+        // 那条规则是照搬 Google 无边界推荐流的模型,对我们「常见 5 张卡、一行本来就装得下」的
+        // 有限应用列表不成立——从第一次按右键就整行左移一个 pitch,会把第 1 张卡推出屏幕左侧、
+        // 右边空出约 230dp 死白。现在改回「行完全可见就不动,只在焦点卡右缘会超出屏幕右侧可视
+        // 区域时才左移刚好这么多」(pre-Task-7 的规则,数值出处与推导见 GtvLayout.rowShiftX 的
+        // KDoc,不要再往回改)。超出屏幕右缘的卡依旧不砍宽度,靠 wrapContentWidth(unbounded)
+        // + 屏幕本身的绘制裁切自然露出一截、仍可聚焦(行尾 peeking,见下面 Row 的注释)。
         // 行可能变短(卸载了应用),索引留在旧值上会让 rowShiftX 按一个不存在的列数左移
         val focused = focusedIndex.coerceIn(0, row.apps.lastIndex.coerceAtLeast(0))
+        val screenWidthDp = LocalConfiguration.current.screenWidthDp.toFloat()
         val xShift by animateDpAsState(
-            targetValue = GtvLayout.rowShiftX(focused, cardSize).dp,
+            targetValue = GtvLayout.rowShiftX(focused, cardSize, screenWidthDp).dp,
             animationSpec = tween(Theme.MotionInMs, easing = Theme.MotionEasing),
             label = "rowXShift",
         )

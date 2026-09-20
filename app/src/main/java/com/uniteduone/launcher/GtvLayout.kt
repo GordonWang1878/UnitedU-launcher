@@ -81,9 +81,40 @@ object GtvLayout {
 
     fun cardPitch(size: GtvCardSize): Float = cardWidth(size) + CARD_GAP
 
-    /** 焦点卡钉在左基准线:行整体左移「索引 × pitch」。 */
-    fun rowShiftX(focusedIndex: Int, size: GtvCardSize): Float =
-        -focusedIndex.coerceAtLeast(0) * cardPitch(size)
+    /**
+     * Ruling R20(终审 2026-09-20,owner 真机走查后推翻):**"焦点卡永远钉在左基准线,整行按
+     * 索引 × pitch 平移"这条规则本身的测量没有错(实测 launcherx:沿 `Top picks for you` 行
+     * 按右键 7 次,焦点卡左缘恒为 x=116px=58dp,见
+     * `docs/research/2026-09-20-google-tv-launcherx-measurements.md` §8),错的是照搬它的前提——
+     * **不要因为这个函数曾经就是这么写的,就把公式改回去。**
+     *
+     * Google 的内容行是无边界的推荐流(`Top picks for you`),行天然比屏幕宽,"焦点卡永远最左、
+     * 右边永远还有更多"这个假设对它成立。我们的行是有限的应用列表,常见 5 张卡:MEDIUM 档
+     * 5 张卡只占 845dp(5×153 + 4×20),这台机型屏宽 960dp,连左右两条 58dp 基准线一起量都
+     * 刚好放得下——一整行本来就不需要移动。按 Google 规则从第一次按右键起就整行左移一个
+     * pitch(173dp),会把第 1 张卡推出屏幕左侧,右边空出约 230dp 的死白,真机走查看到的就是
+     * 这个样子。
+     *
+     * 现在的规则改回 pre-Task-7(commit 7abf015 之前,`git show 7abf015` 可见原型)的做法:
+     * **焦点卡完全可见时行不动;只在焦点卡的右缘会超出屏幕右侧可视区域时,才左移刚好这么多、
+     * 一点不多。** 右侧可视区域同样以 [CONTENT_KEYLINE] 为界(与左基准线对称)。超出屏幕右缘的
+     * 卡仍然不砍宽度——见 `HomeScreen.kt` 里 `CategoryRow` 的 `Row` 上那条
+     * `wrapContentWidth(unbounded)` 的注释,量出 0 宽的卡永远聚焦不到——继续靠它 + 屏幕本身的
+     * 绘制裁切自然露出一截,行尾 peeking 效果不受影响。
+     *
+     * [screenWidthDp] 由调用方传入(`CategoryRow` 读 `LocalConfiguration.current.screenWidthDp`)——
+     * 这个函数本身依然不含任何 Compose 类型,继续可以纯 JVM 单测(见 `GtvLayoutTest`)。
+     */
+    fun rowShiftX(focusedIndex: Int, size: GtvCardSize, screenWidthDp: Float): Float {
+        val focused = focusedIndex.coerceAtLeast(0)
+        // 焦点卡右缘的位置,按行尚未平移时的自然布局算(与 pre-Task-7 的 focusRight 同一推导,
+        // 只是把 Theme.SidePadding / metrics.cardWidth / metrics.cardSpacing 换成这里的
+        // CONTENT_KEYLINE / cardWidth(size) / CARD_GAP)。
+        val focusRight = CONTENT_KEYLINE + cardWidth(size) * (focused + 1) + CARD_GAP * focused
+        // 期望的右侧留白与左基准线对称,同样取 CONTENT_KEYLINE;超出这条线才移动。
+        val overRight = focusRight + CONTENT_KEYLINE - screenWidthDp
+        return if (overRight > 0f) -overRight else 0f
+    }
 
     fun titleHeight(showTitles: Boolean): Float =
         if (showTitles) CARD_TITLE_GAP + CARD_TITLE_LINE else 0f
