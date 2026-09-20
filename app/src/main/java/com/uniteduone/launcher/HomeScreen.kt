@@ -532,7 +532,9 @@ fun HomeScreen(
                 .focusProperties { canFocus = !covered }
                 .offset(y = shift)
                 .padding(top = anchorTop),
-            verticalArrangement = Arrangement.spacedBy(HomeLayout.ROW_GAP.dp),
+            // gtv 线:行外间距改读 GtvLayout(Task 9b)——之前留读 HomeLayout.ROW_GAP(20dp)是
+            // 每行 26.5dp 纵向漂移的来源之一(与 rowPitch() 假设的 ROW_GAP 对不上,见 GtvLayoutTest)。
+            verticalArrangement = Arrangement.spacedBy(GtvLayout.ROW_GAP.dp),
         ) {
             // 配置里的应用一个都装不到时,屏幕上只剩时钟和齿轮,看着像坏了。
             // 给一句话告诉用户怎么自救(实测:此时齿轮菜单仍可用)。
@@ -716,9 +718,11 @@ private fun CategoryRow(
     val accent = LocalThemeColors.current.accent
     // 记住聚焦在第几张,用来算这一行的横向位移(焦点卡钉在左基准线,见下面 GtvLayout.rowShiftX)
     var focusedIndex by remember { mutableStateOf(0) }
-    Column(verticalArrangement = Arrangement.spacedBy(HomeLayout.ROW_TITLE_GAP.dp)) {
+    // gtv 线:标题行盒与标题到卡的间距改读 GtvLayout(Task 9b,消除纵向漂移;24→15dp 是可见的
+    // 设计变化,Google 实测就是 15dp——见 docs/research/2026-09-20-google-tv-launcherx-measurements.md §3)。
+    Column(verticalArrangement = Arrangement.spacedBy(GtvLayout.ROW_TITLE_TO_CARD.dp)) {
         Row(
-            modifier = Modifier.padding(start = Theme.SidePadding).height(HomeLayout.ROW_TITLE_LINE.dp),
+            modifier = Modifier.padding(start = Theme.SidePadding).height(GtvLayout.ROW_TITLE_LINE.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {

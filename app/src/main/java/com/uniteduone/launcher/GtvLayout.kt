@@ -19,8 +19,15 @@ object GtvLayout {
     /** 行标题行盒高:实测 a11y (116,600)-(302,630) = 30 px = 15 dp。 */
     const val ROW_TITLE_LINE = 15f
     const val ROW_TITLE_TO_CARD = 12.5f
-    /** 反推:125.5(实测行距)− 15 − 12.5 − 86.06(中档卡高)= 11.94,取整 12。 */
-    const val ROW_GAP = 12f
+    /** Task 9b 改前反推(漏了焦点描边留白一项):125.5(实测行距)− 15 − 12.5 − 86.06(中档卡高)
+     *  = 11.94,取整 12——那次推导本身就是这次 26.5dp 漂移的一部分来源(见 GtvLayoutTest)。
+     *  补上 `rowPitch` 公式里原本没有的 `2 * (FOCUS_OUTSET + FOCUS_STROKE)`(14 dp 焦点描边留白,
+     *  与 `Theme.gtvCardMetrics.rowVerticalPad` 是同一件事)之后重新反推:
+     *  125.5 − 15 − 12.5 − 86.06 − 14 = −2.06,取整 −2 ——即描边留白吃掉行间距还倒扣 2 dp。
+     *  Google 也画外扩焦点描边,它实测的 125.5 行距本就把这部分吸收掉了(2026-09-20 装机实测复核:
+     *  真实 Google TV 首页混了多种卡片档位的行,行距本身不是单一常数,但把同类行的 title-to-title
+     *  距离拆开看,同样是「标题盒 + 标题间距 + 卡高 + 行间距」——没有另外为外扩描边单独留白)。 */
+    const val ROW_GAP = -2f
     const val CARD_CORNER = 8f
     /** 焦点描边:画在布局框**外** FOCUS_OUTSET 处,粗 FOCUS_STROKE。不缩放。 */
     const val FOCUS_STROKE = 2f
@@ -54,8 +61,12 @@ object GtvLayout {
     fun titleHeight(showTitles: Boolean): Float =
         if (showTitles) CARD_TITLE_GAP + CARD_TITLE_LINE else 0f
 
+    /** Task 9b:补上焦点描边留白项(`CategoryRow` 的卡片行上下各留 `FOCUS_OUTSET + FOCUS_STROKE`,
+     *  见 `Theme.gtvCardMetrics.rowVerticalPad`),此前公式没有这一项,是每行 26.5dp 纵向漂移的
+     *  四个来源之一。加上之后 `ROW_GAP` 相应改成 −2(见上面常量的注释)。 */
     fun rowPitch(size: GtvCardSize, showTitles: Boolean): Float =
-        ROW_TITLE_LINE + ROW_TITLE_TO_CARD + cardHeight(size) + titleHeight(showTitles) + ROW_GAP
+        ROW_TITLE_LINE + ROW_TITLE_TO_CARD + 2f * (FOCUS_OUTSET + FOCUS_STROKE) +
+            cardHeight(size) + titleHeight(showTitles) + ROW_GAP
 
     fun rowShiftY(activeRow: Int, size: GtvCardSize, showTitles: Boolean): Float =
         -activeRow.coerceAtLeast(0) * rowPitch(size, showTitles)

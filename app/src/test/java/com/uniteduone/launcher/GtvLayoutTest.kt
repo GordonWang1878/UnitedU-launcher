@@ -39,4 +39,19 @@ class GtvLayoutTest {
     @Test fun `纵向位移按行数累加`() {
         assertEquals(-251f, GtvLayout.rowShiftY(2, GtvCardSize.MEDIUM, showTitles = false), 0.3f)
     }
+
+    // Task 9b:CategoryRow 实际渲染的纵向每一项(标题行盒、标题到卡间距、焦点描边留白、卡高、
+    // 行外间距)曾经各自散落在 HomeLayout 字面量与 GtvLayout 公式两处,互相对不上,累积成每行
+    // 26.5dp 的漂移。这里刻意把 rowPitch() 该覆盖的每一项摊开重算一遍、不直接调 rowPitch() 本身
+    // 去比 rowPitch() ——公式漏项或常数被悄悄改回旧值,这个测试才会跟着报错。
+    @Test fun `rowPitch 等于纵向每一项之和,不允许再漏项`() {
+        val expected = GtvLayout.ROW_TITLE_LINE +
+            GtvLayout.ROW_TITLE_TO_CARD +
+            2f * (GtvLayout.FOCUS_OUTSET + GtvLayout.FOCUS_STROKE) + // 焦点描边留白:上下各一份
+            GtvLayout.cardHeight(GtvCardSize.MEDIUM) +
+            GtvLayout.ROW_GAP
+        assertEquals(expected, GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = false), 0.01f)
+        // 与 Google 实测行距(研究报告 §3:890 − 639 = 251 px = 125.5 dp)对齐,容差 0.1
+        assertEquals(125.5f, expected, 0.1f)
+    }
 }
