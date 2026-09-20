@@ -101,6 +101,27 @@
 
 这与 UnitedU 现在的做法(铁律 §1:位移一律自己算,`Modifier.offset` + `animateDpAsState`)是同一个模型,**规则可以直接照搬:目标偏移 = −(焦点卡索引 × pitch)**,其中 `Top picks` 的 pitch = 346 px(173 dp)。
 
+## 8b. 纵向锚定规则(2026-09-20 补测,Task 9b Step 1)
+
+**焦点行钉在固定 y,与横向同构。** 在 `emulator-5554` 上把 Google TV 拉到前台(它是 HOME 角色持有者),连按 DPAD_DOWN 逐次 `uiautomator dump`:
+
+```
+step0 顶栏 Home tab 聚焦(基线)        bounds=[324,72][474,144]
+step1 hero 内部聚焦                    bounds=[116,343][1084,576]
+step2 Top picks for you 聚焦           bounds=[116,716][422,888]
+step3 Your apps「Live TV」聚焦         bounds=[116,240][268,392]
+step4 再下一行                          bounds=[116,240][508,477]
+step5 再下一行                          bounds=[116,240][508,477]
+```
+
+**step3/4/5 是三个不同的行,焦点卡的 y 恒为 240,一次不差** —— 在远离 hero 的稳态列表区,焦点行的绝对 y 不随行号变化。
+
+**「钉在固定 y」与「索引 × pitch」不是二选一的两种实现,是同一个公式的两种读法**:位移 `-activeRow × pitch` 施加在装着全部行的外层容器上,行 i 的自然位置是 `anchorTop + i × pitch`,叠加后 = `anchorTop + (i − activeRow) × pitch`;当 `i == activeRow` 时恒为 `anchorTop`。**前提是 pitch 为常数** —— Google 那边行与行的卡尺寸会变(不同内容行用不同卡型),UnitedU 所有行共用一个 `cardSize`,所以这个前提在我们这边天然成立。
+
+**step1→step2→step3 的巨大跳变(343→716→240)不是纵向节奏的一部分**,而是 §5 记录过的「内容卡聚焦时全幅剧照铺满整屏 + 元数据面板」效果顺带改变了行的 y —— 量纵向节奏时必须跳过 hero 相关的那几步,只取稳态区。
+
+**注意这份 pitch 我们用不了**:交叉验证时量到 Google 的 band gap 约 291 px(≈145.5 dp),而 §3 在默认态量到的是 125.5 dp —— 两者差在聚焦时行标题被换成了另一种样式。更要紧的是 §3 的 125.5 dp 是**拉丁界面**的数字,中文界面装不进去(行标题盒 15 dp 会把中文裁成别的字),详见 `docs/superpowers/plans/2026-09-20-gtv-line.md` Task 9b 与 WORKLOG 的 R15 裁定。
+
 ## 9. 圆角半径(像素拟合,±2 px)
 
 | 形状 | 视觉尺寸 | 半径 |
@@ -134,7 +155,7 @@
 
 1. 动画:焦点移动的时长与曲线(要 `animator_duration_scale 10` + `screenrecord --output-format=frames` 抓)。
 2. 顶栏折叠/展开的触发点与动画。
-3. 纵向:焦点上下换行时整页怎么位移(横向已确认钉左基准线,纵向规则未测)。
+3. ~~纵向:焦点上下换行时整页怎么位移~~ —— **2026-09-20 已量,见下面 §8b**。
 
 ## 12. 一条方法上的更正
 
