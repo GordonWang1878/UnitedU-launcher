@@ -729,8 +729,17 @@ private fun CategoryRow(
             RowIcon(row.name, row.kind, row.icon, tint = accent)
             BasicText(
                 text = row.name,
-                // 行标题 = titleMedium 16sp Medium(spec §1.4),颜色 accent(spec §0「accent 落点」)
-                style = androidx.tv.material3.MaterialTheme.typography.titleMedium.copy(color = accent),
+                // 行标题 = titleMedium 16sp Medium(spec §1.4),颜色 accent(spec §0「accent 落点」)。
+                // Fix round 1(R15):不再继承 titleMedium 的 Material3 默认 24sp 行高——那是本任务
+                // 标题裁切的根因(见 GtvLayout.ROW_TITLE_LINE 的 KDoc:24sp 是给 Latin 定的,换成中文
+                // 字形回落到系统 CJK 字体后,24sp 这个行高本该够用,但容器被压到 15dp 才裁的)。这里显式
+                // 给 lineHeight 赋值,与容器高度共用同一个 GtvLayout 常量,两处不会各自漂移。
+                // 只改这一处 TextStyle 的 lineHeight,不碰 typography.titleMedium 本身——其它界面
+                // (设置页分组标题等)还在读那个全局 scale。
+                style = androidx.tv.material3.MaterialTheme.typography.titleMedium.copy(
+                    color = accent,
+                    lineHeight = GtvLayout.ROW_TITLE_LINE.sp,
+                ),
             )
         }
         // **绝不能用 LazyRow / horizontalScroll**:任何可滚动容器都会挡住纵向焦点外出。

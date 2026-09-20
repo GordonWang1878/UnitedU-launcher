@@ -16,18 +16,27 @@ object GtvLayout {
     const val TOP_BAR_HEIGHT = 36f
     const val TOP_BAR_ICON = 32f
     const val TOP_BAR_ICON_GAP = 8f
-    /** 行标题行盒高:实测 a11y (116,600)-(302,630) = 30 px = 15 dp。 */
-    const val ROW_TITLE_LINE = 15f
+    /** Fix round 1(R15,2026-09-20):**15 dp 是 Google 用 Latin 文本(`Top picks for you`)量出来的
+     *  值,对中文不成立,不要改回去。** 原始推导是 a11y (116,600)-(302,630) = 30 px = 15 dp——但那是
+     *  英文单行的紧凑行高;CJK 字形在同样 16sp 字号下需要明显更高的行盒。装机实测(`onTextLayout` 探针,
+     *  `lineHeight` 设为 `Unspecified` 让 Compose 按实际渲染字体——中文回落到系统 CJK 字体——算自然
+     *  行高):「视频」「直播」「音乐与播客」「更多应用」四个标题全部量出 `naturalHeightPx = 46`
+     *  (= 23 dp,density 2.0),零方差。现改为 23 dp,并且 `CategoryRow` 的标题 `TextStyle` 也显式把
+     *  `lineHeight` 设成这个值(不再继承 `titleMedium` 的 Material3 默认 24sp——那个默认值本身够用,
+     *  裁切是容器被压到 15dp 造成的,见 `HomeScreen.kt` 里 `CategoryRow` 的注释)。 */
+    const val ROW_TITLE_LINE = 23f
     const val ROW_TITLE_TO_CARD = 12.5f
-    /** Task 9b 改前反推(漏了焦点描边留白一项):125.5(实测行距)− 15 − 12.5 − 86.06(中档卡高)
-     *  = 11.94,取整 12——那次推导本身就是这次 26.5dp 漂移的一部分来源(见 GtvLayoutTest)。
-     *  补上 `rowPitch` 公式里原本没有的 `2 * (FOCUS_OUTSET + FOCUS_STROKE)`(14 dp 焦点描边留白,
-     *  与 `Theme.gtvCardMetrics.rowVerticalPad` 是同一件事)之后重新反推:
-     *  125.5 − 15 − 12.5 − 86.06 − 14 = −2.06,取整 −2 ——即描边留白吃掉行间距还倒扣 2 dp。
-     *  Google 也画外扩焦点描边,它实测的 125.5 行距本就把这部分吸收掉了(2026-09-20 装机实测复核:
-     *  真实 Google TV 首页混了多种卡片档位的行,行距本身不是单一常数,但把同类行的 title-to-title
-     *  距离拆开看,同样是「标题盒 + 标题间距 + 卡高 + 行间距」——没有另外为外扩描边单独留白)。 */
-    const val ROW_GAP = -2f
+    /** Fix round 1(R15,2026-09-20):**125.5 dp 同样是 Google 用 Latin 量出来的行距,对中文标题不
+     *  成立,不要试图凑回这个数。** 沿用它会把 `ROW_GAP` 推到约 −10dp(23+12.5+14+86.06−125.5≈−10),
+     *  而 `rowVerticalPad`(上下各 7dp)是货真价实要留给外扩焦点描边的空间——那么负的 `ROW_GAP` 会让
+     *  行 N 的焦点描边直接压在行 N+1 的标题字形上。**改为放弃凑 125.5,`ROW_GAP` 改取一个有真实、非负
+     *  余量的值。** 这里的「余量」定义是:`ROW_GAP` 的值本身,就是「行 N 的卡片行(含它自己下方预留
+     *  给描边的 7dp)结束」到「行 N+1 标题行盒开始」之间的物理间距——因为 `CategoryRow` 的标题行盒
+     *  紧贴在 `Column` 顶部、前面不再有别的 padding。取 **8 dp**:比行内自己的 `ROW_TITLE_TO_CARD`
+     *  (12.5dp)略窄,让一行标题在视觉上更贴近它自己那一行的卡片、不与上一行混淆,同时明显大于
+     *  `FOCUS_STROKE`(2dp),保证聚焦描边与下一行标题之间总有可见的黑色间隙,不会贴到一起。
+     *  装机验证见 `task-9b-report.md` Fix round 1 一节。 */
+    const val ROW_GAP = 8f
     const val CARD_CORNER = 8f
     /** 焦点描边:画在布局框**外** FOCUS_OUTSET 处,粗 FOCUS_STROKE。不缩放。 */
     const val FOCUS_STROKE = 2f
@@ -63,7 +72,12 @@ object GtvLayout {
 
     /** Task 9b:补上焦点描边留白项(`CategoryRow` 的卡片行上下各留 `FOCUS_OUTSET + FOCUS_STROKE`,
      *  见 `Theme.gtvCardMetrics.rowVerticalPad`),此前公式没有这一项,是每行 26.5dp 纵向漂移的
-     *  四个来源之一。加上之后 `ROW_GAP` 相应改成 −2(见上面常量的注释)。 */
+     *  四个来源之一。
+     *
+     *  **Fix round 1(R15):中档、不显示标题时的返回值不再是 125.5——那是 Google 用 Latin 标题量出来的
+     *  行距,`ROW_TITLE_LINE`/`ROW_GAP` 已经为了不裁切中文字形改成 CJK 实测值,现在是 143.5625。
+     *  这不是需要修的偏差,是同一个公式在换了正确输入之后的正确结果;不要为了凑回 125.5 而改动
+     *  `ROW_TITLE_LINE`/`ROW_GAP`,见两个常量各自的 KDoc。** */
     fun rowPitch(size: GtvCardSize, showTitles: Boolean): Float =
         ROW_TITLE_LINE + ROW_TITLE_TO_CARD + 2f * (FOCUS_OUTSET + FOCUS_STROKE) +
             cardHeight(size) + titleHeight(showTitles) + ROW_GAP
