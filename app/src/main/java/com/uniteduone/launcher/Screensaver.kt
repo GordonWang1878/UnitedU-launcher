@@ -53,7 +53,9 @@ fun Screensaver(active: Boolean, intervalMs: Long) {
 
 /**
  * 轮播层本体(spec §2),桌面与系统屏保共用:读 [ScreensaverPlayer] 的当前图,交叉淡入 + Ken Burns。
- * **不画时钟**——时钟由调用方叠(桌面是 HomeScreen 的 HeroClock,系统屏保是 UnitedUDream 里那一个)。
+ * **不画时钟**——时钟由调用方叠:系统屏保(UnitedUDream)仍叠着 HeroClock;桌面自定义屏保这条路
+ * (gtv 线,Task 6 起)不再叠——HomeScreen 原来叠的那个 HeroClock 调用被顶栏取代后整块删掉了
+ * (spec §2.3 B2),没人补上,桌面屏保现在没有时钟。
  * 以**文件**而不是下标作 Crossfade 的目标:删图重扫后同一个下标可能换了图,按文件比对才会淡入而不是硬切。
  */
 @Composable
