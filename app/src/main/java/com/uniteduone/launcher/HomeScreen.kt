@@ -117,8 +117,10 @@ fun HomeScreen(
     onRowsShown: (List<Row>) -> Unit = {},
 ) {
     val ctx = LocalContext.current
-    // 卡片档位尺寸:5/6/8 三档统一由 HomeLayout 按张数推导,不再有「6 是标定常量、5/8 反推」的特例。见 Theme.cardMetrics。
-    val metrics = Theme.cardMetrics(cardsPerRow)
+    // gtv 线:卡片尺寸不再由「每行几张」反推,而是旧的 5/6/8 存量档位映射到三个固定尺寸
+    // (cardsPerRowToGtvSize)之一,渲染统一读 Theme.gtvCardMetrics——与 main 线的 Theme.cardMetrics 并存。
+    val cardSize = cardsPerRowToGtvSize(cardsPerRow)
+    val metrics = Theme.gtvCardMetrics(cardSize)
     // **首页内嵌的浮层**:齿轮菜单、长按卡片菜单、修改标题对话框 —— 它们住在首页这棵树里面。
     val anyOverlay = menuOpen || cardMenu != null || renameTarget != null
     // **「首页被盖住了没有」只此一个判据。**内嵌的那三层(`anyOverlay`)之外,M7 T4 起还有
@@ -319,7 +321,9 @@ fun HomeScreen(
     val activeRowSafe = activeRow.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
     val anchorTop = (GtvLayout.HERO_HEIGHT + GtvLayout.TOP_BAR_TOP + GtvLayout.TOP_BAR_HEIGHT).dp
     val shift by animateDpAsState(
-        targetValue = HomeLayout.shift(activeRowSafe, cardsPerRow, showTitles).dp,
+        // gtv 线:卡片尺寸已经改读 GtvLayout(见 cardSize),继续用 HomeLayout.shift 反算的行高
+        // 会跟实际卡高对不上,所以行距也一并换成 GtvLayout.rowShiftY(controller ruling R5)。
+        targetValue = GtvLayout.rowShiftY(activeRowSafe, cardSize, showTitles).dp,
         animationSpec = tween(Theme.MotionInMs, easing = Theme.MotionEasing),
         label = "rowShift",
     )
@@ -541,6 +545,7 @@ fun HomeScreen(
                 CategoryRow(
                     row = row,
                     metrics = metrics,
+                    cardSize = cardSize,
                     showTitles = showTitles,
                     themedCards = themedCards,
                     titles = titles,
@@ -667,6 +672,8 @@ fun HomeScreen(
 private fun CategoryRow(
     row: Row,
     metrics: CardMetrics,
+    /** gtv 线的卡片档位(Task 3);横向位移公式 [GtvLayout.rowShiftX] 按它算 pitch。 */
+    cardSize: GtvCardSize,
     /** 卡片标题全局开关 + 自定义标题表(design §2);输入源行不受它影响,见下方 AppCard 调用。 */
     showTitles: Boolean,
     themedCards: Boolean,
@@ -686,7 +693,7 @@ private fun CategoryRow(
     // 早先用的是 highlight(accent 混 55% 白后近白),六个预设的近白值肉眼几乎无差,看着「换了预设也没变」
     // (2026-09-16 Gordon 真机指出);卡片聚焦的呼吸光晕仍读 highlight,那处要浅色不刺眼。
     val accent = LocalThemeColors.current.accent
-    // 记住聚焦在第几张,用来算这一行的横向位移(超出右边界就整行左移)
+    // 记住聚焦在第几张,用来算这一行的横向位移(焦点卡钉在左基准线,见下面 GtvLayout.rowShiftX)
     var focusedIndex by remember { mutableStateOf(0) }
     Column(verticalArrangement = Arrangement.spacedBy(HomeLayout.ROW_TITLE_GAP.dp)) {
         Row(
@@ -707,12 +714,15 @@ private fun CategoryRow(
         // 之后按什么都没反应 —— 三行的桌面实际退化成只有第一行能用。
         // LazyRow 加 focusGroup、普通 Row 套 horizontalScroll,两种都试过,同样断。
         // 所以横向位移和上面纵向那段一样自己算:只有「不可滚动的 Row」不挡焦点。
-        // 行可能变短(卸载了应用),索引留在旧值上会让整行多左移
+        // gtv 线新规则(实测 launcherx:按右键 7 次,焦点卡的左缘恒为 116 px = density 2.0 下的
+        // CONTENT_KEYLINE 58 dp,见 docs/research/2026-09-20-google-tv-launcherx-measurements.md §8):
+        // **焦点卡钉在左基准线**,行整体左移「索引 × pitch」——不再是旧的「超出右边界才移」规则
+        // (那条规则会让焦点卡的 x 随位置浮动)。超出屏幕右缘的卡不砍宽度,靠 wrapContentWidth(unbounded)
+        // + 屏幕本身的绘制裁切自然露出一截、仍可聚焦(见下面 Row 的注释)。
+        // 行可能变短(卸载了应用),索引留在旧值上会让 rowShiftX 按一个不存在的列数左移
         val focused = focusedIndex.coerceIn(0, row.apps.lastIndex.coerceAtLeast(0))
-        val focusRight = Theme.SidePadding + metrics.cardWidth * (focused + 1) + metrics.cardSpacing * focused
-        val overRight = focusRight + Theme.SidePadding - LocalConfiguration.current.screenWidthDp.dp
         val xShift by animateDpAsState(
-            targetValue = if (overRight > 0.dp) -overRight else 0.dp,
+            targetValue = GtvLayout.rowShiftX(focused, cardSize).dp,
             animationSpec = tween(Theme.MotionInMs, easing = Theme.MotionEasing),
             label = "rowXShift",
         )
