@@ -28,6 +28,15 @@ object GtvLayout {
     const val CARD_TITLE_GAP = 4f
     const val CARD_TITLE_LINE = 16f
 
+    /** 长按 / 齿轮菜单(GearMenu,Task 8):药丸尺寸,实测报告 §7,268×55 dp,全圆角(h/2)。 */
+    const val MENU_ITEM_WIDTH = 268f
+    const val MENU_ITEM_HEIGHT = 55f
+    /** 药丸之间的纵向间距。报告没给这一项,按参考图 docs/screenshots/gtv/16-app-longpress-menu.png
+     *  像素量测(两药丸间隙 y 355→384 px,该图 1:1 对应 320dpi 实机,/2 得 dp)≈ 14.5 dp,取整 16。 */
+    const val MENU_ITEM_GAP = 16f
+    /** 左侧 banner 与应用名之间的间距。同一张参考图量测(banner 底 y 469 → 名字顶 ≈508 px)≈ 19.5 dp,取整 20。 */
+    const val MENU_BANNER_NAME_GAP = 20f
+
     fun cardWidth(size: GtvCardSize): Float = when (size) {
         GtvCardSize.SMALL -> 122f
         GtvCardSize.MEDIUM -> 153f

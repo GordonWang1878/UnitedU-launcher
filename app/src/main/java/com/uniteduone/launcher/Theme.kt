@@ -85,10 +85,9 @@ object Theme {
     val MissingCardFocusedBackground = Color(0xFF3A2020)
     /** 编辑页「加载中」占位卡片(聚焦)背景。 */
     val PendingCardFocusedBackground = Color(0xFF3A3A3C)
-    /** 弹窗底部「返回关闭」一类提示文字:齿轮菜单、默认桌面卡片共用。 */
+    /** 弹窗底部「返回关闭」一类提示文字:关于页、默认桌面卡片共用(gtv 线 Task 8 起齿轮菜单不再用——
+     *  换皮后是全屏 banner + 药丸,不留这行提示)。 */
     val FooterHintText = Color(0xFF4A4A4A)
-    /** 齿轮菜单条目副标题(未聚焦)。 */
-    val MenuHintText = Color(0xFF5A5A5A)
     /** 图片选择器底部「返回关闭/取消」提示文字。 */
     val PickerFooterText = Color(0xFF666666)
     /** 次要说明文字:编辑页应用包名、默认桌面卡片注释行共用。 */
@@ -97,8 +96,6 @@ object Theme {
     val ThumbLoadingText = Color(0xFF888888)
     /** 提示性文字:图片选择器 adb 提示、默认桌面卡片「当前」标签共用。 */
     val HintText = Color(0xFF8A8A8A)
-    /** 齿轮菜单条目副标题(聚焦)。 */
-    val MenuHintTextFocused = Color(0xFF999999)
     /** 编辑页次要文字:顶部提示、加载中占位卡片包名、选应用弹窗加载/空态提示共用。 */
     val SecondaryText = Color(0xFF9A9A9A)
     /** 图片选择器缩略图标签(未聚焦)。 */
@@ -113,7 +110,8 @@ object Theme {
     val ButtonText = Color(0xFFCFCFCF)
     /** 弹窗正文文字:图片选择器空态提示、选应用弹窗条目标题(未聚焦)共用。 */
     val DialogBodyText = Color(0xFFE8E8E8)
-    /** 强调/高亮文字:齿轮菜单条目标题(聚焦)、默认桌面卡片当前标签共用。 */
+    /** 强调/高亮文字:确认框、默认桌面卡片当前标签共用(gtv 线 Task 8 起齿轮菜单聚焦项改填主题
+     *  accent、文字按亮度取黑/白对比色,不再固定用这个值)。 */
     val EmphasisText = Color(0xFFF5F5F5)
 
     // 注:曾按 Projectivy 资源表的 default_icon_bg(#333333)与 icons_scale(0.8)给方形图标

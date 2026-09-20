@@ -773,6 +773,8 @@ fun EditScreen(
                 // 标题用这张卡的显示名,不传的话 GearMenu 落回「设置」标题(M4b-R13,终审 Important #2)——
                 // 与首页长按卡片菜单同一套取法:自定义标题优先,查不到就用应用名,再查不到用包名兜底。
                 title = titles[pkg] ?: all?.get(pkg)?.label ?: pkg,
+                // gtv 线 Task 8:左半 banner。all 就是这份数据本来的来源,按 pkg 查。
+                app = all?.get(pkg),
             )
         }
 
@@ -819,8 +821,6 @@ fun EditScreen(
                 onDismiss = { rowMenu = null; toRowEnd(ri) },
                 nonce = focusNonce,
                 title = row.name,
-                // 中间行 7 项全列时,常规间距在 1080p 上放不下(见 GearMenu 的 compact)
-                compact = true,
             )
         }
 

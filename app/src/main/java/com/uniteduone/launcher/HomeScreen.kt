@@ -645,6 +645,9 @@ fun HomeScreen(
                 onDismiss = onCardMenuDismiss,
                 nonce = focusNonce,
                 title = cm.label.ifBlank { cm.pkg },
+                // gtv 线 Task 8:左半 banner 就是这张卡当前画的那个 AppEntry,按行列坐标原样取,
+                // 不用另起一份按 pkg 查的 map——rows 已经是这次组合画出来的那一份,行列必然对得上。
+                app = rows.getOrNull(cm.rowIndex)?.apps?.getOrNull(cm.colIndex),
             )
         }
 
