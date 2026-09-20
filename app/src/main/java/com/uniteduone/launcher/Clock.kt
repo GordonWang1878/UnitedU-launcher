@@ -27,11 +27,12 @@ fun clockPatterns(is24Hour: Boolean): Pair<String, String> =
     (if (is24Hour) "HH:mm" else "h:mm a") to "EEE yyyy/M/d"
 
 /** 当前时刻、是否 24 小时制、时区/校时跳变计数(每收到一次 TIME/TIMEZONE 广播 +1)。 */
-private data class ClockState(val now: Date, val is24Hour: Boolean, val tzTick: Int)
+internal data class ClockState(val now: Date, val is24Hour: Boolean, val tzTick: Int)
 
-/** 当前时刻 + 是否 24 小时制 + tzTick。整分钟对齐刷新;监听 TIME/TIMEZONE 广播接住跳变(校时、换时区、改 12/24 开关)。 */
+/** 当前时刻 + 是否 24 小时制 + tzTick。整分钟对齐刷新;监听 TIME/TIMEZONE 广播接住跳变(校时、换时区、改 12/24 开关)。
+ *  放宽到 internal(2026-09-20):gtv 线的 GtvTopBar(顶栏小时钟)也读这个,不想把 tick / 时区广播那套逻辑再抄一份。 */
 @Composable
-private fun rememberClockState(): ClockState {
+internal fun rememberClockState(): ClockState {
     var now by remember { mutableStateOf(Date()) }
     var tzTick by remember { mutableStateOf(0) }
     val ctx = LocalContext.current

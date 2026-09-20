@@ -99,7 +99,7 @@ adb emu kill                                     # 关闭
 
    | 界面 / 浮层 | 恢复责任方 |
    |---|---|
-   | 首页卡片/pill 组(设置 / 屏保两个按钮,账本里都是 row = -1) | HomeScreen 看门狗 + 还原效果(选择器、设置页等整屏浮层都叠在常驻首页上,`covered` 期间冻结 `tgtRow/tgtIdx/tgtGear`,关掉后按它还原;编辑页仍整体替换首页,回来落 (0,0)) |
+   | 首页卡片 / 顶栏药丸组(gtv 线新顶栏 `GtvTopBar`,换皮自旧的 `TopPills`,设置 / 屏保两个按钮从右上搬到左上,账本里仍是 row = -1 不变) | HomeScreen 看门狗 + 还原效果(选择器、设置页等整屏浮层都叠在常驻首页上,`covered` 期间冻结 `tgtRow/tgtIdx/tgtGear`,关掉后按它还原;编辑页仍整体替换首页,回来落 (0,0)) |
    | 首页原地移动态(M4b) | 没有浮层:HomeScreen 还原效果(key 含 `moveTarget = moving.pos`)+ 看门狗,以被搬的卡为目标;期间 `tgtRow`/`tgtIdx`/`tgtGear` 冻结,结束时由 `MoveLanding` 一次写入(放下 = 新位置,取消 = 出发格);放下后 `revision++` 的重读落地前继续画搬好的那一份,不会闪回旧顺序再跳回来 |
    | 齿轮菜单 / 长按卡片菜单 | GearMenu 自己的初始焦点循环(nonce,退出判据是 `holder != null` 的自报——菜单里任意一项持有焦点即算落地,铁律 2)+ `holder == null` 看门狗(3 帧宽限后重请求 `focusedIdx`,每轮最多 60 帧封顶,守卫与 key 同为 `holder == null`,铁律 6);再次丢焦点时 key 翻转、看门狗重新武装,不是一次性闩(铁律 7) |
    | 改名对话框(`TitleDialog`,M4b 起通用化) | 不再认卡片/行/输入源的种类,只按 `key` 记草稿、按调用方传入的 heading/hint/subtitle 渲染,nonce + focused,四向 Cancel;卡片改名、行改名(`key = "row-$ri"`)、输入源改名共用同一份实现 |

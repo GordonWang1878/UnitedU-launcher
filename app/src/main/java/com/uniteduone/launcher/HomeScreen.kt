@@ -30,19 +30,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * 首页:壁纸层 + hero 大字时钟 + 锚定在下三分之一的卡片行 + 右上 pill 组(设置 / 屏保)。
+ * 首页:壁纸层 + hero 区(0–192dp,gtv 线不放时钟,纯壁纸)+ 锚定在 hero 区之下的卡片行 +
+ * 顶栏(gtv 线的 [GtvTopBar]:药丸组靠左 / 时钟字标靠右)。
  * 待机由 [MainActivity] 通过 [idle] 传进来,内容由 [idleContent] 定(Task 3):
- * [IdleContent.CLOCK_ONLY](默认)卡片/行标题淡出、时钟留着;[IdleContent.BLACK] 同上但
- * 时钟也淡出(配合 MainActivity 叠加的黑屏,整屏全黑);[IdleContent.NO_FADE] 这里的
- * `contentAlpha` 恒为 1、什么都不淡出。
+ * [IdleContent.CLOCK_ONLY](默认)与 [IdleContent.BLACK] 现在都只淡出卡片/行标题/顶栏——
+ * gtv 线删掉了 84 sp 大字时钟(spec §2.3 B2)之后,首页已经没有「时钟」可留,两者在这里已无区别;
+ * [IdleContent.NO_FADE] 这里的 `contentAlpha` 恒为 1、什么都不淡出。
  *
- * [demoIdle](M7 T6,spec §3.2)非 null 时会**覆盖**这两个:设置页「待机内容」行拿着焦点
+ * [demoIdle](M7 T6,spec §3.2)非 null 时会**覆盖**上面这个:设置页「待机内容」行拿着焦点
  * 期间,不管真实 [idle] 是不是待机,都按 `demoIdle` 演示对应内容,离开该行即恢复。
- * 只影响这里的 `contentAlpha`/`clockAlpha` 两个动画,`Screensaver` 不参与(它是
+ * 只影响这里的 `contentAlpha` 动画,`Screensaver` 不参与(它是
  * `MainActivity` 单独组合的另一层,M5 起读的是 `screensaverActive`)。
  *
- * [screensaver](M5 spec §1.4)为真 = 自定义屏保:行 / 渐变 / pill 一律淡出(「不淡出」也不例外——
- * 照片上不该浮着一排卡片),大字时钟恒亮并加淡阴影(「全黑」待机进屏保时,时钟随照片一起亮出来)。
+ * [screensaver](M5 spec §1.4)为真 = 自定义屏保:行 / 渐变 / 顶栏一律淡出(「不淡出」也不例外——
+ * 照片上不该浮着一排卡片)。**gtv 线的行为变化**:这里原来会额外叠一个带淡阴影的 `HeroClock`,
+ * 让自定义屏保的轮播照片上还留一个时钟(且不受 idleContent 影响、恒亮);hero 大字时钟的调用点
+ * 删除后这层叠加一起没了——自定义屏保现在照片上不再有时钟。系统屏保不受影响,
+ * [UnitedUDream] 里还留着自己的 `HeroClock` 调用。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
@@ -86,7 +90,7 @@ fun HomeScreen(
     /**
      * **预览态**(M7 T4 分层叠加):选择器 / 导入页这类整屏浮层现在**叠在首页之上**,
      * 首页不再被移除,而是退到底下当背景(设置页 T5 起同理)。为真时首页交出一切交互:
-     * - **不可聚焦**:所有 [AppCard] / [TopPills] `canFocus = false` —— 与 `anyOverlay`
+     * - **不可聚焦**:所有 [AppCard] / [GtvTopBar] `canFocus = false` —— 与 `anyOverlay`
      *   合成 `covered` 一个量,上面那层拿焦点,底下这层绝不抢(铁律 4 的推论)。
      * - **不处理任何按键**:首页自己没有 `onKeyEvent`,卡片的点击挂在 `clickable` 上,
      *   不可聚焦就一个按键都收不到;长按识别在 `MainActivity.dispatchKeyEvent` 里,
@@ -302,24 +306,22 @@ fun HomeScreen(
     // 配置里的包一个都装不到时,卡片一张都没有,焦点无处可落;而这时唯一能自救的
     // 控件正是齿轮。不能指望框架的隐式 focus-enter——这份代码在别处恰恰拒绝依赖它。
     val gearFocus = remember { FocusRequester() }
-    // 哪一行是「当前行」——决定纵向锚定位移与 hero 淡出;跟着焦点走。
+    // 顶栏屏保按钮自己的 requester(gtv 线新顶栏 GtvTopBar 需要,见其参数 KDoc)。
+    // 目前没有别处主动把焦点送到这一格——「回到顶栏」只认 gearFocus——但 GtvTopBar 的
+    // 接口按两个按钮对称给,留着这颗以防以后要直接把焦点送到屏保按钮。
+    val screensaverFocus = remember { FocusRequester() }
+    // 哪一行是「当前行」——决定纵向锚定位移;跟着焦点走。
     var activeRow by remember { mutableStateOf(0) }
 
-    // 垂直位置自己算,不用 verticalScroll(铁律 1)。M8:焦点行**锚定**在下三分之一(spec §2.2)——
-    // 内容整块上移 activeRow 个行距,第 0 行时 hero 完整;不再是「溢出才上移」。
+    // 垂直位置自己算,不用 verticalScroll(铁律 1)。gtv 线:hero 区固定 192dp + 顶栏 34+36dp(spec §3/§4),
+    // 应用行顶部起点是这三个常量之和,不再是「屏高 × 2/3」(HomeLayout.anchorTop 那套比例锚点,main 线仍用)。
     val screenH = LocalConfiguration.current.screenHeightDp.toFloat()
     val activeRowSafe = activeRow.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
-    val anchorTop = HomeLayout.anchorTop(screenH).dp
+    val anchorTop = (GtvLayout.HERO_HEIGHT + GtvLayout.TOP_BAR_TOP + GtvLayout.TOP_BAR_HEIGHT).dp
     val shift by animateDpAsState(
         targetValue = HomeLayout.shift(activeRowSafe, cardsPerRow, showTitles).dp,
         animationSpec = tween(Theme.MotionInMs, easing = Theme.MotionEasing),
         label = "rowShift",
-    )
-    // hero 主体第 1 行起淡出(spec §2.3);待机时无条件回到 1(spec §2.4)——Task 6 的 HeroClock 读它。
-    val heroAlpha by animateFloatAsState(
-        targetValue = if (idle || demoIdle != null) 1f else HomeLayout.heroAlpha(activeRowSafe),
-        animationSpec = tween(Theme.MotionInMs, easing = Theme.MotionEasing),
-        label = "heroAlpha",
     )
     // **焦点看门狗。**判据取自真机日志:根节点的 onFocusChanged 里
     //   hasFocus=true && !isFocused  → 某个子节点持有焦点(正常)
@@ -475,14 +477,6 @@ fun HomeScreen(
             animationSpec = tween(if (effectiveIdle) 1200 else 400),
             label = "contentAlpha",
         )
-        // 时钟默认待机也留着(CLOCK_ONLY/NO_FADE);只有 BLACK 时钟才跟着淡出,
-        // 配合 MainActivity 在 Screensaver 之上叠的黑色蒙版,整屏才会真正全黑。
-        // 自定义屏保时恒 1(M5 spec §1.4):「全黑」待机进屏保那一刻,时钟随照片一起亮出来。
-        val clockAlpha by animateFloatAsState(
-            targetValue = if (!screensaver && effectiveIdle && effectiveIdleContent == IdleContent.BLACK) 0f else 1f,
-            animationSpec = tween(if (effectiveIdle) 1200 else 400),
-            label = "clockAlpha",
-        )
         // scrim(spec §2.1):#1C1B1F α0 → α0.8;顶边 = 锚点上方 60dp 再加 shift,底边固定屏底——行往上推时它变高,
         // 下方新露出的行始终在暗层里。待机时随内容一起淡出。
         val scrimTop = anchorTop - HomeLayout.SCRIM_LEAD.dp + shift
@@ -506,15 +500,9 @@ fun HomeScreen(
                 ),
         )
 
-        // hero 主体(spec §2.1 第 3 层):不随 shift 走;第 1 行起淡出、待机时回到 1(heroAlpha),BLACK 待机再随 clockAlpha 淡出。
-        // 自定义屏保时加淡阴影(M5 spec §1.5):照片可能很亮。
-        HeroClock(
-            showDate = showDate,
-            shadow = screensaver,
-            modifier = Modifier
-                .padding(start = Theme.SidePadding, top = HomeLayout.HERO_TOP.dp)
-                .alpha(heroAlpha * clockAlpha),
-        )
+        // hero 区(0–192dp,GtvLayout.HERO_HEIGHT)留给壁纸(spec §3 B3):84 sp 大字时钟已删
+        // (spec §2.3 B2),这里故意什么都不画,壁纸直接透出来。系统屏保仍用 HeroClock
+        // (见 UnitedUDream.kt),函数本身不删;自定义屏保的时钟叠加随这次删除一起没了(见本函数顶部 KDoc)。
 
         // 待机用 alpha 淡出而**不移除节点**:移除会连带销毁焦点,醒来后按键落空。
         // 同理也不能用 canFocus 把它们关掉,理由见下面 focusProperties 那段。
@@ -589,20 +577,18 @@ fun HomeScreen(
             }
         }
 
-        // 顶栏(spec §1.5):右上 pill 组 + 其下的「有 N 个新应用」。不随 shift 走;待机随内容淡出。
-        // 节点只淡出不移除:移除会连带销毁停在按钮上的焦点,醒来第一下按键落空。
-        Column(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = HomeLayout.PILL_TOP.dp, end = Theme.SidePadding)
-                .alpha(contentAlpha),
-            horizontalAlignment = Alignment.End,
-        ) {
-            TopPills(
-                gearFocus = gearFocus,
+        // 顶栏(spec §4):gtv 新顶栏,药丸组靠左对齐 CONTENT_KEYLINE + 右侧时钟/字标,铺满顶部;
+        // 其下的「有 N 个新应用」跟着药丸组左对齐(原来贴右上 pill,随药丸组一起搬到左边)。
+        // 不随 shift 走;待机随内容淡出。节点只淡出不移除:移除会连带销毁停在按钮上的焦点,
+        // 醒来第一下按键落空。
+        Column(modifier = Modifier.fillMaxWidth().alpha(contentAlpha)) {
+            GtvTopBar(
+                settingsFocusRequester = gearFocus,
+                screensaverFocusRequester = screensaverFocus,
                 canFocus = !covered,
                 rowsEmpty = rows.isEmpty(),
                 downTarget = rowFocus.getOrNull(tgtRow.coerceIn(0, rowFocus.lastIndex)),
+                showDate = showDate,
                 onSettings = { onMenuOpenChange(true) },
                 onScreensaver = onScreensaver,
                 onFocusChange = { col, got -> report(-1, col, got) },
@@ -611,7 +597,7 @@ fun HomeScreen(
             if (newCount > 0) {
                 BasicText(
                     text = stringResource(R.string.home_new_apps, newCount),
-                    modifier = Modifier.padding(top = 6.dp),
+                    modifier = Modifier.padding(start = GtvLayout.CONTENT_KEYLINE.dp, top = 6.dp),
                     style = androidx.tv.material3.MaterialTheme.typography.labelSmall.copy(
                         color = androidx.tv.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                     ),
