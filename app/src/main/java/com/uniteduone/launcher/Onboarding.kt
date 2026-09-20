@@ -62,8 +62,10 @@ private val STEP_GAP = 30.dp
 /** 第 2 步列表里行名那一列的宽度(图标 + VIDEO/LIVE/MUSIC),让三行的应用名左对齐。 */
 private val PLAN_ROW_NAME_W = 112.dp
 /**
- * 按钮**固定高度**,不靠上下内边距撑:中文标签走回落字体,行高比 DM Sans 高几个像素,
- * 用内边距的话「跟隨系統」比「English」高一截,同一排四个按钮参差不齐(模拟器截图实测)。
+ * 按钮**固定高度**,不靠上下内边距撑:中文标签走回落字体(CJK 不在 Theme.Sans 的字重范围内,
+ * 无论 Theme.Sans 当前是 DM Sans 还是 Google Sans Flex,中文都回落系统 Noto Sans CJK),
+ * 行高比拉丁字母字体高几个像素,用内边距的话「跟隨系統」比「English」高一截,
+ * 同一排四个按钮参差不齐(模拟器截图实测)。
  */
 private val BUTTON_H = 48.dp
 

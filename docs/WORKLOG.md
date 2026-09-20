@@ -996,3 +996,16 @@ worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs
 - **计划里钉住的两处实现风险**:①`Modifier.border` 画在布局框上,外扩 5 dp 的描边必须 `drawBehind` + 负偏移,且父链不能 clip —— Task 5 要求**先装探针肉眼确认红框在卡外 10 px**再动 AppCard;②tv-material `Card` 的放大 1.1 与 3 dp 描边**都是库默认**,不显式 `CardDefaults.scale(focusedScale = 1f)` + `Border.None` 就关不掉(现有 AppCard 注释已写明这一点)。
 - **自审改正一处**:原稿把 `GtvTokens.kt` 排在 Task 8 新建,但 Task 6 的顶栏要用 `PillTrack` —— 已改成 Task 6 建(只放 `PillTrack`)、Task 8 补齐其余颜色。
 - 计划**没有覆盖**、需要新决策的三项:快捷设置 sheet 的入口与磁贴清单、纵向换行的位移规则(实测未量)、三档里小/大两个卡宽的最终值(现为 122 / 192 dp)。
+
+## 2026-09-20 · 十个任务做完后的整分支终审 + 一次性修复波
+
+- Task 1–10 逐个审查通过后,对整个 `gtv` 分支(`8484233`)做了一次**跨任务**的终审——单任务 diff 看不出来的漂移,只有拉通全分支才现形。结论:**无 Critical,4 个 Important(裁定编号 R16–R19)+ 5 处必修 minor**,详见终审 ledger(`.superpowers/sdd/2026-09-20-gtv-line/progress.md` 与 `review-b91cc4f..8484233.diff`)。
+- **一轮修完,不拆、不派子代理**(任务本身要求)。四个 Important:
+  - **R16**:待机「显示=时钟」(`IdleContent.CLOCK_ONLY`)一度和「全黑」长得一样——B2 把首页大字时钟搬进顶栏 20sp 小字后,待机时顶栏也跟着淡出,`HeroClock` 因此在 gtv 线上失去了唯一调用点。补法:`HomeScreen.kt` 按 `effectiveIdleContent == CLOCK_ONLY` 单独控制一层 `heroClockAlpha`,复用既有 `HeroClock`;顺带发现桌面自定义屏保(`Screensaver.kt`)在同一次改动里也丢了时钟(`UnitedUDream.kt` 的 KDoc 一直断言两边一致,其实早就不一致),一并补上。
+  - **R17**:齿轮菜单(设置入口,4 项)在 Task 8 换皮成药丸后丢了第二行说明文字,「UnitedU 设置」和「系统设置」不看说明分不清是两个入口。补法:`GearMenu` 新增 `showHints` 参数,只有齿轮菜单这一处传 `true`;长按卡片菜单与编辑页的两个菜单保持纯药丸(动作词本来就自解释,同 Google 卡片菜单)。装机顺带发现英文说明文字里一处 2026 年之前留下的强制换行在新的更窄药丸宽度下被截断出省略号,一并修掉。
+  - **R18**:编辑页从 Task 5(焦点画法改版)之后就没跟上——卡片尺寸还是主线 `HomeLayout` 反算的 124dp,首页早已是 gtv 三档 153dp 起,同一个应用在两处显示成两种大小;同一行里 `AppCard`(对)、行尾「+」(仍缩放 1.12×)、未安装卡(仍 3dp 内描边)、行图标选择器(仍是已经删除的旧组件残留的半透明填充)四种聚焦画法各不相同。全部改口径到 gtv 线的卡片度量与 `gtvFocusStroke`。
+  - **R19**:spec §2.3 写的行标题字号(14sp,反推自 Google 拉丁文字号)与实现(`titleMedium` 隐式 16sp)从未对齐过——裁定维持 16sp(R15 已经用装机实测证明 16sp 才是中文不裁字的字号),改 spec 而不是改代码;顺手把六处散落的字号/间距字面量收进 `GtvLayout` 常量。
+  - 加上 5 处 minor:删除零调用点的 `TopPills.kt`、`HomeScreen.kt` 内 `Theme.SidePadding`/`GtvLayout.CONTENT_KEYLINE` 两个名字同指一条基准线的站内漂移、`AppCard.metrics` 去掉误导性默认值、以及一批因换皮改动而失实的旧注释(含把 `MissingCardFocusedBackground` 这个从此零调用点的颜色常量一并删除)。
+- **装机验证**(emulator-5554):待机 CLOCK_ONLY 用设置页的 `demoIdle` 实时预览确认 hero 区淡入时钟、BLACK 档确认无时钟;齿轮菜单四项确认带说明文字、长按菜单与行菜单确认不带;临时改 `layout.json` 插入一个不存在的包名验证编辑页的 `AppCard`/`AddCard`/`MissingCard`/`RowIconPicker` 四种可聚焦控件聚焦时是同一种外扩描边,并完整走了一遍「行 → 行尾+ → 退回」不丢焦点;首页改动前后逐屏对比无回归。`gradle test` 540/540(270×2)。
+- 没有做、留了记录(完整推导见报告):编辑页那两个非齿轮菜单没有加说明文字(ruling 未点名)、`PendingCard` 没有跟着改成外扩描边(ruling 未点名的第四种画法,占比很小)、spec §2.1/§2.2 里同样陈旧的 `rowPitch=125.5dp` 没有跟着 §2.3 一起改(ruling 只点名了字号表)。
+- 完整报告:`.superpowers/sdd/2026-09-20-gtv-line/final-fix-report.md`。未推送(等 Gordon 说「推」);未装 A95L(这条线本来就还在模拟器验证阶段,真机验收见 Task 10 的并排对比图,由 Gordon 决定 1.0 用哪一套)。

@@ -8,9 +8,15 @@
     <string name="menu_edit">Edit Rows</string>
     <string name="menu_edit_desc">Add, remove, reorder apps, or change card art</string>
     <string name="menu_settings">UnitedU Settings</string>
-    <!-- Deliberate line break: on one line (521 px of DM Sans at 11sp) this only fits while unfocused (544 px);
-         the focus bar leaves 515 px, so it wrapped on focus and the whole menu jumped. Two fixed lines keep the height stable. -->
-    <string name="menu_settings_desc">Layout, wallpaper, theme,\nstandby &amp; screensaver, clock and language</string>
+    <!-- Fix 5 (final review, 2026-09-20): the old forced line break was tuned for the pre-Task-8 dialog
+         row, where the focus indicator bar narrowed the text column (521px unfocused vs 515px focused
+         width at 11sp DM Sans) and an uneven wrap made the whole menu jump height on focus. The Task 8
+         pill is a fixed width regardless of focus (no indicator bar eating into it), and the pill's
+         height is now heightIn(min=...), so a wrap can no longer cause a jump either way. Letting
+         Compose choose the break point at the current width/size (12sp, roughly a 220dp column) fits
+         this on two lines with no truncation; the forced break no longer did, once Task 8 narrowed
+         the column. -->
+    <string name="menu_settings_desc">Layout, wallpaper, theme, standby &amp; screensaver, clock and language</string>
     <string name="menu_wallpaper">Change Wallpaper</string>
     <string name="menu_wallpaper_desc">Pick an image to replace the background</string>
     <string name="menu_system_settings">System Settings</string>

@@ -54,8 +54,10 @@ fun AppCard(
     app: AppEntry,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    /** 当前卡片档位的尺寸。默认中档。 */
-    metrics: CardMetrics = Theme.cardMetrics(6),
+    /** 当前卡片档位的尺寸。**没有默认值**(Fix 5,终审 2026-09-20):两个调用点(HomeScreen、
+     *  EditScreen)都显式传值,给一个默认值只会让将来某个漏传的 gtv 调用点静默拿到 main 线的
+     *  几何、且编译期看不出来——比如以前 `Theme.cardMetrics(6)` 这个默认值本身就是 main 线的。 */
+    metrics: CardMetrics,
     onFocusChange: (Boolean) -> Unit = {},
     /** 行首/行末:到边界后左右键不再跳到别的行。 */
     isRowStart: Boolean = false,
@@ -71,7 +73,8 @@ fun AppCard(
     title: String? = null,
     /**
      * 本卡不显示标题、但同屏应用行显示时,照样空出标题那一行的高度:每一行的高度才都等于
-     * HomeLayout.rowPitch,纵向锚点不会因为输入源行少 20dp 而整体偏移(M8 终审遗留)。
+     * 各自那条线的 rowPitch(main 线 HomeLayout.rowPitch / gtv 线 GtvLayout.rowPitch),
+     * 纵向锚点不会因为输入源行少一截标题高度而整体偏移(M8 终审遗留)。
      */
     reserveTitleSpace: Boolean = false,
     /** 无横幅回落卡的底色(图标边缘色);null 或有横幅时不铺。 */
@@ -170,7 +173,8 @@ fun AppCard(
             }
         }
         if (title != null) {
-            // 库的 CardDefaults.SubtitleAlpha = 0.6,字号 bodySmall 12sp(metrics.titleSize)
+            // 库的 CardDefaults.SubtitleAlpha = 0.6;字号取 metrics.titleSize——main 线是
+            // bodySmall 12sp(Theme.cardMetrics),gtv 线是 14sp(Theme.gtvCardMetrics,spec §2.3)。
             BasicText(
                 text = title,
                 maxLines = 1,

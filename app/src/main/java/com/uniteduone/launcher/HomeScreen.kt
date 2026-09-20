@@ -30,23 +30,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * 首页:壁纸层 + hero 区(0–192dp,gtv 线不放时钟,纯壁纸)+ 锚定在 hero 区之下的卡片行 +
- * 顶栏(gtv 线的 [GtvTopBar]:药丸组靠左 / 时钟字标靠右)。
+ * 首页:壁纸层 + hero 区(0–192dp,平时纯壁纸,待机显示时钟时除外)+ 锚定在 hero 区之下的
+ * 卡片行 + 顶栏(gtv 线的 [GtvTopBar]:药丸组靠左 / 时钟字标靠右)。
  * 待机由 [MainActivity] 通过 [idle] 传进来,内容由 [idleContent] 定(Task 3):
- * [IdleContent.CLOCK_ONLY](默认)与 [IdleContent.BLACK] 现在都只淡出卡片/行标题/顶栏——
- * gtv 线删掉了 84 sp 大字时钟(spec §2.3 B2)之后,首页已经没有「时钟」可留,两者在这里已无区别;
- * [IdleContent.NO_FADE] 这里的 `contentAlpha` 恒为 1、什么都不淡出。
+ * [IdleContent.CLOCK_ONLY](默认)淡出卡片/行标题/顶栏的同时在 hero 区淡入 [HeroClock]
+ * (Fix R16,终审 2026-09-20:gtv 线把首页大字时钟挪进了顶栏的 20sp 小字,待机时顶栏也跟着
+ * `contentAlpha` 一起淡出,不补回来的话「待机显示=时钟」这一档会跟 [IdleContent.BLACK] 长得
+ * 一模一样);[IdleContent.BLACK] 只淡出、不叠时钟;[IdleContent.NO_FADE] 这里的 `contentAlpha`
+ * 恒为 1、什么都不淡出,`heroClockAlpha` 也恒为 0。
  *
  * [demoIdle](M7 T6,spec §3.2)非 null 时会**覆盖**上面这个:设置页「待机内容」行拿着焦点
  * 期间,不管真实 [idle] 是不是待机,都按 `demoIdle` 演示对应内容,离开该行即恢复。
- * 只影响这里的 `contentAlpha` 动画,`Screensaver` 不参与(它是
+ * 只影响这里的 `contentAlpha`/`heroClockAlpha` 两个动画,`Screensaver` 不参与(它是
  * `MainActivity` 单独组合的另一层,M5 起读的是 `screensaverActive`)。
  *
  * [screensaver](M5 spec §1.4)为真 = 自定义屏保:行 / 渐变 / 顶栏一律淡出(「不淡出」也不例外——
- * 照片上不该浮着一排卡片)。**gtv 线的行为变化**:这里原来会额外叠一个带淡阴影的 `HeroClock`,
- * 让自定义屏保的轮播照片上还留一个时钟(且不受 idleContent 影响、恒亮);hero 大字时钟的调用点
- * 删除后这层叠加一起没了——自定义屏保现在照片上不再有时钟。系统屏保不受影响,
- * [UnitedUDream] 里还留着自己的 `HeroClock` 调用。
+ * 照片上不该浮着一排卡片),`heroClockAlpha` 同样钉 0——自定义屏保没有剧照,轮播照片上不该再叠
+ * 一个时钟(见 [Screensaver] 顶部 KDoc)。系统屏保不受影响,[UnitedUDream] 里还留着自己独立的
+ * `HeroClock` 调用(不读这里的 `heroClockAlpha`,恒亮)。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
@@ -68,7 +69,8 @@ fun HomeScreen(
     showDate: Boolean = true,
     cardsPerRow: Int = 6,
     /** 卡片标题全局开关(design §2)。开着时卡片下方多一行标题,行高随之增加
-     *  (见 HomeLayout.titleHeight),纵向位移沿用同一套自算逻辑。 */
+     *  (见 GtvLayout.titleHeight;main 线的编辑页等未换皮界面走 HomeLayout.titleHeight 同一套公式),
+     *  纵向位移沿用同一套自算逻辑。 */
     showTitles: Boolean = false,
     /** 输入源行开关(design §2,默认关)。开着且真机枚举到硬件输入时,在应用行**上方**
      *  多渲染一行输入源;它以普通行的身份加进纵向焦点账本,种类差异只影响点击行为与行图标。 */
@@ -280,14 +282,15 @@ fun HomeScreen(
         // 齿轮真的拿到焦点 = 这次「关菜单回齿轮」的意图已经兑现,比对立刻作废。
         // 不作废的话它会一直成立到下一次 nonce 递增,**窗口里每一次丢焦点都被送到齿轮**
         // (比如后台某个应用自动更新让某行短一格、焦点所在节点被销毁),
-        // 人正站在第三行却突然瞬移到右上角。
+        // 人正站在第三行却突然瞬移到左上角。
         if (got && row == -1) gearNonce = -1
         // 目标跟着「焦点真的落在哪」走,**还原过程中不更新**——理由与下面卡片那两个目标完全相同:
         // 浮层关掉那一帧 Compose 会抢先把焦点塞给 (0,0),那次上报若不挡住就会把目标从齿轮改成卡片。
         // **数据还没到也不更新**(`loaded != null`):冷启动时卡片一张都还没建出来,整棵树里
         // 唯一可聚焦的就是齿轮,Compose 会把首帧的焦点给它 —— 那不是用户的选择,是「没得选」。
         // 不挡住的话目标被这一下定成齿轮,行数据到达后还原效果反而主动把焦点拽回齿轮,
-        // 开机第一屏的焦点就从第一张卡变成了右上角(2026-09-17 冷启动三连实测)。
+        // 开机第一屏的焦点就从第一张卡变成了左上角(2026-09-17 冷启动三连实测;gtv 线齿轮药丸组
+        // 靠左对齐 CONTENT_KEYLINE,B2-a 裁定,这句话说的是它现在的位置)。
         // 卡片那两个目标不必判:卡片本身就是数据到了才存在,这条件对它们是隐含成立的。
         // **移动态期间也不更新**(与卡片那两个目标同一条,铁律 5「每一个分量」):那时的目标归 MainActivity 的
         // moving.pos 管,首页自己的记忆冻结,结束时由落点(moveLanding)一次写入。
@@ -509,9 +512,30 @@ fun HomeScreen(
                 ),
         )
 
-        // hero 区(0–192dp,GtvLayout.HERO_HEIGHT)留给壁纸(spec §3 B3):84 sp 大字时钟已删
-        // (spec §2.3 B2),这里故意什么都不画,壁纸直接透出来。系统屏保仍用 HeroClock
-        // (见 UnitedUDream.kt),函数本身不删;自定义屏保的时钟叠加随这次删除一起没了(见本函数顶部 KDoc)。
+        // hero 区(0–192dp,GtvLayout.HERO_HEIGHT)平时留给壁纸(spec §3 B3):84 sp 大字时钟已删
+        // (spec §2.3 B2),非待机时这里什么都不画,壁纸直接透出来。
+        //
+        // **Fix R16(终审 2026-09-20)**:B2 删的是*首页*的大字时钟,待机是另一块屏幕——
+        // IdleContent.CLOCK_ONLY(design 待机 §)原意就是「待机时显示时钟」,而 gtv 线把时钟挪进
+        // 顶栏之后那行字只有 20sp、且待机时顶栏本身也随 contentAlpha 一起淡出,CLOCK_ONLY 因此
+        // 变得和 BLACK 没有区别(参照本函数顶部 KDoc 曾经的说法)——沙发距离根本看不清,等于待机
+        // 没有时钟。HeroClock 正是为这个场景做的(系统屏保 UnitedUDream 已经在用它),这里复用
+        // 而不是新画一个。**只在 CLOCK_ONLY 淡入**:BLACK/NO_FADE 不画;screensaver 为真时也不画
+        // (自定义屏保没有剧照,不该再叠时钟,见 Screensaver.kt 顶部 KDoc)。不可聚焦,守卫条件
+        // 与上面 contentAlpha 同源、只是取反,同一条 tween 时长。
+        val heroClockAlpha by animateFloatAsState(
+            targetValue = if (!screensaver && effectiveIdle && effectiveIdleContent == IdleContent.CLOCK_ONLY) 1f else 0f,
+            animationSpec = tween(if (effectiveIdle) 1200 else 400),
+            label = "heroClockAlpha",
+        )
+        if (heroClockAlpha > 0f) {
+            HeroClock(
+                showDate = showDate,
+                modifier = Modifier
+                    .padding(start = GtvLayout.CONTENT_KEYLINE.dp, top = HomeLayout.HERO_TOP.dp)
+                    .alpha(heroClockAlpha),
+            )
+        }
 
         // 待机用 alpha 淡出而**不移除节点**:移除会连带销毁焦点,醒来后按键落空。
         // 同理也不能用 canFocus 把它们关掉,理由见下面 focusProperties 那段。
@@ -544,7 +568,10 @@ fun HomeScreen(
             if (loaded != null && rows.isEmpty() && !previewing) {
                 BasicText(
                     text = stringResource(R.string.home_empty_apps_hint),
-                    modifier = Modifier.padding(start = Theme.SidePadding),
+                    // gtv 线内读一个常量(Fix 5,终审 2026-09-20):这个文件里以前 Theme.SidePadding
+                    // 与 GtvLayout.CONTENT_KEYLINE 两个名字都指同一条 58dp 基准线,值相同、名字不同,
+                    // 是与纵向 26.5dp 漂移同一类的命名漂移,统一改读后者。
+                    modifier = Modifier.padding(start = GtvLayout.CONTENT_KEYLINE.dp),
                     style = hintStyle,
                 )
             }
@@ -652,6 +679,10 @@ fun HomeScreen(
                 },
                 onDismiss = { onMenuOpenChange(false) },
                 nonce = focusNonce,
+                // Ruling R17(终审 2026-09-20):这是「齿轮菜单」本尊——四项都不是自解释的动词,
+                // 「UnitedU 设置」与「系统设置」不看第二行根本分不清是两个不同的设置入口。
+                // 长按卡片菜单(下面那个 GearMenu)刻意不传,理由见 GearMenu 顶部 KDoc。
+                showHints = true,
             )
         }
 
@@ -722,9 +753,9 @@ private fun CategoryRow(
     // 设计变化,Google 实测就是 15dp——见 docs/research/2026-09-20-google-tv-launcherx-measurements.md §3)。
     Column(verticalArrangement = Arrangement.spacedBy(GtvLayout.ROW_TITLE_TO_CARD.dp)) {
         Row(
-            modifier = Modifier.padding(start = Theme.SidePadding).height(GtvLayout.ROW_TITLE_LINE.dp),
+            modifier = Modifier.padding(start = GtvLayout.CONTENT_KEYLINE.dp).height(GtvLayout.ROW_TITLE_LINE.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(GtvLayout.ROW_TITLE_ICON_GAP.dp),
         ) {
             RowIcon(row.name, row.kind, row.icon, tint = accent)
             BasicText(
@@ -772,7 +803,7 @@ private fun CategoryRow(
                 // 内容早在测量阶段就被砍掉了尾巴。纵向的 wrapContentHeight 是同一招。
                 .wrapContentWidth(Alignment.Start, unbounded = true)
                 .offset(x = xShift)
-                .padding(start = Theme.SidePadding, top = metrics.rowVerticalPad, bottom = metrics.rowVerticalPad),
+                .padding(start = GtvLayout.CONTENT_KEYLINE.dp, top = metrics.rowVerticalPad, bottom = metrics.rowVerticalPad),
         ) {
             row.apps.forEachIndexed { index, app ->
                 AppCard(

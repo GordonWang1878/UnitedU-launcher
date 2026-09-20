@@ -24,8 +24,11 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 
 /**
- * 系统屏保(M5 spec §4):UnitedU 在电视「屏幕保护程序」列表里的那一项。画面与桌面的自定义屏保一致——
- * 全屏轮播屏保图库 + 左上大字时钟(淡阴影);图库为空时黑底 + 时钟。与桌面**共用播放器和播放进度**
+ * 系统屏保(M5 spec §4):UnitedU 在电视「屏幕保护程序」列表里的那一项。画面与桌面的自定义屏保
+ * ([Screensaver],Fix R16 起两边都叠 [HeroClock])一致——全屏轮播屏保图库 + 左上大字时钟(淡阴影)。
+ * **图库为空时黑底 + 时钟是这里独有的**:系统屏保背后没有壁纸可透,空图库总要画点什么;桌面那份
+ * 叠在真实壁纸上面,空图库时按 [Screensaver] 自己的 KDoc 什么都不画,该场景的黑底由 MainActivity
+ * 的待机 BLACK 层负责,不是这个组件的职责。与桌面**共用播放器和播放进度**
  * ([ScreensaverPlayer] 的 attach 不重置下标):桌面先进了屏保、系统屏保随后接管时,从同一张接着播。
  *
  * **Compose 宿主**(spec §9 风险一):DreamService 不是 LifecycleOwner,ComposeView 挂上窗口时要沿 View 树

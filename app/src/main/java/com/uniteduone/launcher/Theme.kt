@@ -10,13 +10,16 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** 一档卡片布局的尺寸(Dp)。全部由 [HomeLayout] 推导,这里只做单位包装,不要在这里写任何数字。 */
+/** 一档卡片布局的尺寸(Dp)。main 线由 [HomeLayout] 推导([cardMetrics]),gtv 线由 [GtvLayout]
+ *  推导([gtvCardMetrics]);这里只做两条线共用的单位包装,不要在这里写任何数字。 */
 data class CardMetrics(
     val cardWidth: Dp,
     val cardHeight: Dp,
     val cardCorner: Dp,
     val cardSpacing: Dp,
-    /** 行内上下留白:放大 10% 的溢出一半 + 描边。 */
+    /** 行内上下留白。main 线含义是「放大 10% 的溢出一半 + 描边」(HomeLayout.rowVerticalPad,
+     *  焦点会缩放的旧画法留下的公式);gtv 线不缩放,含义是「焦点描边外扩留白」
+     *  (GtvLayout.FOCUS_OUTSET + FOCUS_STROKE)。两条线来源不同,字段共用。 */
     val rowVerticalPad: Dp,
     val titleGap: Dp,
     val titleLine: Dp,
@@ -81,8 +84,9 @@ object Theme {
     val AddCardBackground = Color(0xFF2A2A2C)
     /** 图片选择器缩略图加载中的占位背景。 */
     val ThumbPlaceholderBackground = Color(0xFF333333)
-    /** 编辑页「未安装」卡片(聚焦)背景。 */
-    val MissingCardFocusedBackground = Color(0xFF3A2020)
+    // MissingCardFocusedBackground(编辑页「未安装」卡片聚焦底色)随 Ruling R18(终审 2026-09-20)删除:
+    // MissingCard 聚焦改用 gtvFocusStroke 外扩描边,不再靠换底色表示聚焦(同 AppCard),
+    // 零调用点后就地删掉,不留死代码。
     /** 编辑页「加载中」占位卡片(聚焦)背景。 */
     val PendingCardFocusedBackground = Color(0xFF3A3A3C)
     /** 弹窗底部「返回关闭」一类提示文字:关于页、默认桌面卡片共用(gtv 线 Task 8 起齿轮菜单不再用——

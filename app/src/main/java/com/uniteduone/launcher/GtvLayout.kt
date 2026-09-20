@@ -43,6 +43,8 @@ object GtvLayout {
     const val FOCUS_OUTSET = 5f
     const val CARD_TITLE_GAP = 4f
     const val CARD_TITLE_LINE = 16f
+    /** 行标题图标与文字之间的间距(CategoryRow)。Fix 4(终审 2026-09-20)从字面量搬进来,数值不变。 */
+    const val ROW_TITLE_ICON_GAP = 8f
 
     /** 长按 / 齿轮菜单(GearMenu,Task 8):药丸尺寸,实测报告 §7,268×55 dp,全圆角(h/2)。 */
     const val MENU_ITEM_WIDTH = 268f
@@ -52,6 +54,22 @@ object GtvLayout {
     const val MENU_ITEM_GAP = 16f
     /** 左侧 banner 与应用名之间的间距。同一张参考图量测(banner 底 y 469 → 名字顶 ≈508 px)≈ 19.5 dp,取整 20。 */
     const val MENU_BANNER_NAME_GAP = 20f
+    /** 药丸左右内边距(spec §2.3「菜单项 16sp」附近)。Fix 4 从字面量搬进来,数值不变。 */
+    const val MENU_ITEM_PADDING_H = 24f
+    /** 菜单项文字字号(spec §2.3)。 */
+    const val MENU_ITEM_TEXT = 16f
+    /** Ruling R17(终审 2026-09-20):齿轮菜单(不含长按卡片菜单)恢复第二行说明文字,字号比标题小一档、
+     *  颜色更淡(见 GearMenu.MenuPill 的 showHint 分支),视觉上明确从属于标题。 */
+    const val MENU_ITEM_HINT_TEXT = 12f
+    /** 标题行与说明行之间的间距。 */
+    const val MENU_ITEM_HINT_GAP = 2f
+    /** 两行文字时药丸的上下内边距(单行时数学上不改变居中位置,见 GearMenu.MenuPill 的推导注释)。 */
+    const val MENU_ITEM_PADDING_V = 10f
+    /** 齿轮菜单左半 banner 应用名的字号 + 字距(MenuBanner)。 */
+    const val MENU_BANNER_NAME_TEXT = 16f
+    const val MENU_BANNER_NAME_LETTER_SPACING = 1f
+    /** 顶栏时钟 + 字标的字号(spec §2.3)。 */
+    const val TOP_BAR_CLOCK_TEXT = 20f
 
     fun cardWidth(size: GtvCardSize): Float = when (size) {
         GtvCardSize.SMALL -> 122f

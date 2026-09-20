@@ -36,11 +36,17 @@ data class MenuItem(val label: String, val hint: String, val action: () -> Unit)
  *
  * **gtv 线 Task 8 换皮**(spec §6 / B9):整屏 [GtvTokens.MenuBg] 底,不再是 `Theme.DialogSurface`
  * 的小面板;左半是该应用的 banner 图 + 名字,右半是一列整宽药丸([GtvLayout.MENU_ITEM_WIDTH] ×
- * [GtvLayout.MENU_ITEM_HEIGHT],全圆角)。菜单项内容(打开/卸载/修改标题/更改图标/移动位置/
- * 从当前分类移除)与焦点机制都原样不动——**这是纯换皮**,下面两个 `LaunchedEffect` 与
+ * [GtvLayout.MENU_ITEM_HEIGHT] 起,全圆角)。菜单项内容(打开/卸载/修改标题/更改图标/移动位置/
+ * 从当前分类移除)与焦点机制都原样不动——下面两个 `LaunchedEffect` 与
  * `BackHandler` 逐字保留自换皮前:nonce 初始循环退出判据是目标自报 `holder != null`(铁律 2,
  * 不信 `requestFocus()` 的返回值),`holder == null` 看门狗守卫与 key 同一表达式(铁律 6)、
  * 每次再丢焦点自动重新武装(铁律 7)。见 CLAUDE.md 焦点责任表「齿轮菜单 / 长按卡片菜单」一行。
+ *
+ * **Ruling R17(终审 2026-09-20)**:[showHints] 是这次换皮唯一补回的差异——[MenuItem.hint] 换皮后
+ * 一度全线丢失(4 个调用点全部传 `false`/默认值,行为不变);现在只有齿轮设置菜单(4 项:编辑分栏/
+ * UnitedU 设置/系统设置/关于)传 `true`,在药丸里加一行说明。长按卡片菜单、编辑页的两个菜单
+ * (卡片操作、行操作)保持不传——它们的动作词(打开/卸载/移动位置……)足够自解释,这与 Google
+ * 卡片菜单没有说明文字是同一个判断,不是漏改。两个菜单从此**刻意不同**,不是不小心不同。
  *
  * @param title 标题;null = 沿用齿轮菜单的「设置」。长按菜单传该卡的显示名,行菜单传行名。
  *   [app] 为 null 时(齿轮设置菜单、编辑页行菜单——都没有对应单个应用)左半退化成只显示这个标题,
@@ -48,6 +54,7 @@ data class MenuItem(val label: String, val hint: String, val action: () -> Unit)
  * @param app 左半 banner 的取图来源;只取 [AppEntry.card] / [AppEntry.isWide] / [AppEntry.fallbackColor]
  *   三个字段,取图判断逻辑与 [AppCard] 一致(有横幅铺满 / 方图标居中留边 / 都没有回落纯色底)。
  *   名字仍由 [title] 给——调用方那份已经处理过改名覆盖、查不到时退回包名的兜底,这里不重复一遍。
+ * @param showHints 见上面 Ruling R17。默认 false(长按 / 行 / 卡片菜单的既有行为不变)。
  */
 @Composable
 fun GearMenu(
@@ -56,6 +63,7 @@ fun GearMenu(
     nonce: Int = 0,
     title: String? = null,
     app: AppEntry? = null,
+    showHints: Boolean = false,
 ) {
     val rowFocus = remember(items.size) { List(items.size.coerceAtLeast(1)) { FocusRequester() } }
     // 下面两个循环都在协程里跑,读的必须是**当前**这一份 requester:items.size 一变 remember 就换新表,
@@ -128,6 +136,7 @@ fun GearMenu(
                             },
                             isFirst = i == 0,
                             isLast = i == items.lastIndex,
+                            showHint = showHints,
                         )
                     }
                 }
@@ -190,8 +199,8 @@ private fun MenuBanner(app: AppEntry?, name: String) {
                 fontFamily = Theme.Sans,
                 fontWeight = FontWeight.Medium,
                 color = LocalThemeColors.current.highlight,
-                fontSize = 16.sp,
-                letterSpacing = 1.sp,
+                fontSize = GtvLayout.MENU_BANNER_NAME_TEXT.sp,
+                letterSpacing = GtvLayout.MENU_BANNER_NAME_LETTER_SPACING.sp,
                 textAlign = TextAlign.Center,
             ),
         )
@@ -199,10 +208,18 @@ private fun MenuBanner(app: AppEntry?, name: String) {
 }
 
 /**
- * 右半的一颗药丸。[GtvLayout.MENU_ITEM_WIDTH] × [GtvLayout.MENU_ITEM_HEIGHT],全圆角;
- * 聚焦填主题 accent、文字按亮度取对比色(不写死浅蓝——accent 是用户选的,白/黑两个预设
- * 亮度几乎在两端,写死一种会在另一端不可读);未聚焦填 [GtvTokens.MenuItemIdle]。
- * 焦点边界(上下 Cancel 在首末项、左右恒 Cancel)与得失上报原样保留自换皮前的 MenuRow。
+ * 右半的一颗药丸。宽 [GtvLayout.MENU_ITEM_WIDTH],高至少 [GtvLayout.MENU_ITEM_HEIGHT](两行说明
+ * 文字时按内容撑高,见 [showHint]),全圆角;聚焦填主题 accent、文字按亮度取对比色(不写死浅蓝——
+ * accent 是用户选的,白/黑两个预设亮度几乎在两端,写死一种会在另一端不可读);未聚焦填
+ * [GtvTokens.MenuItemIdle]。焦点边界(上下 Cancel 在首末项、左右恒 Cancel)与得失上报原样保留
+ * 自换皮前的 MenuRow。
+ *
+ * @param showHint Ruling R17(终审 2026-09-20):true 时在标题下加一行 [MenuItem.hint],字号更小、
+ *   颜色更淡(同一个文字色再乘一层透明度,聚焦/未聚焦两态都仍然可辨,不需要单独取色)。
+ *   单行(false)时高度精确等于 [GtvLayout.MENU_ITEM_HEIGHT]——`heightIn(min = ...)` 换成两行前后
+ *   数学上不改变单行的居中位置:内容 + 上下 padding 之和本来就小于这个下限,`contentAlignment`
+ *   会在下限高度内居中,与原来固定 `.height(...)` 时完全一致,所以三个不传 [showHint] 的调用点
+ *   (长按卡片菜单、编辑页的两个菜单)像素级零回归。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
@@ -213,6 +230,7 @@ private fun MenuPill(
     onFocusChange: (Boolean) -> Unit = {},
     isFirst: Boolean = false,
     isLast: Boolean = false,
+    showHint: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
     val accent = LocalThemeColors.current.accent
@@ -222,10 +240,11 @@ private fun MenuPill(
     // focus state-layer opacity),把 accent 拉暗成另一个颜色——这块药丸的填色本身已经是完整的
     // 聚焦指示(未聚焦 MenuItemIdle → 聚焦纯 accent),不需要再叠一层,关掉才是真正的「填 accent」。
     val interactionSource = remember { MutableInteractionSource() }
+    val hasHint = showHint && item.hint.isNotBlank()
     Box(
         modifier = modifier
             .width(GtvLayout.MENU_ITEM_WIDTH.dp)
-            .height(GtvLayout.MENU_ITEM_HEIGHT.dp)
+            .heightIn(min = GtvLayout.MENU_ITEM_HEIGHT.dp)
             .focusProperties {
                 if (isFirst) up = FocusRequester.Cancel
                 if (isLast) down = FocusRequester.Cancel
@@ -236,21 +255,47 @@ private fun MenuPill(
             .background(fill)
             .onFocusChanged { focused = it.isFocused; onFocusChange(it.isFocused) }
             .clickable(interactionSource = interactionSource, indication = null, onClick = item.action)
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = GtvLayout.MENU_ITEM_PADDING_H.dp, vertical = GtvLayout.MENU_ITEM_PADDING_V.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
-        BasicText(
-            text = item.label,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            style = TextStyle(
-                fontFamily = Theme.Sans,
-                fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
-                color = textColor,
-                fontSize = 16.sp,
-            ),
-        )
+        if (hasHint) {
+            Column(verticalArrangement = Arrangement.spacedBy(GtvLayout.MENU_ITEM_HINT_GAP.dp)) {
+                MenuPillLabel(item.label, focused, textColor)
+                BasicText(
+                    text = item.hint,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(
+                        fontFamily = Theme.Sans,
+                        fontWeight = FontWeight.Normal,
+                        // 从属于标题的次要文字(Ruling R17「视觉上明确从属」):同一个文字色减透明度,
+                        // 聚焦态(黑/白对比色)与未聚焦态(MenuItemText 灰)都天然算得出一个更淡的版本,
+                        // 不需要再按亮度分别取一种「更淡的对比色」。
+                        color = textColor.copy(alpha = 0.7f),
+                        fontSize = GtvLayout.MENU_ITEM_HINT_TEXT.sp,
+                    ),
+                )
+            }
+        } else {
+            MenuPillLabel(item.label, focused, textColor)
+        }
     }
+}
+
+/** [MenuPill] 的标题行,单行/两行两种布局共用,避免样式在两处漂移。 */
+@Composable
+private fun MenuPillLabel(label: String, focused: Boolean, textColor: Color) {
+    BasicText(
+        text = label,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        style = TextStyle(
+            fontFamily = Theme.Sans,
+            fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
+            color = textColor,
+            fontSize = GtvLayout.MENU_ITEM_TEXT.sp,
+        ),
+    )
 }
 
 /** 按 WCAG 相对亮度选深/浅文字色,不写死一种——见 [MenuPill] 上的说明。 */

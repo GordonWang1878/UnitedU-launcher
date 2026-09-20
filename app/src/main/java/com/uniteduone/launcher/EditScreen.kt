@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -25,7 +24,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -121,8 +119,12 @@ fun EditScreen(
     onCarryingChange: (Boolean) -> Unit = {},
 ) {
     val ctx = LocalContext.current
-    // 与首页同一套卡片档位尺寸,编辑页的卡片才会和首页一样大。见 Theme.cardMetrics。
-    val metrics = Theme.cardMetrics(cardsPerRow)
+    // 与首页同一套卡片档位尺寸,编辑页的卡片才会和首页一样大。
+    // Ruling R18(终审 2026-09-20):这里原来读 Theme.cardMetrics(cardsPerRow)(HomeLayout 那一套,
+    // 6 张时 124×69.75dp),首页早已换成 gtv 三档(153×86dp 起),编辑页里的同一个应用因此比首页
+    // 小了一整圈——B5-a 裁定的三档固定尺寸是首页专用的新模型,HomeLayout 那套按张数反推宽度的
+    // 公式已经作废(decision table B5),编辑页当年漏改。见 Theme.gtvCardMetrics / cardsPerRowToGtvSize。
+    val metrics = Theme.gtvCardMetrics(cardsPerRowToGtvSize(cardsPerRow))
     // 自定义标题表,revision 变化(改过标题)时重读;与首页同一份数据源。
     val titles by produceState(emptyMap<String, String>(), revision) {
         value = withContext(Dispatchers.IO) { Titles.read(ctx) }
@@ -608,7 +610,11 @@ fun EditScreen(
                     // 行标题前画这一行的图标(M4b spec §2):与首页同一个组件、同一个 24dp 与 accent 色,
                     // 行高固定 24dp、竖直居中(同首页 CategoryRow),中英文名字的行高差不会让各行高低不一。
                     Row(
-                        modifier = Modifier.padding(start = Theme.SidePadding).height(HomeLayout.ROW_TITLE_LINE.dp),
+                        // Ruling R18:行标题行高改读 GtvLayout(与首页 CategoryRow 同一个值),不再是
+                        // HomeLayout.ROW_TITLE_LINE(24dp,main 线 titleMedium 的默认行高反推值)——
+                        // 编辑页现在用的是 gtv 三档卡片,行标题理应对齐同一条 gtv 几何,不是凑巧撞在
+                        // 一起的两个数字(24 vs 23,肉眼几乎看不出,但概念上不该分属两套体系)。
+                        modifier = Modifier.padding(start = Theme.SidePadding).height(GtvLayout.ROW_TITLE_LINE.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
@@ -910,16 +916,18 @@ private fun AddCard(
 ) {
     var focused by remember { mutableStateOf(false) }
     val highlight = LocalThemeColors.current.highlight
-    // 卡片聚焦会放大 1.1 倍并起描边,加号原来只换个底色,暗背景下看不出「我选中的是它」
-    val addScale by androidx.compose.animation.core.animateFloatAsState(
-        if (focused) 1.12f else 1f, label = "addScale",
-    )
+    val accent = LocalThemeColors.current.accent
+    // Ruling R18(终审 2026-09-20):Decision B1 把「聚焦放大 1.1 倍」的画法整体作废,不只管首页——
+    // 这里原来用 1.12 倍缩放 + 换底色补偿(这条注释本身就是当年为什么加缩放的解释:「加号原来只
+    // 换个底色,暗背景下看不出『我选中的是它』」),现在跟 AppCard 一样改用外扩描边,底色不再
+    // 随聚焦变化(AppCard 的 containerColor / focusedContainerColor 本来就给同一个值,描边已经是
+    // 完整的聚焦提示,不需要再叠一层底色)。
     Box(
         modifier = modifier
+            .gtvFocusStroke(focused, accent, metrics.cardCorner)
             .size(metrics.cardWidth, metrics.cardHeight)
-            .scale(addScale)
             .clip(RoundedCornerShape(metrics.cardCorner))
-            .background(if (focused) highlight.copy(alpha = 0.30f) else Theme.AddCardBackground)
+            .background(Theme.AddCardBackground)
             .focusProperties {
                 right = FocusRequester.Cancel          // 行尾锁在这里,别跳到下一行
                 if (isRowStart) left = FocusRequester.Cancel   // 空行时它就是行首
@@ -979,19 +987,27 @@ private fun MissingCard(
     isRowStart: Boolean = false,
     isLastRow: Boolean = false,
     isFirstRow: Boolean = false,
-    /** 搬运中被搬的就是它(M4b §0-18):与 `AppCard(moving = true)` 同一道 3dp accent 描边,聚焦与否都画。 */
+    /** 搬运中被搬的就是它(M4b §0-18):Ruling R18 起真的与 `AppCard(moving = true)` 同一道外扩
+     *  描边(gtvFocusStroke,highlight 色),聚焦与否都画——不再是旧版的 3dp accent 内边框
+     *  (当年这条注释就说「同一道描边」,但代码其实是另一套画法,两者名不副实)。 */
     moving: Boolean = false,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(metrics.cardCorner)
     val accent = LocalThemeColors.current.accent
+    // Ruling R18(终审 2026-09-20):与 AppCard 统一成同一种画法——container 不随聚焦变色,
+    // 聚焦只用外扩 accent 描边表示;moving 换成同一支笔的 highlight 版本(与 accent 同时成立时
+    // 两者仍可辨,理由见 AppCard.kt 上 moving 参数的说明)。原来的「聚焦变亮红」与「移动态 3dp
+    // 内描边」是编辑页里独有的第三、第四种画法,与首页/AddCard 都不一致。
+    val movingColor = LocalThemeColors.current.highlight
     Box(
         modifier = modifier
+            .gtvFocusStroke(focused, accent, metrics.cardCorner)
+            .gtvFocusStroke(moving, movingColor, metrics.cardCorner)
             .size(metrics.cardWidth, metrics.cardHeight)
             .clip(shape)
-            .background(if (focused) Theme.MissingCardFocusedBackground else Theme.MissingCardBackground)
-            .then(if (moving) Modifier.border(HomeLayout.FOCUS_BORDER.dp, accent, shape) else Modifier)
+            .background(Theme.MissingCardBackground)
             // 行首/末行的边界同样要锁,理由见 AppCard:找不到候选时焦点会整棵树消失
             .focusProperties {
                 if (isRowStart) left = FocusRequester.Cancel

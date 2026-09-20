@@ -36,7 +36,8 @@ import java.util.Locale
 /**
  * gtv 线的顶栏(spec §4):左起药丸组(设置 / 屏保,左缘钉在 [GtvLayout.CONTENT_KEYLINE])——
  * 大片留白(Google 在这里放搜索 / Home / Apps,spec §9 裁定我们没有对应功能,省略)——
- * 右侧时钟 + 「UnitedU」字标。是 `TopPills`(TopPills.kt)的换皮 + 搬迁:药丸组的焦点契约
+ * 右侧时钟 + 「UnitedU」字标。是旧的 `TopPills` 组件的换皮 + 搬迁(该文件已随 Fix 5〔终审
+ * 2026-09-20〕删除——零调用点,`GtvTopBar` 是唯一实现,不再留两份互相漂移):药丸组的焦点契约
  * 原样保留——调用方仍要传 `row = -1` 给 HomeScreen 的 `report()`(见 [onFocusChange] 的 KDoc),
  * 这是首页焦点账本识别「顶栏」的唯一依据,不能变。
  *
@@ -142,7 +143,7 @@ fun GtvTopBar(
 private const val TOP_BAR_COLLAPSE_MS = 200
 
 /**
- * 药丸组本体:换皮自 `TopPills`(TopPills.kt)——底色改 [GtvTokens.PillTrack]、
+ * 药丸组本体:换皮自旧的 `TopPills` 组件(该文件已删,见本文件顶部 KDoc)——底色改 [GtvTokens.PillTrack]、
  * 尺寸改读 [GtvLayout],焦点画法(库默认聚焦反白 + 1.1 倍、未聚焦色 = accent)不变。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
@@ -240,6 +241,6 @@ private fun ClockWordmark(showDate: Boolean) {
     }
     BasicText(
         text = text,
-        style = TextStyle(fontFamily = Theme.Sans, fontSize = 20.sp, color = accent),
+        style = TextStyle(fontFamily = Theme.Sans, fontSize = GtvLayout.TOP_BAR_CLOCK_TEXT.sp, color = accent),
     )
 }

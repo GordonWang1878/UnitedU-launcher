@@ -101,7 +101,7 @@ adb emu kill                                     # 关闭
    |---|---|
    | 首页卡片 / 顶栏药丸组(gtv 线新顶栏 `GtvTopBar`,换皮自旧的 `TopPills`,设置 / 屏保两个按钮从右上搬到左上,账本里仍是 row = -1 不变) | HomeScreen 看门狗 + 还原效果(选择器、设置页等整屏浮层都叠在常驻首页上,`covered` 期间冻结 `tgtRow/tgtIdx/tgtGear`,关掉后按它还原;编辑页仍整体替换首页,回来落 (0,0)) |
    | 首页原地移动态(M4b) | 没有浮层:HomeScreen 还原效果(key 含 `moveTarget = moving.pos`)+ 看门狗,以被搬的卡为目标;期间 `tgtRow`/`tgtIdx`/`tgtGear` 冻结,结束时由 `MoveLanding` 一次写入(放下 = 新位置,取消 = 出发格);放下后 `revision++` 的重读落地前继续画搬好的那一份,不会闪回旧顺序再跳回来 |
-   | 齿轮菜单 / 长按卡片菜单 | GearMenu 自己的初始焦点循环(nonce,退出判据是 `holder != null` 的自报——菜单里任意一项持有焦点即算落地,铁律 2)+ `holder == null` 看门狗(3 帧宽限后重请求 `focusedIdx`,每轮最多 60 帧封顶,守卫与 key 同为 `holder == null`,铁律 6);再次丢焦点时 key 翻转、看门狗重新武装,不是一次性闩(铁律 7)。**gtv 线 Task 8 换皮**:整屏 `GtvTokens.MenuBg` 底 + 左侧 banner/名字 + 右侧一列 268×55dp 全圆角药丸(聚焦填主题 accent、按亮度选对比文字色),菜单项内容与上面这套焦点机制逐字未动;新增的 `app: AppEntry?` 参数只喂左半的图,不参与焦点账本 |
+   | 齿轮菜单 / 长按卡片菜单 | GearMenu 自己的初始焦点循环(nonce,退出判据是 `holder != null` 的自报——菜单里任意一项持有焦点即算落地,铁律 2)+ `holder == null` 看门狗(3 帧宽限后重请求 `focusedIdx`,每轮最多 60 帧封顶,守卫与 key 同为 `holder == null`,铁律 6);再次丢焦点时 key 翻转、看门狗重新武装,不是一次性闩(铁律 7)。**gtv 线 Task 8 换皮**:整屏 `GtvTokens.MenuBg` 底 + 左侧 banner/名字 + 右侧一列 268×55dp 起全圆角药丸(聚焦填主题 accent、按亮度选对比文字色),菜单项内容与上面这套焦点机制逐字未动;新增的 `app: AppEntry?` 参数只喂左半的图,不参与焦点账本。**Ruling R17(终审 2026-09-20)补的 `showHints`**:仅齿轮设置菜单(4 项)传 `true`,药丸内多一行说明文字、高度按内容撑高(`heightIn(min = 55dp)`,单行时精确等于 55dp,像素级不变);长按卡片菜单与编辑页的两个菜单不传,仍是精确 55dp 单行——同一个 `MenuPill` 组件,两种外观是显式参数区分,不是意外分叉 |
    | 改名对话框(`TitleDialog`,M4b 起通用化) | 不再认卡片/行/输入源的种类,只按 `key` 记草稿、按调用方传入的 heading/hint/subtitle 渲染,nonce + focused,四向 Cancel;卡片改名、行改名(`key = "row-$ri"`)、输入源改名共用同一份实现 |
    | 设置页两栏 | SettingsScreen 看门狗(二维账本 pane/group/rowOf,`covered` 让路,`reloadNonce` 重读;`ON_PAUSE` 起冻结目标,回到前台才放开)。**「恢复隐藏的输入源」行消失时的交接(M4b,Task 3 fix)**:这是第一个行数(不只是值)会在持有焦点时变化的行——定位效果的 key 加了 `rows.size`,并在同一次重组里同步夹紧 `rowOf[group]`(赶在 Compose 应用树差异、把行摘掉之前落子),`restoring = true` 挡住这期间任何杂散的 `report()` 改写目标;退出判据仍是该行自报 `focusedCell == want`,不是「随便哪个节点有焦点」 |
    | 确认框(恢复默认) | ConfirmDialog(nonce + focusedBtn) |
@@ -121,7 +121,8 @@ adb emu kill                                     # 关闭
    曾经用根节点的 `hasFocus && !isFocused` 当判据,它在多数路径上是对的,
    但在「退到后台再回来」这条路上**不重发**,会停在过期的 `true`:日志说有焦点,
    截图里卡片却既没有放大也没有光晕(上边缘 777→812、光晕峰值 142→66)。
-   现在由 `AppCard` / `TopPills` 通过 `onFocusChange(Boolean)` 同时上报「得到」和「失去」。
+   现在由 `AppCard` / `GtvTopBar`(原 `TopPills`,该文件已随 Fix 5〔终审 2026-09-20〕删除)
+   通过 `onFocusChange(Boolean)` 同时上报「得到」和「失去」。
    **推论:看门狗的账本必须覆盖它会去抢焦点的全部场合。**它不认识齿轮菜单的菜单项,
    菜单一开账本就变成「没有焦点」,于是每帧抢着请求、把菜单刚拿到的焦点搅掉 ——
    菜单开着时必须让路。
