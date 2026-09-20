@@ -959,3 +959,9 @@ worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs
 
 - Gordon 在 A95L 上复验四项(输入源只剩一张「电视」、编辑页搬卡进新建的空行并落盘、搬运中返回复原、长按确定无反应)——**全部通过**,并下令「推」。修 bug 批 + M4b + 补丁到此全部真机验收完成。
 - **推送完成**(10:08,一次过):`origin/main` = `ec51330`,与本地一致;上次推送(09-19 13:16)之后的 48 个提交(修 bug 批、M4b、两个补丁、全部文档)都在上面。SDD 台账与任务报告保留在 `.superpowers/sdd/2026-09-19-leftover-fixes/`、`2026-09-19-m4b-rows-move-inputs/`、`2026-09-20-m4b-followups/`(gitignored),WORKLOG 里引用裁定时按它们查。
+
+## 2026-09-20 · 收尾:gtv 线的交接
+
+- 新建 `docs/gtv-line-kickoff.md`:下一条线(全 app 复刻真 Google TV)的开工说明——Gordon 已定的六件事(对标真 launcherx、范围全 app、「Google 的壳 UnitedU 的内容」、独立包名 `com.uniteduone.launcher.gtv` 并存、差距报告两个遗留决定并入、先 main 后 gtv)、手上素材(google-tv 镜像已下载校验解压、样板 AVD 配置、差距报告与调研)、第一步(建 `unitedu-gtv` AVD → 子代理实测量测 → 逐项对照表问 Gordon → spec/plan/SDD)、以及要守的约束。**新会话只要说「继续,开 gtv 线」,读这份文件就能接上。**
+- DESIGN §11 现状段更新为 2026-09-20 版本,指向这份开工说明。
+- 模拟器 `unitedu-tv` 已关闭(gtv 线要另建 `unitedu-gtv`);A95L 上装的是 `2da905e` 的包,HOME 角色仍是 UnitedU(未动)。
