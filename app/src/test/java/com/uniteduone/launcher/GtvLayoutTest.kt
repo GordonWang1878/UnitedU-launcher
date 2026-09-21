@@ -1,6 +1,7 @@
 package com.uniteduone.launcher
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GtvLayoutTest {
@@ -33,18 +34,25 @@ class GtvLayoutTest {
         assertEquals(0f, GtvLayout.rowShiftX(2, GtvCardSize.MEDIUM, 960f), 0.01f)
     }
 
-    @Test fun `行溢出时只移动刚好够用的距离,不多移(R20)`() {
+    @Test fun `行溢出时只移动刚好够用的距离,不多移(R20,Round4 起用含缩放+描边的视觉右缘)`() {
         // 8 张卡的 MEDIUM 行,聚焦第 8 张(index 7):
-        // focusRight = 58 + 153×8 + 20×7 = 1422;overRight = 1422 + 58 - 960 = 520
-        assertEquals(-520f, GtvLayout.rowShiftX(7, GtvCardSize.MEDIUM, 960f), 0.01f)
-        // 位移之后焦点卡右缘 = 1422 - 520 = 902 = 960 - CONTENT_KEYLINE(58)——刚好贴右基准线,不多不少
-        assertEquals(960f - GtvLayout.CONTENT_KEYLINE, 1422f - 520f, 0.01f)
+        // 视觉 focusRight = 58 + 153×8 + 20×7 + overflow(153) = 1422 + 12.0325 = 1434.0325
+        // overflow(153) = 153×0.105/2(缩放溢出的一半,APP_FOCUS_SCALE=1.105) + 2(APP_FOCUS_GAP)
+        //               + 2(APP_FOCUS_STROKE) = 8.0325 + 4 = 12.0325
+        // overRight = 1434.0325 + 58 - 960 = 532.0325
+        assertEquals(-532.0325f, GtvLayout.rowShiftX(7, GtvCardSize.MEDIUM, 960f), 0.01f)
+        // 位移之后焦点卡的**视觉**右缘(含缩放+描边)= 1434.0325 - 532.0325 = 902 =
+        // 960 - CONTENT_KEYLINE(58)——刚好贴右基准线,不多不少;owner 反馈 Round 4 之前这里断言的
+        // 是布局右缘,现在必须是视觉右缘,否则最右那张完全可见的卡的描边会被屏幕边缘裁掉(§5)。
+        assertEquals(960f - GtvLayout.CONTENT_KEYLINE, 1434.0325f - 532.0325f, 0.01f)
     }
 
     @Test fun `临界点连续,不会跳变(R20)`() {
-        // 屏宽正好等于「focusRight(index 3) + 右留白」时位移为 0;屏宽再窄 1dp,位移就恰好是 1dp
+        // 屏宽正好等于「视觉 focusRight(index 3,含 Round4 缩放+描边溢出) + 右留白」时位移为 0;
+        // 屏宽再窄 1dp,位移就恰好是 1dp
         val focusRightAt3 = GtvLayout.CONTENT_KEYLINE +
-            GtvLayout.cardWidth(GtvCardSize.MEDIUM) * 4 + GtvLayout.CARD_GAP * 3
+            GtvLayout.cardWidth(GtvCardSize.MEDIUM) * 4 + GtvLayout.CARD_GAP * 3 +
+            GtvLayout.appFocusOverflow(GtvLayout.cardWidth(GtvCardSize.MEDIUM))
         val exactFitScreen = focusRightAt3 + GtvLayout.CONTENT_KEYLINE
         assertEquals(0f, GtvLayout.rowShiftX(3, GtvCardSize.MEDIUM, exactFitScreen), 0.01f)
         assertEquals(-1f, GtvLayout.rowShiftX(3, GtvCardSize.MEDIUM, exactFitScreen - 1f), 0.01f)
@@ -101,5 +109,29 @@ class GtvLayoutTest {
         assertEquals(GtvLayout.titleHeight(true), withTitles - withoutTitles, 0.01f)
         // 167.5625 = 143.5625(showTitles=false)+ 24(CARD_TITLE_GAP 4 + CARD_TITLE_LINE 20)
         assertEquals(167.5625f, withTitles, 0.01f)
+    }
+
+    // owner 反馈 Round 4(2026-09-21)§5:「验证,不要假设」——app 卡片聚焦缩放
+    // (GtvLayout.APP_FOCUS_SCALE)+ 贴边描边比原来的静态外扩(FOCUS_OUTSET+FOCUS_STROKE)更往外
+    // 探,必须确认这份新的视觉溢出不会碰到下一行的标题字形。可用的纵向余量是
+    // rowVerticalPad(= FOCUS_OUTSET+FOCUS_STROKE,任务明确要求不改 rowPitch,这个量因此维持
+    // 原值)+ ROW_GAP——这是「本行卡片内容结束」到「下一行标题行盒开始」之间的物理间距,
+    // 与 rowPitch() 的推导一致(见该函数 KDoc)。SMALL/MEDIUM/LARGE 三档都测,任务特别点名
+    // LARGE(108dp 高、溢出最大)。
+    @Test fun `app 卡片聚焦缩放溢出不会碰到下一行标题(owner 反馈 Round4 §5)`() {
+        for (size in GtvCardSize.values()) {
+            // 逐档从 Theme.gtvCardMetrics 取 rowVerticalPad——现在各档数值相同(常量不随 size 变),
+            // 但这里不假设"以后也一定相同",按各自档位实际配置的值算,以后有人改了也不会漏测。
+            val available = Theme.gtvCardMetrics(size).rowVerticalPad.value + GtvLayout.ROW_GAP
+            val overflowY = GtvLayout.appFocusOverflow(GtvLayout.cardHeight(size))
+            assertTrue(
+                "$size 的纵向溢出 ${overflowY}dp 超过了可用余量 ${available}dp,会碰到下一行标题",
+                overflowY < available,
+            )
+        }
+        // LARGE 档的具体数字留痕(108 × 0.105 / 2 + 2 + 2 = 5.67 + 4 = 9.67dp),
+        // 对照任务原话「108 dp 高 → 5.7 dp overflow」——那句话只算了缩放那一半,没有加上描边的
+        // 2dp gap + 2dp stroke;这里连描边一起算,是「贴到屏幕/下一行的实际视觉边界」,不是纯缩放量。
+        assertEquals(9.67f, GtvLayout.appFocusOverflow(GtvLayout.cardHeight(GtvCardSize.LARGE)), 0.01f)
     }
 }

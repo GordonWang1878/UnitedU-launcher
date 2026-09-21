@@ -1057,3 +1057,74 @@ worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs
 - Round 2 三处修复(x=116 焦点基准线、卡片标题不裁字、焦点淡入淡出)本轮代码零改动,截图里顺带确认外观没有回归,不再重新验证一遍。
 - `gradle test`:273×2=546,与 Round 2 结束时一致——这轮是纯渲染/token 改动,没有新增或修改 `GtvLayout` 的几何公式,没有新单测可写。
 - `layout.json`/`settings.json` 验证后原样还原。报告:`.superpowers/sdd/2026-09-20-gtv-line/owner-feedback-fix-report.md`「Round 3」。未推送(等 Gordon 说「推」)。
+
+## 2026-09-21 · owner 真机走查反馈 Round 4:app tile 聚焦缩放(纠正错认的 Google 分类)
+
+- Gordon 在真机上测过 Round 2:卡片标题 ✅、scrim 硬边 ✅,**动效仍然「完全感觉不到」**——controller
+  核实过 Round 2 的淡入淡出确实在跑(真机 `animator_duration_scale=1.25`,装的是对的包),不是没生效,
+  是 2dp 描边淡入淡出这种量级的动作在沙发距离**根本看不出来**。旧版有整卡缩放当连续性提示,
+  Google 真实用的是行滑动 + 背景剧照渐变;这条线 B1 去掉了缩放、R20 去掉了行滑动、又没有剧照,
+  三个连续性来源全灭。Gordon 借这次立的新规矩:**这条线上但凡 Google 原生怎么做,照做,不用问**。
+  controller 顺带纠正了自己先前的分类错误:**Google 不缩放 content card,但缩放 app tile**——
+  我们的首页 100% 是 app,之前套用 content card 的静态描边只是因为卡片形状恰好也是 16:9,认错了
+  Google 的分类。
+- **参数全部来自反编译/装机像素量测,不是猜的**(旧版 launcherx APK 1.0.595789376,资源名未混淆):
+  `animator/card_focus`/`card_unfocus` 的 `duration` 都引用 `@integer
+  /default_focused_animation_duration_ms=150`(对称,不是 Round 2 猜的 150/120),**没有** `interpolator`
+  属性 → 平台默认 `AccelerateDecelerateInterpolator`(`cos((t+1)π)/2+0.5`,不是 `FastOutSlowInEasing`,
+  曲线形状不同);`fraction/app_card_focused_scale=1.14` 是**旧版**的值,但 controller 在**当前对照的
+  目标版本**(1.0.976298245)上装机像素量测聚焦态应用图块 152→168px=**1.105×**,两代版本数值不同,
+  以目标版本实测为准;`dimen/card_focused_frame_outer_stroke_width=2dp` 确认描边宽度;
+  `integer/top_nav_animation_duration_focus=100`/`_unfocus=200` 是顶栏的独立时长。
+- **改法**:`GtvFocusStroke.kt` 新增 `gtvAppFocusFrame`——一个函数里同时驱动 `scale`(1↔1.105)与
+  `ringAlpha`(0↔1),两者共用同一个 `tween(150ms, AppFocusEasing)`,画法是 `drawBehind{ 用当前
+  scale 值算缩放后边缘位置,手动画描边 }.graphicsLayer(scaleX/Y=scale)`——描边必须在
+  `graphicsLayer` 之外手算,否则描边自己的 2dp 粗细也会被放大 1.105 倍,不符合量测。`AppCard`/
+  `EditScreen` 的 `AddCard`/`MissingCard` 全部从两条 `gtvFocusStroke` 调用换成一条 `gtvAppFocusFrame`
+  调用;`RowIconPicker`(小网格图标,不是 app)刻意留在原地不缩放,写进注释是「选择,不是漏改」。
+  **一个真实踩到的排序坑**:`moving`(首页原地移动态的高亮描边)必须不被 `focused` 的缩放影响,
+  但如果拆成两条链式调用(`gtvFocusStroke(moving,...)` 在外、`gtvAppFocusFrame(focused,...)` 在内),
+  虽然 moving 不会被缩放,但**叠放顺序会翻过来**(Compose 里链上更内层的 `drawBehind` 后画、盖在
+  上面,以前 moving 在链尾/内层所以盖在 focused 上面;把 focused 换成带 `graphicsLayer` 的新函数后,
+  为了不让 moving 被卷入缩放又必须把它挪到外层,一挪 moving 就变成先画、被 focused 盖住了)。
+  解法是把两圈描边合并进**同一个** `drawBehind`,画两次 `drawRoundRect`,顺序自己直接控制,不再
+  依赖链式嵌套的隐含顺序。`FOCUS_FADE_IN_MS`/`FOCUS_FADE_OUT_MS` 从「未测量占位值」改成两个都是
+  150(真值),KDoc 去掉「占位」字样;`GearMenu`/`RowIconPicker` 复用同一对常量与同一条曲线,如实
+  记录这是「为了整条线手感统一而借用」不是「又独立测量了一次」。`GtvTopBar` 换成独立的
+  `TOP_NAV_FADE_IN_MS`/`OUT_MS`。`GtvTokens` 的 `HeroGradientNear`/`Far` 从 `Color.Black` 换成
+  `MenuBg`(0xFF0E0E0F,与 R24 同一次反馈的 §6)——Google 的「黑」其实是它的 surface 色,亮度≈15,
+  不是数学纯黑。`rowShiftX` 加了 `appFocusOverflow`(缩放溢出+描边)项,任务明确要求不改
+  `rowPitch`,只改判断「要不要挪行」用的视觉右缘。
+- **装机验证**(6 个真实可解析包拼出的溢出行:除 3 个真实应用外,用 `Apps.kt` 的 `ACTION_MAIN`
+  无 `LAUNCHER` 分类兜底逻辑挖出 `com.android.tv.settings`/`com.google.android.apps.tv.launcherx`/
+  `com.google.android.gms` 三个系统包,与 Round 2 的 R20 验证同一手法,先用
+  `cmd package query-activities -a android.intent.action.MAIN -p <pkg>` 确认能解析再用):
+  - 像素量测聚焦态卡片:338px/306px=1.1046≈1.105(横向),190px/172px=1.1047≈1.105(纵向),
+    与 `APP_FOCUS_SCALE` 精确吻合;描边 4px=2dp、间隙 4px=2dp,与常量精确吻合。
+  - 卡片下方标题文字位置全程不动——`graphicsLayer` 只变绘制,不动布局,验证「no layout change」
+    落地正确。
+  - 右缘裁切(§5):导航到溢出行第 6(最右)张卡,描边完整无裁切,量出描边外缘到屏幕右缘的余量
+    恰好 58dp = `CONTENT_KEYLINE`,位移公式精确命中,不是大概齐。
+  - 纵向溢出(§5):`showTitles=true` 时描边底到下一行标题 31dp 余量(标题本身占的高度额外贴出的
+    缓冲);`showTitles=false`(单测瞄准的真正最坏情形)时余量仍有 9dp,两种状态都截图 + 量像素
+    确认无重叠。
+  - 焦点回归:溢出行内右移 3 次、上下穿越 3 行、再左移 2 次,共 9 个检查点,`uiautomator` 每一步
+    都**恰好 1 个** `focused="true"`,没有幽灵/重复焦点。
+  - 纯灰网格复查(§6):形状不变,地板亮度从 Round 3 的 ~0-5 抬到 **14.3-19.3**,与「128×0.0016 +
+    14×0.9984 ≈ 14.18」的预测几乎精确吻合。
+  - 顶栏 / 齿轮菜单只做静态外观抽查(填色机制本身 Round 2 已验证,这轮只改了时长/曲线数值),
+    确认外观无回归,没有重新拍一遍动画过程。
+- **诚实记一处与任务假设不符的发现**:任务原话「Scale is visual only — a11y bounds must stay at
+  layout size (that is how Google's behave too)」——实测**不成立**:`uiautomator` 量到聚焦卡片的
+  bounds 是缩放后的 338×190px,未聚焦邻居是布局尺寸 306×172px。这是 Android/Compose 的标准行为
+  (`graphicsLayer` 是真的 RenderNode 变换,无障碍服务本来就该报告变换后的真实屏幕位置,不是报告
+  失真的旧坐标)。没有去做语义覆盖强行让聚焦节点报告布局尺寸(任务没要求,而且会牺牲真实的无障碍
+  体验)——真正要紧的不变量(每一步恰好一个 `focused=true`,没有幽灵焦点)本来就单独验证过并且成立,
+  如实记录这条假设站不住,不是悄悄绕过。
+- **报告位置提醒**:controller 反馈按 grep "Round" 找不到 Round 2/3 的章节——标题确实原样在文件里
+  (`# Round 2` 第 202 行、`# Round 3` 第 459 行,`# Round 4` 见本轮追加),但 `.superpowers/` 在这个
+  仓库自己的 `.gitignore` 里(`.gitignore:11: .superpowers/`),`git ls-files` 对这个文件返回空——
+  任何走 git 的检索(`git grep`、只索引受控文件的工具)天然找不到,得直接按绝对路径读文件。
+- `gradle test`:274×2=548,比 Round 3 多 1 个(新增的溢出预算测试)。
+- 报告:`.superpowers/sdd/2026-09-20-gtv-line/owner-feedback-fix-report.md`「Round 4」。未推送
+  (等 Gordon 说「推」)。

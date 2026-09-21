@@ -170,8 +170,12 @@ private fun IconCell(
             // Ruling R18(终审 2026-09-20):原来聚焦底色 = highlight 12% 透明填充,注释还说它抄的是
             // 「菜单项(GearMenu.MenuRow)同一个 highlight 12%」——那份 MenuRow 早在 Task 8 换皮时
             // 就被 MenuPill 取代(浅色实填 / 未聚焦深色两态,不是半透明叠色),这里既没跟着换皮改,
-            // 注释引用的类型也已经不存在。改用与 AppCard/AddCard/MissingCard 同一支笔:外扩 accent
-            // 描边,不透明度叠色,统一整个编辑页的聚焦画法(不缩放、只描边)。
+            // 注释引用的类型也已经不存在。改用外扩 accent 描边,不透明度叠色。
+            // **owner 反馈 Round 4(2026-09-21)起与 AppCard/AddCard/MissingCard 分道**:那三个改成
+            // 了 Google 的 app tile 处理(gtvAppFocusFrame,缩放 + 贴边描边);这里是行图标选择器的
+            // 小网格格子,不是应用图标,继续留 content-card 式的静态外扩描边(gtvFocusStroke)——
+            // 密集网格里让格子跟着缩放,行间距/列间距都要重新核算会不会互相撞,权衡后判定不值得,
+            // 是一次明确的选择,不是漏改。
             .gtvFocusStroke(focused, accent, GtvLayout.CARD_CORNER.dp)
             .clip(RoundedCornerShape(GtvLayout.CARD_CORNER.dp))
             .onFocusChanged { focused = it.isFocused; onFocusChange(it.isFocused) }

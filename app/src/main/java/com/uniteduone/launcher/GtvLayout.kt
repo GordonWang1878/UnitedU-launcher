@@ -38,7 +38,17 @@ object GtvLayout {
      *  装机验证见 `task-9b-report.md` Fix round 1 一节。 */
     const val ROW_GAP = 8f
     const val CARD_CORNER = 8f
-    /** 焦点描边:画在布局框**外** FOCUS_OUTSET 处,粗 FOCUS_STROKE。不缩放。 */
+    /** **内容卡**(content card,16:9 无边界推荐流那种)专用的焦点描边几何:画在布局框**外**
+     *  FOCUS_OUTSET 处,粗 FOCUS_STROKE,不缩放。owner 反馈 Round 4(2026-09-21)裁定「我们的
+     *  应用行是 app,不是 content——Google 对 app tile 的处理是缩放,不是这种静态外扩描边」之后,
+     *  gtv 线首页已经没有任何卡片走这套画法(`AppCard`/`AddCard`/`MissingCard` 全部改用
+     *  [APP_FOCUS_SCALE] 一族的 app 处理,见 `GtvFocusStroke.gtvAppFocusFrame`)——但这两个常量
+     *  **没有变成死代码**,仍在两处活着:①`RowIconPicker` 的行图标格子(小网格图标,不是
+     *  app,继续用这套画法,理由见该文件);②`gtvAppFocusFrame` 里 `moving`(首页原地移动态)
+     *  分支——被搬的那张卡的高亮描边是 UnitedU 自己的交互反馈,Google 没有对应物,不跟着
+     *  app 聚焦一起缩放,沿用这套固定外扩几何。`rowVerticalPad`
+     *  (`Theme.gtvCardMetrics`)的留白量也仍然读这两个常量,`rowPitch` 因此不受本轮影响
+     *  (owner 反馈 Round 4 明确要求不改 rowPitch)。 */
     const val FOCUS_STROKE = 2f
     const val FOCUS_OUTSET = 5f
     const val CARD_TITLE_GAP = 4f
@@ -95,23 +105,54 @@ object GtvLayout {
      * Fix 3(owner 反馈 R2,2026-09-20):「目前 UI 交互没有任何动画……焦点一下子跳到这、一下子跳到
      * 那」。根因是 decision B1 去掉聚焦缩放之后,`gtvFocusStroke` 的描边与 `GearMenu`/`GtvTopBar`
      * 的填色焦点都是瞬间切换(布尔值直接门控 `drawBehind`/`background`,零动画),丢了缩放曾经
-     * 提供的唯一连续性提示。旧的 tv-material Card 默认缩放动画是「进 300 / 出 500ms」,但那管的是
-     * *缩放*,不是这里要修的*描边/填色*——不能直接照搬。
+     * 提供的唯一连续性提示。
      *
-     * **这两个数字是未测量的占位值,不是从 Google TV 量出来的**:曾在 `unitedu-gtv` AVD(Google TV
-     * launcherx,已登账号)上用 `animator_duration_scale 10` + 连续 `screenrecord
-     * --output-format=frames` 采样尝试测量内容卡描边的真实淡入时长,两条路都在“合理工作量”内失败——
-     * (a) `adb exec-out screencap` 单次往返 1.6s(raw)/9.7s(PNG),比 10× 放慢后的过渡本身还粗,
-     * 分辨不出渐变过程;(b) 改用常驻的 frames 流虽然采到了 ~5fps 的连续帧,但可达的内容行
-     * (`Continue watching`)在获得/失去焦点时整行会伴随一次位置/缩放变化,与描边 alpha 的信号
-     * 叠在一起,固定像素采样点无法把两者分开。过程记录见
-     * `.superpowers/sdd/2026-09-20-gtv-line/owner-feedback-fix-report.md`「Round 2 · Fix 3」。
-     * 150/120ms 取的是 Android 过渡动画的常见量级(比整卡缩放更「轻」的交互应该不比它更慢),
-     * 进场略慢于出场——真的量到 Google 数值后把这两个常量换掉、删掉这条注释,不要为了让占位值
-     * 看起来「有依据」而反向调整测量方法。
+     * **owner 反馈 Round 4(2026-09-21)替换了这两个数字的来源**:Round 2 写的 150/120ms 是
+     * "未测量占位值"(见本文件历史版本/report),真值已从旧版 launcherx APK
+     * (1.0.595789376,资源名未混淆)读出——`animator/card_focus`、`animator/card_unfocus`
+     * 两个 `ObjectAnimator` 的 `duration` 都引用 `@integer/default_focused_animation_duration_ms
+     * = 150`,进焦出焦**对称同为 150ms**,不是 150/120 的非对称值。**这不再是占位值,不要再加
+     * "未测量"字样**——真的又量到更精确的数字才改,不要凭直觉往回调。
+     *
+     * 用在:app 卡片的缩放 + 描边(`GtvFocusStroke.gtvAppFocusFrame`,见 [APP_FOCUS_SCALE] 一族);
+     * `gtvFocusStroke` 覆盖的另外两处内容卡式描边(`RowIconPicker`、`gtvAppFocusFrame` 的
+     * `moving` 分支)延续复用同一对时长——`card_focus`/`_unfocus` 是 Google 对「app 卡片」的量测,
+     * 这两处不是严格意义上的 app 卡片聚焦,只是为了整条线的焦点淡入淡出手感统一而借用同一个数字,
+     * 不是又找到了各自的独立测量,如实记录不夸大。`GearMenu.MenuPill` 同理复用(见该文件调用点
+     * 的注释)。曲线用 `Theme.AppFocusEasing`(同一份 APK 引用的 `AccelerateDecelerateInterpolator`,
+     * 不是 `Theme.MotionEasing` 那条给「位置动画」用的减速曲线)。
      */
     const val FOCUS_FADE_IN_MS = 150
-    const val FOCUS_FADE_OUT_MS = 120
+    const val FOCUS_FADE_OUT_MS = 150
+
+    /**
+     * owner 反馈 Round 4:Google 对 **app tile**(不是 content card)的聚焦处理——放大,不是外扩
+     * 静态描边。旧版本(1.0.595789376)`fraction/app_card_focused_scale = 1.14`;但 controller
+     * 在**本项目实际对照的目标版本**(1.0.976298245)上装机像素量测聚焦态应用图块
+     * 152 → 168 px = **1.105×**——两代版本数值不同,以目标版本的实测为准,1.14 只作为旧版记录,
+     * 不要把它当成现在该用的数字。 */
+    const val APP_FOCUS_SCALE = 1.105f
+    /** app tile 聚焦描边与**缩放后**边缘之间的间隙(dp)。controller 在目标版本(1.0.976298245)
+     *  上装机像素量测得出,不是命名资源(Google 没有给这段间隙单独取名字)。 */
+    const val APP_FOCUS_GAP = 2f
+    /** app tile 聚焦描边本身的宽度(dp)。`dimen/card_focused_frame_outer_stroke_width = 2dp`——
+     *  与内容卡的 [FOCUS_STROKE] 数值恰好相同,但这是两个分别命名的 Google 资源(content card
+     *  与 app tile 各自的边框宽度只是刚好都是 2dp),不合并成一个常量,避免以后其中一个改了
+     *  而误伤另一个。 */
+    const val APP_FOCUS_STROKE = 2f
+
+    /** app tile 聚焦时的视觉溢出量(缩放增量的一半 + 描边间隙 + 描边本身),给定卡片某一边的
+     *  未缩放长度。纯几何,不含 Compose 类型,方便单测验证「聚焦时会不会碰到下一行标题」
+     *  「行尾右缘会不会被屏幕边缘裁描边」这类不变量(owner 反馈 Round 4 §5)。 */
+    fun appFocusOverflow(dimension: Float): Float =
+        dimension * (APP_FOCUS_SCALE - 1f) / 2f + APP_FOCUS_GAP + APP_FOCUS_STROKE
+
+    /** 顶栏图标按钮的填色淡入 / 淡出时长(owner 反馈 Round 4):`integer
+     *  /top_nav_animation_duration_focus = 100`、`_unfocus = 200`,与 app 卡片的
+     *  [FOCUS_FADE_IN_MS]/[FOCUS_FADE_OUT_MS] 是两组不同的 Google 资源,进出也不对称
+     *  (先快进、后慢出),不要合并成一组常量。 */
+    const val TOP_NAV_FADE_IN_MS = 100
+    const val TOP_NAV_FADE_OUT_MS = 200
 
     fun cardWidth(size: GtvCardSize): Float = when (size) {
         GtvCardSize.SMALL -> 122f
@@ -146,13 +187,21 @@ object GtvLayout {
      *
      * [screenWidthDp] 由调用方传入(`CategoryRow` 读 `LocalConfiguration.current.screenWidthDp`)——
      * 这个函数本身依然不含任何 Compose 类型,继续可以纯 JVM 单测(见 `GtvLayoutTest`)。
+     *
+     * **owner 反馈 Round 4(2026-09-21)补丁,§5**:`focusRight` 现在加了一份 [appFocusOverflow]——
+     * app 卡片聚焦时会缩放 [APP_FOCUS_SCALE] 倍并外扩描边(`gtvAppFocusFrame`),视觉右缘比
+     * 布局右缘更靠右;这个判断原本只看布局右缘,会在「布局右缘刚好没超、但缩放 + 描边之后的
+     * 视觉右缘已经超出屏幕」时误判成不需要挪行,结果最右那张完全可见的卡的描边被屏幕边缘裁掉。
+     * 不改 `rowPitch`——溢出预算的验证见 `GtvLayoutTest`「app 卡片聚焦溢出」一节与
+     * owner-feedback-fix-report.md「Round 4 §5」。
      */
     fun rowShiftX(focusedIndex: Int, size: GtvCardSize, screenWidthDp: Float): Float {
         val focused = focusedIndex.coerceAtLeast(0)
         // 焦点卡右缘的位置,按行尚未平移时的自然布局算(与 pre-Task-7 的 focusRight 同一推导,
         // 只是把 Theme.SidePadding / metrics.cardWidth / metrics.cardSpacing 换成这里的
-        // CONTENT_KEYLINE / cardWidth(size) / CARD_GAP)。
-        val focusRight = CONTENT_KEYLINE + cardWidth(size) * (focused + 1) + CARD_GAP * focused
+        // CONTENT_KEYLINE / cardWidth(size) / CARD_GAP),再加上 Round 4 的缩放 + 描边视觉溢出。
+        val focusRight = CONTENT_KEYLINE + cardWidth(size) * (focused + 1) + CARD_GAP * focused +
+            appFocusOverflow(cardWidth(size))
         // 期望的右侧留白与左基准线对称,同样取 CONTENT_KEYLINE;超出这条线才移动。
         val overRight = focusRight + CONTENT_KEYLINE - screenWidthDp
         return if (overRight > 0f) -overRight else 0f

@@ -919,12 +919,13 @@ private fun AddCard(
     val accent = LocalThemeColors.current.accent
     // Ruling R18(终审 2026-09-20):Decision B1 把「聚焦放大 1.1 倍」的画法整体作废,不只管首页——
     // 这里原来用 1.12 倍缩放 + 换底色补偿(这条注释本身就是当年为什么加缩放的解释:「加号原来只
-    // 换个底色,暗背景下看不出『我选中的是它』」),现在跟 AppCard 一样改用外扩描边,底色不再
-    // 随聚焦变化(AppCard 的 containerColor / focusedContainerColor 本来就给同一个值,描边已经是
-    // 完整的聚焦提示,不需要再叠一层底色)。
+    // 换个底色,暗背景下看不出『我选中的是它』」),后来跟着 AppCard 改成过外扩描边、不缩放。
+    // **owner 反馈 Round 4 起又跟 AppCard 一起改回缩放**——这次不是走当年 R18 作废的那条路
+    // (库默认 1.1x + 换底色),是 Google app tile 的真实处理(gtvAppFocusFrame:缩放
+    // GtvLayout.APP_FOCUS_SCALE 倍 + 描边贴缩放后边缘),底色仍然不随聚焦变化。
     Box(
         modifier = modifier
-            .gtvFocusStroke(focused, accent, metrics.cardCorner)
+            .gtvAppFocusFrame(focused, accent, metrics.cardCorner)
             .size(metrics.cardWidth, metrics.cardHeight)
             .clip(RoundedCornerShape(metrics.cardCorner))
             .background(Theme.AddCardBackground)
@@ -987,24 +988,22 @@ private fun MissingCard(
     isRowStart: Boolean = false,
     isLastRow: Boolean = false,
     isFirstRow: Boolean = false,
-    /** 搬运中被搬的就是它(M4b §0-18):Ruling R18 起真的与 `AppCard(moving = true)` 同一道外扩
-     *  描边(gtvFocusStroke,highlight 色),聚焦与否都画——不再是旧版的 3dp accent 内边框
-     *  (当年这条注释就说「同一道描边」,但代码其实是另一套画法,两者名不副实)。 */
+    /** 搬运中被搬的就是它(M4b §0-18):与 `AppCard(moving = true)` 同一道固定几何的高亮描边
+     *  (`gtvAppFocusFrame` 的 `moving` 分支,highlight 色),聚焦与否都画,不随聚焦缩放变化。 */
     moving: Boolean = false,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(metrics.cardCorner)
     val accent = LocalThemeColors.current.accent
-    // Ruling R18(终审 2026-09-20):与 AppCard 统一成同一种画法——container 不随聚焦变色,
-    // 聚焦只用外扩 accent 描边表示;moving 换成同一支笔的 highlight 版本(与 accent 同时成立时
-    // 两者仍可辨,理由见 AppCard.kt 上 moving 参数的说明)。原来的「聚焦变亮红」与「移动态 3dp
-    // 内描边」是编辑页里独有的第三、第四种画法,与首页/AddCard 都不一致。
+    // Ruling R18(终审 2026-09-20)+ owner 反馈 Round 4:与 AppCard 统一成同一种画法——container
+    // 不随聚焦变色,聚焦用 gtvAppFocusFrame 的缩放 + 贴边描边表示;moving 换成同一支笔的
+    // highlight 版本、固定几何不缩放(与 accent 同时成立时两者仍可辨,理由见 AppCard.kt 上
+    // moving 参数的说明)。
     val movingColor = LocalThemeColors.current.highlight
     Box(
         modifier = modifier
-            .gtvFocusStroke(focused, accent, metrics.cardCorner)
-            .gtvFocusStroke(moving, movingColor, metrics.cardCorner)
+            .gtvAppFocusFrame(focused, accent, metrics.cardCorner, moving, movingColor)
             .size(metrics.cardWidth, metrics.cardHeight)
             .clip(shape)
             .background(Theme.MissingCardBackground)

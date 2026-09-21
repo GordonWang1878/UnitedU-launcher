@@ -151,9 +151,28 @@ object Theme {
     )
 
     val SidePadding = HomeLayout.SIDE_PADDING.dp
-    /** 焦点 / 位移动效:tv-material SurfaceScaleTokens 同一条减速曲线与进焦时长。 */
+    /** 焦点 / 位移动效:tv-material SurfaceScaleTokens 同一条减速曲线与进焦时长。main 线的行位移、
+     *  gtv 线的行位移(row shift x/y)、图片选择器的位移动画仍读这个——它们与下面的
+     *  [AppFocusEasing] 是两件不同的事:这个管「位置」,那个管「焦点淡入淡出/缩放」。 */
     val MotionEasing = androidx.compose.animation.core.CubicBezierEasing(0f, 0f, 0.2f, 1f)
     const val MotionInMs = 300
+
+    /**
+     * owner 反馈 Round 4(2026-09-21):Google 的 app tile 聚焦动画的真实插值器,从旧版 launcherx
+     * APK(1.0.595789376,资源名未混淆)反编译读出——`animator/card_focus`/`card_unfocus` 两个
+     * ObjectAnimator **都没有写 `interpolator` 属性**,Android 对 `ObjectAnimator` 的平台默认值是
+     * `AccelerateDecelerateInterpolator`,其真实实现(`android.view.animation
+     * .AccelerateDecelerateInterpolator#getInterpolation`)是
+     * `cos((t + 1) · π) / 2 + 0.5`——**不是** `FastOutSlowInEasing`,曲线形状不同,不能替换。
+     * gtv 线用在:`GtvFocusStroke.gtvAppFocusFrame`(app 卡片聚焦缩放 + 描边,`GtvLayout
+     * .APP_FOCUS_SCALE`/`FOCUS_FADE_IN_MS`/`FOCUS_FADE_OUT_MS`)、`GtvFocusStroke.gtvFocusStroke`
+     * (描边淡入淡出,复用同一对时长常量)、`GearMenu.MenuPill` 的填色、`GtvTopBar` 顶栏图标的填色——
+     * 后两处 Google 的资源只给了时长(`top_nav_animation_duration_focus/unfocus`,菜单项没有独立
+     * 引用),插值器本身没有单独核实,按同一份 APK 里其它焦点动画一致沿用 AccelerateDecelerate、
+     * 不额外引入第三条曲线来处理,这一点在各自调用点的注释里另有说明。 */
+    val AppFocusEasing = androidx.compose.animation.core.Easing { t ->
+        (kotlin.math.cos((t + 1f) * Math.PI) / 2.0 + 0.5).toFloat()
+    }
     /** 编辑页专用(观感不动,M8 不碰二级界面);随二级界面换皮时删。 */
     val EditRowSpacing = 25.4.dp
     val EditRowTitleGap = 2.3.dp

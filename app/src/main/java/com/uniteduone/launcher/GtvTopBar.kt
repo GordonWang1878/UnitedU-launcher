@@ -180,17 +180,22 @@ private fun TopBarIconButton(
     // (content 同理):无论库内部怎么在这两个状态间切换,切换前后读到的都是我们这一帧算好的
     // 同一个颜色,不会有它自己的瞬时跳变。目标色沿用原来的库默认值(容器 onSurface 反白、
     // 图标 inverseOnSurface,与旧的 TopPills 一致,这里只是把「瞬间到达」换成「动画到达」)。
+    // **owner 反馈 Round 4(2026-09-21)**:时长换成 Google 实测的顶栏专属值——
+    // `integer/top_nav_animation_duration_focus = 100`/`_unfocus = 200`
+    // (`GtvLayout.TOP_NAV_FADE_IN_MS`/`TOP_NAV_FADE_OUT_MS`),不再是 app 卡片那一对
+    // FOCUS_FADE_IN_MS/OUT_MS。曲线用 `Theme.AppFocusEasing`——该资源本身没有单独核实
+    // interpolator,按同一份 APK 里其它焦点动画一致沿用 AccelerateDecelerate,不引入第三条曲线。
     var focused by remember { mutableStateOf(false) }
     val scheme = MaterialTheme.colorScheme
-    val animSpec = { ms: Int -> tween<Color>(durationMillis = ms, easing = Theme.MotionEasing) }
+    val animSpec = { ms: Int -> tween<Color>(durationMillis = ms, easing = Theme.AppFocusEasing) }
     val containerColor by animateColorAsState(
         targetValue = if (focused) scheme.onSurface else Color.Transparent,
-        animationSpec = animSpec(if (focused) GtvLayout.FOCUS_FADE_IN_MS else GtvLayout.FOCUS_FADE_OUT_MS),
+        animationSpec = animSpec(if (focused) GtvLayout.TOP_NAV_FADE_IN_MS else GtvLayout.TOP_NAV_FADE_OUT_MS),
         label = "topBarIconContainer",
     )
     val contentColor by animateColorAsState(
         targetValue = if (focused) scheme.inverseOnSurface else accent,
-        animationSpec = animSpec(if (focused) GtvLayout.FOCUS_FADE_IN_MS else GtvLayout.FOCUS_FADE_OUT_MS),
+        animationSpec = animSpec(if (focused) GtvLayout.TOP_NAV_FADE_IN_MS else GtvLayout.TOP_NAV_FADE_OUT_MS),
         label = "topBarIconContent",
     )
     IconButton(

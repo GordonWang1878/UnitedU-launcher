@@ -238,15 +238,17 @@ private fun MenuPill(
     val accent = LocalThemeColors.current.accent
     // Fix 3(owner 反馈 R2,2026-09-20):填色焦点(spec §0「四种焦点画法」之一)原来是瞬间切换——
     // `if (focused) accent else MenuItemIdle` 直接喂给 background,没有过渡。改用
-    // animateColorAsState,时长与 gtvFocusStroke 共用同一对常量(同一次反馈下的同类修复,
-    // 见 GtvLayout.FOCUS_FADE_IN_MS 的 KDoc)。textColor 不在这次修复范围内——它只在聚焦/未聚焦
-    // 两态之间瞬时切换黑白对比色,文字本身不适合做透明度过渡(会有一瞬间对比度不够的中间态),
-    // 这里只 animate 底色。
+    // animateColorAsState,时长与 gtvFocusStroke/gtvAppFocusFrame 共用同一对常量(owner 反馈
+    // Round 4 起是 Google 实测的 card_focus/card_unfocus 150ms,见 GtvLayout.FOCUS_FADE_IN_MS
+    // 的 KDoc——菜单项本身没有独立测量,是为了整条线焦点手感统一而借用同一个数字与同一条曲线
+    // Theme.AppFocusEasing,如实记录不是又量到了菜单项专属的值)。textColor 不在这次修复范围
+    // 内——它只在聚焦/未聚焦两态之间瞬时切换黑白对比色,文字本身不适合做透明度过渡(会有一瞬间
+    // 对比度不够的中间态),这里只 animate 底色。
     val fill by animateColorAsState(
         targetValue = if (focused) accent else GtvTokens.MenuItemIdle,
         animationSpec = tween(
             durationMillis = if (focused) GtvLayout.FOCUS_FADE_IN_MS else GtvLayout.FOCUS_FADE_OUT_MS,
-            easing = Theme.MotionEasing,
+            easing = Theme.AppFocusEasing,
         ),
         label = "menuPillFill",
     )

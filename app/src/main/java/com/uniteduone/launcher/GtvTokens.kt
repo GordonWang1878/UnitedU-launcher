@@ -34,9 +34,16 @@ object GtvTokens {
      * **HeroGradientNear 现在是 0.96(不再是 R22 的 0.78,也不是 Round 2 A/B 对比里的「A」)**:
      * Round 2 出的 A(0.78)/B(0.96)对比图 `docs/screenshots/gtv-gradient-variants-*.jpg` 里,
      * owner 选择了更接近 Google「近纯黑」读法的 B,Item 4 就此定案,不再是待选项。
+     *
+     * **owner 反馈 Round 4(2026-09-21)§6:底色从 `Color.Black` 换成 [MenuBg]**:R24 两道衰减
+     * 叠满时纯灰壁纸的亮度只压到约 5(128×0.04²);controller 量参考截图左列亮度恒为 15、
+     * 长按菜单底 `rgb(14,14,15)`——Google 的「黑」其实是它的 surface 色,亮度 ≈15,不是数学纯黑
+     * 0。改用 [MenuBg](`0xFF0E0E0F`,与长按菜单底同一个值)当衰减终值的颜色,透明度不变
+     * (仍是 0.96/0),纯灰壁纸的地板亮度因此从 ~5 抬到 ~14–18(两道衰减都没叠满的边缘区域更亮,
+     * 都叠满的角落最接近 14——见 `docs/WORKLOG.md` 2026-09-21 Round 4 条目的推导)。
      */
-    val HeroGradientNear: Color = Color.Black.copy(alpha = 0.96f)
-    val HeroGradientFar: Color = Color.Black.copy(alpha = 0f)
+    val HeroGradientNear: Color = MenuBg.copy(alpha = 0.96f)
+    val HeroGradientFar: Color = MenuBg.copy(alpha = 0f)
     /** 横向衰减在这个屏宽分数之前维持 [HeroGradientNear],不提前淡出。 */
     const val HeroGradientHPlateau = 0.42f
     /** 横向衰减到这个屏宽分数完全淡成 [HeroGradientFar];再往右壁纸完全透出,不再压暗。 */

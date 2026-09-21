@@ -40,10 +40,12 @@ import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.MaterialTheme
 
 /**
- * 16:9 卡片(M8:tv-material `Card`)。进 300 / 出 500 / 按下 120ms 仍是库默认,这里不再自己画光晕 / 投影。
- * **焦点画法改自 Google TV 实测(gtv 线 Task 5)**:不放大、不用库默认的 3dp `colorScheme.border`——
- * `scale`/`border` 都显式设成 1f/`Border.None`,换成 [GtvFocusStroke.gtvFocusStroke] 在布局框外
- * `GtvLayout.FOCUS_OUTSET` dp 处画 `GtvLayout.FOCUS_STROKE` dp 细描边,颜色用主题 accent。
+ * 16:9 卡片(M8:tv-material `Card`)。按下 120ms 仍是库默认,这里不再自己画光晕 / 投影。
+ * **焦点画法(owner 反馈 Round 4 改为 app tile 处理)**:不用库默认的 1.1×缩放/3dp
+ * `colorScheme.border`——`scale`/`border` 都显式设成 1f/`Border.None`,自己接管:聚焦时缩放
+ * [GtvLayout.APP_FOCUS_SCALE] 倍 + 描边贴着缩放后的边缘外扩,由
+ * [GtvFocusStroke.gtvAppFocusFrame] 实现(取代了 Task 5 时套用的 content-card 静态描边,
+ * 见该函数 KDoc「Google 对 app tile 的真实处理是放大」)。
  * 焦点上报仍挂在传给 Card 的 modifier 上:它排在库内部 `focusable` 之前,能观察到同一个焦点目标(铁律 2 / 4)。
  * 长按由 MainActivity.dispatchKeyEvent 按 600ms 判(M4),所以 `onLongClick = null`;
  * Activity 吞掉重复事件后库只看到「短按 DOWN → UP」= 点击。
@@ -98,6 +100,10 @@ fun AppCard(
     // GtvFocusStroke.kt 的 drawBehind 负偏移实现(见下面 Card 的 modifier 链上两条 gtvFocusStroke)。
     // 库默认的 1.1x 缩放 / 3dp 描边都不要了,scale 显式钉 1f,border 显式钉 None——包括移动态:
     // 它以前借的是库的 Border 机制画贴边描边,现在改用同一套 gtvFocusStroke 外扩,只是换色。
+    // Google TV 的 app tile 聚焦画法(owner 反馈 Round 4):缩放 + 描边贴着缩放后边缘,由
+    // GtvFocusStroke.gtvAppFocusFrame 实现(取代 Task 5 时套用的 content-card 静态外扩描边)。
+    // 库默认的 1.1x 缩放 / 3dp 描边都不要了,scale 显式钉 1f,border 显式钉 None——我们自己的缩放
+    // 走 graphicsLayer(在 gtvAppFocusFrame 内部),不经过库的 CardDefaults.scale。
     val border = CardDefaults.border(focusedBorder = Border.None, border = Border.None)
     val cardTint = if (themed) ColorFilter.colorMatrix(ColorMatrix(cardTintMatrix(accent.toArgb() and 0xFFFFFF))) else null
     // 容器色:有图的卡透明(横幅铺满,库的 clip 裁圆角);主题化统一铺深 accent 底;图标回落卡铺边缘色;
@@ -110,8 +116,10 @@ fun AppCard(
     }
     val shape = RoundedCornerShape(metrics.cardCorner)
     Column(
-        // 聚焦卡浮到邻居上面(外扩描边不被右邻居盖住)。标题是 Card 外层 Column 的兄弟节点,
-        // 不在库的 graphicsLayer 缩放范围内——反正现在也不缩放了,标题始终固定大小贴在卡片下方。
+        // 聚焦卡浮到邻居上面(缩放 + 外扩描边不被右邻居盖住)。标题是 Card 外层 Column 的兄弟节点,
+        // 不在 gtvAppFocusFrame 的 graphicsLayer 缩放范围内(那层只包在 Card 自己的 modifier 链上)——
+        // 标题始终按未缩放的 metrics.cardWidth 布局、固定大小贴在卡片下方,不会跟着卡片一起放大
+        // (owner 反馈 Round 4「no layout change」;卡片视觉上长大时标题原地不动,是设计而非疏漏)。
         modifier = Modifier.zIndex(if (focused) 1f else 0f).width(metrics.cardWidth),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -119,10 +127,9 @@ fun AppCard(
             onClick = onClick,
             onLongClick = null,
             modifier = modifier
-                // 两条画在布局框外(负偏移,见 GtvFocusStroke.kt);同时成立时 moving 的 highlight 描边
-                // 排在后面、盖在 accent 描边上面——被搬的卡在搬运过程中始终认得出来。
-                .gtvFocusStroke(focused, accent, metrics.cardCorner)
-                .gtvFocusStroke(moving, movingColor, metrics.cardCorner)
+                // 聚焦缩放 + 描边(贴缩放后边缘)+ 移动态高亮描边(固定几何,不缩放),
+                // 三者都在这一条 gtvAppFocusFrame 里,见其 KDoc 里的绘制顺序说明。
+                .gtvAppFocusFrame(focused, accent, metrics.cardCorner, moving, movingColor)
                 .size(metrics.cardWidth, metrics.cardHeight)
                 .focusProperties {
                     if (isRowStart) left = FocusRequester.Cancel
@@ -138,8 +145,8 @@ fun AppCard(
                 focusedContainerColor = container,
                 pressedContainerColor = container,
             ),
-            // 不放大(Google TV 实测不缩放);glow 仍用库默认 Glow.None。描边全部让给上面
-            // 两条 gtvFocusStroke,这里钉 None,避免库自己再画一圈贴边的 3dp 描边。
+            // 库自己的缩放/glow 都关掉:缩放由 gtvAppFocusFrame 的 graphicsLayer 接管,
+            // glow 仍用库默认 Glow.None。描边全部让给 gtvAppFocusFrame,这里钉 None。
             scale = CardDefaults.scale(focusedScale = 1f),
             border = border,
         ) {
