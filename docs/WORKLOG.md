@@ -1045,3 +1045,15 @@ worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs
 - **顺手记了三条新坑进 CLAUDE.md**(见该文件「模拟器验证的坑」):`screenrecord --output-format=frames` 的逐帧字节对齐没有文档、多帧比色不可靠,改用无参数 `screencap`(16 字节头 + RGBA8888,1.6s/次,比 `-p` 的 PNG 快 6 倍)才稳;`unitedu-gtv`(装了 Google `launcherx` 那台)上 `force-stop` 紧接 `am start -n` 经常第一次会落回 `launcherx`,要发两次;`layout.json` 同一行填两个相同包名会被 `.distinct()` 静默去重,人为造双卡测试行必须用两个不同的真实包。
 - `gradle test`:273×2 = 546,0 失败(比本轮任务给的基线 272×2=544 多 2 个——Fix 1 补的那一个 `showTitles=true` 测试,乘以两个 build variant)。
 - 报告:`.superpowers/sdd/2026-09-20-gtv-line/owner-feedback-fix-report.md`「Round 2」一节。未推送(等 Gordon 说「推」)。
+
+## 2026-09-21 · owner 真机走查反馈 Round 3:R24 二维背景衰减
+
+- Gordon 看完 Round 2 的 A/B 渐变对比图后指出:横向渐变有了,纵向没有;Google 是「右上角」一块图、整体黑底,不是「只从右到左压暗、上下不变」。他是对的——之前的实现嘴上说「右上角一块图」,做的却只是一道左右渐变。controller 量了参考截图的 7×8 亮度网格给出裁定 R24(数值见 owner-feedback-fix-report.md「Round 3」),本轮据此实现:
+  - `HeroGradientNear` 从 0.78 改到 **0.96 并转正**(Round 2 A/B 对比里 Gordon 选中的「B」,不再是待选项)。
+  - 新增一道**固定在屏幕坐标上**的纵向衰减:0→30% 屏高全透明,30%→66% 淡入到 0.96,66% 以下维持 0.96——不读 `anchorTop`/`shift`/`activeRow` 任何一个,行位移不带着背景一起走。
+  - **删掉 Round 2 那版跟着行位移走的竖直 scrim**(`scrimTop`/`scrimTopPx`/`screenBottomPx` 以及连带变成死代码的 `screenH`/`density`/`LocalDensity` 全部清掉,`GtvTokens.ScrimBottomAlpha` 零调用点一并删除)。两条独立的纯黑半透明 1D 渐变(横向一层、纵向一层)按 Compose 默认的图层叠加合成,数学上就是透光率相乘,不需要手写 2D shader,与网格量出的「乘积形状」直接对应。
+  - `HeroGradientPlateau`/`HeroGradientFadeEnd` 顺手改名 `HeroGradientHPlateau`/`HeroGradientHFadeEnd`(加 H 与新的 V 系列常量对称,单文件改动,grep 过没有遗漏)。
+- 装机验证(`unitedu-gtv` AVD,决定性方法用纯灰壁纸 `zz-flat-grey.jpg`,亮度 128,这个项目已经因为用带内容的图判断被坑过两次):7×8 亮度网格扫出的形状与裁定完全吻合——右上角(y≤28%、x≥88%)恒为 128,左上角为 5.0(=128×0.04,横向 0.96 的预测值,纵向还没介入),最下两行(y=85%/96%)**跨所有 x 列**都在 0–5,与 Google 参照网格「y=85% 整行 15–19」同一种「纵向兜底、横向不再起作用」的读法一致。x=97% 处逐像素纵向扫描零台阶(单步最大增量 0.0)。**同一张网格在 activeRow=0 与 activeRow=2 之间 56 个数字逐一相同**——证实背景衰减不随行滚动移动,这是本轮裁定的核心要求。owner 自己的壁纸(萤火虫)在 row0/row2 两个状态下也复现了「亮区只留在右上角、其余全黑」的观感,对比图 `docs/screenshots/gtv-backdrop-2d-row{0,2}.jpg`。顶栏时钟/字标现在正好落在最亮、最少遮罩的那个角上,两张测试壁纸上都清晰可读,没发现可读性问题(没有拿一张刻意刺眼的亮壁纸测,留作待办)。
+- Round 2 三处修复(x=116 焦点基准线、卡片标题不裁字、焦点淡入淡出)本轮代码零改动,截图里顺带确认外观没有回归,不再重新验证一遍。
+- `gradle test`:273×2=546,与 Round 2 结束时一致——这轮是纯渲染/token 改动,没有新增或修改 `GtvLayout` 的几何公式,没有新单测可写。
+- `layout.json`/`settings.json` 验证后原样还原。报告:`.superpowers/sdd/2026-09-20-gtv-line/owner-feedback-fix-report.md`「Round 3」。未推送(等 Gordon 说「推」)。

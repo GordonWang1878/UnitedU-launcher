@@ -20,7 +20,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -332,8 +331,6 @@ fun HomeScreen(
 
     // 垂直位置自己算,不用 verticalScroll(铁律 1)。gtv 线:hero 区固定 192dp + 顶栏 34+36dp(spec §3/§4),
     // 应用行顶部起点是这三个常量之和,不再是「屏高 × 2/3」(HomeLayout.anchorTop 那套比例锚点,main 线仍用)。
-    val screenH = LocalConfiguration.current.screenHeightDp.toFloat()
-    val density = LocalDensity.current
     val activeRowSafe = activeRow.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
     val anchorTop = (GtvLayout.HERO_HEIGHT + GtvLayout.TOP_BAR_TOP + GtvLayout.TOP_BAR_HEIGHT).dp
     val shift by animateDpAsState(
@@ -497,14 +494,6 @@ fun HomeScreen(
             animationSpec = tween(if (effectiveIdle) 1200 else 400),
             label = "contentAlpha",
         )
-        // scrim(spec §2.1):#1C1B1F α0 → α[GtvTokens.ScrimBottomAlpha];顶边 = 锚点上方 60dp 再加 shift,
-        // 底边固定屏底——行往上推时它变高,下方新露出的行始终在暗层里。待机时随内容一起淡出。
-        // **scrimTop 可以是负值**(Fix 2,owner 反馈 R2,2026-09-20):R15 之后 rowPitch 从 125.5 涨到
-        // 143.5625+(CJK 行距/卡片标题让位,见 ROW_TITLE_LINE / CARD_TITLE_LINE 的 KDoc),三行内容
-        // 在 activeRow=2 时 anchorTop − SCRIM_LEAD + shift ≈ −85dp——锚点被行位移推得比屏顶还高。
-        // 这在 main 线 / 本线早期都没出现过:main 线的 scrimTop 恒正,模拟器当时也没有第三行内容
-        // 触发过 activeRow=2。下面画法必须能吃负值,见其后的注释。
-        val scrimTop = anchorTop - HomeLayout.SCRIM_LEAD.dp + shift
         val surface = androidx.tv.material3.MaterialTheme.colorScheme.surface
         // 首页提示文字的字样:空桌面求救那句与移动态底部提示共用一份(M4b spec §0-10「沿用现有提示文字样式」)
         val hintStyle = TextStyle(
@@ -512,15 +501,19 @@ fun HomeScreen(
             color = androidx.tv.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
             fontSize = 15.sp,
         )
-        // Ruling R22(终审 2026-09-20):hero 从左到右的暗色渐变——壁纸之前整块没有压暗,顶栏
-        // 药丸组与贴着 CONTENT_KEYLINE 左基准线的行标题直接落在壁纸上。参考真机截图
-        // docs/screenshots/gtv/01-home-default.jpg:图像内容在右侧,左侧近黑。数值出处见
-        // GtvTokens 里几个 HeroGradient* 常量的注释,这里只画,不重复定义参数。
+        // Ruling R24(终审 2026-09-21,owner 真机走查 Round 3):**2D 背景衰减**,取代 R22 的纯横向
+        // 渐变加 Round 2 那版跟着行位移走的竖直 scrim。owner 指出 Google 的暗色区域是「右上角一块图,
+        // 其余整块黑底」,不是「只从右到左压暗、上下不变」;量参考截图 `docs/screenshots/gtv/01-home-default.jpg`
+        // 的 7×8 亮度网格证实形状是**横向衰减 × 纵向衰减的乘积**(推导见 GtvTokens.HeroGradientNear
+        // 的 KDoc 与 `docs/WORKLOG.md` 2026-09-21 R24 条目),不是单一方向的线性渐变。
+        // 下面画两条独立的纯黑半透明 1D 渐变(这一层管横向,下一层管纵向),Compose 默认的图层
+        // over 合成本身就是透光率相乘,不需要手写 2D shader。
+        //
         // 铺满全屏(不只是 192dp 的 hero 条):行标题贴的是同一条左基准线,一路往下到最后一行都是,
-        // 只压 hero 那一段的话第一行以下的标题依旧没人管。画在竖直 scrim **之前**(更底层),
-        // 两者叠加的区域(左下角)由竖直 scrim 的画法决定最终颜色,不会互相抵消。
+        // 只压 hero 那一段的话第一行以下的标题依旧没人管。
         // 随 contentAlpha 一起淡出——待机 / 自定义屏保时两层暗色一起消失,只剩干净壁纸,
-        // 与 HomeScreen 顶部 KDoc「screensaver 为真时行 / 渐变 / 顶栏一律淡出」说的是同一件事。
+        // 与 HomeScreen 顶部 KDoc「screensaver 为真时行 / 渐变 / 顶栏一律淡出」说的是同一件事;
+        // 两层共读同一个 `contentAlpha`,不会互相错拍。
         Box(
             Modifier
                 .fillMaxSize()
@@ -528,37 +521,27 @@ fun HomeScreen(
                 .background(
                     androidx.compose.ui.graphics.Brush.horizontalGradient(
                         0f to GtvTokens.HeroGradientNear,
-                        GtvTokens.HeroGradientPlateau to GtvTokens.HeroGradientNear,
-                        GtvTokens.HeroGradientFadeEnd to GtvTokens.HeroGradientFar,
+                        GtvTokens.HeroGradientHPlateau to GtvTokens.HeroGradientNear,
+                        GtvTokens.HeroGradientHFadeEnd to GtvTokens.HeroGradientFar,
                     ),
                 ),
         )
-        // Fix 2(owner 反馈 R2):**测量先发生,偏移后发生**——铁律 §1「绝不用可滚动容器」那条注释
-        // 说的「自算位移救不了 offset 发生在测量之后」是同一条规律的第三次应用。旧画法
-        // `.fillMaxWidth().offset(y = scrimTop).height((screenH.dp - scrimTop).coerceAtLeast(0.dp))`
-        // 里,`height()` 问父容器要的高度不可能超过屏高(screenH.dp - scrimTop 在 scrimTop 为负时
-        // 反而**大于** screenH,但父容器的最大高度约束本来就是 screenH,`height()` 请求的尺寸会被
-        // 这个上限**测量期夹紧**);等测量定下来之后 `.offset` 才把整个 Box 向上搬 |scrimTop| dp——
-        // Box 的下边界被搬到小于屏底的位置,屏幕最下面 |scrimTop| dp 完全没有任何节点覆盖,不是
-        // 「渐变淡到 0」,是压根没画,与它上方 0.8α 的实心区之间有一条硬边(owner 描述的「阴影边界
-        // 往上跑,底部露出一条没有阴影的硬边」)。
-        //
-        // 改法:Box 恒 `fillMaxSize()`——不再让测量牵扯进 scrimTop,scrimTop 只喂给渐变的
-        // startY(px,可以为负)。`Brush.verticalGradient` 在 y < startY 时按默认 `TileMode.Clamp`
-        // 钉在第一个 stop(全透明),endY 钉在屏幕底(渐变终点本来就是屏底,不会被再夹一次)——
-        // startY 为负只是说「y=0 时已经在渐变中段」,没有谁需要比屏幕更高的 Box。
-        val scrimTopPx = with(density) { scrimTop.toPx() }
-        val screenBottomPx = with(density) { screenH.dp.toPx() }
+        // 纵向的一半(R24 新增)。**固定在屏幕坐标上,不读 anchorTop/shift/activeRow 里任何一个**——
+        // 这是与 Round 2 那版 scrimTop 竖直 scrim 的关键区别:Google 的暗色窗口不随内容行的焦点
+        // 滚动而移动,行位移只搬内容,不搬背景;所以这里改用默认(无 startY/endY)的
+        // `Brush.verticalGradient`,两个 stop 的分数直接对应这个 `fillMaxSize()` Box 自身的实际
+        // 高度——完全不需要 Round 2 那套「转 px、算 scrimTop」的机制,那套机制本身正是这次删掉的
+        // 东西(它在 scrimTop 为负时会在屏幕底部露出硬边,详见 `docs/WORKLOG.md` Round 2 条目里
+        // 「measure 先于 offset」的完整推导——那次的教训移到那边存档,不再在这里为一段已删除的
+        // 代码重复解释它当年为什么错)。
         Box(
             Modifier
                 .fillMaxSize()
                 .alpha(contentAlpha)
                 .background(
                     androidx.compose.ui.graphics.Brush.verticalGradient(
-                        0f to surface.copy(alpha = 0f),
-                        1f to surface.copy(alpha = GtvTokens.ScrimBottomAlpha),
-                        startY = scrimTopPx,
-                        endY = screenBottomPx,
+                        GtvTokens.HeroGradientVFadeStart to GtvTokens.HeroGradientFar,
+                        GtvTokens.HeroGradientVPlateau to GtvTokens.HeroGradientNear,
                     ),
                 ),
         )
