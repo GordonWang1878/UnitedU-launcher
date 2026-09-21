@@ -169,6 +169,69 @@ step5 再下一行                          bounds=[116,240][508,477]
 
 **教训**:此前两次用抓帧去量 Google 的焦点动画时长都失败,最后用了占位值——而答案一直在 APK 里。**以后「照 Google」的取数顺序:先翻 APK 资源 → 再量像素 → 都不行才用占位值并注明。**
 
+## 10d. 浏览缓动与焦点柔光(2026-09-21 第二次取数,owner 报「动效依然很不一样」后)
+
+owner 在模拟器上对比 Google TV 后报:「动效依然是很不一样的,比如上下滚动时页面内容的动效,焦点所在应用卡片或按钮的缓慢放大效果,都不一样。」以下是逐项查证结果。
+
+### 结论一:焦点缩放我们本来就对,不是差异来源
+
+从 §10c 同一份旧版 APK 再核一遍,并补上目标版的静态像素实测:
+
+| 项 | Google | UnitedU(gtv 线) | |
+|---|---|---|---|
+| 时长 | `default_focused_animation_duration_ms = 150`,`card_focused_animation_duration_ms` 与 `button_focused_animation_duration_ms` 都别名到它 | `FOCUS_FADE_IN_MS`/`OUT_MS` = 150 | ✅ |
+| 曲线 | `animator/card_focus`/`card_unfocus` **不写 `interpolator` 属性** → 平台默认 `AccelerateDecelerate` = `cos((t+1)π)/2+0.5` | `Theme.AppFocusEasing` 同式 | ✅ |
+| 倍率 | 目标版静态实测 ×1.10(Live TV 磁贴包围盒 152→168 px) | `APP_FOCUS_SCALE = 1.105` | ✅ |
+
+所以 owner 说的「缓慢放大不一样」不在时长、曲线或倍率上 —— 见结论三。
+
+### 结论二:浏览位移的缓动,我们用错了曲线
+
+APK 里有一条**专门命名给浏览用**的插值器:
+
+- `anim/tv_easing_browse` = `pathInterpolator(controlX1=0.18, controlY1=1, controlX2=0.22, controlY2=1)`
+- 设计 token `interpolator/gtvm3_sys_motion_easing_browse` = `cubic-bezier(0.2, 1, 0.2, 1)`(同一条曲线的取整版)
+
+它是**极硬的减速**:y1 在 x1=0.18 处就已经到 1,意味着位移一开始就冲出去、随后拖一条很长的渐近尾巴。我们原先用的是 `Theme.MotionEasing = CubicBezierEasing(0, 0, 0.2, 1)`(等同 Material 的标准减速)+ 300 ms(等同 `material_motion_duration_long_1`,与 browse 无关的通用值)。两条曲线的手感差别很大。
+
+顺带抄下同一份 APK 里 gtvm3 的整套缓动 token,后续要照 Google 时直接查表:
+
+| token | cubic-bezier |
+|---|---|
+| browse | 0.2, 1, 0.2, 1 |
+| standard | 0.2, 0, 0, 1 |
+| standard_accelerate | 0.3, 0, 1, 1 |
+| standard_decelerate | 0, 0, 0, 1 |
+| emphasized_accelerate | 0.3, 0, 0.8, 0.2 |
+| emphasized_decelerate | 0.1, 0.7, 0.1, 1 |
+| enter | 0.1, 1, 0.4, 1 |
+| exit | 0.4, 1, 0.1, 1 |
+| linear | 0, 0, 1, 1 |
+
+**时长没拿到逐字证据**:`tv_easing_browse` 只被代码引用,全 APK 没有任何 XML 引用它(按资源 ID 的小端字节在 `res/*.xml` 里全量搜过,0 命中),所以查不到它配的 duration。APK 里唯一以 browse 命名的时长是 `lb_browse_rows_anim_duration = 250`,设计 token `gtvm3_sys_motion_duration_medium1` 也是 250 —— 取 250,并在代码 KDoc 里注明证据强度弱于缓动。
+
+### 结论三:焦点柔光我们完全没画,这才是「感觉不到动效」的主因
+
+模拟器静态实测(1920×1080 @ density 2.0;Google 的 76 dp 圆形 app 磁贴,聚焦后 84 dp,描边峰值在半径 43 dp 处)。取聚焦帧与未聚焦帧的同点亮度之差,单位 /255:
+
+| 半径 dp | 46 | 49 | 52 | 55 | 58 | 61 | 64 | 67 | 70 | 73 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 高出未聚焦 | +44 | +36.5 | +33 | +30 | +26.6 | +23.6 | +20.7 | +18 | +15.9 | +13.7 |
+
+正上方与正左方两条剖面几乎重合,排除了标签文字与邻居磁贴的干扰(未聚焦侧的底色稳定在 14/255)。换算成「超出描边外缘(半径约 44 dp)的距离 d」:d=2→+44、d=29→+13.7,近似指数衰减,半衰期约 16 dp,铺到 d≈30 dp 仍未归零。
+
+我们的 `gtvAppFocusFrame` 只画了一圈 2 dp 描边。**Round 4 之后 owner 说「你说已经修好了,但我完全感觉不到」,当时归因为「2 dp 细环在 190 ms 内淡入,沙发距离下不可见,连续性要靠大面积位移」—— 归因方向对,但漏了 Google 其实同时在画一层直径两倍于磁贴的柔光。**§5 里「2 dp 描边 + 柔光」这句话一直写着,只是实现时只落了前半句。
+
+### 方法:这台 AVD 量不了 ±50 ms 的动画时长
+
+本轮在模拟器上试了三种抓帧法,都不足以分辨 250 与 300 ms,记下来免得下次重走:
+
+1. `animator_duration_scale` 放大 30 倍:**launcherx 的行滚动不吃这个倍率**(走 RecyclerView 的 scroller,不是 ValueAnimator),30× 下第一帧就已走完。
+2. `adb exec-out screencap -p` 轮询:单次往返 1.2–1.5 s,而且连发会把模拟器压到掉帧,动画本身跟着变慢,测出来的时长偏长一个数量级。
+3. `screenrecord --output-format=frames`:格式已摸清 —— **每帧 20 字节头(4 字节 size + w/h/rowstride/bpp 各 4 字节)+ RGB888 裸数据**,480×270 时步长 388820 字节。但这台 AVD(swiftshader 软件渲染)实际只跑 30–40 fps 且**帧率在同一次录制内就会飘**,而且 frames 模式只在画面变化时吐帧,所以**帧号 ≠ 时间**,不能乘 16.67 ms。走 adb 管道还会再被带宽卡一道(480×270 裸流 38 MB/s),要录到设备本地 `/sdcard` 再拉回来。
+
+**还有一个自己造的坑**:`settings put global animator_duration_scale 30` 之后再 `settings delete`,**已经在跑的进程不一定重新读**。我因此把 Google 的焦点缩放误测成约 2 秒,差点据此得出「Google 比我们慢 5 倍」的错误结论。清干净的做法是 `settings put … 1.0` + `am force-stop` 目标应用再重启。
+
 ## 11. 还没量的(留给下一轮)
 
 1. ~~动画:焦点移动的时长与曲线~~ —— **2026-09-21 已从 APK 资源读到,见 §10c**。

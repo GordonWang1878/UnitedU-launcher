@@ -1073,3 +1073,33 @@ worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs
 - 另记:模拟器上的 GTV 版在 Round 5 还原设置时被清空(回到首次引导、无任何行),之后要在模拟器上做视觉核对需要先重建 `layout.json`。
 - **Round 5 已装上真机并由我逐项复核(端口变成 34949,Gordon 从电视页面读的)。** 行标题实测:大写字母 cap **20 px = 10.0 dp**,Google 同处是 19 px = 9.5 dp —— **差 1 px,是同一字号的渲染舍入,不是字号差**;改之前那一版我量成 36 px 其实是取样框套到了行图标上,不是文字(**教训:量字号前必须先看图确认取样框落在字上,别靠坐标猜**)。行图标实测 30 px = 15 dp,与 20 dp 的标题行盒配比合理。
 - **验证口径纠正**:此前我拿 Google 的「整行 ink 24 px」对我们的「整行 ink 33 px」得出「偏大 37%」——那是错的,Google 那行含 `p`/`y` 降部、我们的 VIDEO 全大写没有降部,**两者不可比**。正确口径是**大写字母的 cap height**,研究报告 §10 早就写过这条,我自己没照做。
+
+## 2026-09-21 · Round 6 真机装包 + 屏保大钟撤销(R26)+ 动效第二次取数(R27/R28)
+
+**起点**:Gordon 真机/模拟器实测后报三条 —— ①「字号看着舒服多了,但是左上角的齿轮和屏保按钮显得过大了。咪视界的填充色 OK 了」②「我看到屏保时还是在左边显示的那个大时钟」③「我在模拟器上玩了一会儿交互。动效依然是很不一样的,比如上下滚动时页面内容的动效,焦点所在应用卡片或按钮的缓慢放大效果,都不一样。」
+
+### ① Round 6 已装到真机,图标尺寸复核通过
+
+`192.168.1.22:34949` 装包后实测顶栏:齿轮字形 18.0×18.5 dp(Round 6 前是 25×26)、屏保 13.5×13.5 dp(改前 24×24),药丸轨道 88×36 dp、左起 58 dp 基准线,都对。
+
+**量测上的一个坑**:第一遍按固定包围盒去量,齿轮报成 34.5×34.5 dp —— 那是**聚焦时的浅色圆形填充**,不是字形。齿轮处于聚焦态时要先按圆心 + 半径把亮圆框出来,再在圆内(内缩 5 px)找暗色 ink 才是字形本身。
+
+### ② 系统屏保的 84 sp 大字时钟撤掉(Ruling R26,推翻 R9)
+
+查证:电视的 `screensaver_components = com.uniteduone.launcher.gtv/…/UnitedUDream`,即 **gtv 版自己的 Dream** —— 它按 R9 一直保留着 `HeroClock`。我原本猜「他看到的可能是旧包画的」,猜错了,是 gtv 版自己画的。
+
+R9 定于 Gordon 下达「gtv 线上 Google 原生有答案的直接照做、不出卡」之前;Google TV 的 ambient 屏保没有左上大字时钟。故推翻:`ClockWordmark` 由 private 放宽到 internal 并加 `shadow` 参数(与 `HeroClock` 同一条亮照片规则),`DreamContent` 改画它,右对齐 `CONTENT_KEYLINE`、顶 `TOP_BAR_TOP`。至此三处待机画面(首页待机顶栏 / 桌面自定义屏保 / 系统屏保)留下的都是同一行小字;R23 当时写的「两层不再长得一样不是遗留缺口」,本轮抹平了。`HeroClock` 在 gtv 线上自此无人调用(main 线仍在用,函数保留)。commit `2fabf05`。
+
+### ③ 动效:两条裁定,以及一次我自己造出来的假信号
+
+完整数据与方法见 `docs/research/2026-09-20-google-tv-launcherx-measurements.md` §10d。要点:
+
+- **焦点缩放我们本来就对**,不是差异来源。APK 里 `card_focus`/`card_unfocus` 是 150 ms + 平台默认 AccelerateDecelerate,目标版静态实测倍率 ×1.10 —— 与我们的 150/`AppFocusEasing`/1.105 三项全对。
+- **R27:浏览位移改用 Google 自己的 browse 缓动。** APK 有专门命名的 `anim/tv_easing_browse` = `pathInterpolator(0.18, 1, 0.22, 1)`(设计 token `gtvm3_sys_motion_easing_browse` = 0.2,1,0.2,1 是它的取整版),极硬减速 + 长尾;我们原先用 `Theme.MotionEasing`(0,0,0.2,1)+ 300 ms。时长取 250(`lb_browse_rows_anim_duration` 与 `gtvm3_sys_motion_duration_medium1` 都是 250),**证据强度弱于缓动**,已在代码 KDoc 注明。
+- **R28:补上焦点柔光。** Google 的焦点磁贴在 2 dp 描边之外还有一层柔光,峰值 +44/255、半衰期约 16 dp、铺到半径 73 dp 仍有 +13.7;我们一点没画。§5 里「2 dp 描边 + 柔光」这句一直写着,实现时只落了前半句。**这才是 Round 4 之后 Gordon 说「完全感觉不到动效」的主因** —— 当时归因「细环在沙发距离不可见」方向对,但没看出 Google 同时在画一层直径两倍于磁贴的柔光。
+
+**自己造的假信号(教训)**:`settings put global animator_duration_scale 30` 之后再 `settings delete`,**已经在跑的进程不一定重新读**。我因此把 Google 的焦点缩放测成约 2 秒,差点据此断言「Google 比我们慢 5 倍」。清干净的做法是 `settings put … 1.0` + `am force-stop` 目标应用再重启,重测得 6 帧,与我们 150 ms 的 5 帧基本一致。
+
+**这台 AVD 量不了 ±50 ms**:`animator_duration_scale` 对 launcherx 的行滚动无效(走 RecyclerView scroller);`screencap` 轮询单次 1.2–1.5 s 且会把模拟器压到掉帧、把动画本身拖慢;`screenrecord --output-format=frames` 格式已摸清(每帧 20 字节头 = 4 字节 size + w/h/rowstride/bpp,后接 RGB888 裸数据,480×270 步长 388820),但 swiftshader 只跑 30–40 fps 且帧率同一次录制内就飘,frames 模式又只在画面变化时吐帧,**帧号 ≠ 时间,不能乘 16.67 ms**;走 adb 管道还会被带宽再卡一道(480×270 裸流 38 MB/s),要录到 `/sdcard` 再拉。
+
+新增截图:`docs/screenshots/gtv/19-vertical-transition-frames.jpg`(Google 纵向换行的逐帧接触表,能看清整页平移 + hero 收起 + backdrop 交叉淡出三件事同时发生)、`20-app-tile-focused.jpg` / `21-app-tile-unfocused.jpg`(柔光对照)。
