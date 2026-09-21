@@ -31,7 +31,9 @@
 | `contentKeyline` | 58 dp | 左基准线,行标题/首卡/头像都对齐 |
 | `topBarHeight` | 36 dp | 药丸组高度 |
 | `topBarTop` | 34 dp | 顶栏距屏幕上缘 |
-| `topBarIcon` | 32 dp | 药丸组内的图标 |
+| `topBarIconBox` | 32 dp | 药丸组内图标按钮的触控/焦点框(a11y bounds,两个图标共用同一个框) |
+| `topBarGearGlyph` | 21.5 dp | 设置(齿轮)图标本身的绘制大小(owner 反馈 Round 6 起与上面的框分开,见 `GtvLayout.TOP_BAR_GEAR_GLYPH` KDoc) |
+| `topBarScreensaverGlyph` | 17.5 dp | 屏保(相册)图标本身的绘制大小,与齿轮不同(Google 两个图标本来就不一样大),见 `GtvLayout.TOP_BAR_SCREENSAVER_GLYPH` KDoc |
 | `topBarIconGap` | 8 dp | 组内图标间距 |
 | `topBarGroupGap` | 22 dp | 两组药丸之间(**本线只有一组,保留此 token 仅作记录**) |
 | `heroHeight` | 192 dp | 顶部留给壁纸的高度 |
@@ -113,7 +115,7 @@ cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的�
 
 - **药丸组 A 整个省略**:我们没有搜索、没有 Home/Apps 两个 tab、没有账号头像,照搬空壳没有意义(见 §9)。
 - **唯一那组药丸靠左,左缘对齐 `contentKeyline`(58 dp)**(Gordon 2026-09-20 裁定,方案 1,对照图 `docs/screenshots/gtv/18-mock-topbar-variants.png`)。这样保留 Google「左边是功能、右边是信息」的结构;左上角比 Google 空一块,但 hero 区本来就是留白给壁纸,两者连成一片。
-- **药丸组内容**:`设置`(32 dp)+ `屏保`(32 dp),间距 8 dp,底色 `pillTrack`,整体高 36 dp、全圆角。这是现有右上 pill 组换皮 + 移位。
+- **药丸组内容**:`设置`(触控框 32 dp,图形 21.5 dp)+ `屏保`(触控框 32 dp,图形 17.5 dp),间距 8 dp,底色 `pillTrack`,整体高 36 dp、全圆角。这是现有右上 pill 组换皮 + 移位。owner 反馈 Round 6(2026-09-21):图形大小原先与触控框共用 32 dp 一个数字,被判「显得过大」,改为两个图标各自独立的绘制尺寸,触控框本身不变(见 `GtvLayout.TOP_BAR_ICON_BOX`/`TOP_BAR_GEAR_GLYPH`/`TOP_BAR_SCREENSAVER_GLYPH`)。
 - **右侧**:时钟 20 sp + 「UnitedU」字标,与顶栏垂直居中。12/24 小时跟系统,日期显示开关保留(日期跟在时钟后面,同字号)。
 - **折叠**:焦点进入应用行时顶栏折叠成一个向上箭头(照 Google)。折叠/展开的触发点与动画曲线**实测报告 §11 还没量**,实现时先用 200 ms `FastOutSlowIn`,真机验收再调。
 

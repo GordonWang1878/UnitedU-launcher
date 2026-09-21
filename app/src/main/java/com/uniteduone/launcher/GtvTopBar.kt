@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Icon
@@ -143,6 +144,7 @@ private fun PillGroup(
         TopBarIconButton(
             icon = Icons.Filled.Settings,
             descriptionRes = R.string.menu_settings_title,
+            glyphSize = GtvLayout.TOP_BAR_GEAR_GLYPH.dp,
             onClick = onSettings,
             onFocusChange = { onFocusChange(0, it) },
             modifier = Modifier
@@ -153,6 +155,7 @@ private fun PillGroup(
         TopBarIconButton(
             icon = Icons.Filled.Slideshow,
             descriptionRes = R.string.home_screensaver_button,
+            glyphSize = GtvLayout.TOP_BAR_SCREENSAVER_GLYPH.dp,
             onClick = onScreensaver,
             onFocusChange = { onFocusChange(1, it) },
             modifier = Modifier
@@ -166,6 +169,10 @@ private fun PillGroup(
 private fun TopBarIconButton(
     icon: ImageVector,
     descriptionRes: Int,
+    /** 图形本身的绘制大小,与按钮的触控/焦点框([GtvLayout.TOP_BAR_ICON_BOX],下面写死在
+     *  `.size()` 里)分开传入——owner 反馈 Round 6 起两者不再共用一个常量,理由见
+     *  [GtvLayout.TOP_BAR_GEAR_GLYPH]/[GtvLayout.TOP_BAR_SCREENSAVER_GLYPH] 的 KDoc。 */
+    glyphSize: Dp,
     onClick: () -> Unit,
     onFocusChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -201,7 +208,7 @@ private fun TopBarIconButton(
     IconButton(
         onClick = onClick,
         modifier = modifier
-            .size(GtvLayout.TOP_BAR_ICON.dp)
+            .size(GtvLayout.TOP_BAR_ICON_BOX.dp)
             .onFocusChanged { focused = it.isFocused; onFocusChange(it.isFocused) },
         colors = IconButtonDefaults.colors(
             containerColor = containerColor,
@@ -213,7 +220,7 @@ private fun TopBarIconButton(
         Icon(
             imageVector = icon,
             contentDescription = stringResource(descriptionRes),
-            modifier = Modifier.size(GtvLayout.TOP_BAR_ICON.dp),
+            modifier = Modifier.size(glyphSize),
         )
     }
 }

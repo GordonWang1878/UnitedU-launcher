@@ -1162,3 +1162,46 @@ worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs
 - `gradle test`:560=280×2,比 Round 4 多 12(6 个新 `EdgeColorTest` × 2 变体),0 failures。
 - 报告:`.superpowers/sdd/2026-09-20-gtv-line/owner-feedback-fix-report.md`「Round 5」。未推送
   (等 Gordon 说「推」)。
+
+## 2026-09-21 · owner 真机走查反馈 Round 6:顶栏齿轮/屏保图标显得过大
+
+- **根因**:`GtvLayout.TOP_BAR_ICON = 32f` 同时喂给 `IconButton` 的触控/焦点框**和**内层 `Icon`
+  的绘制大小。32dp 的出处(研究文档 §2 a11y bounds)量的是可点击范围,不是图形墨迹——Round 5
+  的 sweep 表拿这个 32dp 去对 Google 的 32dp,两边比的都是框,核对「一致」比错了量,图形本身
+  从没被量过。
+- **先查旧 APK 命名资源**:`TVLauncherXPrebuilt.apk`(1.0.595789376)`restable.txt` 有
+  `dimen/top_nav_icon_size = 30dp`,用 `aapt2 dump xmltree` 追进 `layout/topnav_item`
+  (`res/4K.xml`)确认它就是那一版「搜索/Home/Apps/Movies」四 tab 组里 `ImageView` 图标本身的
+  `.size()`,外层 `TopNavItem` 容器另读 `top_navigation_container_menuitem_size = 58dp`——
+  结构上印证了「框远大于图」这个通用模式(58dp 框里只画 30dp 的图,占比 52%),但这组 tab 属于
+  旧一代设计(该组带的折叠向上箭头行为已被本线 Ruling R21 判定不做),数值不能直接套到当前版本
+  (976298245)的齿轮/屏保这个不同元素、不同框大小(32dp)上——只作为佐证,不作为最终取值,
+  改用参考截图直接量。
+- **Google 实测**(`01-home-default.jpg`,density 2.0,中点阈值量法,90–150 阈值区间内包围盒
+  稳定不变):
+  - 齿轮(带红色提醒角标「1」)——**先排除角标**(红色通道判据 `r>130 且 r−g>35 且 r−b>30`,
+    可视化存档 `docs/screenshots/gtv-owner-r6-gear-badge-separation.png`,绿=图标本体、
+    蓝=角标,两者不重叠)——图标本体 32×36px = **16×18dp**。反向验证:若不排除角标直接量整块,
+    得 43×45px=21.5×22.5dp,与任务原表给的「22.5×23dp」几乎吻合,判定原表把角标也量了进去,
+    改用排除角标后的数字。
+  - 屏保(相册图标,无角标):26×26px = **13×13dp**(任务原表 14×13.5dp,差距 <1px,判断是
+    阈值宽松导致的量测噪声,以本轮严格阈值结果为准)。
+  - Google 这两个图形本来就不一样大(齿轮比屏保图形大约三分之一),没有取平均,各自独立成常量。
+- **改动**:`TOP_BAR_ICON` 拆成 `TOP_BAR_ICON_BOX`(触控/焦点框,值不变仍 32dp)+
+  `TOP_BAR_GEAR_GLYPH`(21.5dp)+ `TOP_BAR_SCREENSAVER_GLYPH`(17.5dp,新增,图形绘制大小)。
+  后两个数字按 Round 5 sweep 表记录的「改动前我们自己的图标墨迹/框」比例反推(齿轮 25-26/32≈
+  0.78-0.81,屏保 24/32=0.75)得出的估算值,**已装机复核**:改动后齿轮墨迹 33×35px=16.5×17.5dp、
+  屏保墨迹 27×26px=13.5×13.0dp,与 Google 目标(16×18 / 13×13dp)相差都 ≤0.5dp(1px),落在
+  测量噪声内,未二次迭代。`GtvTopBar.kt` 的 `TopBarIconButton` 新增 `glyphSize: Dp` 形参,
+  `IconButton` 继续用 `TOP_BAR_ICON_BOX`、内层 `Icon` 改用 `glyphSize`,`PillGroup` 两处调用点
+  分别传各自的 glyph 常量。药丸轨道本身(88×36dp,含左右 padding)装机复核未变。
+  spec `docs/superpowers/specs/2026-09-20-gtv-line-design.md` §2.1/§4 同步改写。
+- **装机验证**(`unitedu-gtv` AVD `emulator-5554`,release 变体,走 Edit Rows 给 VIDEO 行添了两个
+  真实 app 卡片而非空首页):焦点回归——row 0 卡片按 UP 落到齿轮(content-desc「Settings」)、
+  再按 RIGHT 落到屏保(content-desc「Screensaver」),`uiautomator dump` 每一步都恰好 1 个
+  `focused="true"`;`focusProperties` 代码本轮未触碰。截图:
+  `docs/screenshots/gtv-owner-r6-icon-size-after.png`、`gtv-owner-r6-home-after.png`。
+- `gradle test`:560=280×2,0 failures,与 Round 5 持平(本轮不改公式、不需要新 JVM 用例)。
+- 收尾把模拟器前台切回 Google TV(`launcherx`)供 Gordon 对比。
+- 报告:`.superpowers/sdd/2026-09-20-gtv-line/owner-feedback-fix-report.md`「Round 6」。本地提交,
+  未推送(等 Gordon 说「推」)。
