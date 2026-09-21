@@ -35,4 +35,16 @@ object GtvTokens {
     const val HeroGradientPlateau = 0.42f
     /** 渐变到这个屏宽分数完全淡成 [HeroGradientFar];再往右壁纸完全透出,不再压暗。 */
     const val HeroGradientFadeEnd = 0.88f
+
+    /**
+     * 底部纵向 scrim(`HomeScreen` 的竖直渐变,Fix 2 修完之后仍是这一层)从透明淡到的终值——
+     * `HeroGradientNear` 管左右、这个管上下,同一次 owner 反馈(2026-09-20 Round 2)下的一对旋钮。
+     * **Item 4(owner 决策项,未定案)**:owner 真机反馈「壁纸上完全看不出渐变」,controller 分析
+     * 认为 0.78/0.8 这两个透明度都比 Google 实测的「近纯黑」浅太多,读起来像「调暗的壁纸」而不是
+     * 「黑底上浮出一张图」。对比截图见
+     * `docs/screenshots/gtv-gradient-variants-<wallpaper>.jpg`(A = 现状 0.8,B ≈ 0.96,Google 参照
+     * 见 `docs/screenshots/gtv/01-home-default.jpg`)——B 是否转正由 owner 挑,这里先留 A 的值,
+     * 改这一个数就能整体切换,不要在 HomeScreen.kt 里另开一份字面量。
+     */
+    const val ScrimBottomAlpha = 0.8f
 }

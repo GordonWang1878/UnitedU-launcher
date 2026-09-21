@@ -175,6 +175,12 @@ fun AppCard(
         if (title != null) {
             // 库的 CardDefaults.SubtitleAlpha = 0.6;字号取 metrics.titleSize——main 线是
             // bodySmall 12sp(Theme.cardMetrics),gtv 线是 14sp(Theme.gtvCardMetrics,spec §2.3)。
+            // Fix 1(owner 反馈 R2,2026-09-20):显式给 lineHeight 赋值为 metrics.titleLine——
+            // 之前这里完全不设 lineHeight(Unspecified),14sp CJK 的自然行高(20dp,见
+            // GtvLayout.CARD_TITLE_LINE 的 KDoc)比容器 Modifier.height(metrics.titleLine)(改前
+            // 是 16dp)还高,字形下沿被硬裁。这里不直接写 GtvLayout 的常量——AppCard 对 main 线 /
+            // gtv 线通用,只认 CardMetrics,由两条线各自的 Theme.xxxCardMetrics() 决定 titleLine
+            // 取哪个常量;lineHeight 与容器高度共读同一个 metrics.titleLine,不会再各自漂移。
             BasicText(
                 text = title,
                 maxLines = 1,
@@ -184,6 +190,7 @@ fun AppCard(
                     color = scheme.onSurface.copy(alpha = 0.6f),
                     fontSize = metrics.titleSize,
                     textAlign = TextAlign.Center,
+                    lineHeight = metrics.titleLine.value.sp,
                 ),
                 modifier = Modifier.padding(top = metrics.titleGap).width(metrics.cardWidth).height(metrics.titleLine),
             )

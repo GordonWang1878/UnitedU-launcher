@@ -1,5 +1,7 @@
 package com.uniteduone.launcher
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -8,7 +10,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Slideshow
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -26,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.IconButton
 import androidx.tv.material3.IconButtonDefaults
+import androidx.tv.material3.MaterialTheme
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -165,13 +171,39 @@ private fun TopBarIconButton(
     modifier: Modifier = Modifier,
 ) {
     val accent = LocalThemeColors.current.accent
+    // Fix 3(owner 反馈 R2,2026-09-20):这颗填色焦点(spec §0「四种焦点画法」之一)原来完全依赖
+    // tv-material3 库默认的 focused* 颜色——**反编译确认该库的 Surface/Button/IconButton 都不
+    // animate 容器色/内容色**(只有 RadioButton 用了 animateColorAsState;Card/Button/IconButton
+    // 的 containerColor 在聚焦帧瞬间切换,animateFloatAsState 只用在 SurfaceScale 那条缩放上)。
+    // 所以这里不能指望换个 colors() 参数就自动有过渡——改成自己维护 focused 状态、自己
+    // animateColorAsState,把动画后的同一个值**同时**喂给 containerColor 与 focusedContainerColor
+    // (content 同理):无论库内部怎么在这两个状态间切换,切换前后读到的都是我们这一帧算好的
+    // 同一个颜色,不会有它自己的瞬时跳变。目标色沿用原来的库默认值(容器 onSurface 反白、
+    // 图标 inverseOnSurface,与旧的 TopPills 一致,这里只是把「瞬间到达」换成「动画到达」)。
+    var focused by remember { mutableStateOf(false) }
+    val scheme = MaterialTheme.colorScheme
+    val animSpec = { ms: Int -> tween<Color>(durationMillis = ms, easing = Theme.MotionEasing) }
+    val containerColor by animateColorAsState(
+        targetValue = if (focused) scheme.onSurface else Color.Transparent,
+        animationSpec = animSpec(if (focused) GtvLayout.FOCUS_FADE_IN_MS else GtvLayout.FOCUS_FADE_OUT_MS),
+        label = "topBarIconContainer",
+    )
+    val contentColor by animateColorAsState(
+        targetValue = if (focused) scheme.inverseOnSurface else accent,
+        animationSpec = animSpec(if (focused) GtvLayout.FOCUS_FADE_IN_MS else GtvLayout.FOCUS_FADE_OUT_MS),
+        label = "topBarIconContent",
+    )
     IconButton(
         onClick = onClick,
         modifier = modifier
             .size(GtvLayout.TOP_BAR_ICON.dp)
-            .onFocusChanged { onFocusChange(it.isFocused) },
-        colors = IconButtonDefaults.colors(containerColor = Color.Transparent, contentColor = accent),
-        // focused* 用库默认:容器 onSurface 反白、图标 inverseOnSurface(与 TopPills 同)。
+            .onFocusChanged { focused = it.isFocused; onFocusChange(it.isFocused) },
+        colors = IconButtonDefaults.colors(
+            containerColor = containerColor,
+            contentColor = contentColor,
+            focusedContainerColor = containerColor,
+            focusedContentColor = contentColor,
+        ),
     ) {
         Icon(
             imageVector = icon,

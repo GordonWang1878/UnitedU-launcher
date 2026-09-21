@@ -42,7 +42,27 @@ object GtvLayout {
     const val FOCUS_STROKE = 2f
     const val FOCUS_OUTSET = 5f
     const val CARD_TITLE_GAP = 4f
-    const val CARD_TITLE_LINE = 16f
+    /** Fix 1(owner 反馈 R2,2026-09-20,R15 的同一种病第二次发作):**16 dp 是 `Theme.gtvCardMetrics`
+     *  把卡片标题字号从 Google 的 Latin 量测抬到 14sp 时沿用的旧容器高,对 CJK 不成立,不要改回去。**
+     *  真机(owner 的「云视听极光」「银河奇异果」)上逐行像素扫描:标题墨迹在 y=470→493 之间从
+     *  47→46→**0**、没有渐变收尾——硬裁,不是渐变到底。
+     *
+     *  装机实测(同 R15 的 `onTextLayout` 探针,`lineHeight` 留 `Unspecified` 让 Compose 按实际渲染
+     *  字体——中文回落系统 CJK 字体——算自然行高;探针必须放在**没有** `.height()` 约束的节点上,
+     *  放在 `AppCard` 原来那个已经带 `.height(metrics.titleLine)` 的 `BasicText` 上量到的只是约束值
+     *  本身,不是自然行高——这是第一次量到 32px≈16dp「零裁切」假象的原因,松开约束后才量到真值):
+     *  `unitedu-gtv` AVD(1920×1080/320dpi,density 2.0)上「云视听极光」「银河奇异果」两个标题在
+     *  14sp 下全部量出 `naturalHeightPx = 40`(= 20 dp,零方差,连量两轮一致);对照组「Play Store」
+     *  (Latin)同字号量出 35px——与 R15 同一个结论:CJK 在同样字号下需要比 Latin 更高的行盒。
+     *  现改为 20 dp,`AppCard` 的卡片标题 `TextStyle` 也显式把 `lineHeight` 设成
+     *  `metrics.titleLine`(不是这个常量本身——`AppCard.kt` 对 main 线 / gtv 线都通用,只读
+     *  `CardMetrics`,不直接读 `GtvLayout`,详见该文件),消除「容器高度」与「文字行高」分别改动
+     *  导致再次漂移的可能。`titleHeight(true)` 与依赖它的 `rowPitch(size, true)` 会跟着变
+     *  4dp——这是显示标题时行间距该有的样子,不是需要另外吸收的偏差(`GtvLayoutTest` 新增的
+     *  `showTitles = true` 断言直接编码这条不变量)。装机复核见
+     *  `.superpowers/sdd/2026-09-20-gtv-line/owner-feedback-fix-report.md`「Round 2 · Fix 1」与
+     *  `docs/screenshots/gtv-owner-fix1-card-title-{clipped,fixed}-*.png` 的裁切前后对照。 */
+    const val CARD_TITLE_LINE = 20f
     /** 行标题图标与文字之间的间距(CategoryRow)。Fix 4(终审 2026-09-20)从字面量搬进来,数值不变。 */
     const val ROW_TITLE_ICON_GAP = 8f
 
@@ -70,6 +90,28 @@ object GtvLayout {
     const val MENU_BANNER_NAME_LETTER_SPACING = 1f
     /** 顶栏时钟 + 字标的字号(spec §2.3)。 */
     const val TOP_BAR_CLOCK_TEXT = 20f
+
+    /**
+     * Fix 3(owner 反馈 R2,2026-09-20):「目前 UI 交互没有任何动画……焦点一下子跳到这、一下子跳到
+     * 那」。根因是 decision B1 去掉聚焦缩放之后,`gtvFocusStroke` 的描边与 `GearMenu`/`GtvTopBar`
+     * 的填色焦点都是瞬间切换(布尔值直接门控 `drawBehind`/`background`,零动画),丢了缩放曾经
+     * 提供的唯一连续性提示。旧的 tv-material Card 默认缩放动画是「进 300 / 出 500ms」,但那管的是
+     * *缩放*,不是这里要修的*描边/填色*——不能直接照搬。
+     *
+     * **这两个数字是未测量的占位值,不是从 Google TV 量出来的**:曾在 `unitedu-gtv` AVD(Google TV
+     * launcherx,已登账号)上用 `animator_duration_scale 10` + 连续 `screenrecord
+     * --output-format=frames` 采样尝试测量内容卡描边的真实淡入时长,两条路都在“合理工作量”内失败——
+     * (a) `adb exec-out screencap` 单次往返 1.6s(raw)/9.7s(PNG),比 10× 放慢后的过渡本身还粗,
+     * 分辨不出渐变过程;(b) 改用常驻的 frames 流虽然采到了 ~5fps 的连续帧,但可达的内容行
+     * (`Continue watching`)在获得/失去焦点时整行会伴随一次位置/缩放变化,与描边 alpha 的信号
+     * 叠在一起,固定像素采样点无法把两者分开。过程记录见
+     * `.superpowers/sdd/2026-09-20-gtv-line/owner-feedback-fix-report.md`「Round 2 · Fix 3」。
+     * 150/120ms 取的是 Android 过渡动画的常见量级(比整卡缩放更「轻」的交互应该不比它更慢),
+     * 进场略慢于出场——真的量到 Google 数值后把这两个常量换掉、删掉这条注释,不要为了让占位值
+     * 看起来「有依据」而反向调整测量方法。
+     */
+    const val FOCUS_FADE_IN_MS = 150
+    const val FOCUS_FADE_OUT_MS = 120
 
     fun cardWidth(size: GtvCardSize): Float = when (size) {
         GtvCardSize.SMALL -> 122f

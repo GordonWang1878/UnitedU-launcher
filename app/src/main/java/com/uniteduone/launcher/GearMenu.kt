@@ -1,5 +1,7 @@
 package com.uniteduone.launcher
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -234,7 +236,20 @@ private fun MenuPill(
 ) {
     var focused by remember { mutableStateOf(false) }
     val accent = LocalThemeColors.current.accent
-    val fill = if (focused) accent else GtvTokens.MenuItemIdle
+    // Fix 3(owner 反馈 R2,2026-09-20):填色焦点(spec §0「四种焦点画法」之一)原来是瞬间切换——
+    // `if (focused) accent else MenuItemIdle` 直接喂给 background,没有过渡。改用
+    // animateColorAsState,时长与 gtvFocusStroke 共用同一对常量(同一次反馈下的同类修复,
+    // 见 GtvLayout.FOCUS_FADE_IN_MS 的 KDoc)。textColor 不在这次修复范围内——它只在聚焦/未聚焦
+    // 两态之间瞬时切换黑白对比色,文字本身不适合做透明度过渡(会有一瞬间对比度不够的中间态),
+    // 这里只 animate 底色。
+    val fill by animateColorAsState(
+        targetValue = if (focused) accent else GtvTokens.MenuItemIdle,
+        animationSpec = tween(
+            durationMillis = if (focused) GtvLayout.FOCUS_FADE_IN_MS else GtvLayout.FOCUS_FADE_OUT_MS,
+            easing = Theme.MotionEasing,
+        ),
+        label = "menuPillFill",
+    )
     val textColor = if (focused) contrastingTextColor(accent) else Theme.MenuItemText
     // clickable() 默认的 indication 会在聚焦时叠一层持续的状态层(实测约 10% 黑,Material 的标准
     // focus state-layer opacity),把 accent 拉暗成另一个颜色——这块药丸的填色本身已经是完整的

@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -332,6 +333,7 @@ fun HomeScreen(
     // 垂直位置自己算,不用 verticalScroll(铁律 1)。gtv 线:hero 区固定 192dp + 顶栏 34+36dp(spec §3/§4),
     // 应用行顶部起点是这三个常量之和,不再是「屏高 × 2/3」(HomeLayout.anchorTop 那套比例锚点,main 线仍用)。
     val screenH = LocalConfiguration.current.screenHeightDp.toFloat()
+    val density = LocalDensity.current
     val activeRowSafe = activeRow.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
     val anchorTop = (GtvLayout.HERO_HEIGHT + GtvLayout.TOP_BAR_TOP + GtvLayout.TOP_BAR_HEIGHT).dp
     val shift by animateDpAsState(
@@ -495,8 +497,13 @@ fun HomeScreen(
             animationSpec = tween(if (effectiveIdle) 1200 else 400),
             label = "contentAlpha",
         )
-        // scrim(spec §2.1):#1C1B1F α0 → α0.8;顶边 = 锚点上方 60dp 再加 shift,底边固定屏底——行往上推时它变高,
-        // 下方新露出的行始终在暗层里。待机时随内容一起淡出。
+        // scrim(spec §2.1):#1C1B1F α0 → α[GtvTokens.ScrimBottomAlpha];顶边 = 锚点上方 60dp 再加 shift,
+        // 底边固定屏底——行往上推时它变高,下方新露出的行始终在暗层里。待机时随内容一起淡出。
+        // **scrimTop 可以是负值**(Fix 2,owner 反馈 R2,2026-09-20):R15 之后 rowPitch 从 125.5 涨到
+        // 143.5625+(CJK 行距/卡片标题让位,见 ROW_TITLE_LINE / CARD_TITLE_LINE 的 KDoc),三行内容
+        // 在 activeRow=2 时 anchorTop − SCRIM_LEAD + shift ≈ −85dp——锚点被行位移推得比屏顶还高。
+        // 这在 main 线 / 本线早期都没出现过:main 线的 scrimTop 恒正,模拟器当时也没有第三行内容
+        // 触发过 activeRow=2。下面画法必须能吃负值,见其后的注释。
         val scrimTop = anchorTop - HomeLayout.SCRIM_LEAD.dp + shift
         val surface = androidx.tv.material3.MaterialTheme.colorScheme.surface
         // 首页提示文字的字样:空桌面求救那句与移动态底部提示共用一份(M4b spec §0-10「沿用现有提示文字样式」)
@@ -526,15 +533,32 @@ fun HomeScreen(
                     ),
                 ),
         )
+        // Fix 2(owner 反馈 R2):**测量先发生,偏移后发生**——铁律 §1「绝不用可滚动容器」那条注释
+        // 说的「自算位移救不了 offset 发生在测量之后」是同一条规律的第三次应用。旧画法
+        // `.fillMaxWidth().offset(y = scrimTop).height((screenH.dp - scrimTop).coerceAtLeast(0.dp))`
+        // 里,`height()` 问父容器要的高度不可能超过屏高(screenH.dp - scrimTop 在 scrimTop 为负时
+        // 反而**大于** screenH,但父容器的最大高度约束本来就是 screenH,`height()` 请求的尺寸会被
+        // 这个上限**测量期夹紧**);等测量定下来之后 `.offset` 才把整个 Box 向上搬 |scrimTop| dp——
+        // Box 的下边界被搬到小于屏底的位置,屏幕最下面 |scrimTop| dp 完全没有任何节点覆盖,不是
+        // 「渐变淡到 0」,是压根没画,与它上方 0.8α 的实心区之间有一条硬边(owner 描述的「阴影边界
+        // 往上跑,底部露出一条没有阴影的硬边」)。
+        //
+        // 改法:Box 恒 `fillMaxSize()`——不再让测量牵扯进 scrimTop,scrimTop 只喂给渐变的
+        // startY(px,可以为负)。`Brush.verticalGradient` 在 y < startY 时按默认 `TileMode.Clamp`
+        // 钉在第一个 stop(全透明),endY 钉在屏幕底(渐变终点本来就是屏底,不会被再夹一次)——
+        // startY 为负只是说「y=0 时已经在渐变中段」,没有谁需要比屏幕更高的 Box。
+        val scrimTopPx = with(density) { scrimTop.toPx() }
+        val screenBottomPx = with(density) { screenH.dp.toPx() }
         Box(
             Modifier
-                .fillMaxWidth()
-                .offset(y = scrimTop)
-                .height((screenH.dp - scrimTop).coerceAtLeast(0.dp))
+                .fillMaxSize()
                 .alpha(contentAlpha)
                 .background(
                     androidx.compose.ui.graphics.Brush.verticalGradient(
-                        0f to surface.copy(alpha = 0f), 1f to surface.copy(alpha = 0.8f),
+                        0f to surface.copy(alpha = 0f),
+                        1f to surface.copy(alpha = GtvTokens.ScrimBottomAlpha),
+                        startY = scrimTopPx,
+                        endY = screenBottomPx,
                     ),
                 ),
         )

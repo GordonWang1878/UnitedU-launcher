@@ -89,4 +89,17 @@ class GtvLayoutTest {
         // 数值出处见 ROW_TITLE_LINE/ROW_GAP 各自的 KDoc,不是这里随手写的。
         assertEquals(143.5625f, expected, 0.01f)
     }
+
+    // Fix 1(owner 反馈 R2,2026-09-20):showTitles = true 这个分支此前**没有任何断言覆盖**——
+    // 上面所有 rowPitch 测试都只测 showTitles = false,`CategoryRow` 读错 CARD_TITLE_LINE / 漏加
+    // titleHeight 这类回归全部测不出来。CARD_TITLE_LINE 从 16 改到 20(CJK 卡片标题不裁字,见该
+    // 常量的 KDoc)让 titleHeight(true) 从 20 涨到 24,rowPitch(true) 应该跟着涨,不多不少正是
+    // 这一份标题高度——这不是需要吸收的偏差,是显示标题时行间距该有的样子。
+    @Test fun `显示标题时 rowPitch 比不显示恰好多出一份标题高度(showTitles=true 覆盖)`() {
+        val withTitles = GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = true)
+        val withoutTitles = GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = false)
+        assertEquals(GtvLayout.titleHeight(true), withTitles - withoutTitles, 0.01f)
+        // 167.5625 = 143.5625(showTitles=false)+ 24(CARD_TITLE_GAP 4 + CARD_TITLE_LINE 20)
+        assertEquals(167.5625f, withTitles, 0.01f)
+    }
 }
