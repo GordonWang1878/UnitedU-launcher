@@ -253,13 +253,29 @@ APK 里有一条**专门命名给浏览用**的插值器:
 ```bash
 # 1. 看有哪些 TV 镜像(不需要 sdkmanager)
 curl -s https://dl.google.com/android/repository/sys-img/android-tv/sys-img2-1.xml
-# 2. 下对应 zip(2026-09-21 时最新是 API 36 / Android 16,arm64-v8a-36_r04.zip,0.97 GB,
-#    sha1 ceb1dfcc6a28dbd9dbade780428cf7bafb1c65ef),装进 SDK、起 AVD
-# 3. adb pull /product/priv-app/TVLauncherXPrebuilt/TVLauncherXPrebuilt.apk
-# 4. aapt2 dump resources → 名字可读
+# 2. 下对应 zip,解开后 system.img 是 GPT 磁盘镜像 → super 分区 → 里面是 ext4 逻辑分区。
+#    按 1MB 对齐扫 ext4 主超级块(magic 0xEF53 @ base+1080,且 s_block_group_nr==0),
+#    读 s_volume_name(base+1024+120)认出 system / system_ext / product / vendor,
+#    dd 切出 product 分区,再用 debugfs 取文件(brew install e2fsprogs):
+#      debugfs -R "ls /priv-app" product.img
+#      debugfs -R "dump /priv-app/TVLauncherXPrebuilt/TVLauncherXPrebuilt.apk out.apk" product.img
+#    不用起 AVD,也不用 sdkmanager。
+# 3. aapt2 dump resources → 名字可读
 ```
 
-**取数顺序据此修订**(替换 §10c 末尾那条):**最新镜像的预置 APK(名字可读)→ 手上旧版 APK → 目标版像素实测 → 占位值并注明**。像素实测只用来解决「两版之间确实变了」的那几项(例如 app 卡聚焦倍率旧版 1.14、目标版 1.105),不再用来问「Google 这个参数是多少」。
+**⚠ 2026-09-21 实际跑了一遍,结果是否定的,别再下一次(0.97 GB 下载 + 12 GB 解压)**:
+**API 36(Android 16)的 TV 镜像不带 launcherx**,`/product/priv-app` 里是经典 Android TV 桌面
+`TVLauncher`(连同 `Backdrop`、`Katniss`、`LiveTv` 这套 Android TV 组件)。镜像里确实有 37 处
+`com.google.android.apps.tv.launcherx` 字符串,但**全在权限/配置 XML 里,没有 APK**。
+也就是说 Google 在 34 → 36 之间把 TV 镜像的口味从 Google TV 换回了纯 Android TV;而清单里
+arm64-v8a 只有 API 31/33/34/36 四个,**android-34 那份(launcherx 1.0.595789376)仍是目前
+唯一一份资源名可读的官方构建**。
+
+**还没试过的两条**:①从第三方镜像站找介于 595789376 与 976298245 之间、尚未开启名字收拢的
+Play 版本——可行性未知,但**必须先用签名证书比对确认是 Google 原签**(和设备上已装那份的
+签名者比),不能直接信第三方站点;②找 Google TV 实体设备的系统转储。两条都还没做。
+
+**取数顺序据此修订**(替换 §10c 末尾那条):**名字可读的官方构建(目前唯一一份是 android-34 镜像里的 1.0.595789376)→ 目标版像素实测 → 占位值并注明**。像素实测只用来解决「两版之间确实变了」的那几项(例如 app 卡聚焦倍率旧版 1.14、目标版 1.105),不再用来问「Google 这个参数是多少」。
 
 ## 附:截图
 
