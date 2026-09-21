@@ -288,29 +288,82 @@ object GtvLayout {
      * | 高出 /255 | 44 | 36.5 | 33 | 30 | 26.6 | 23.6 | 20.7 | 18 | 15.9 | 13.7 |
      *
      * 上方与左方两个方向的剖面几乎重合(不是文字或邻居干扰),近似指数衰减,半衰期
-     * ≈[APP_FOCUS_GLOW_HALF_LIFE_DP],铺到 d≈30dp 仍未归零——所以总距离取 **30dp**,
-     * 末圈 alpha 还有 0.17×2^(−29/16)≈0.048,是"渐隐到看不见"而不是"画到一半被砍断"。
+     * ≈[APP_FOCUS_GLOW_HALF_LIFE_DP]。实测表最远只到 d=29dp,**那里仍未归零**(+13.7/255)。
+     *
+     * **[APP_FOCUS_GLOW_DATA_DP] 与本常量为什么是两个数(2026-09-21 实测修正)**:最初两者合一、
+     * 都取 30dp,理由写的是"末圈 alpha 只剩 0.048,是渐隐到看不见"。**在模拟器上实拍打脸了**:
+     * 沿焦点卡左缘向外扫,x=36 处亮度 24.5、到 x=28 直接掉回底色 14——一道约 **10/255 的硬边**,
+     * 肉眼看上去柔光像一块圆角底板,不像光。0.048 的 alpha 在近黑背景上不是"看不见",是"看得见"。
+     * 所以拆成两段:**0→[APP_FOCUS_GLOW_DATA_DP] 是实测数据区,指数形状一点不动**;
+     * 之后到本常量为止是收尾段,乘一条 smoothstep 把残留平滑收到 0。Google 的剖面在我们量到的
+     * 最远处仍在平滑下降、没有这道边,所以"收到 0"比"切断"更接近它。
+     *
+     * **判据留给后人**:凡是"衰减到某个小值就截断"的画法,都要回答一句——截断处的残留在**目标
+     * 背景**上是否还看得见。近黑背景上 10/255 的台阶是看得见的;别拿 alpha 小当作看不见的证据。
      *
      * **这是视觉溢出,不是布局量**:柔光在 `GtvFocusStroke` 的 `drawBehind` 里画,不参与任何
      * 测量;[appFocusOverflow]、`rowPitch`、`Theme.gtvCardMetrics.rowVerticalPad` 都**不加**
      * 这一项(加进去会把行间距撑开 30dp)。代价是柔光会盖到相邻卡片与上一行标题区的底部——
      * 这是 Google 那张剖面本身就有的样子(它的柔光同样铺出 30dp,行距比这还紧),不是 bug。
      */
-    const val APP_FOCUS_GLOW_DP = 30f
+    const val APP_FOCUS_GLOW_DP = 60f
+
+    /** 实测数据区的外边界(dp):0→30dp 这一段的 alpha 完全由实测剖面的指数拟合决定,不施加任何
+     *  收尾衰减——实测表覆盖到 d=29,这里取整到 30。30dp 之外没有实测数据,由收尾段接管,见
+     *  [APP_FOCUS_GLOW_DP] 的 KDoc。 */
+    const val APP_FOCUS_GLOW_DATA_DP = 30f
 
     /**
-     * 柔光紧贴描边外缘处(d = 0)的峰值 alpha。取实测表最靠内的那一格 **+44/255 ≈ 0.17**。
+     * 柔光紧贴描边外缘处(d = 0)的**目标亮度增量**(0–1,相对满量程)。**48/255 ≈ 0.188**,
+     * 由实测剖面外推得到。
      *
-     * **两处如实记录的近似,不要当成精确值**:
-     * 1. 实测表最靠内的采样点是 d=2 不是 d=0(d<2 的像素被描边本身占着,量不到)。按同一条
-     *    指数曲线外推回 d=0 应该是 44×2^(2/16)≈48/255≈0.188;这里**取更保守的 0.17**——
-     *    宁可柔光比 Google 淡 8%,也不要为了凑一个没量到的点把它画得比实测更亮。
-     * 2. alpha 与"亮度增量"之间隔着一次合成:在近黑背景上叠一层亮色,增量 ≈ alpha ×
-     *    (前景亮度 − 背景亮度),背景接近 0、前景接近 255 时才有 alpha ≈ 增量/255。B6 裁定
-     *    "画法照 Google、颜色用用户主题色",所以前景是用户的 accent 色——主题色偏暗时,同一个
-     *    alpha 画出来的柔光会比 Google 的淡。这是颜色裁定带来的已知偏差,不在这个常量里补偿。
+     * **它是亮度增量,不是 alpha —— 这是本常量最容易被误用的地方。** alpha 只是混合系数:
+     * 画布的 srcOver 在**伽马编码空间**直接线性混合,所以
+     * `亮度增量 ≈ alpha × (前景亮度 − 背景亮度)`。只有前景是纯白(255)、背景是纯黑(0)时
+     * 才有 `alpha ≈ 增量/255`。B6 裁定"画法照 Google、颜色用用户主题色",前景是 accent 色
+     * (默认那套亮度约 200,9 个预设与"跟随壁纸主色"差异更大),**直接把 0.188 当 alpha 用,
+     * 画出来只有 Google 的约 70%;主题色越暗差得越多。** 所以真正的 alpha 由
+     * [focusGlowAlphaFor] 在绘制时按 accent 的实际亮度反推。
+     *
+     * **为什么是外推值**:实测表最靠内的采样点是 d=2 而非 d=0(d<2 被描边本身占着,量不到),
+     * 那一格是 +44/255。半衰期 16dp、只往回推 2dp,外推幅度 9%,落在这条指数拟合自身的残差内
+     * (全表最大偏差 6%),所以 48 比 44 更接近 d=0 的真值。
+     *
+     * **一次被推翻的保守取值(2026-09-21,值得记着)**:本常量最初取 0.17f 并直接当 alpha 用,
+     * 理由是"宁可比 Google 淡 8%,也不要画得比实测更亮"。这个取舍方向错了——柔光存在的**唯一**
+     * 目的就是解决 owner 报的「从沙发上完全感觉不到动效」,而当时同时叠了三层都朝"更看不见"推的
+     * 保守:①峰值按 d=2 而不是 d=0 取,低 9%;②把增量当 alpha 用,又低 22%;③外缘硬截断(那个
+     * 是反方向的 bug,见 [APP_FOCUS_GLOW_DP])。三层叠起来实测只有 Google 的约 68%。
+     * **判据:取舍的方向要对着这个特性想解决的问题,不能只看"哪个数更小更安全"。**
      */
-    const val APP_FOCUS_GLOW_PEAK_ALPHA = 0.17f
+    const val APP_FOCUS_GLOW_PEAK_INCREMENT = 0.188f
+
+    /**
+     * [focusGlowAlphaFor] 反推 alpha 时假定的背景亮度(0–1)。混合式是
+     * `增量 = alpha × (前景 − 背景)`,**不是** `alpha × 前景`——把背景当 0 会系统性少给
+     * `背景/(前景−背景)`,在默认主题下实测正好少 10%(见下)。
+     *
+     * 取 **0.07**(≈18/255):Google 那份剖面的底色是 14/255,我们这台模拟器上实测 17.7/255,
+     * 都是"深色桌面上压暗过的壁纸"这一档。真实背景是用户的壁纸、绘制时不可知,所以只能取一个
+     * 代表值;取偏小一点(而不是按最亮的壁纸取)是因为这一项估高了会让亮壁纸上过曝,估低了只是
+     * 回到原来那个已知的 10% 欠量。
+     *
+     * **实测定标(2026-09-21,模拟器,accent = (208,188,255) → 伽马域亮度 197/255)**:
+     * 补上本项后逐点对比 Google 的剖面,d = 2/5/8/11/14/17/20/23/26/29 dp 十档的比值
+     * 依次是 0.98/1.05/0.99/0.99/0.98/0.96/0.95/0.97/0.93/0.97,**平均 0.98**。
+     * 不补这一项时 d=2 处只有 0.89 —— 与本项预测的「少给 bg/(fg−bg) ≈ 10%」对得上。
+     *
+     * **量这个剖面必须用「换焦点拍两张、逐点相减」,不能减一个远处采到的底色**:柔光铺到
+     * [APP_FOCUS_GLOW_DP] = 60dp,在 1920 宽的屏上足以覆盖到屏幕边缘,**随手取的"底色"
+     * 本身就在柔光里**。我第一次就是这么量的,得到"只有 Google 的 79%、而且比值从 0.89
+     * 一路滑到 0.67"的假象,差点据此又去改半衰期。Google 那份剖面当初也是用相减法量的
+     * (聚焦帧 − 未聚焦帧),两边口径本来就该一致。
+     */
+    const val APP_FOCUS_GLOW_ASSUMED_BG = 0.07f
+
+    /** [focusGlowAlphaFor] 反推 alpha 时的上限。主题色很暗时按增量反推会要到很大的 alpha,
+     *  在亮壁纸上会过曝;0.5 是"够亮但不至于糊成一片"的闸。 */
+    const val APP_FOCUS_GLOW_MAX_ALPHA = 0.5f
 
     /** 柔光的指数衰减半衰期(dp)。实测表两端定标:44/13.7 = 3.212 倍、跨 27dp →
      *  27/log2(3.212) = **16.04dp**,取 16。全表最大偏差在 d=5 处约 6%,其余各点 ≤3%。 */
@@ -321,20 +374,50 @@ object GtvLayout {
      *
      *  **为什么是画一串圆环而不是 `BlurMaskFilter`**:后者在硬件加速画布上行为不稳(各家 GPU
      *  实现不一致、Compose 还要另开 layer),而柔光每帧都跟着 `scale` 变几何;一串按指数衰减
-     *  的细环是纯几何,逐帧重算的代价只有 15 次 `drawRoundRect`(只有聚焦中的那张卡才画),
+     *  的细环是纯几何,逐帧重算的代价是 `APP_FOCUS_GLOW_DP / APP_FOCUS_GLOW_RING_DP` = 30 次 `drawRoundRect`
+     *  (只有聚焦中的那张卡才画,而且收尾段那十几圈 alpha 已经接近 0),
      *  而且圆角半径随外扩距离同步增大这件事直接套用已有写法(`r = corner + (outX + outY) / 2`)。
      *  相邻圈之间 alpha 只差 2^(−2/16) ≈ 8.3%,在这个 alpha 量级上看不出分层。 */
     const val APP_FOCUS_GLOW_RING_DP = 2f
 
     /**
-     * 柔光在距描边外缘 [distanceDp] 处的 alpha:指数衰减
-     * `PEAK × 2^(−d / HALF_LIFE)`,超出 [APP_FOCUS_GLOW_DP] 归零(圆环画到那里为止)。
-     * 纯函数、不含 Compose 类型,衰减形状由 `GtvGlowTest` 直接对着实测表逐点验证。
+     * 柔光在距描边外缘 [distanceDp] 处的**目标亮度增量**(换成 alpha 走 [focusGlowAlphaFor]),分两段:
+     * - `d ≤ `[APP_FOCUS_GLOW_DATA_DP]:纯指数 `PEAK × 2^(−d / HALF_LIFE)`,**实测数据区,
+     *   不加任何修饰**——`GtvGlowTest` 就是拿这一段逐点对着实测剖面验的。
+     *   `PEAK` = [APP_FOCUS_GLOW_PEAK_INCREMENT]。
+     * - 之后到 [APP_FOCUS_GLOW_DP]:同一条指数再乘一条 smoothstep(`1 − (3t² − 2t³)`,
+     *   `t` 是在收尾段里的归一化位置),把残留平滑收到 0。smoothstep 在两端一阶导都是 0,
+     *   所以数据区边界上既不跳值也不折角,d=[APP_FOCUS_GLOW_DATA_DP] 处取值与纯指数完全相同。
+     *
+     * 超出 [APP_FOCUS_GLOW_DP] 归零(圆环画到那里为止)。纯函数、不含 Compose 类型。
      */
-    fun focusGlowAlpha(distanceDp: Float): Float {
+    fun focusGlowIncrement(distanceDp: Float): Float {
         if (distanceDp < 0f || distanceDp > APP_FOCUS_GLOW_DP) return 0f
-        return APP_FOCUS_GLOW_PEAK_ALPHA *
+        val exp = APP_FOCUS_GLOW_PEAK_INCREMENT *
             Math.pow(2.0, -(distanceDp / APP_FOCUS_GLOW_HALF_LIFE_DP).toDouble()).toFloat()
+        if (distanceDp <= APP_FOCUS_GLOW_DATA_DP) return exp
+        val t = (distanceDp - APP_FOCUS_GLOW_DATA_DP) / (APP_FOCUS_GLOW_DP - APP_FOCUS_GLOW_DATA_DP)
+        return exp * (1f - (3f * t * t - 2f * t * t * t))
+    }
+
+    /**
+     * 把 [focusGlowIncrement] 的目标亮度增量换算成实际要用的 alpha:
+     * `alpha = 增量 / 前景亮度`,再夹到 [APP_FOCUS_GLOW_MAX_ALPHA]。
+     *
+     * [foregroundLuminance] 取 **伽马编码空间**的加权和 `0.2126R + 0.7152G + 0.0722B`
+     * (R/G/B 是 0–1 的 sRGB 分量),**不是** Compose 的 `Color.luminance()`——后者会先线性化,
+     * 而 Android 画布的 srcOver 混合本身就发生在伽马编码空间,实测剖面也是按编码值量的。
+     * 三者必须同一套口径,换成线性化的会系统性偏小。
+     *
+     * 背景按 [APP_FOCUS_GLOW_ASSUMED_BG] 计入(不是当 0——当 0 会系统性少给约 10%,
+     * 2026-09-21 在模拟器上实测定标过,见那个常量的 KDoc)。
+     */
+    fun focusGlowAlphaFor(distanceDp: Float, foregroundLuminance: Float): Float {
+        val inc = focusGlowIncrement(distanceDp)
+        if (inc <= 0f) return 0f
+        val contrast = foregroundLuminance - APP_FOCUS_GLOW_ASSUMED_BG
+        if (contrast <= 0.01f) return APP_FOCUS_GLOW_MAX_ALPHA
+        return minOf(inc / contrast, APP_FOCUS_GLOW_MAX_ALPHA)
     }
 
     /** 顶栏图标按钮的填色淡入 / 淡出时长(owner 反馈 Round 4):`integer

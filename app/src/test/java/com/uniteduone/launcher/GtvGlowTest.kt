@@ -23,11 +23,11 @@ class GtvGlowTest {
         // 比的是**归一化之后的比例**,不是绝对亮度:alpha 与「亮度增量」之间隔着一次合成
         // (增量 ≈ alpha × (前景亮度 − 背景亮度)),而前景是用户主题色、不是固定的白
         // (B6 裁定:画法照 Google、颜色用用户色),绝对值本来就不该对上。见
-        // GtvLayout.APP_FOCUS_GLOW_PEAK_ALPHA 的 KDoc 第 2 条。
-        val base = GtvLayout.focusGlowAlpha(2f)
+        // GtvLayout.APP_FOCUS_GLOW_PEAK_INCREMENT 的 KDoc 第 2 条。
+        val base = GtvLayout.focusGlowIncrement(2f)
         for (d in listOf(2f, 8f, 14f, 20f, 29f)) {
             val expected = measured.first { it.first == d }.second / 44f
-            val actual = GtvLayout.focusGlowAlpha(d) / base
+            val actual = GtvLayout.focusGlowIncrement(d) / base
             assertTrue(
                 "d=${d}dp:曲线给 $actual,实测比例 $expected,相对误差超过 5%",
                 kotlin.math.abs(actual - expected) / expected < 0.05f,
@@ -36,10 +36,10 @@ class GtvGlowTest {
     }
 
     @Test fun `整张实测表的相对误差都在 7% 以内(不止点名的五点)`() {
-        val base = GtvLayout.focusGlowAlpha(2f)
+        val base = GtvLayout.focusGlowIncrement(2f)
         for ((d, lum) in measured) {
             val expected = lum / 44f
-            val actual = GtvLayout.focusGlowAlpha(d) / base
+            val actual = GtvLayout.focusGlowIncrement(d) / base
             // 最大偏差在 d=5 处(约 6%),其余各点 ≤3%——半衰期 16dp 是拿表两端定标出来的
             // (44/13.7 = 3.212 倍、跨 27dp → 16.04dp),中间点是这条曲线的自然结果,不是拟合残差。
             assertTrue(
@@ -50,21 +50,24 @@ class GtvGlowTest {
     }
 
     @Test fun `半衰期 16dp——每隔 16dp 亮度减半`() {
-        assertEquals(0.5f, GtvLayout.focusGlowAlpha(16f) / GtvLayout.focusGlowAlpha(0f), 0.001f)
-        assertEquals(0.5f, GtvLayout.focusGlowAlpha(30f) / GtvLayout.focusGlowAlpha(14f), 0.001f)
+        assertEquals(0.5f, GtvLayout.focusGlowIncrement(16f) / GtvLayout.focusGlowIncrement(0f), 0.001f)
+        assertEquals(0.5f, GtvLayout.focusGlowIncrement(30f) / GtvLayout.focusGlowIncrement(14f), 0.001f)
     }
 
     @Test fun `紧贴描边处是峰值,铺到 30dp 之外归零`() {
-        assertEquals(GtvLayout.APP_FOCUS_GLOW_PEAK_ALPHA, GtvLayout.focusGlowAlpha(0f), 1e-6f)
-        assertEquals(0f, GtvLayout.focusGlowAlpha(GtvLayout.APP_FOCUS_GLOW_DP + 0.01f), 1e-6f)
-        assertEquals(0f, GtvLayout.focusGlowAlpha(-1f), 1e-6f)
-        // 末圈还有可见度(≈0.048),是渐隐到看不见,不是画到一半被砍断
-        assertTrue(GtvLayout.focusGlowAlpha(29f) > 0.04f)
+        assertEquals(GtvLayout.APP_FOCUS_GLOW_PEAK_INCREMENT, GtvLayout.focusGlowIncrement(0f), 1e-6f)
+        assertEquals(0f, GtvLayout.focusGlowIncrement(GtvLayout.APP_FOCUS_GLOW_DP + 0.01f), 1e-6f)
+        assertEquals(0f, GtvLayout.focusGlowIncrement(-1f), 1e-6f)
+        // 收尾段把残留平滑收到 0(2026-09-21 修:原来 30dp 硬截断,实拍是一道看得见的台阶)
+        assertTrue(GtvLayout.focusGlowIncrement(29f) > 0.04f)
     }
 
     @Test fun `圈数正好铺满、不留缝也不溢出`() {
         val rings = (GtvLayout.APP_FOCUS_GLOW_DP / GtvLayout.APP_FOCUS_GLOW_RING_DP).toInt()
-        assertEquals(15, rings)
+        // 2026-09-21 由 15 改成 30:柔光总距离从 30dp 扩到 60dp,因为原来 30dp 处硬截断
+        // 在近黑背景上是一道看得见的台阶(见 APP_FOCUS_GLOW_DP 的 KDoc)。多出来的 15 圈
+        // 全在收尾段、alpha 已接近 0,只有聚焦中的那一张卡才画。
+        assertEquals(30, rings)
         // 最后一圈的中心线 + 半圈宽 = 总距离
         assertEquals(
             GtvLayout.APP_FOCUS_GLOW_DP,
@@ -112,5 +115,54 @@ class GtvGlowTest {
     @Test fun `柔光不改变行位移判据(rowShiftX 逐字不变)`() {
         assertEquals(0f, GtvLayout.rowShiftX(2, GtvCardSize.MEDIUM, 960f), 0.0001f)
         assertEquals(-532.0325f, GtvLayout.rowShiftX(7, GtvCardSize.MEDIUM, 960f), 0.0001f)
+    }
+
+    @Test fun `收尾段——数据区边界不跳值、外缘归零、全程单调`() {
+        // 2026-09-21 模拟器实拍发现的硬边:指数衰减到 30dp 还剩约 13/255 就被截断,在近黑背景上
+        // 是一道看得见的台阶(实拍剖面 x=36 处 24.5 → x=28 处 14.0)。修法是数据区之外再挂一条
+        // smoothstep 收到 0。这个测试钉住三件事,免得以后有人把收尾段"简化"回硬截断。
+        val atData = GtvLayout.focusGlowIncrement(GtvLayout.APP_FOCUS_GLOW_DATA_DP)
+        val pureExp = GtvLayout.APP_FOCUS_GLOW_PEAK_INCREMENT *
+            Math.pow(2.0, -(GtvLayout.APP_FOCUS_GLOW_DATA_DP / GtvLayout.APP_FOCUS_GLOW_HALF_LIFE_DP).toDouble()).toFloat()
+        assertEquals("数据区边界上收尾段必须还没起作用(smoothstep 在 t=0 处为 1)", pureExp, atData, 1e-6f)
+
+        assertEquals("外缘必须真的到 0,不能留残值", 0f, GtvLayout.focusGlowIncrement(GtvLayout.APP_FOCUS_GLOW_DP), 1e-6f)
+
+        var prev = Float.MAX_VALUE
+        var d = 0f
+        while (d <= GtvLayout.APP_FOCUS_GLOW_DP) {
+            val v = GtvLayout.focusGlowIncrement(d)
+            assertTrue("d=${d}dp 处 alpha 回升了($prev → $v),柔光必须全程单调递减", v <= prev + 1e-6f)
+            prev = v
+            d += 0.5f
+        }
+    }
+
+    @Test fun `收尾段末端在近黑背景上已经看不见`() {
+        // 判据来自这次的教训:别拿 alpha 小当"看不见"的证据,要换算到目标背景上的亮度增量。
+        val last = GtvLayout.focusGlowIncrement(GtvLayout.APP_FOCUS_GLOW_DP - GtvLayout.APP_FOCUS_GLOW_RING_DP / 2f)
+        assertTrue("末圈在近黑底上仍有 ${last * 255} /255,会看出边", last * 255f < 1f)
+    }
+
+    @Test fun `alpha 按前景亮度反推——同一个目标增量,主题色越暗 alpha 越大`() {
+        // 这条钉住的是本轮最关键的一次口径更正:0.188 是**亮度增量**不是 alpha。
+        // 画布 srcOver 在伽马编码空间混合,增量 ≈ alpha × 前景亮度,所以拿增量当 alpha 用,
+        // 在默认 accent(亮度约 0.78)下只画出 Google 的约 78%,主题色越暗差得越多。
+        val inc = GtvLayout.focusGlowIncrement(0f)
+        // 分母是「前景 − 背景」的对比度,不是前景亮度本身(混合式 增量 = alpha × (fg − bg))
+        val bg = GtvLayout.APP_FOCUS_GLOW_ASSUMED_BG
+        assertEquals(inc / (1f - bg), GtvLayout.focusGlowAlphaFor(0f, 1f), 1e-6f)
+        assertEquals(inc / (0.78f - bg), GtvLayout.focusGlowAlphaFor(0f, 0.78f), 1e-6f)
+        // 越暗 alpha 越大,单调
+        assertTrue(GtvLayout.focusGlowAlphaFor(0f, 0.4f) > GtvLayout.focusGlowAlphaFor(0f, 0.8f))
+        // 但有闸,不会要到离谱的 alpha
+        // 前景亮度低于背景假定值时对比度为负,直接给上限(而不是算出负 alpha)
+        assertEquals(
+            GtvLayout.APP_FOCUS_GLOW_MAX_ALPHA,
+            GtvLayout.focusGlowAlphaFor(0f, GtvLayout.APP_FOCUS_GLOW_ASSUMED_BG),
+            1e-6f,
+        )
+        // 增量为 0 的地方,alpha 也必须是 0(不能被 MAX_ALPHA 的兜底路径吃掉)
+        assertEquals(0f, GtvLayout.focusGlowAlphaFor(GtvLayout.APP_FOCUS_GLOW_DP + 1f, 0.0f), 1e-6f)
     }
 }

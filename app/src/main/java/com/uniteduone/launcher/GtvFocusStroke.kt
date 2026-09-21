@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
  * Google 那份实测剖面本身就是这样(它的行距比我们还紧),不是 bug,别为此砍短柔光。
  * 一处**已知的不对称**,留给装机复核:同一行里的卡片按组合顺序绘制,焦点卡左边的邻居先画、
  * 会被柔光盖住,右边的邻居后画、反而盖住柔光。真要对称得给焦点卡加 `Modifier.zIndex`,
- * 那会动到焦点相关的 modifier 链,R28 没有顺手改——d≥20dp 处 alpha 只剩 0.071→0.048,
+ * 那会动到焦点相关的 modifier 链,R28 没有顺手改——d≥20dp 处 alpha 只剩 0.071→0.048(按当时那版的口径),
  * 先看真机上能不能觉察。
  *
  * **这是绘制、不是布局**:整段画在 `drawBehind` 里,不改变任何测量尺寸。
@@ -54,13 +54,17 @@ private fun DrawScope.drawFocusGlow(
     alpha: Float,
 ) {
     if (alpha <= 0f) return
+    // 伽马编码空间的加权和,与实测剖面、与画布混合同一套口径(不用 Color.luminance(),它会先线性化)。
+    val fgLuma = 0.2126f * color.red + 0.7152f * color.green + 0.0722f * color.blue
     val ringDp = GtvLayout.APP_FOCUS_GLOW_RING_DP
     val ringPx = ringDp.dp.toPx()
     val rings = (GtvLayout.APP_FOCUS_GLOW_DP / ringDp).toInt()
     for (i in 0 until rings) {
         // 第 i 圈的中心线落在距描边外缘 (i + 0.5) × ringDp 处:圈与圈首尾相接,合起来正好铺满
         // 0 → APP_FOCUS_GLOW_DP,不重叠也不留缝。
-        val ringAlpha = GtvLayout.focusGlowAlpha((i + 0.5f) * ringDp) * alpha
+        // 按 accent 的实际亮度把"目标亮度增量"反推成 alpha(见 GtvLayout.focusGlowAlphaFor 的
+        // KDoc:画布的 srcOver 在伽马编码空间混合,所以增量 ≈ alpha × 前景亮度,不能拿增量当 alpha)。
+        val ringAlpha = GtvLayout.focusGlowAlphaFor((i + 0.5f) * ringDp, fgLuma) * alpha
         if (ringAlpha <= 0f) continue
         val off = (i + 0.5f) * ringPx
         val r = cornerAtEdge + off
