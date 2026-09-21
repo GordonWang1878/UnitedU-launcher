@@ -151,9 +151,27 @@ step5 再下一行                          bounds=[116,240][508,477]
 
 **坑:它没有中文子集。** `METADATA.pb` 的 subsets 只有 `latin / latin-ext / vietnamese / math / symbols / menu / cherokee / canadian-aboriginal / nushu / syriac / tifinagh` —— **没有 chinese-simplified**。UnitedU 面向国行电视、界面以中文为主,内置 Google Sans Flex 只会管到英文和数字,中文仍落回系统字体(Noto Sans CJK / 思源黑体)。这会造成中英混排两套字形,**属于对照表里要决定的一项**,不是拿来就能用。
 
+## 10c. 直接从 APK 资源读到的参数(2026-09-21;比像素量测更准,优先用)
+
+**来源**:镜像自带的旧版 launcherx 1.0.595789376(`TVLauncherXPrebuilt.apk`),**资源名未混淆**;`aapt2 dump resources` 读值、`aapt2 dump xmltree --file res/<x>.xml` 读动画文件。目标版 1.0.976298245 的资源名全部混淆、且不再有 fraction 类缩放资源,**所以「时长/曲线」以旧版资源为准,「倍率/尺寸」以目标版像素实测为准**,两者冲突时目标版赢。
+
+| 参数 | 值 | 资源名 |
+|---|---|---|
+| 卡片聚焦动画 | `scaleX`/`scaleY` 1 → 1.1,**150 ms**,无 `interpolator` 属性 = 平台默认 `AccelerateDecelerateInterpolator`:`f(t)=cos((t+1)π)/2+0.5`;失焦是镜像,同为 150 ms | `animator/card_focus`、`card_unfocus` → `dimen/default_card_focused_scale`、`integer/default_focused_animation_duration_ms` |
+| 应用卡聚焦倍率 | 旧版 **1.14**;目标版像素实测 **1.105**(152→168 px)——用后者 | `fraction/app_card_focused_scale`(另有 `vanilla_installed_app_card_focused_scale`、`magic_app_focused_scale`、`lb_focus_zoom_factor_medium` 同为 1.14) |
+| 聚焦描边宽 | **2 dp**(与像素量到的 4 px 一致,互相印证了量法) | `dimen/card_focused_frame_outer_stroke_width` |
+| 聚焦抬升 | 0 → 4 dp | `dimen/card_base_elevation`、`card_focused_elevation` |
+| 顶栏项动画 | 聚焦 **100 ms** / 失焦 **200 ms** | `integer/top_nav_animation_duration_focus`、`_unfocus` |
+| tab 切换 | 聚焦 300 ms / 切换 700 ms | `integer/tab_focus_duration`、`tab_switch_duration` |
+| 其它卡型倍率(参考) | 内容卡 1.10、Live TV 1.08、YouTube 1.08、image-only 1.04、promotion 1.04、OEM banner 1.02 | `fraction/*_card_focused_scale` |
+
+**能用什么、不能用什么**:上表这类**参数**是事实,直接用;APK 里的**素材文件**(drawable、布局 XML 原文件、Google TV logo/字标)是 Google 的专有作品,UnitedU 是公开的 Apache-2.0 仓库,**不得拷入**。实际上也用不着:界面由 Compose 代码按数值绘制,图标走 Google 自己开源的 Material 图标(Apache-2.0),字体是 OFL 的 Google Sans Flex。
+
+**教训**:此前两次用抓帧去量 Google 的焦点动画时长都失败,最后用了占位值——而答案一直在 APK 里。**以后「照 Google」的取数顺序:先翻 APK 资源 → 再量像素 → 都不行才用占位值并注明。**
+
 ## 11. 还没量的(留给下一轮)
 
-1. 动画:焦点移动的时长与曲线(要 `animator_duration_scale 10` + `screenrecord --output-format=frames` 抓)。
+1. ~~动画:焦点移动的时长与曲线~~ —— **2026-09-21 已从 APK 资源读到,见 §10c**。
 2. 顶栏折叠/展开的触发点与动画。
 3. ~~纵向:焦点上下换行时整页怎么位移~~ —— **2026-09-20 已量,见下面 §8b**。
 
