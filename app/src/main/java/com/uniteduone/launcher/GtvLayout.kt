@@ -18,13 +18,28 @@ object GtvLayout {
     const val TOP_BAR_ICON_GAP = 8f
     /** Fix round 1(R15,2026-09-20):**15 dp 是 Google 用 Latin 文本(`Top picks for you`)量出来的
      *  值,对中文不成立,不要改回去。** 原始推导是 a11y (116,600)-(302,630) = 30 px = 15 dp——但那是
-     *  英文单行的紧凑行高;CJK 字形在同样 16sp 字号下需要明显更高的行盒。装机实测(`onTextLayout` 探针,
-     *  `lineHeight` 设为 `Unspecified` 让 Compose 按实际渲染字体——中文回落到系统 CJK 字体——算自然
-     *  行高):「视频」「直播」「音乐与播客」「更多应用」四个标题全部量出 `naturalHeightPx = 46`
-     *  (= 23 dp,density 2.0),零方差。现改为 23 dp,并且 `CategoryRow` 的标题 `TextStyle` 也显式把
-     *  `lineHeight` 设成这个值(不再继承 `titleMedium` 的 Material3 默认 24sp——那个默认值本身够用,
-     *  裁切是容器被压到 15dp 造成的,见 `HomeScreen.kt` 里 `CategoryRow` 的注释)。 */
-    const val ROW_TITLE_LINE = 23f
+     *  英文单行的紧凑行高;CJK 字形在同样字号下需要明显更高的行盒,只能装机测,不能按字号比例算
+     *  (这条原则本身不随下面的字号变动而变)。
+     *
+     *  **Ruling R25(2026-09-21,owner 真机反馈 Round 5 推翻 R19):行标题字号从 16sp 改回 14sp。**
+     *  owner 拿真机与 Google TV 并排对比,判定这条产品线的字号/图标普遍偏大,行标题是第一个点名的
+     *  例子。R19 曾以「14sp 会让 CJK 字形更小、还会把 rowPitch 再往下推一次」为由维持 16sp、
+     *  只改规格表(spec §2.3 footnote);owner 的取舍标准是「像素级贴近 Google」优先于这份
+     *  legibility 顾虑,裁决改回 14sp——不是没考虑过 R19 的顾虑,是明确认为不成立。
+     *
+     *  **20 dp 是在 14sp 下重新装机实测的行盒,不是把 23dp 按 14/16 的字号比例折算出来的**——
+     *  折算会漏算字体在不同字号下 hinting/行距表的非线性变化,R15 踩过这个坑,这里同样只能重测。
+     *  测法与 R15 相同(`onTextLayout` 探针,`lineHeight` 留 `Unspecified` 让 Compose 按实际渲染
+     *  字体——中文回落到系统 CJK 字体——算自然行高,不是量一个已经被 `.height()` 约束夹过的值):
+     *  `unitedu-gtv` AVD(1920×1080/320dpi,density 2.0)上「视频」「直播」「更多应用」三个标题在
+     *  14sp 下全部量出 `naturalHeightPx = 40`(= 20 dp),零方差(第四行「音乐与播客」唯一的应用
+     *  `com.google.android.tvrecommendations` 没有 LAUNCHER 活动、被过滤成空行,没有渲染,不影响
+     *  另外三个的置信度——`cmd package query-activities` 核实过,不是猜测)。
+     *
+     *  `rowPitch` 与依赖它的 `GtvLayoutTest` 三处断言值随之变化(143.5625→140.5625、
+     *  -287.125→-281.125、167.5625→164.5625),这是同一条公式在换了正确输入之后的正确结果,
+     *  不是需要另外吸收的偏差,不要为了凑回旧值而改动这个常量或公式。 */
+    const val ROW_TITLE_LINE = 20f
     const val ROW_TITLE_TO_CARD = 12.5f
     /** Fix round 1(R15,2026-09-20):**125.5 dp 同样是 Google 用 Latin 量出来的行距,对中文标题不
      *  成立,不要试图凑回这个数。** 沿用它会把 `ROW_GAP` 推到约 −10dp(23+12.5+14+86.06−125.5≈−10),
@@ -95,11 +110,37 @@ object GtvLayout {
     const val MENU_ITEM_HINT_GAP = 2f
     /** 两行文字时药丸的上下内边距(单行时数学上不改变居中位置,见 GearMenu.MenuPill 的推导注释)。 */
     const val MENU_ITEM_PADDING_V = 10f
-    /** 齿轮菜单左半 banner 应用名的字号 + 字距(MenuBanner)。 */
-    const val MENU_BANNER_NAME_TEXT = 16f
+    /** 齿轮菜单左半 banner 应用名的字号 + 字距(MenuBanner)。
+     *
+     *  **owner 反馈 Round 5(2026-09-21)16→12**:这是「菜单」这张表里唯一一个 sweep 时才发现、
+     *  不在任务点名清单上的项——点名的只有「菜单项文字」(`MENU_ITEM_TEXT`,已核对与 Google 一致,
+     *  见下方),但 banner 应用名和菜单项文字同属长按菜单这一屏,量出来的差距足够大、
+     *  参照物也足够干净,一并改了并在报告里如实标出「非点名项」。
+     *
+     *  参考图 `docs/screenshots/gtv/16-app-longpress-menu.png`(1920×1080,density 2.0)上量
+     *  Google 的应用名字标「Live TV」:`L`(y 502→518)、`T`/`V`(y 501→518)三个 flat-top 字母
+     *  一致收敛到 cap height ≈17px = 8.5dp,按 cap≈0.71em 换算 8.5/0.71≈12sp。Google 这里的
+     *  banner 与我们同样宽绰(参考图目测是完整 16:9 banner,量级与我们的 `GtvCardSize.LARGE`
+     *  相当),不是「小 banner 配小字」的比例假象。 */
+    const val MENU_BANNER_NAME_TEXT = 12f
     const val MENU_BANNER_NAME_LETTER_SPACING = 1f
-    /** 顶栏时钟 + 字标的字号(spec §2.3)。 */
-    const val TOP_BAR_CLOCK_TEXT = 20f
+    /** 顶栏时钟 + 字标的字号(spec §2.3)。
+     *
+     *  **owner 反馈 Round 5(2026-09-21)改 20→16**:原 20sp 借用的是研究文档 §10「快捷设置时钟
+     *  (`11:11 AM`)」那一行的 cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的
+     *  「大字」时钟(该文档原文明确写「`Sun, Sep 20` + `11:11 AM` **大字**」),不是常驻顶栏右上角
+     *  那个小时钟,两者是同一个 app 里不同层级的两处时钟,没有理由同字号。装机取的参照物本身就错了。
+     *
+     *  重新在 `docs/screenshots/gtv/01-home-default.jpg`(1920×1080,density 2.0)上量常驻顶栏
+     *  「10:48 | Google TV」这一行:避开圆形字母的 overshoot(圆形字形为了视觉等大会比 flat-top
+     *  字形多凸出 1–3 px,这里的「T」「V」「M」都是 flat-top,「0」「G」是圆形,量出来的高度分别是
+     *  23–24px 与 26–27px,印证了这个已知的排印现象——取更准的 flat-top 一组):
+     *  `Google` 的「T」y=98→121(24px)、`TV` 的「V」同为 23–24px、`Move`(长按菜单参照图
+     *  `16-app-longpress-menu.png`同一方法量的「M」)y=288→311(24px)。三组独立测量一致收敛到
+     *  cap height ≈ 24px = 12dp,按 §10 的 cap≈0.71em 换算 12/0.71≈16.9sp,取整 **16sp**——
+     *  与长按菜单项字号（同一张参考图量出的「M」）巧合地是同一个数字,但这是两次独立测量各自收敛
+     *  到的结果,不是复用同一个数。 */
+    const val TOP_BAR_CLOCK_TEXT = 16f
 
     /**
      * Fix 3(owner 反馈 R2,2026-09-20):「目前 UI 交互没有任何动画……焦点一下子跳到这、一下子跳到

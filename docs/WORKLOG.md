@@ -1128,3 +1128,37 @@ worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs
 - `gradle test`:274×2=548,比 Round 3 多 1 个(新增的溢出预算测试)。
 - 报告:`.superpowers/sdd/2026-09-20-gtv-line/owner-feedback-fix-report.md`「Round 4」。未推送
   (等 Gordon 说「推」)。
+
+## 2026-09-21 · owner 真机走查反馈 Round 5:图标边缘色取众数 + 全面尺寸对照 Google
+
+- **Fix 1(图标边缘色)**:以「咪视界」为例,边缘一圈有多色(大半圈白、小圈蓝紫)时旧实现取算术
+  均色,会算出原图不存在的折中色。`CardColor.kt` 的 `edgeColor()` 改成按 RGB 每通道 3bit 分桶、
+  取像素数最多的桶、返回**桶内均值**(纯色边缘因此仍精确复原,只有真混色时才在几种颜色间取舍,
+  不再和稀泥)。TDD:`CardColorTest.kt` 新增 6 个用例(含一条对旧均值结果的反证)。装机验证没找到
+  真装了多色边缘图标的应用(AVD 上翻遍能装的包都是纯色或透明边),改用一个自建的最小合成测试
+  APK(`com.uniteduone.iconprobe`,白/蓝紫/红三色图标,蓝紫色刻意取单测同一个十六进制值)直接复现
+  咪视界的场景,判定为比硬找真实 app 更可控、更可复现,截图前后对照已提交
+  (`docs/screenshots/gtv-owner-r5-fix1-icon-edge-{before,after}.png`)。
+- **Fix 2(尺寸普遍偏大)**:Gordon 判断整条线字号/图标比 Google 大。唯一已确认的一处——行标题
+  16sp——**Ruling R25 推翻 R19**,改回 14sp;R19 当初的「怕挤裁 CJK」顾虑不再优先于「贴近
+  Google」这条 owner 明确定的取舍标准。行盒不能按字号比例折算(R15 的教训),装机重测
+  `naturalHeightPx=40`(20dp,`视频`/`直播`/`更多应用` 三个标题零方差),`ROW_TITLE_LINE`
+  23→20,`rowPitch` 三处 JVM 断言值跟着换算(不是新的偏差)。系统性 sweep 结果:
+  - **顶栏时钟+字标 20→16sp**——原 20sp 借用的是 Google 快捷设置面板「大字」时钟的测量,不是
+    常驻小时钟本身;本轮在参考截图上直接量常驻顶栏「Google TV」的 T/V 与长按菜单「Move」的
+    M,三组独立测量收敛到 ≈16–17sp。
+  - **行图标 24→20dp**——Google 没有这个元素,判据按任务指定的「和新行标题行盒等高」。
+  - **齿轮菜单 banner 应用名 16→12sp**——sweep 中发现、任务未点名,长按菜单参考图上 Google 的
+    「Live TV」量出来只有 ≈12sp,和已核对一致的「菜单项文字」(16sp)不是一回事。
+  - 卡片/应用名(14sp)、顶栏图标(32dp)、顶栏药丸高度(36dp)、菜单项文字(16sp)核对后
+    **已经和 Google 一致,没有改**。
+  - **设置页文字判定为「找不到干净对照物」,只报告不改**——候选参照物(Google 的 Apps 网格页大
+    标题、快捷设置面板磁贴小标签)一个是这条产品线明确不做的页面类型,另一个字号比我们设置页
+    的主要内容文字还小、套用会造成主次颠倒,两者都需要新的产品决策,不是尺寸层面能直接判定的
+    discrepancy。
+  - 顺带检查 `EditScreen.kt` 共用同一个 `ROW_TITLE_LINE` 常量的行标题容器,新的 20dp 高度没有
+    裁切它自己 13sp 的行标题文字,装机截图确认。
+  - spec `docs/superpowers/specs/2026-09-20-gtv-line-design.md` §2.3 表与脚注同步改写。
+- `gradle test`:560=280×2,比 Round 4 多 12(6 个新 `EdgeColorTest` × 2 变体),0 failures。
+- 报告:`.superpowers/sdd/2026-09-20-gtv-line/owner-feedback-fix-report.md`「Round 5」。未推送
+  (等 Gordon 说「推」)。

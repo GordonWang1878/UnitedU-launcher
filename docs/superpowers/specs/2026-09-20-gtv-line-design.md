@@ -57,21 +57,31 @@
 
 | 用途 | 值 |
 |---|---|
-| 顶栏时钟 / 字标 | 20 sp |
+| 顶栏时钟 / 字标 | 16 sp †† |
 | 二级页大标题(设置页、Apps 页一类) | 32 sp |
-| 行标题 | 16 sp † |
+| 行标题 | 14 sp † |
 | 卡片标题 / 应用名 | 14 sp |
 | 菜单项 / 磁贴 | 16 sp |
 
 **84 sp 大字时钟取消**(B2)。
 
-† **终审 Ruling R19(2026-09-20)修订,不是实现漏改**:这里原写 14 sp,是反推 Google 实测
-Latin 标题(`Top picks for you`)cap height 得到的数字(见 §C)。实现从 Task 1 起就是
-`titleMedium` 的默认 16 sp,从未按 14 sp 改过——R15(Task 9b)修 CJK 标题裁字问题时,
-装机实测出 23 dp 的行盒才刚好放得下 16 sp 的中文字形(`ROW_TITLE_LINE`,GtvLayout.kt 有完整
-测量记录);14 sp 的中文只会更小、还会把 `rowPitch` 再往下推一次,重复 R15 已经修过的错误。
-Google 的参考对象是拉丁字母,我们的行标题恒为中文,按拉丁字号走是刻舟求剑——16 sp 才是
-这条产品线的正确值,故维持实现、改这张表。
+† **Ruling R25(2026-09-21,owner 真机反馈 Round 5)推翻 R19,改回 14 sp**:R19(2026-09-20)
+曾以「14 sp 的中文字形更小、还会把 `rowPitch` 再往下推一次」为由维持 16 sp,只改这张表。
+owner 这一轮拿真机与 Google TV 并排比对,判定整条产品线的字号/图标普遍偏大,行标题是第一个
+点名的例子;取舍标准是「像素级贴近 Google」优先于 R19 的 legibility 顾虑——不是没考虑过
+R19 的理由,是这次明确认为不该以牺牲 Google 一致性为代价。`ROW_TITLE_LINE`(GtvLayout.kt)
+在 14 sp 下重新装机实测为 20 dp(不是把 23dp 按字号比例折算——CJK 行盒只能重测,R15 就是
+这个教训),`rowPitch` 与相关 JVM 测试的三处断言值一并更新,详见该常量的 KDoc 与
+`.superpowers/sdd/2026-09-20-gtv-line/owner-feedback-fix-report.md`「Round 5」。
+Google 的参考对象是拉丁字母(见 §C 的 cap-height 反推),我们的行标题恒为中文,按拉丁字号
+反推的具体数值本就是刻舟求剑——这条没有变,变的是这一次 owner 判断「字号本身」仍应贴 Google
+的 14 sp,只是行盒高度(不是字号)需要为 CJK 单独测量。
+
+†† **owner 反馈 Round 5**:原 20 sp 借用的是研究文档 §10「快捷设置时钟(`11:11 AM`)」那一行的
+cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的「大字」时钟,不是常驻顶栏右上角的
+小时钟,参照物本身选错了。重新在参考截图上量常驻顶栏「10:48 | Google TV」的 flat-top 字母
+(`T`/`V`,避开圆形字母的 overshoot),cap height ≈ 24px = 12dp,按 cap≈0.71em 换算
+≈16.9sp,取整改为 16 sp。详见 `GtvLayout.TOP_BAR_CLOCK_TEXT` 的 KDoc。
 
 ### 2.4 颜色
 

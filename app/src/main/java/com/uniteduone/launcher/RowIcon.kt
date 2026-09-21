@@ -26,7 +26,15 @@ import androidx.compose.ui.unit.dp
  * 行标题前的小图标。用真的 Material 图标,不再手画:
  * 复审逐项对比后指出手画版本的填充、朝向、笔画粗细都和参考图不同
  * (胶片画成了横向描边矩形、电视画成了开口盒子加天线、音符的旗是细线)。
- */
+ *
+ * **owner 反馈 Round 5(2026-09-21)24→20dp**:Google TV 首页本身没有行图标这个元素
+ * (`docs/research/2026-09-20-google-tv-launcherx-measurements.md` 通篇没有对应物),没有
+ * Google 数值可以对齐,判据只能是「和它现在挨着的标题字号相不相称」——任务原话。这里的标题字号
+ * 随 Ruling R25 从 16sp/23dp 行盒改成了 14sp/20dp 行盒(`GtvLayout.ROW_TITLE_LINE`),原来
+ * 24dp 的图标框对比新行盒会显得明显偏大(24/23≈1.04,原本贴合;24/20=1.2,新行盒下超出两成)。
+ * 改成与 `ROW_TITLE_LINE` 相等的 20dp——图标框高与它右边文字的行盒高度一致,是这里唯一
+ * 站得住脚的比例基准(两者都读同一个 `GtvLayout` 常量,以后行标题字号再变,这里跟着一起变,
+ * 不会重新漂移)。 */
 @Composable
 fun RowIcon(
     name: String,
@@ -45,8 +53,9 @@ fun RowIcon(
         imageVector = vector,
         contentDescription = name,
         colorFilter = ColorFilter.tint(tint),
-        // Material 的矢量图标只填满外框的 24/32,所以框要给到 24dp 才等于参考里的 36px 字形
-        modifier = Modifier.size(24.dp),
+        // owner 反馈 Round 5:框高改为与行标题的行盒(GtvLayout.ROW_TITLE_LINE)相等,理由见本
+        // 文件顶部 KDoc——不再是「填满外框的 24/32」那个已作废的 36px 参考推导。
+        modifier = Modifier.size(GtvLayout.ROW_TITLE_LINE.dp),
     )
 }
 

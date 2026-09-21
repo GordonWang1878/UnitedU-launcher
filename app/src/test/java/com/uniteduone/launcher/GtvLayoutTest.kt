@@ -64,16 +64,19 @@ class GtvLayoutTest {
 
     // Fix round 1(R15,2026-09-20):这个值**不再是** Google 实测的 125.5——那是用 Latin 标题
     // (`Top picks for you`)量出来的行距,套用到中文标题上会裁字(见 ROW_TITLE_LINE/ROW_GAP 的
-    // KDoc 与 task-9b-report.md)。143.5625 是 CJK 不裁切的前提下,同一条公式重新算出来的值,
+    // KDoc 与 task-9b-report.md)。140.5625 是 CJK 不裁切的前提下,同一条公式重新算出来的值,
     // 断言这个新值,不是要把它凑回 125.5。
+    // owner 反馈 Round 5(R25):ROW_TITLE_LINE 从 23(16sp 实测)改为 20(14sp 重新实测),
+    // 143.5625 随之变成 140.5625——同一条公式换了正确输入之后的正确结果,数值出处见
+    // ROW_TITLE_LINE 的 KDoc,不是这里另外调整的。
     @Test fun `中档行间距 = CJK 不裁切前提下的值,不是 Google 的 Latin 125点5`() {
-        // 23(CJK 实测行盒) + 12.5 + 14(焦点描边留白) + 86.0625(中档卡高) + 8(ROW_GAP) = 143.5625
-        assertEquals(143.5625f, GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = false), 0.01f)
+        // 20(CJK 实测行盒,14sp) + 12.5 + 14(焦点描边留白) + 86.0625(中档卡高) + 8(ROW_GAP) = 140.5625
+        assertEquals(140.5625f, GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = false), 0.01f)
     }
 
     @Test fun `纵向位移按行数累加`() {
-        // -2 × 143.5625 = -287.125
-        assertEquals(-287.125f, GtvLayout.rowShiftY(2, GtvCardSize.MEDIUM, showTitles = false), 0.3f)
+        // -2 × 140.5625 = -281.125
+        assertEquals(-281.125f, GtvLayout.rowShiftY(2, GtvCardSize.MEDIUM, showTitles = false), 0.3f)
     }
 
     // Task 9b:CategoryRow 实际渲染的纵向每一项(标题行盒、标题到卡间距、焦点描边留白、卡高、
@@ -93,9 +96,11 @@ class GtvLayoutTest {
             GtvLayout.cardHeight(GtvCardSize.MEDIUM) +
             GtvLayout.ROW_GAP
         assertEquals(expected, GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = false), 0.01f)
-        // Fix round 1:不再对齐 Google 的 Latin 125.5——对齐的是「CJK 不裁切」这个新前提下的 143.5625,
+        // Fix round 1:不再对齐 Google 的 Latin 125.5——对齐的是「CJK 不裁切」这个新前提下的值,
         // 数值出处见 ROW_TITLE_LINE/ROW_GAP 各自的 KDoc,不是这里随手写的。
-        assertEquals(143.5625f, expected, 0.01f)
+        // owner 反馈 Round 5(R25):140.5625 是 ROW_TITLE_LINE 改成 20(14sp)之后的新值,取代
+        // 之前 16sp 下测得的 143.5625。
+        assertEquals(140.5625f, expected, 0.01f)
     }
 
     // Fix 1(owner 反馈 R2,2026-09-20):showTitles = true 这个分支此前**没有任何断言覆盖**——
@@ -107,8 +112,8 @@ class GtvLayoutTest {
         val withTitles = GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = true)
         val withoutTitles = GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = false)
         assertEquals(GtvLayout.titleHeight(true), withTitles - withoutTitles, 0.01f)
-        // 167.5625 = 143.5625(showTitles=false)+ 24(CARD_TITLE_GAP 4 + CARD_TITLE_LINE 20)
-        assertEquals(167.5625f, withTitles, 0.01f)
+        // 164.5625 = 140.5625(showTitles=false,R25 之后的新值)+ 24(CARD_TITLE_GAP 4 + CARD_TITLE_LINE 20)
+        assertEquals(164.5625f, withTitles, 0.01f)
     }
 
     // owner 反馈 Round 4(2026-09-21)§5:「验证,不要假设」——app 卡片聚焦缩放
