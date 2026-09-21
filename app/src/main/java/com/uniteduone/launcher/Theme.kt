@@ -151,11 +151,38 @@ object Theme {
     )
 
     val SidePadding = HomeLayout.SIDE_PADDING.dp
-    /** 焦点 / 位移动效:tv-material SurfaceScaleTokens 同一条减速曲线与进焦时长。main 线的行位移、
-     *  gtv 线的行位移(row shift x/y)、图片选择器的位移动画仍读这个——它们与下面的
-     *  [AppFocusEasing] 是两件不同的事:这个管「位置」,那个管「焦点淡入淡出/缩放」。 */
+    /** 焦点 / 位移动效:tv-material SurfaceScaleTokens 同一条减速曲线与进焦时长。
+     *  **Ruling R27(2026-09-21)之后,gtv 分支上只剩图片选择器(`ImagePicker` 的网格翻页位移)
+     *  这一个读者**——首页行位移(row shift x/y)与编辑页纵向位移已改读 [BrowseEasing] +
+     *  [GtvLayout.BROWSE_SHIFT_MS]。这两个常量**保留不删**:`main` 分支的 `HomeScreen`
+     *  (`HomeLayout` 那套行位移,三处)仍然逐字读它们,在这里删掉只会在合回去时凭空造冲突,
+     *  而 main 线的动效不在本轮验收范围里。
+     *
+     *  300ms 的出处如实记录:它等同 Material 的 `material_motion_duration_long_1`,是一个通用值,
+     *  **与 Google TV 的 browse 手势没有关系**——这正是 R27 把 gtv 线换走的原因。 */
     val MotionEasing = androidx.compose.animation.core.CubicBezierEasing(0f, 0f, 0.2f, 1f)
     const val MotionInMs = 300
+
+    /**
+     * **Ruling R27(2026-09-21,owner 真机反馈 Round 7)**:Google TV 浏览位移(焦点在网格里移动、
+     * 内容跟着平移)专用的缓动曲线,逐字来自旧版 launcherx APK(1.0.595789376,资源名未混淆)的
+     * `anim/tv_easing_browse` = `pathInterpolator(controlX1=0.18, controlY1=1, controlX2=0.22,
+     * controlY2=1)`;同一条曲线在设计 token 里还有一份取整版
+     * `interpolator/gtvm3_sys_motion_easing_browse` = cubic-bezier(0.2, 1, 0.2, 1),两者互为佐证。
+     * 这里取未取整的 APK 值。
+     *
+     * **三条曲线各管一段,互相不能替换**:
+     * - [BrowseEasing](0.18, 1, 0.22, 1):**浏览位移**。控制点的 y 在 18% 的进度处就冲到 1,
+     *   位移几乎一上来就走完大半、尾巴长长地收住——「内容被甩过去再稳下来」的手感,
+     *   owner 反馈里说的「上下滚动时页面内容的动效」就是这一条。
+     * - [MotionEasing](0, 0, 0.2, 1):Material 通用减速曲线,起步比 browse 慢得多(见上)。
+     *   gtv 线之外仍在用,不是错的曲线,只是**不是 Google TV browse 的那一条**。
+     * - [AppFocusEasing](AccelerateDecelerate,`cos((t+1)π)/2+0.5`):**焦点缩放 / 淡入淡出**,
+     *   两头慢中间快的对称曲线,与位移是两件不同的事(Google 自己也是分开的两份资源:
+     *   `animator/card_focus` 不写 interpolator 走平台默认,`tv_easing_browse` 另有其名)。
+     *   **owner 反馈 Round 7 已核实我们这一条与 Google 逐字相同,不要动它。**
+     */
+    val BrowseEasing = androidx.compose.animation.core.CubicBezierEasing(0.18f, 1f, 0.22f, 1f)
 
     /**
      * owner 反馈 Round 4(2026-09-21):Google 的 app tile 聚焦动画的真实插值器,从旧版 launcherx

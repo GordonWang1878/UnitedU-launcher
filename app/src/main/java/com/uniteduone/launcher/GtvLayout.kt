@@ -228,6 +228,25 @@ object GtvLayout {
     const val FOCUS_FADE_OUT_MS = 150
 
     /**
+     * **Ruling R27(2026-09-21,owner 真机反馈 Round 7)**:浏览位移(首页行 x/y 平移、编辑页纵向
+     * 平移)的时长,配 [Theme.BrowseEasing] 一起用,取代此前的 `Theme.MotionInMs`(300ms,等同
+     * Material 的 `material_motion_duration_long_1`,一个与 browse 无关的通用值)。
+     *
+     * **证据强度必须如实说清,这个数字没有像曲线那样拿到逐字证据**:
+     * - 曲线有逐字证据——`anim/tv_easing_browse` 是一份具名资源,直接读出四个控制点。
+     * - 时长没有。同一份 APK 里**唯一**以 browse 命名的时长是 `integer
+     *   /lb_browse_rows_anim_duration = 250`(leanback 的行动画),设计 token 里的
+     *   `gtvm3_sys_motion_duration_medium1` 同样是 250;但 `tv_easing_browse` **只被代码引用、
+     *   没有任何 XML 引用它**,所以拿不到「这条曲线配这个时长」的对应关系,
+     *   250 是这两个同源候选值收敛到的同一个数,不是从一条 animator 上读下来的。
+     * - 模拟器逐帧实测**不作为证据**:`unitedu-gtv` 这台 AVD 的帧率在 30–40 fps 之间漂移,
+     *   250ms 与 300ms 的差别落在单帧间隔量级以内,分辨不出来,不要拿它当佐证。
+     *
+     * 真的又量到更可靠的数字才改;不要凭手感往回调到 300。
+     */
+    const val BROWSE_SHIFT_MS = 250
+
+    /**
      * owner 反馈 Round 4:Google 对 **app tile**(不是 content card)的聚焦处理——放大,不是外扩
      * 静态描边。旧版本(1.0.595789376)`fraction/app_card_focused_scale = 1.14`;但 controller
      * 在**本项目实际对照的目标版本**(1.0.976298245)上装机像素量测聚焦态应用图块

@@ -296,6 +296,10 @@ private fun PickerGrid(
     val firstRow = firstVisibleRow.coerceIn(0, (rows.size - visibleRows).coerceAtLeast(0))
     val yShift by animateDpAsState(
         targetValue = with(density) { (-(firstRow * pitchPx)).toDp() },
+        // Ruling R27(owner 反馈 Round 7)**刻意没有改这一处**:首页行位移与编辑页纵向位移换成了
+        // Google 的 browse 曲线(Theme.BrowseEasing + GtvLayout.BROWSE_SHIFT_MS),这里是图片网格
+        // 的翻页位移——不是首页那个 browse 场景,Google 那边也没有对应物可照抄,继续用通用的
+        // Theme.MotionEasing。这条不一致是明知故留,不是漏改。
         animationSpec = tween(Theme.MotionInMs, easing = Theme.MotionEasing),
         label = "pickerYShift",
     )

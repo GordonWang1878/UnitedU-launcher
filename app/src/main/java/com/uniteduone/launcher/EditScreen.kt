@@ -456,7 +456,9 @@ fun EditScreen(
     val shiftPx = if (firstRow == 0) 0 else headerPx + (0 until firstRow).sumOf { rowHeights[it] ?: pitchPx }
     val yShift by animateDpAsState(
         targetValue = with(density) { (-shiftPx).toDp() },
-        animationSpec = tween(Theme.MotionInMs, easing = Theme.MotionEasing),
+        // Ruling R27(owner 反馈 Round 7):编辑页的纵向平移与首页换行是同一件事——焦点在网格里
+        // 移动、内容跟着平移,属 browse 手势,同样换成 Theme.BrowseEasing + BROWSE_SHIFT_MS。
+        animationSpec = tween(GtvLayout.BROWSE_SHIFT_MS, easing = Theme.BrowseEasing),
         label = "editYShift",
     )
 
