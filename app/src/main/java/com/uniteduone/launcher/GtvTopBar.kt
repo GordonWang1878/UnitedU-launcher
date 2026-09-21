@@ -22,7 +22,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -226,13 +228,20 @@ private fun TopBarIconButton(
 }
 
 /**
- * 右侧时钟 + 「UnitedU」字标,20 sp,单行(spec §4:「日期跟在时钟后面,同字号」)。
+ * 右侧时钟 + 「UnitedU」字标,单行(spec §4:「日期跟在时钟后面,同字号」)。
  * 复用 [clockPatterns] 的格式化规则与 [rememberClockState] 的跳变监听(Clock.kt,2026-09-20 放宽到
- * internal 供这里调用)——不复用 84 sp 的 `HeroClock`,那是 hero / 屏保场景的大字排版,不适合这里的单行小字。
+ * internal 供这里调用)——不复用 84 sp 的 `HeroClock`,那是旧线 hero 的大字排版,gtv 线上已无人调用。
  * 「UnitedU」是品牌字标,不走 strings.xml(不需要本地化,与 Google TV 字标同理)。
+ *
+ * **Ruling R26(2026-09-21,推翻 R9)**:放宽到 internal,系统屏保 [UnitedUDream] 也画这一份。
+ * R9 当初让系统屏保留着 84 sp `HeroClock`,是在 Gordon 下达「Google 原生怎么样,我们就做成怎么样」
+ * 之前定的;Google TV 的 ambient 屏保没有大字时钟,而且他在真机上看到那口大钟后明确报为问题。
+ * 现在三处待机画面(首页待机 / 桌面自定义屏保 / 系统屏保)留下的都是同一行小字,不再各长各的。
+ *
+ * @param shadow 照片可能很亮时为真(与 `HeroClock` 同一条规则):加一层淡阴影,不做描边、不做底板。
  */
 @Composable
-private fun ClockWordmark(showDate: Boolean, modifier: Modifier = Modifier) {
+internal fun ClockWordmark(showDate: Boolean, shadow: Boolean = false, modifier: Modifier = Modifier) {
     val accent = LocalThemeColors.current.accent
     val state = rememberClockState()
     val locale = AppLocale.current ?: Locale.getDefault()
@@ -251,6 +260,15 @@ private fun ClockWordmark(showDate: Boolean, modifier: Modifier = Modifier) {
     BasicText(
         text = text,
         modifier = modifier,
-        style = TextStyle(fontFamily = Theme.Sans, fontSize = GtvLayout.TOP_BAR_CLOCK_TEXT.sp, color = accent),
+        style = TextStyle(
+            fontFamily = Theme.Sans,
+            fontSize = GtvLayout.TOP_BAR_CLOCK_TEXT.sp,
+            color = accent,
+            shadow = if (shadow) {
+                Shadow(color = Color.Black.copy(alpha = 0.55f), offset = Offset(0f, 2f), blurRadius = 16f)
+            } else {
+                null
+            },
+        ),
     )
 }

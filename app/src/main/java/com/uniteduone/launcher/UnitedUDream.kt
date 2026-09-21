@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
@@ -25,7 +26,8 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 
 /**
  * 系统屏保(M5 spec §4):UnitedU 在电视「屏幕保护程序」列表里的那一项。画面与桌面的自定义屏保
- * ([Screensaver],Fix R16 起两边都叠 [HeroClock])一致——全屏轮播屏保图库 + 左上大字时钟(淡阴影)。
+ * ([Screensaver])一致——全屏轮播屏保图库;时钟则是 **Ruling R26 起**改成与首页顶栏同一行小字
+ * ([ClockWordmark],右上角,照片上带淡阴影),不再是 R9 保留的 84 sp `HeroClock`(理由见 [DreamContent])。
  * **图库为空时黑底 + 时钟是这里独有的**:系统屏保背后没有壁纸可透,空图库总要画点什么;桌面那份
  * 叠在真实壁纸上面,空图库时按 [Screensaver] 自己的 KDoc 什么都不画,该场景的黑底由 MainActivity
  * 的待机 BLACK 层负责,不是这个组件的职责。与桌面**共用播放器和播放进度**
@@ -131,8 +133,15 @@ class UnitedUDream : DreamService(), SavedStateRegistryOwner {
 }
 
 /**
- * 系统屏保的画面:与桌面自定义屏保同一个轮播层 + 同一个大字时钟,位置与首页相同(左 58 dp、顶 150 dp)。
- * 图库为空 → 黑底 + 时钟,不加阴影(黑底上不需要,spec §4)。主题色走 [rememberThemeColors],与 MainActivity 同一条路。
+ * 系统屏保的画面:与桌面自定义屏保同一个轮播层 + 顶栏那一行小时钟字标,位置与首页顶栏相同
+ * (右对齐 58 dp 基准线、顶 34 dp)。图库为空 → 黑底 + 时钟,不加阴影(黑底上不需要,spec §4)。
+ * 主题色走 [rememberThemeColors],与 MainActivity 同一条路。
+ *
+ * **Ruling R26(2026-09-21,推翻 R9)**:这里曾经画 84 sp 的 `HeroClock`。R9 定于 Gordon 下达
+ * 「gtv 线上 Google 原生有答案的直接照做」之前;Google TV 的 ambient 屏保没有左上大字时钟,
+ * 而且 2026-09-21 真机实测他一眼就把那口大钟报成问题(「我看到屏保时还是在左边显示的那个大时钟」)。
+ * 改画 [ClockWordmark] 之后,三处待机画面(首页待机顶栏 / 桌面自定义屏保 / 系统屏保)留下的是同一行小字
+ * ——R23 当时写「两层不再长得一样不是遗留缺口」,本轮把这个差异也抹平了。
  */
 @Composable
 private fun DreamContent(settings: Settings, intervalMs: Long) {
@@ -143,10 +152,12 @@ private fun DreamContent(settings: Settings, intervalMs: Long) {
             val hasImages = files.isNotEmpty()
             Box(Modifier.fillMaxSize().background(Color.Black)) {
                 if (hasImages) ScreensaverContent(intervalMs = intervalMs, modifier = Modifier.fillMaxSize())
-                HeroClock(
+                ClockWordmark(
                     showDate = settings.showDate,
                     shadow = hasImages,
-                    modifier = Modifier.padding(start = Theme.SidePadding, top = HomeLayout.HERO_TOP.dp),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(end = GtvLayout.CONTENT_KEYLINE.dp, top = GtvLayout.TOP_BAR_TOP.dp),
                 )
             }
         }
