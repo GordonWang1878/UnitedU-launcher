@@ -10,10 +10,69 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+
+/**
+ * **Ruling R28(2026-09-21,owner 真机反馈 Round 7)**:焦点柔光——在描边**外缘**之外再铺一层
+ * 按指数衰减的大面积辉光,是 owner 说「从沙发上完全感觉不到动效」的正解(2dp 细环在 150ms 内
+ * 淡入,那个距离上肉眼捕捉不到;30dp 的柔光捕捉得到)。数值出处、实测剖面表、为什么不用
+ * `BlurMaskFilter`,全部见 [GtvLayout.APP_FOCUS_GLOW_DP] 一族常量的 KDoc。
+ *
+ * 画法:一串首尾相接的同心圆角矩形描边,每圈宽 [GtvLayout.APP_FOCUS_GLOW_RING_DP],
+ * alpha 走 [GtvLayout.focusGlowAlpha];圆角半径随外扩距离同步增大(与本文件既有的
+ * `r = corner + (outX + outY) / 2` 同一写法)。
+ *
+ * **柔光会铺出卡片间距之外**:30dp > `GtvLayout.CARD_GAP`(20dp),也大于卡片上方到上一行标题
+ * 的 15dp(`rowVerticalPad` 7 + `ROW_GAP` 8),所以它必然会淡淡地盖到邻居卡与上一行标题区——
+ * Google 那份实测剖面本身就是这样(它的行距比我们还紧),不是 bug,别为此砍短柔光。
+ * 一处**已知的不对称**,留给装机复核:同一行里的卡片按组合顺序绘制,焦点卡左边的邻居先画、
+ * 会被柔光盖住,右边的邻居后画、反而盖住柔光。真要对称得给焦点卡加 `Modifier.zIndex`,
+ * 那会动到焦点相关的 modifier 链,R28 没有顺手改——d≥20dp 处 alpha 只剩 0.071→0.048,
+ * 先看真机上能不能觉察。
+ *
+ * **这是绘制、不是布局**:整段画在 `drawBehind` 里,不改变任何测量尺寸。
+ * `GtvLayout.appFocusOverflow`、`rowPitch`、`Theme.gtvCardMetrics.rowVerticalPad` 里**都没有**
+ * 柔光这一项,**也不要"顺手补全"**——加进去会把行间距撑开 30dp,破坏已经与 Google 对齐的
+ * 纵向节奏(理由与实测依据见 [GtvLayout.appFocusOverflow] 与 [GtvLayout.APP_FOCUS_GLOW_DP])。
+ *
+ * @param edgeX 布局框左/右边到**描边外缘**的距离(px)。注意是外缘,不是 `drawRoundRect` 那个
+ *   走中心线的偏移量——调用方要自己加上半个描边宽。
+ * @param edgeY 同上,上/下方向。
+ * @param cornerAtEdge 描边外缘处的圆角半径(px)。
+ * @param alpha 焦点动画的整体可见度(与描边共用同一份 `motionSpec`:柔光是焦点处理的一部分,
+ *   不另起时长);调用方已确保 > 0 才调进来。
+ */
+private fun DrawScope.drawFocusGlow(
+    edgeX: Float,
+    edgeY: Float,
+    cornerAtEdge: Float,
+    color: Color,
+    alpha: Float,
+) {
+    if (alpha <= 0f) return
+    val ringDp = GtvLayout.APP_FOCUS_GLOW_RING_DP
+    val ringPx = ringDp.dp.toPx()
+    val rings = (GtvLayout.APP_FOCUS_GLOW_DP / ringDp).toInt()
+    for (i in 0 until rings) {
+        // 第 i 圈的中心线落在距描边外缘 (i + 0.5) × ringDp 处:圈与圈首尾相接,合起来正好铺满
+        // 0 → APP_FOCUS_GLOW_DP,不重叠也不留缝。
+        val ringAlpha = GtvLayout.focusGlowAlpha((i + 0.5f) * ringDp) * alpha
+        if (ringAlpha <= 0f) continue
+        val off = (i + 0.5f) * ringPx
+        val r = cornerAtEdge + off
+        drawRoundRect(
+            color = color.copy(alpha = color.alpha * ringAlpha),
+            topLeft = Offset(-(edgeX + off), -(edgeY + off)),
+            size = Size(size.width + 2 * (edgeX + off), size.height + 2 * (edgeY + off)),
+            cornerRadius = CornerRadius(r, r),
+            style = Stroke(width = ringPx),
+        )
+    }
+}
 
 /**
  * **内容卡**(content card)焦点画法(实测):不缩放,在布局框外扩 [GtvLayout.FOCUS_OUTSET] dp 处
@@ -33,6 +92,9 @@ import androidx.compose.ui.unit.dp
  * (动画不门控焦点逻辑,焦点铁律)。
  * 时长/曲线见 [GtvLayout.FOCUS_FADE_IN_MS]/[GtvLayout.FOCUS_FADE_OUT_MS]/[Theme.AppFocusEasing]
  * 的 KDoc(owner 反馈 Round 4 起已是 Google 实测值,不再是占位)。
+ *
+ * **Ruling R28(owner 反馈 Round 7)**:描边外缘之外再铺一层柔光([drawFocusGlow]),几何基准
+ * 换成这个函数自己的 `FOCUS_OUTSET`/`FOCUS_STROKE`,alpha 与描边共用同一个动画量。
  */
 fun Modifier.gtvFocusStroke(focused: Boolean, color: Color, corner: Dp): Modifier = composed {
     val alpha by animateFloatAsState(
@@ -48,6 +110,17 @@ fun Modifier.gtvFocusStroke(focused: Boolean, color: Color, corner: Dp): Modifie
         val out = GtvLayout.FOCUS_OUTSET.dp.toPx()
         val w = GtvLayout.FOCUS_STROKE.dp.toPx()
         val r = (corner.toPx() + out)
+        // R28 柔光(先画,描边盖在上面才保持清脆):几何基准是这个函数自己的
+        // FOCUS_OUTSET/FOCUS_STROKE——描边走中心线,外缘在 out + w/2 处。柔光的三个数值
+        // (总距离/峰值/半衰期)是从 app tile 那份实测剖面**借用**的,不是又给内容卡单独量了
+        // 一份;与 FOCUS_FADE_IN_MS/OUT_MS 同一种借用关系(见那两个常量的 KDoc),如实记录。
+        drawFocusGlow(
+            edgeX = out + w / 2f,
+            edgeY = out + w / 2f,
+            cornerAtEdge = r + w / 2f,
+            color = color,
+            alpha = alpha,
+        )
         drawRoundRect(
             color = color.copy(alpha = color.alpha * alpha),
             topLeft = Offset(-out, -out),
@@ -79,6 +152,13 @@ fun Modifier.gtvFocusStroke(focused: Boolean, color: Color, corner: Dp): Modifie
  * 当前动画中的 scale 值」算出缩放后边缘的位置,再往外加固定的 gap/stroke,画完之后才对
  * **后续**的实际内容(卡片背景/图片/圆角裁剪)应用 `graphicsLayer` 缩放——`drawBehind` 在
  * `graphicsLayer` 之前(链上更外层),不受它影响,数值计算与视觉缩放各管一段。
+ *
+ * **Ruling R28(owner 反馈 Round 7)**:描边只是焦点处理的一半,另一半是描边外面那层大面积
+ * 柔光([drawFocusGlow]);Google 有、我们此前一点没画,这才是 owner 说「从沙发上完全感觉不到
+ * 动效」的主因。柔光的几何与描边同源(同样跟着 `scale` 长大)、alpha 与描边共用同一个
+ * `ringAlpha`,**但只是绘制,不进任何布局量**(见 [GtvLayout.appFocusOverflow] 的 KDoc)。
+ *
+ * **绘制顺序**:柔光 → 聚焦描边 → 移动描边,由外向内、后画的盖在先画的上面。
  *
  * @param moving 首页原地移动态(M4b):被搬的那张卡的高亮描边,与 [gtvFocusStroke] 的 `moving`
  *   分支是同一件事、同一套固定外扩几何(不随 `focused` 的缩放变化——它标的是「正在搬哪张」,
@@ -118,6 +198,17 @@ fun Modifier.gtvAppFocusFrame(
                 val outX = growX + gap + stroke / 2f
                 val outY = growY + gap + stroke / 2f
                 val r = corner.toPx() + (outX + outY) / 2f
+                // R28 柔光:几何与描边同源(outX/outY 里已经含了当前动画中的 scale,所以柔光
+                // 跟着卡片一起长大),透明度与描边共用同一个 ringAlpha —— 同一份 motionSpec,
+                // 150ms AccelerateDecelerate,柔光是焦点处理的一部分,不另起时长。
+                // 描边走中心线,外缘在 outX + stroke/2 处;先画柔光、描边盖在上面。
+                drawFocusGlow(
+                    edgeX = outX + stroke / 2f,
+                    edgeY = outY + stroke / 2f,
+                    cornerAtEdge = r + stroke / 2f,
+                    color = accentColor,
+                    alpha = ringAlpha,
+                )
                 drawRoundRect(
                     color = accentColor.copy(alpha = accentColor.alpha * ringAlpha),
                     topLeft = Offset(-outX, -outY),

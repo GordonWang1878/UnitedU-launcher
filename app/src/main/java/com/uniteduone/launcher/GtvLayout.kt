@@ -264,9 +264,78 @@ object GtvLayout {
 
     /** app tile 聚焦时的视觉溢出量(缩放增量的一半 + 描边间隙 + 描边本身),给定卡片某一边的
      *  未缩放长度。纯几何,不含 Compose 类型,方便单测验证「聚焦时会不会碰到下一行标题」
-     *  「行尾右缘会不会被屏幕边缘裁描边」这类不变量(owner 反馈 Round 4 §5)。 */
+     *  「行尾右缘会不会被屏幕边缘裁描边」这类不变量(owner 反馈 Round 4 §5)。
+     *
+     *  **[APP_FOCUS_GLOW_DP](R28 的柔光)刻意不在这条公式里,不要"顺手补全"**:这个函数是
+     *  **布局约定**(`rowShiftX` 拿它决定行要不要左移、`GtvLayoutTest` 拿它验证不碰下一行标题),
+     *  而柔光是纯视觉溢出,画在 `drawBehind` 里、不参与测量。把 30dp 柔光加进来会让每行凭空
+     *  多出 30dp 的间距预算,破坏已经与 Google 对齐的纵向节奏。详见 [APP_FOCUS_GLOW_DP]。 */
     fun appFocusOverflow(dimension: Float): Float =
         dimension * (APP_FOCUS_SCALE - 1f) / 2f + APP_FOCUS_GAP + APP_FOCUS_STROKE
+
+    /**
+     * **Ruling R28(2026-09-21,owner 真机反馈 Round 7)**:焦点柔光向外铺开的总距离(dp),
+     * 从**描边外缘**起算。此前 gtv 线只画了一圈 2dp 描边、柔光一点没有——这正是 owner
+     * 「从沙发上完全感觉不到动效」的主因:2dp 细环在 150ms 内淡入,那个距离上肉眼捕捉不到;
+     * 大面积柔光才捕捉得到。
+     *
+     * **模拟器实测剖面**(`unitedu-gtv` AVD,1920×1080 @ density 2.0;Google 的 76dp 圆形 app
+     * 磁贴,聚焦后 84dp,描边在半径 43dp 处、外缘约 44dp)。亮度单位 /255,是"高出未聚焦背景"
+     * 的增量,`d` = 超出描边外缘的距离(dp):
+     *
+     * | d(dp) |  2  |  5  |  8  | 11 | 14 | 17 | 20 | 23 | 26 | 29 |
+     * |---|---|---|---|---|---|---|---|---|---|---|
+     * | 高出 /255 | 44 | 36.5 | 33 | 30 | 26.6 | 23.6 | 20.7 | 18 | 15.9 | 13.7 |
+     *
+     * 上方与左方两个方向的剖面几乎重合(不是文字或邻居干扰),近似指数衰减,半衰期
+     * ≈[APP_FOCUS_GLOW_HALF_LIFE_DP],铺到 d≈30dp 仍未归零——所以总距离取 **30dp**,
+     * 末圈 alpha 还有 0.17×2^(−29/16)≈0.048,是"渐隐到看不见"而不是"画到一半被砍断"。
+     *
+     * **这是视觉溢出,不是布局量**:柔光在 `GtvFocusStroke` 的 `drawBehind` 里画,不参与任何
+     * 测量;[appFocusOverflow]、`rowPitch`、`Theme.gtvCardMetrics.rowVerticalPad` 都**不加**
+     * 这一项(加进去会把行间距撑开 30dp)。代价是柔光会盖到相邻卡片与上一行标题区的底部——
+     * 这是 Google 那张剖面本身就有的样子(它的柔光同样铺出 30dp,行距比这还紧),不是 bug。
+     */
+    const val APP_FOCUS_GLOW_DP = 30f
+
+    /**
+     * 柔光紧贴描边外缘处(d = 0)的峰值 alpha。取实测表最靠内的那一格 **+44/255 ≈ 0.17**。
+     *
+     * **两处如实记录的近似,不要当成精确值**:
+     * 1. 实测表最靠内的采样点是 d=2 不是 d=0(d<2 的像素被描边本身占着,量不到)。按同一条
+     *    指数曲线外推回 d=0 应该是 44×2^(2/16)≈48/255≈0.188;这里**取更保守的 0.17**——
+     *    宁可柔光比 Google 淡 8%,也不要为了凑一个没量到的点把它画得比实测更亮。
+     * 2. alpha 与"亮度增量"之间隔着一次合成:在近黑背景上叠一层亮色,增量 ≈ alpha ×
+     *    (前景亮度 − 背景亮度),背景接近 0、前景接近 255 时才有 alpha ≈ 增量/255。B6 裁定
+     *    "画法照 Google、颜色用用户主题色",所以前景是用户的 accent 色——主题色偏暗时,同一个
+     *    alpha 画出来的柔光会比 Google 的淡。这是颜色裁定带来的已知偏差,不在这个常量里补偿。
+     */
+    const val APP_FOCUS_GLOW_PEAK_ALPHA = 0.17f
+
+    /** 柔光的指数衰减半衰期(dp)。实测表两端定标:44/13.7 = 3.212 倍、跨 27dp →
+     *  27/log2(3.212) = **16.04dp**,取 16。全表最大偏差在 d=5 处约 6%,其余各点 ≤3%。 */
+    const val APP_FOCUS_GLOW_HALF_LIFE_DP = 16f
+
+    /** 柔光的画法粒度:一圈同心圆角矩形描边的宽度(dp),同时也是圈与圈之间的步距——
+     *  相邻两圈首尾相接、不重叠。[APP_FOCUS_GLOW_DP] / 这个值 = 15 圈。
+     *
+     *  **为什么是画一串圆环而不是 `BlurMaskFilter`**:后者在硬件加速画布上行为不稳(各家 GPU
+     *  实现不一致、Compose 还要另开 layer),而柔光每帧都跟着 `scale` 变几何;一串按指数衰减
+     *  的细环是纯几何,逐帧重算的代价只有 15 次 `drawRoundRect`(只有聚焦中的那张卡才画),
+     *  而且圆角半径随外扩距离同步增大这件事直接套用已有写法(`r = corner + (outX + outY) / 2`)。
+     *  相邻圈之间 alpha 只差 2^(−2/16) ≈ 8.3%,在这个 alpha 量级上看不出分层。 */
+    const val APP_FOCUS_GLOW_RING_DP = 2f
+
+    /**
+     * 柔光在距描边外缘 [distanceDp] 处的 alpha:指数衰减
+     * `PEAK × 2^(−d / HALF_LIFE)`,超出 [APP_FOCUS_GLOW_DP] 归零(圆环画到那里为止)。
+     * 纯函数、不含 Compose 类型,衰减形状由 `GtvGlowTest` 直接对着实测表逐点验证。
+     */
+    fun focusGlowAlpha(distanceDp: Float): Float {
+        if (distanceDp < 0f || distanceDp > APP_FOCUS_GLOW_DP) return 0f
+        return APP_FOCUS_GLOW_PEAK_ALPHA *
+            Math.pow(2.0, -(distanceDp / APP_FOCUS_GLOW_HALF_LIFE_DP).toDouble()).toFloat()
+    }
 
     /** 顶栏图标按钮的填色淡入 / 淡出时长(owner 反馈 Round 4):`integer
      *  /top_nav_animation_duration_focus = 100`、`_unfocus = 200`,与 app 卡片的
