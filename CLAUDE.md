@@ -36,7 +36,8 @@ adb emu kill                                     # 关闭
 - HOME 角色没生效时应用会弹「Default Home」对话框(2026-09-17 美化轮截图时遇到):`input keyevent 4` 按两次再截;截图前 `dumpsys window | grep mCurrentFocus` 确认前台是 UnitedU。
 - 系统设置是半透明侧边面板:盖着时本应用仍是 STARTED,不能拿它当「退到后台」。
 - 测「从别的应用回来焦点还在不在」时,回来要按 BACK:对活着的实例 `am start -n …MainActivity` 走 `onNewIntent`(= HOME 语义),所有浮层当场收掉,测不出焦点记忆。
-- 抓动画过程:`settings put global animator_duration_scale 10`(Compose 动画照这个倍率放慢,screencap 每帧约 0.5 s 也采得到),测完 `settings delete global animator_duration_scale`。
+- **量动画时长/曲线,用 mp4 真实时间戳,不要数帧、不要放慢倍率**(2026-09-22 起,Round 9 实证):`adb shell screenrecord --time-limit 6 /sdcard/x.mp4` 录下按键过程,拉回后 `ffmpeg -fps_mode passthrough -vf scale=960:540 f%04d.png` 抽帧、`ffprobe -show_entries frame=pts_time -of csv=p=0 x.mp4` 取每帧真实 pts(ffmpeg 已 `brew install`),再按像素追踪目标位置/面积。这台 AVD 只跑 24–40 fps 且帧率会飘,`screenrecord --output-format=frames` 只在画面变化时吐帧,**帧号 ≠ 时间**;`animator_duration_scale` 放慢只对我们自己的 Compose 动画有效(launcherx 的行滚动走 RecyclerView scroller、不吃倍率),而且 `settings delete` 后已在跑的进程不一定重读,要 `put 1.0` + `am force-stop`。此前用这两种方法得出的「Google 动画多少毫秒」全是猜的——Round 9 用 pts 一量,进焦放大是 1.2 s 不是 150 ms(150 是失焦缩回)。
+- 只想慢放**我们自己**的 Compose 动画看顺序(不量时长):`settings put global animator_duration_scale 60`(10 倍对 150 ms 的淡入不够,screencap 单次 0.5–3 s),测完 `settings delete global animator_duration_scale`。
 - 注入按键之间留 ~0.4 s:零间隔连发会跑在 Compose 异步焦点效果前面。
 - uiautomator 不报全透明节点(真待机时 `focused="true"` 为 0,焦点其实还在);TV 设置应用卡片的 content-desc 也是「Settings」,与齿轮同名 —— 脚本按 bounds 区分,且确定键之前先断言焦点文案,否则会启动卡片对应的应用。
 - 一次指针事件会让窗口进入触摸模式,焦点脚本会把菜单 / 设置页读成「开着但焦点数 0」(2026-09-19 leftover-fixes Task 3 实证;冷启动按 MENU 无焦点的 most likely root cause:0/47 次复现于触摸模式之外,13/13 次复现于触摸模式内):`input tap`、以及 Android 14 上的 `input mouse tap`,都会把窗口切进触摸模式且跨冷启动保留;`GearMenu`、设置页这类用 foundation `clickable`(不是 tv-material `focusable()`)的行在触摸模式下 `FocusableInNonTouchMode` 直接拒绝 `requestFocus()`,要等第一下方向键才把焦点让给最上面那一项。焦点脚本开跑前先发一下 DPAD 键,或用 `dumpsys input | grep TouchMode` 确认是 0,不要直接数 `focused="true"` 就断言看门狗没生效。
