@@ -344,14 +344,24 @@ fun HomeScreen(
     // 那套比例锚点,main 线仍用)。
     val activeRowSafe = activeRow.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
     val anchorTop = GtvLayout.ROWS_TOP.dp
+    // Ruling R42(owner 真机反馈 2026-09-22,覆盖 R32 的锚点规则):整页位移改为**最小位移、粘性**——
+    // 焦点行本来完整可见就不动,要出底边才上移、只移到刚好露全;往上走时要出顶边才下移;回行 0 归 0。
+    // 目标由上一次的目标出发算最小修正(GtvLayout.nextPageShiftY),所以要记住上一次的值。
+    // **不用 LaunchedEffect**(铁律 6/7):在组合里按 remember 的 key 同步派生;`lastShiftTarget`
+    // 是普通字段、不是 Compose 状态,只在派生时读写,不触发任何重组,也不是守卫。
+    // 冻结规则与 R32 相同:目标只跟 activeRowSafe 走,activeRow 只在卡片 / 药丸真的拿到焦点时改写,
+    // 浮层 / ON_PAUSE 期间焦点离开卡片不改它,位移随之不动。
+    val screenHeightDp = LocalConfiguration.current.screenHeightDp.toFloat()
+    val lastShiftTarget = remember { FloatArray(1) }
+    val shiftTarget = remember(activeRowSafe, rows.size, cardSize, showTitles, screenHeightDp) {
+        GtvLayout.nextPageShiftY(lastShiftTarget[0], activeRowSafe, rows.size, cardSize, showTitles, screenHeightDp)
+            .also { lastShiftTarget[0] = it }
+    }
     val shift by animateDpAsState(
-        // Ruling R32(owner 反馈 Round 9):整页位移——焦点从行 0 移到行 1 时,hero 空间 + 全部行
-        // 一起上移,把行 1 的卡顶钉到 GtvLayout.BROWSE_ROW_ANCHOR(120dp);再往下每行再走一个
-        // rowPitch;回到行 0 整体复原、hero 重新露出。此前读 rowShiftY(只按行数累加 pitch,hero
-        // 的空间永远留着,每次只动 ~143dp),owner 真机原话「一下一下」的根因就是它。公式与推导
-        // 见 GtvLayout.pageShiftY 的 KDoc。hero 的空间是下面 Column 的 padding(top)、在 offset
-        // 之内,所以它随这个 shift 一起走。
-        targetValue = GtvLayout.pageShiftY(activeRowSafe, cardSize, showTitles).dp,
+        // R32(已被 R42 覆盖):曾把行 1 及以下的卡顶一律钉到 GtvLayout.BROWSE_ROW_ANCHOR(120dp),
+        // owner 真机:「我才只往下移了一行……为什么整体全部堆到上面去了?」。hero 的空间仍是下面
+        // Column 的 padding(top)、在 offset 之内,随这个 shift 一起走(R32 的「整页位移」这一半保留)。
+        targetValue = shiftTarget.dp,
         // Ruling R29(owner 反馈 Round 8):换行时整块内容的纵向平移 = Google TV 的 browse 手势,
         // 逐帧实测是先加速后减速的临界阻尼弹簧(R27 的 tv_easing_browse 是纯硬减速,对不上),
         // 四处位移共用 Theme.browseShiftSpec,依据见 GtvLayout.BROWSE_SPRING_STIFFNESS。
@@ -648,7 +658,10 @@ fun HomeScreen(
                         else -> tgtIdx.getOrElse(tgtRow) { 0 }
                     },
                     carried = if (moveTarget?.row == rowIndex) moveTarget.col else -1,
-                    isActiveRow = rowIndex == activeRowSafe,
+                    // R30 + R42:焦点落到本行会不会让整页位移——看位移目标会不会变,不再看「是不是当前行」
+                    // (R42 下换行而位移不变是常态,那时放大不该等一个不存在的位移)。
+                    landingShiftsPage = rowIndex != activeRowSafe &&
+                        GtvLayout.nextPageShiftY(shiftTarget, rowIndex, rows.size, cardSize, showTitles, screenHeightDp) != shiftTarget,
                     // R40:行标题淡入的几何输入——行号 + 当前(动画中的)整页位移,纯数字,不含焦点。
                     rowIndex = rowIndex,
                     pageShiftDp = shift.value,
@@ -810,9 +823,9 @@ private fun CategoryRow(
     targetIndex: Int,
     /** 移动态里被搬的卡在本行第几列;-1 = 不在本行(或不在移动态)。 */
     carried: Int = -1,
-    /** 本行此刻是不是纵向锚定的「当前行」(`activeRowSafe == rowIndex`)。R30 用它判断
-     *  「焦点落到本行会不会触发纵向位移」:不是当前行 → 会。 */
-    isActiveRow: Boolean,
+    /** R30 + R42:焦点落到本行会不会改变整页纵向位移的目标(HomeScreen 用 `nextPageShiftY` 预先算好)。
+     *  R42 起换行不一定位移(最小位移),所以不能再用「不是当前行」代替。 */
+    landingShiftsPage: Boolean,
     /** R40:本行在 rows 里的下标,与 [pageShiftDp] 一起喂给 [GtvLayout.rowTitleOnScreen]。 */
     rowIndex: Int,
     /** R40:整页位移的**当前动画值**(dp,≤ 0),与 HomeScreen 那根 Column 的 `offset(y)` 同一个量。 */
@@ -950,13 +963,13 @@ private fun CategoryRow(
                         },
                     onFocusChange = { got ->
                         if (got) {
-                            // R30:判「这次落焦会不会让行动」——lambda 捕获的 focused / isActiveRow /
+                            // R30:判「这次落焦会不会让行动」——lambda 捕获的 focused / landingShiftsPage /
                             // screenWidthDp 都是上一次重组的值,正好是这次焦点变化**之前**的状态。
-                            // 纵向:本行不是当前行,落上来就会切行;横向:目标 rowShiftX 变了才算滑行
+                            // 纵向:落上来整页位移目标会变(R42);横向:目标 rowShiftX 变了才算滑行
                             // (行放得下时左右移不动,与 R20 的规则一致,不延迟)。
                             val xBefore = GtvLayout.rowShiftX(focused, cardSize, screenWidthDp)
                             val xAfter = GtvLayout.rowShiftX(index, cardSize, screenWidthDp)
-                            landedWithShift = !isActiveRow || xAfter != xBefore
+                            landedWithShift = landingShiftsPage || xAfter != xBefore
                             focusedIndex = index
                         }
                         onFocusChange(index, got)

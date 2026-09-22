@@ -363,7 +363,7 @@ object Wallpapers {
  * HomeScreen 被位移的 Column 里,R32 的整页位移搬不动它(owner 真机:「英雄区还是不动」——在我们
  * 这里 hero 区就是壁纸本身,B3)。所以位移量由 HomeScreen 每帧上报、MainActivity 持有,再从这两个
  * lambda 喂进来:
- * - [offsetY]:与 `GtvLayout.pageShiftY` 同一个量(dp,≤ 0 表示上移),原样作 `offset` 用;上移后
+ * - [offsetY]:首页整页位移(R42 起由 `GtvLayout.nextPageShiftY` 给目标,dp,≤ 0 表示上移),原样作 `offset` 用;上移后
  *   底部露出的是 MainActivity 根 Box 的黑底。
  * - [alpha]:`GtvLayout.wallpaperAlpha(offsetY)`,由调用方算好传入。
  * 两者都以 lambda 的形式在布局 / 绘制阶段读取(`Modifier.offset {}` + `graphicsLayer {}`),动画的

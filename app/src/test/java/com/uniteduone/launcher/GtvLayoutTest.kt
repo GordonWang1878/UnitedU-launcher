@@ -101,6 +101,83 @@ class GtvLayoutTest {
         }
     }
 
+    // Ruling R42(owner 真机反馈 2026-09-22,覆盖 R32 锚点):最小位移 + 粘性,纵向版 R20。
+    private val M = GtvCardSize.MEDIUM
+    private fun next(prev: Float, row: Int, rows: Int = 4, h: Float = 540f, size: GtvCardSize = M, titles: Boolean = false) =
+        GtvLayout.nextPageShiftY(prev, row, rows, size, titles, h)
+    private fun align(h: Float) = h - GtvLayout.BOTTOM_SAFE
+    private fun bot(r: Int, titles: Boolean = false, size: GtvCardSize = M) = GtvLayout.restRowVisibleBottom(r, size, titles)
+    private fun top(r: Int, titles: Boolean = false, size: GtvCardSize = M) = GtvLayout.restTitleTop(r, size, titles)
+
+    @Test fun `R42 窗口边界——顶栏下 16dp、对齐线留 CONTENT_KEYLINE、下沿含聚焦溢出与卡片标题`() {
+        assertEquals(86f, GtvLayout.TOP_SAFE, 0f)
+        assertEquals(58f, GtvLayout.BOTTOM_SAFE, 0f)
+        val ch = GtvLayout.cardHeight(M)
+        assertEquals(GtvLayout.restCardTop(1, M, false) + ch + GtvLayout.appFocusOverflow(ch), bot(1), 0.01f)
+        assertEquals(GtvLayout.restCardTop(1, M, true) + ch + GtvLayout.appFocusOverflow(ch) + GtvLayout.titleHeight(true),
+            bot(1, titles = true), 0.01f)
+        // 960×540 屏、中档无标题:行 1 下沿 536.43 在画幅内(owner 眼里「两行完整可见」)
+        assertEquals(536.43f, bot(1), 0.01f)
+    }
+
+    @Test fun `R42 owner 硬验收——两行都在画幅内时下移、上移页面都不动`() {
+        // 隐藏输入源行后只剩两行应用(960×540,中档,无标题)
+        val down = next(0f, 1, rows = 2)
+        assertEquals(0f, down, 0f)
+        assertEquals(0f, next(down, 0, rows = 2), 0f)
+        assertEquals(0f, next(0f, 1, rows = 2), 0f)
+        // 壁纸上层 alpha 随位移:位移 0 → 全亮,不淡
+        assertEquals(1f, GtvLayout.wallpaperAlpha(down), 0f)
+    }
+
+    @Test fun `R42 不变量——内容总高放得下时,任意行任意焦点序列位移恒为 0`() {
+        val rnd = java.util.Random(42)
+        for (size in GtvCardSize.values()) for (titles in listOf(false, true)) for (h in listOf(540f, 720f, 1080f)) {
+            for (rows in 1..8) {
+                val fits = bot(rows - 1, titles, size) <= h
+                if (!fits) continue
+                var s = 0f
+                repeat(200) {
+                    val r = rnd.nextInt(rows + 1) - 1   // -1 = 顶栏
+                    s = GtvLayout.nextPageShiftY(s, r, rows, size, titles, h)
+                    assertEquals("size=$size titles=$titles h=$h rows=$rows row=$r", 0f, s, 0f)
+                }
+            }
+        }
+    }
+
+    @Test fun `R42 行 1 完整可见时下键不动,放不下的行只上移到对齐线,不再钉锚点`() {
+        // 4 行、960×540:行 1 在画幅内 → 0(R32 这里是 −322)
+        val s1 = next(0f, 1)
+        assertEquals(0f, s1, 0f)
+        // 行 2 出了底边 → 下沿贴 540 − 58 = 482
+        val s2 = next(s1, 2); val s3 = next(s2, 3)
+        assertEquals(align(540f), bot(2) + s2, 0.01f)
+        assertEquals(align(540f), bot(3) + s3, 0.01f)
+        assertEquals(-195.0f, s2, 0.1f)
+        assertEquals(-335.6f, s3, 0.1f)
+        assertTrue(s2 > GtvLayout.pageShiftY(2, M, false))
+        for ((r, s) in listOf(2 to s2, 3 to s3)) assertTrue("行 $r 标题露全", top(r) + s >= GtvLayout.TOP_SAFE)
+    }
+
+    @Test fun `R42 往上走只在出顶边时回移,且只移到上沿贴上界,回行 0 归 0`() {
+        val s3 = next(next(next(0f, 1), 2), 3)
+        val up2 = next(s3, 2)
+        assertEquals("行 3 → 行 2:行 2 仍在窗口内,不回跳", s3, up2, 0f)
+        assertTrue(top(1) + up2 < GtvLayout.TOP_SAFE)
+        val up1 = next(up2, 1)
+        assertEquals(GtvLayout.TOP_SAFE, top(1) + up1, 0.01f)
+        assertEquals(0f, next(up1, 0), 0f)
+        assertEquals(0f, next(up1, -1), 0f)
+    }
+
+    @Test fun `R42 粘性——同一行重算不改位移,行数变少夹回,区间比窗口高时上沿优先`() {
+        val s2 = next(next(0f, 1), 2)
+        assertEquals(s2, next(s2, 2), 0f)
+        assertEquals(align(540f) - bot(2), next(-1000f, 2, rows = 3), 0.01f)
+        assertEquals(GtvLayout.TOP_SAFE, top(1) + next(0f, 1, h = 200f), 0.01f)
+    }
+
     @Test fun `R35+R36 两层壁纸——上层随整页淡到 0,底层常驻 20% 影子`() {
         assertEquals(GtvLayout.HERO_HEIGHT, GtvLayout.WALLPAPER_FADE_OVER_DP, 0f)
         // 底层常量:owner 给的 20%。浏览态看到的影子就是它(上层已淡完)。

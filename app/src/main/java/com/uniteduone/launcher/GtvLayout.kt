@@ -679,6 +679,9 @@ object GtvLayout {
      * 行盒落在 80.5–100.5 dp,与顶栏只隔 10.5 dp;上一行的卡片会有 65.5 dp 露在屏幕顶部、压在
      * 顶栏药丸下面(Google 只露约 20 dp,差别来自它的行标题区更高)。owner 看真机不满意时,调的
      * 是这个常量,不是 [pageShiftY] 的公式。
+     *
+     * **R42(2026-09-22)起不再用于位移**:owner 裁定首页纵向改为最小位移([nextPageShiftY]),
+     * 焦点行不再被钉到这条锚线。常量保留作 Google 实测记录。
      */
     const val BROWSE_ROW_ANCHOR = 120f
 
@@ -707,9 +710,72 @@ object GtvLayout {
      *   之后每行再走一个 pitch([rowShiftY] 那一半)。往上回到行 0 时整体复原、hero 重新露出。
      *
      * 与 [rowShiftX] 一样不含 Compose 类型,`GtvLayoutTest` 钉住三个行号的值。
+     *
+     * **R42 起首页不再读它**(owner 裁定改为最小位移,见 [nextPageShiftY]);留着只给单测与
+     * R32 的历史推导,不要再接回首页。
      */
     fun pageShiftY(activeRow: Int, size: GtvCardSize, showTitles: Boolean): Float =
         if (activeRow <= 0) 0f else BROWSE_ROW_ANCHOR - restCardTop(activeRow, size, showTitles)
+
+    /** R42:可见窗口上界(dp)——顶栏底再留 16:焦点行的行标题不压在顶栏药丸下面。 */
+    const val TOP_SAFE = TOP_BAR_TOP + TOP_BAR_HEIGHT + 16f
+    /** R42:**需要上移时**下沿对齐的线离屏幕底边的留白(dp),取 [CONTENT_KEYLINE]——与 R20 横向右侧
+     *  留白对称。注意它**不是**「要不要动」的判据:判据是屏幕物理底边(见 [nextPageShiftY])。 */
+    const val BOTTOM_SAFE = CONTENT_KEYLINE
+
+    /** R42:行 [row] 在静止态(位移 0)「需要可见」区间的下沿(dp):卡底 + 聚焦放大与描边的
+     *  纵向溢出([appFocusOverflow])+ 卡片标题([titleHeight],关掉时为 0)。上沿就是 [restTitleTop]。 */
+    fun restRowVisibleBottom(row: Int, size: GtvCardSize, showTitles: Boolean): Float =
+        restCardTop(row, size, showTitles) + cardHeight(size) + appFocusOverflow(cardHeight(size)) +
+            titleHeight(showTitles)
+
+    /**
+     * **Ruling R42(2026-09-22,owner 真机反馈)**:首页整页纵向位移改成**最小位移、粘性**——
+     * 纵向版的 R20。**覆盖 R32 的锚点规则**([pageShiftY] / [BROWSE_ROW_ANCHOR] 不再被首页读取)。
+     *
+     * owner 原话:「原始态焦点在齿轮;向下一格到第一行第一个应用,没问题;再往下一格到第二行第一个
+     * 应用(咪视界)。但在焦点来到咪视界的同时,整个画面内容都被整体往上抬了,咪视界直接跑到了页面
+     * 上方。我才只往下移了一行,就算是因为首页状态下显示不全需要往上移,那也只要移到能露出来就可以
+     * 了,为什么整体全部堆到上面去了?」
+     *
+     * owner 补充硬验收(隐藏输入源行后只剩两行应用、两行在屏内完整可见,下移到第二行页面必须完全
+     * 不动):「明明完全显示得了,干嘛还要往上滚?滚动条的作用是当前画幅无法显示所有内容才上下滚动。」
+     *
+     * 规则(从上一次的位移 [prevShiftDp] 出发,只做最小修正):
+     * - 焦点行「需要可见」区间 = 行标题顶([restTitleTop])… [restRowVisibleBottom];
+     * - **要不要动**看画幅:下沿超出屏幕物理底边 `screenHeightDp` → 上移;上沿高过 [TOP_SAFE] → 下移。
+     *   都没超 → 不动(同一行左右移、本来就完整可见的行,都不改位移);
+     * - **动的话动到哪**:上移时下沿贴 `screenHeightDp − BOTTOM_SAFE`(底部留一条与 R20 右侧对称的
+     *   留白,不让聚焦描边贴着屏幕边);下移时上沿贴 [TOP_SAFE]。区间比窗口还高时上沿优先;
+     * - `activeRow ≤ 0`(行 0 或顶栏)→ 0,hero 重新露出;
+     * - 结果夹在 `[minShift, 0]`:末行下沿不超出屏幕底边(内容整体放得下)时 minShift = 0,
+     *   **任何行、任何焦点序列位移恒为 0**;放不下时 minShift = 末行下沿贴对齐线所需的位移
+     *   (行数变少之后不会留着一截过深的位移)。
+     *
+     * 判据与对齐线分开的理由:若判据也用 `screenHeightDp − 58`,960×540 dp 屏上中档两行(行 1 下沿
+     * 536.4 dp,屏内完整可见)会被判为「放不下」、上移 54 dp——正是 owner 否掉的行为。
+     * 纯函数,`GtvLayoutTest` 钉住 owner 的场景。
+     */
+    fun nextPageShiftY(
+        prevShiftDp: Float,
+        activeRow: Int,
+        rowCount: Int,
+        size: GtvCardSize,
+        showTitles: Boolean,
+        screenHeightDp: Float,
+    ): Float {
+        if (activeRow <= 0 || rowCount <= 1) return 0f
+        val row = activeRow.coerceAtMost(rowCount - 1)
+        val align = screenHeightDp - BOTTOM_SAFE
+        val top = restTitleTop(row, size, showTitles)
+        val bottom = restRowVisibleBottom(row, size, showTitles)
+        var shift = prevShiftDp
+        if (bottom + shift > screenHeightDp) shift = align - bottom
+        if (top + shift < TOP_SAFE) shift = TOP_SAFE - top
+        val lastBottom = restRowVisibleBottom(rowCount - 1, size, showTitles)
+        val minShift = if (lastBottom <= screenHeightDp) 0f else -(lastBottom - align).coerceAtLeast(0f)
+        return shift.coerceIn(minShift, 0f)
+    }
 
     /** 行 [row] 的**行标题行盒顶边**在静止态(位移 0)的屏幕 y(dp)= [ROWS_TOP] + row × pitch。
      *  与 [restCardTop] 同源,少的是 [ROW_CARD_TOP] 那段(标题在卡片之上)。 */
