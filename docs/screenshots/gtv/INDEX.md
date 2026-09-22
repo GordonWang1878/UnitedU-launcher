@@ -19,6 +19,9 @@
 | `14-apps-page-icon-focused.jpg` | Apps 页里图标聚焦态 |
 | `15-quick-settings-panel.jpg` | 快捷设置面板:右侧浮出 sheet、2 列磁贴、聚焦项浅蓝实填、背景重度压暗 |
 | `16-app-longpress-menu.png` | 应用长按菜单:全屏黑底、左 banner 右整宽药丸、聚焦项浅蓝实填 |
+| `19-vertical-transition-frames.jpg` | Google 纵向换行的逐帧接触表(#40→#54):整页平移 + hero 收起 + backdrop 交叉淡出**同时**发生,到顶那行的标题顶进 hero 大字位。配合研究文档 §10d |
+| `20-app-tile-focused.jpg` | 聚焦态 app 磁贴。看点是描边**外面**那层柔光(峰值 +44/255,铺到半径 73 dp)——我们原先只画了 2 dp 描边 |
+| `21-app-tile-unfocused.jpg` | 同一颗磁贴的未聚焦态,与上一张逐点相减即得柔光剖面 |
 | `90-old-version-home-1.0.595789376.jpg` | 更新前的旧版首页(`Home / Apps / Library` 三个文字 tab、方形应用卡)——**不是要复刻的那版** |
 | `91-account-gate.png` | 无 Google 账号时 launcherx 只显示这道门,真首页在门后 |
 
