@@ -1414,3 +1414,9 @@ R27 / R28 实现见 gtv 分支 `2f17ee9` / `b46dcde`,我在其上又修了三处
 **遗留(实现方指出、我认同)**:①单根临界阻尼弹簧压不住前段——350 尾巴对、120 ms 处比 Google 慢 13 个百分点;若 owner 说起步肉,试 400,再高丢尾巴。②浏览态上一行卡片露出 65.5 dp、压在顶栏药丸后面(Google 只露 ~20 dp,因为它顶栏会折叠)——这是 R21「不折叠」与 R32「照 Google 锚点」叠加的必然结果,要么恢复折叠、要么锚点下调,交 owner 定。③R24 背景衰减固定在屏幕坐标、不跟 activeRow,未动。
 
 **2026-09-22 续**:Gordon 真机看 Round 9 —— 「不错」。动效这条线(R27→R29→R32/R33/R34)到此闭环;顶部 65 dp 露出与是否折叠顶栏他选「先不动」。
+
+## 2026-09-22 · R35:壁纸随整页上滑并淡到黑(owner:「英雄区还是不动」)
+
+Round 9 只让 hero 的**空位**跟着走了;B3 把 hero 留给壁纸,所以在我们这里英雄区就是壁纸本身,而壁纸层刻意住在 MainActivity 顶层(不闪黑)、不在被位移的 Column 里。我核 Round 9 时把「空位动了」当成了「hero 动了」——核验只看了几何,没看画面。
+
+R35:HomeScreen 每帧把动画中的位移量 `SideEffect` 报给 MainActivity,`Wallpaper()` 接 `offsetY`/`alpha` 两个 lambda(读在布局/绘制阶段,不每帧重组),壁纸随同一根弹簧上滑,滑过一个 hero 高度(192 dp)淡到黑(Google 浏览态黑底);回到行 0 复原。pts 验证:壁纸与卡片每帧位移一致(±2 px 取整),alpha 与公式一致;进出编辑页壁纸不闪黑。304 测试绿,已装电视。拼图 `docs/screenshots/gtv-r35-wallpaper-shift.jpg`。若 owner 想在浏览态保留壁纸,把淡出终值改成 R24 的暗度而不是 0(`WALLPAPER_FADE_OVER_DP` KDoc 写明)。
