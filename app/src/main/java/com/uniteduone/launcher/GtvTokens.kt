@@ -14,6 +14,19 @@ object GtvTokens {
     val MenuItemIdle = Color(0xFF161718)
     /** 浮层压暗。真机验收再调。 */
     val ScrimOverlay = Color(0xA6000000)
+    /**
+     * **Ruling R39(2026-09-22,owner 真机反馈 Round 10)**:UnitedU 设置页(`SettingsScreen`,两栏整屏)
+     * 底下铺的压暗层——**黑 α 0.55**(0x8C)。owner 原话:「整个版面完全没有背景色,直接悬浮在首页之上,
+     * 显得乱;加一层悬浮阴影,不用太深,让用户分清这是在桌面之上悬浮了一层。」B4 裁定浮层压暗照 Google
+     * (快捷设置那张 `docs/screenshots/gtv/15-quick-settings-panel.jpg` 是重度压暗、接近 [ScrimOverlay]
+     * 的 0.65),owner 说不用太深,取 0.55,另立一个常量不动 [ScrimOverlay]。
+     *
+     * **取代**此前设置页根节点上那条「左 0.60 → 右 0.25」的水平渐变(spec §3.1 的「右侧实时预览」):
+     * 渐变右端只压 25%,底下的卡片行与设置页的文字叠在一起,正是 owner 看到的「乱」;均匀 0.55 之下
+     * 首页仍看得见(实时预览还在,只是暗了),但整页读成「桌面之上的一层」。
+     * 进出设置页时由 `MainActivity` 用 150 ms tween 淡入淡出(设置页本身没有转场,scrim 单独动)。
+     */
+    val SettingsScrim = Color(0x8C000000)
 
     /**
      * Ruling R24(终审 2026-09-21,owner 真机走查 Round 3 后补):2D 背景衰减(取代 R22 的纯横向

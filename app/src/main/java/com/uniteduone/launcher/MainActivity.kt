@@ -42,6 +42,9 @@ private const val VIEW_IMPORT = "__import__"
  * 一个同构的常量,不要挤进这几个已有的键里。
  */
 private const val KEY_SETTINGS_OPEN = "settingsOpen"
+
+/** R39:设置页压暗层(`GtvTokens.SettingsScrim`)的淡入淡出时长。设置页本身没有转场,只有这一层动。 */
+private const val SETTINGS_SCRIM_FADE_MS = 150
 private const val KEY_SETTINGS_PANE = "pane"
 private const val KEY_SETTINGS_GROUP = "group"
 private const val KEY_SETTINGS_ROW = "row"
@@ -658,6 +661,22 @@ class MainActivity : ComponentActivity() {
                 // 而模糊 / 亮度另走设置页里 300 ms 防抖的那条,壁纸不必每按一下就重处理一遍。
                 // 写在选择器层(PickerLayer)**之前**:从设置页里打开的换壁纸 / 导入图片 / 默认桌面卡要盖在它上面,
                 // 同时设置页收到 `covered` 让路(焦点归那一层管,铁律 3)。
+                // **Ruling R39(2026-09-22,owner 真机反馈 Round 10)**:设置页之下先铺一层均匀压暗
+                // (GtvTokens.SettingsScrim,黑 0.55),150 ms 淡入淡出。铺在这里而不是设置页根节点上,
+                // 是因为 `settings` 翻 false 时设置页当场离开组合,只有留在外面的这一层能淡出。
+                // 纯绘制层,不可聚焦、不吃按键,不进任何焦点账本(铁律 3–7 一处不动)。
+                val settingsScrim by animateFloatAsState(
+                    targetValue = if (settings) 1f else 0f,
+                    animationSpec = tween(SETTINGS_SCRIM_FADE_MS),
+                    label = "settingsScrim",
+                )
+                if (settingsScrim > 0f) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(GtvTokens.SettingsScrim.copy(alpha = GtvTokens.SettingsScrim.alpha * settingsScrim)),
+                    )
+                }
                 if (settings) {
                     SettingsScreen(
                         onExit = ::leaveSettings,

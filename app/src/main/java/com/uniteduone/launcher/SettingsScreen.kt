@@ -76,8 +76,9 @@ data class SettingsPos(val pane: Int, val group: Int, val row: Int)
  * (铁律 1:`LazyColumn`/`verticalScroll` 会让 D-pad 焦点整棵树消失)。两栏之后左 7 项、右 ≤ 8 行,
  * 各自都在一屏内,连自算位移都省了。
  *
- * 为什么是叠加而不是替换:遮罩是**左深右浅的水平渐变**,左边压住让文字可读,右边只压 25%,
- * 底下首页的卡片清清楚楚 —— 改卡片大小 / 标题 / 主题色的效果当场可见(spec §3.1)。
+ * 为什么是叠加而不是替换:底下首页透过压暗层仍看得见 —— 改卡片大小 / 标题 / 主题色的效果当场可见
+ * (spec §3.1)。压暗层原是左 0.60 → 右 0.25 的水平渐变;**R39(2026-09-22)起改为 MainActivity 铺的
+ * 均匀黑 0.55**(`GtvTokens.SettingsScrim`),owner 真机看渐变版「完全没有背景、悬浮得乱」。
  * 底层首页由 `previewing` 交出焦点与按键(见 HomeScreen 那个参数的 KDoc),这一层独占输入。
  *
  * 焦点账本是**二维**的(`pane` / `group` / 每组独立的 `rowOf`),七条铁律逐条落在:
@@ -380,15 +381,12 @@ fun SettingsScreen(
 
     Box(
         modifier = Modifier
-            .fillMaxSize()
-            // **左深右浅的水平渐变**(spec §3.1):左边文字列压到 60% 黑保证可读,
-            // 右端只压 25%,底层首页的卡片在那里清清楚楚 —— 这就是「实时预览」看得见的那一半。
-            .background(
-                Brush.horizontalGradient(
-                    0f to Color.Black.copy(alpha = 0.60f),
-                    1f to Color.Black.copy(alpha = 0.25f),
-                ),
-            ),
+            .fillMaxSize(),
+        // **Ruling R39(2026-09-22)**:根节点不再自带「左 0.60 → 右 0.25」的水平渐变(spec §3.1 那半
+        // 「右侧实时预览清清楚楚」的做法,owner 真机看是「完全没有背景、悬浮得乱」)。压暗层改由
+        // MainActivity 在本页**之下**单独铺一层均匀的 GtvTokens.SettingsScrim(黑 0.55),
+        // 进出时 150 ms 淡入淡出——放在那边是因为本页关掉的瞬间就离开组合,留在这里没法淡出。
+        // 首页在 0.55 之下仍看得见,实时预览的意义还在,只是不再与本页文字抢眼。
     ) {
         Column(
             modifier = Modifier
