@@ -391,8 +391,22 @@ fun Wallpaper(
         animationSpec = tween(Theme.WallpaperCrossfadeMs),
         label = "wallpaperCrossfade",
     ) { bitmap ->
+        val img = bitmap.asImageBitmap()
+        // R36 修正(2026-09-22,owner 指出「把壁纸画高是作弊」):**两层同一张图、同一个取景**。
+        // 底层原样全屏、永远不动,常驻 WALLPAPER_BROWSE_ALPHA(20%)——浏览态透出来的就是这道影子;
+        // 上层跟整页一起上滑(hero 真的滑走),滑过一个 hero 高度淡完(alpha() → 0)。静止时上层 alpha 1、
+        // 位置 0,把底层完全盖住,画面与改动前逐像素一致。**不许**为了浏览态改动静止态的取景
+        // (放大、画高、裁边都算),那次被否的做法就是把壁纸画高 192 dp,静止时整张图被放大约 18%。
         Image(
-            bitmap = bitmap.asImageBitmap(),
+            bitmap = img,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { this.alpha = GtvLayout.WALLPAPER_BROWSE_ALPHA },
+        )
+        Image(
+            bitmap = img,
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier
