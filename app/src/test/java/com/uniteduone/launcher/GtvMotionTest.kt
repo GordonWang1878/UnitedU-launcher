@@ -23,20 +23,19 @@ class GtvMotionTest {
         assertEquals(GtvLayout.BROWSE_SPRING_THRESHOLD_DP.dp, spec.visibilityThreshold)
     }
 
-    @Test fun `stiffness 落在拟合区间 300–400 内(R33 按真实 pts 重估,取代 R29 的 550–1200)`() {
-        // 出处见 GtvLayout.BROWSE_SPRING_STIFFNESS 的 KDoc:screenrecord + ffprobe pts,整页位移
-        // 120 ms 79% / 213 ms 93% / 285 ms 98% / ~430 ms 停稳;临界阻尼弹簧以停稳时刻为准拟合
-        // stiffness ≈ 300–400,取 350。这是拟合值,允许按 owner 手感在区间内调;出了区间就不是那条轨迹。
+    @Test fun `R38 stiffness 220——owner 手感值,停稳(99点7%)落在 500–700 ms,不再钉 Google 的 430 ms`() {
+        // R33 按 Google pts 拟合 300–400(430 ms 停稳);R38(owner Round 10)「整体向上滚动时稍微慢一点,
+        // 带一点阻尼感」→ 220,主动偏离 Google。判据改为停稳时刻 500–700 ms(99.7% ≈ 322 dp 页移里差 1 dp)。
         val k = GtvLayout.BROWSE_SPRING_STIFFNESS
-        assertTrue("stiffness=$k 超出拟合区间", k in 300f..400f)
+        assertEquals(220f, k, 0f)
         assertTrue("不该退回 Compose 默认 StiffnessMedium(1500)", k != Spring.StiffnessMedium)
-        // 停稳时刻:Google ~430 ms;这根弹簧在 430 ms 应已到 99.5% 以上,且 250 ms(R29 的 700 停下的时刻)
-        // 还没到 97%——「慢慢往上走」的尾巴要留住。
         val omega = kotlin.math.sqrt(k.toDouble())
         fun x(t: Double) = 1.0 - (1.0 + omega * t) * kotlin.math.exp(-omega * t)
-        assertTrue("430 ms 应已停稳,实际 ${x(0.43)}", x(0.43) > 0.995)
-        assertTrue("250 ms 不该已经停稳(700 的手感),实际 ${x(0.25)}", x(0.25) < 0.97)
-        assertTrue("213 ms 应在 90% 附近(Google 93%),实际 ${x(0.213)}", x(0.213) in 0.88..0.96)
+        val settle = (1..2000).map { it / 1000.0 }.first { x(it) > 0.997 }
+        assertTrue("停稳时刻 $settle s 应在 0.5–0.7 s(owner 手感值)", settle in 0.5..0.7)
+        assertTrue("430 ms(Google 停稳时刻)这里还没停稳,实际 ${x(0.43)}", x(0.43) < 0.995)
+        assertTrue("但 430 ms 也不能太慢(> 95%),实际 ${x(0.43)}", x(0.43) > 0.95)
+        assertTrue("尾巴要留住:250 ms 不到 92%,实际 ${x(0.25)}", x(0.25) < 0.92)
     }
 
     @Test fun `临界阻尼弹簧的轨迹先加速后减速(R27 的硬减速曲线做不到这一点)`() {
@@ -80,14 +79,14 @@ class GtvMotionTest {
         assertTrue(Theme.AppFocusEasing.transform(0.25f) < 0.2f)
     }
 
-    @Test fun `R30+R37 放大延迟 80 ms(owner 手感,不再钉「弹簧到 80%」),按当前刚度位移约 44%`() {
+    @Test fun `R30+R37 放大延迟 80 ms(owner 手感,不再钉「弹簧到 80%」),按当前刚度位移约 33%`() {
         // R37:Google ~200 / R30 拟合 160 → owner 真机说迟滞过强,缩到 80。延迟时刻的位移百分比只是
         // KDoc 里的记录值,不再是设计判据;这里钉住它防止有人改了 stiffness 忘了更新 KDoc。
         assertEquals(80, GtvLayout.FOCUS_AFTER_SHIFT_DELAY_MS)
         val omega = kotlin.math.sqrt(GtvLayout.BROWSE_SPRING_STIFFNESS.toDouble())
         fun x(t: Double) = 1.0 - (1.0 + omega * t) * kotlin.math.exp(-omega * t)
         val t = GtvLayout.FOCUS_AFTER_SHIFT_DELAY_MS / 1000.0
-        assertEquals("KDoc 写的是 44%(stiffness 350)", 0.44, x(t), 0.02)
+        assertEquals("KDoc 写的是 33%(R38 stiffness 220;R37 按 350 算时是 44%)", 0.33, x(t), 0.02)
         assertTrue("放大必须在位移停稳之前起步(叠着走)", x(t) < 0.9)
     }
 

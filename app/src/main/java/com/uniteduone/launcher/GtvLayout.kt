@@ -285,8 +285,8 @@ object GtvLayout {
      * **Ruling R37(2026-09-22,owner 真机反馈 Round 10)**:**160 → 80 ms**。Google 原值 ~200
      * (模拟器 pts 实测放大起步在按键后 ~200 ms),owner 真机原话「焦点刚移到卡片上的时候,要么停顿
      * 时间过长,要么慢慢变大得太慢,矫枉过正」——按他手感缩短。**80 ms 不再对应「弹簧到 80%」**:
-     * 按 [BROWSE_SPRING_STIFFNESS] 350(ω ≈ 18.7)算,80 ms 时位移只到 **44%**,放大在位移进行到
-     * 一小半时就起步、两者大部分时间是叠着走的;这是 owner 要的手感,不再追 Google 的「先滑完再放大」。
+     * 按 [BROWSE_SPRING_STIFFNESS] 350(ω ≈ 18.7)算,80 ms 时位移只到 **44%**(R38 改 220 后
+     * ω ≈ 14.8,**33%**),放大在位移进行到三分之一时就起步、两者大部分时间是叠着走的;这是 owner 要的手感,不再追 Google 的「先滑完再放大」。
      * 上面「ω 的函数」那句从此只是历史推导:改 stiffness 时把这里的百分比重算写进 KDoc 即可,数值本身
      * 按手感定。
      */
@@ -345,8 +345,16 @@ object GtvLayout {
      *
      * 曲线本身由 Compose 的 `spring()` 生成(`Theme.browseShiftSpec`),`animateDpAsState` 走
      * spring 需要 `visibilityThreshold`,取 0.5 dp(半个 dp 以内视为到位,一像素以下肉眼不可辨)。
+     *
+     * **Ruling R38(2026-09-22,owner 真机反馈 Round 10)**:**350 → 220**。owner 真机原话「整体向上
+     * 滚动时稍微慢一点,让速度带一点阻尼感」。R33 的 350 是照 Google pts 轨迹(~430 ms 停稳)拟合的,
+     * 这次是 owner 手感值、**主动偏离 Google**,出了 R33 写的 300–400 拟合区间——从此不再钉 Google 的
+     * 430 ms,改钉「停稳 500–700 ms」(`GtvMotionTest`)。220(ω ≈ 14.8 rad/s)的临界阻尼轨迹:
+     * 80 ms 33%、213 ms 82%、430 ms 98.8%、**到 99.7%(≈ 1 dp / 322 dp)约 540 ms**。阻尼比仍是
+     * 临界(`DampingRatioNoBouncy`),不过冲——「阻尼感」来自更长的减速尾巴,不是欠阻尼的回弹。
+     * 配套 [FOCUS_AFTER_SHIFT_DELAY_MS] 80 ms 在这根弹簧上对应位移 **33%**(R37 时按 350 算是 44%)。
      */
-    const val BROWSE_SPRING_STIFFNESS = 350f
+    const val BROWSE_SPRING_STIFFNESS = 220f
     /** [BROWSE_SPRING_STIFFNESS] 弹簧的收敛阈值(dp),见那里。 */
     const val BROWSE_SPRING_THRESHOLD_DP = 0.5f
 
