@@ -289,17 +289,24 @@ object GtvLayout {
      * smooth scroller,根本不经过那条插值器资源(它不吃 `animator_duration_scale` 已实证)——
      * R27 拿到的曲线是真的,只是不是行位移用的那条。
      *
-     * **这是拟合值,不是资源原值,证据强度要说清**:轨迹上 ω·t 在 12 帧内走到 ≈ 7(临界阻尼
-     * `1 − (1 + ωt)e^(−ωt)` 到 0.995 附近),帧率不稳、12 帧按 40–60 fps 折算为 200–300 ms,
-     * ω ≈ 7 / (0.2–0.3 s) ≈ 23–35 rad/s,stiffness = ω² ≈ 550–1200。取 **700**,落在 Compose
-     * 的 `Spring.StiffnessMediumLow`(400)与 `StiffnessMedium`(1500)之间。阻尼比取
-     * `Spring.DampingRatioNoBouncy`(1.0,临界阻尼,不过冲)。**owner 真机手感是最终判据**,
-     * 这个数字允许在 550–1200 之间按手感调;超出这个区间就不再是那条轨迹了。
+     * **R29 的 700 是按「12 帧 ≈ 200–300 ms」折算的拟合值**(帧率不稳、没有时间戳),
+     * 区间 550–1200。**Ruling R33(2026-09-22,owner 真机反馈 Round 9)改按真实时间戳重估**:
+     * 模拟器上 `screenrecord` 一次「Top picks → Your apps」下键,`ffprobe` 取每帧 pts,整页位移
+     * ≈ 382 dp 的归一化进度是——按键后 **120 ms 79%、213 ms 93%、285 ms 98%、~430 ms 完全
+     * 停稳**。700 那根弹簧(ω ≈ 26.5)250 ms 就停了,比 Google 硬一截,owner 真机原话
+     * 「慢慢往上走」对不上。临界阻尼 `1 − (1 + ωt)e^(−ωt)` 对这四个点拟合:后三点(93/98/停稳)
+     * 要 ω ≈ 17–20(stiffness 290–420),第一点(120 ms 79%)单独看要 ω ≈ 24(≈ 580)——
+     * 单根临界阻尼弹簧压不住前段又拖住尾巴,以停稳时刻为准取 stiffness ≈ **300–400**,
+     * 取 **350**(ω ≈ 18.7 rad/s:120 ms 66%、213 ms 91%、285 ms 97%、430 ms 99.7%——前段比
+     * Google 慢约 13 个百分点,尾巴一致)。仍是拟合值,不是资源原值;Compose 的
+     * `Spring.StiffnessMediumLow` 是 400。阻尼比取 `Spring.DampingRatioNoBouncy`(1.0,临界
+     * 阻尼,不过冲)。**owner 真机手感是最终判据**,允许在 300–400 之间按手感调;超出这个
+     * 区间就不再是那条 pts 轨迹了。[FOCUS_AFTER_SHIFT_DELAY_MS] 是 ω 的函数,改这里要一起重算。
      *
      * 曲线本身由 Compose 的 `spring()` 生成(`Theme.browseShiftSpec`),`animateDpAsState` 走
      * spring 需要 `visibilityThreshold`,取 0.5 dp(半个 dp 以内视为到位,一像素以下肉眼不可辨)。
      */
-    const val BROWSE_SPRING_STIFFNESS = 700f
+    const val BROWSE_SPRING_STIFFNESS = 350f
     /** [BROWSE_SPRING_STIFFNESS] 弹簧的收敛阈值(dp),见那里。 */
     const val BROWSE_SPRING_THRESHOLD_DP = 0.5f
 

@@ -23,12 +23,20 @@ class GtvMotionTest {
         assertEquals(GtvLayout.BROWSE_SPRING_THRESHOLD_DP.dp, spec.visibilityThreshold)
     }
 
-    @Test fun `stiffness 落在拟合区间 550–1200 内(R29 的证据边界)`() {
-        // 出处见 GtvLayout.BROWSE_SPRING_STIFFNESS 的 KDoc:12 帧轨迹按 40–60 fps 折算 ω ≈ 23–35 rad/s,
-        // stiffness = ω² ≈ 550–1200。这是拟合值,允许按 owner 手感在区间内调;出了区间就不是那条轨迹。
+    @Test fun `stiffness 落在拟合区间 300–400 内(R33 按真实 pts 重估,取代 R29 的 550–1200)`() {
+        // 出处见 GtvLayout.BROWSE_SPRING_STIFFNESS 的 KDoc:screenrecord + ffprobe pts,整页位移
+        // 120 ms 79% / 213 ms 93% / 285 ms 98% / ~430 ms 停稳;临界阻尼弹簧以停稳时刻为准拟合
+        // stiffness ≈ 300–400,取 350。这是拟合值,允许按 owner 手感在区间内调;出了区间就不是那条轨迹。
         val k = GtvLayout.BROWSE_SPRING_STIFFNESS
-        assertTrue("stiffness=$k 超出拟合区间", k in 550f..1200f)
+        assertTrue("stiffness=$k 超出拟合区间", k in 300f..400f)
         assertTrue("不该退回 Compose 默认 StiffnessMedium(1500)", k != Spring.StiffnessMedium)
+        // 停稳时刻:Google ~430 ms;这根弹簧在 430 ms 应已到 99.5% 以上,且 250 ms(R29 的 700 停下的时刻)
+        // 还没到 97%——「慢慢往上走」的尾巴要留住。
+        val omega = kotlin.math.sqrt(k.toDouble())
+        fun x(t: Double) = 1.0 - (1.0 + omega * t) * kotlin.math.exp(-omega * t)
+        assertTrue("430 ms 应已停稳,实际 ${x(0.43)}", x(0.43) > 0.995)
+        assertTrue("250 ms 不该已经停稳(700 的手感),实际 ${x(0.25)}", x(0.25) < 0.97)
+        assertTrue("213 ms 应在 90% 附近(Google 93%),实际 ${x(0.213)}", x(0.213) in 0.88..0.96)
     }
 
     @Test fun `临界阻尼弹簧的轨迹先加速后减速(R27 的硬减速曲线做不到这一点)`() {
