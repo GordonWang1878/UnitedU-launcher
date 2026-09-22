@@ -36,6 +36,13 @@ fun cardTintMatrix(accentRgb: Int): FloatArray {
  * 纯色或近纯色边缘因此依然精确复原原色(桶内只有一种值,均值 = 该值本身);只有边缘真的混了
  * 多种颜色时,均值才在「哪种颜色占比最高」之间做出取舍,而不是把所有颜色都拉平。
  *
+ * **桶界撕票(整枝审查存疑 3,2026-09-22,单测复现后修)**:固定网格分桶有一个固有病——同一种颜色
+ * 恰好跨在桶界两侧(0xDF → 桶 6、0xE0 → 桶 7),会被撕成两张各 30% 的票,让 40% 的另一种颜色当选。
+ * 修法是**用邻桶合并选赢家、用核心桶算颜色**:每个桶的得分 = 自己 + 26 个相邻桶(RGB 各 ±1)的
+ * 像素数,得分最高的那一簇是赢家;返回值仍是这一簇里**像素数最多的那一个桶**的均值,而不是整簇
+ * 的均值——合并只用来投票,不用来调色,否则 55% 白 + 45% 浅灰会再次「算出原图里不存在的颜色」。
+ * 单桶 32 级宽、邻桶合并的窗口最多 96 级,白与蓝紫这类真正不同的颜色不会被并进同一簇。
+ *
  * 透明边缘像素(alpha < 128)不计,既不进有效像素计数、也不进任何桶;有效像素不足(浮在透明上的
  * 老式图标)→ null,调用方回落到占位底。纯函数,JVM 单测在 [CardColorTest]。
  * 入参是 ARGB 像素(如 Bitmap.getPixels 的输出)。
@@ -56,7 +63,23 @@ fun edgeColor(edgePixels: IntArray): Int? {
         acc[0] += 1; acc[1] += r; acc[2] += g; acc[3] += b
     }
     if (n < edgePixels.size / 4) return null   // 有效边缘太少 = 图标本就透明边,别硬造底色
-    val dominant = buckets.values.maxByOrNull { it[0] } ?: return null
+    if (buckets.isEmpty()) return null
+    // 邻桶合并选赢家:得分 = 本桶 + RGB 各 ±1 的 26 个邻桶的像素数(见 KDoc「桶界撕票」)。
+    fun neighbourhood(key: Int): List<LongArray> {
+        val r = (key shr 6) and 7; val g = (key shr 3) and 7; val b = key and 7
+        val out = ArrayList<LongArray>(27)
+        for (dr in -1..1) for (dg in -1..1) for (db in -1..1) {
+            val nr = r + dr; val ng = g + dg; val nb = b + db
+            if (nr !in 0..7 || ng !in 0..7 || nb !in 0..7) continue
+            buckets[(nr shl 6) or (ng shl 3) or nb]?.let { out.add(it) }
+        }
+        return out
+    }
+    val winnerKey = buckets.keys.maxWithOrNull(
+        compareBy<Int>({ key -> neighbourhood(key).sumOf { it[0] } }, { key -> buckets.getValue(key)[0] }),
+    ) ?: return null
+    // 颜色只取赢家簇里像素最多的那一个核心桶的均值,不把整簇拉平。
+    val dominant = neighbourhood(winnerKey).maxByOrNull { it[0] } ?: return null
     val count = dominant[0]
     // **必须带满 alpha**:回落底存进 AppEntry.fallbackColor(Int),首页用 `Color(it)` 按 ARGB 解——
     // 少了 0xFF alpha 就是全透明,铺底会透出壁纸(2026-09-16 网易云在亮壁纸上暴露过)。

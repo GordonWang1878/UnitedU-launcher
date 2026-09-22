@@ -105,6 +105,33 @@ class EdgeColorTest {
         assertEquals(null, edgeColor(px))
     }
 
+    @Test fun bucketBoundaryDoesNotSplitOneColourIntoTwoLosers() {
+        // 整枝审查存疑 3(2026-09-22):同一种近白灰恰好跨在桶界两侧——0xDF(223 → 桶 6)与
+        // 0xE0(224 → 桶 7)各占 30%,再加 40% 纯蓝。肉眼看这是「60% 近白 + 40% 蓝」,该返回近白;
+        // 只按单桶计数的话近白被桶界撕成两张 30% 的票,40% 的蓝反而当选。
+        val greyA = 0xFFDFDFDF.toInt()
+        val greyB = 0xFFE0E0E0.toInt()
+        val blue = 0xFF0000FF.toInt()
+        val px = IntArray(100) { when { it < 30 -> greyA; it < 60 -> greyB; else -> blue } }
+        val result = edgeColor(px)!!
+        org.junit.Assert.assertNotEquals("40% 的蓝赢了被桶界撕开的 60% 近白", blue, result)
+        // 结果必须是近白本身(两个相邻桶之一的均值),不是与蓝和稀泥出来的第三色
+        org.junit.Assert.assertTrue(
+            "返回了 %06X,不是近白".format(result and 0xFFFFFF),
+            result == greyA || result == greyB,
+        )
+    }
+
+    @Test fun neighbourMergeDoesNotBlendVisiblyDifferentGreys() {
+        // 邻桶合并只用来**选**赢家,不用来**算**颜色:55% 纯白(桶 7)+ 45% 浅灰 0xC8(桶 6)
+        // 是两个相邻桶,合并后一起赢过其它颜色,但返回的必须是核心桶(白)自己的均值,
+        // 不能是白与浅灰的混合——否则又回到「算出原图里不存在的颜色」。
+        val white = 0xFFFFFFFF.toInt()
+        val grey = 0xFFC8C8C8.toInt()
+        val px = IntArray(100) { if (it < 55) white else grey }
+        assertEquals(white, edgeColor(px))
+    }
+
     @Test fun alphaIsAlwaysFullOnDominantResult() {
         // 即便入参的不透明像素 alpha 只有 128(边界值),返回值也必须钉死 0xFF——
         // 这是 2026-09-16 网易云那次「回落底透明」事故的回归防线,继续覆盖。
