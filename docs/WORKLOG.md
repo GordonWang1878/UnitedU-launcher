@@ -1133,3 +1133,5 @@ R27 / R28 实现见 gtv 分支 `2f17ee9` / `b46dcde`,我在其上又修了三处
 **从对齐表直接读到的目标版硬值**(不再是借旧版的):`default_focused_animation_duration_ms = 150`、`top_nav_animation_duration_focus/unfocus = 100/200`、`lb_browse_rows_anim_duration = 250`、`card_focused_frame_outer_stroke_width = 2dp`、`card_focused_elevation = 4dp`。以及一条旁证:fraction 里新版新增一条值 1.10 的条目(名字夹在 spotlight_shadow_alpha_min … topic_banner_focused_scale 之间),正是像素实测的那个 1.10;旧版的 `app_card_focused_scale` 在新版仍是 1.14 —— §10c 按旧名字找到的从来不是"Your apps"用的那条。
 
 **判据留给以后**:被告知「某信息没了」时,先问一句**它的载体是什么、载体还在不在**。名字的载体是字符串池,被清了;但名字曾经决定过的**排列顺序**是另一个载体,还在。
+
+**同日续 · 两条腿的结果**:①搜索线:Google 的 Chromium 文档明说 R.txt 只给 Googler;逆向工具都不能还原名字。②APKMirror 中间版本 708496270 经批准下载后发现也被抹(5 有名 / 14225 被抹),Play 渠道从 595789376 之后不久就开了收拢 → **手上的 595789376 是最后一份有名字的**,对齐法是正解,不再找更新的基准。细节见研究文档 §12。
