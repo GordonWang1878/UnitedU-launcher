@@ -171,6 +171,15 @@ fun Modifier.gtvFocusStroke(focused: Boolean, color: Color, corner: Dp): Modifie
  *
  * **绘制顺序**:柔光 → 聚焦描边 → 移动描边,由外向内、后画的盖在先画的上面。
  *
+ * **Ruling R30(owner 反馈 Round 8)**:[afterShift] 为 true 且正在进焦时,缩放 + 描边 + 柔光
+ * 的淡入整体推迟 [GtvLayout.FOCUS_AFTER_SHIFT_DELAY_MS](`tween` 的 `delayMillis`),让行位移
+ * 先走、放大后到;失焦分支永远不延迟。判定「这次焦点变化有没有触发行位移」是调用方的事
+ * (首页在 `CategoryRow` 的焦点回调里判,见那里),这里只认这个布尔。`animateFloatAsState`
+ * 在目标值变化那一刻读取 spec,所以位移结束后 `afterShift` 翻回 false 不会打断已经在跑的动画。
+ *
+ * @param afterShift 这次进焦是否伴随行位移(纵向切行或横向滑行)。默认 `false`(编辑页、
+ *   `AddCard`/`MissingCard`、`RowIconPicker` 都不传,立即放大——编辑页的位移判定与首页不同
+ *   (`firstVisibleRow` 经 `LaunchedEffect` 异步推进),Round 8 只做首页)。
  * @param moving 首页原地移动态(M4b)与编辑页搬运态:被搬的那张卡的高亮描边,它标的是
  *   「正在搬哪张」,Google 没有对应物。**几何跟着缩放后的边缘走**(整枝审查 A,2026-09-22):
  *   外扩 = 当前 `scale` 的溢出 + [GtvLayout.FOCUS_OUTSET],与聚焦描边同一算法,只是外扩量换成
@@ -188,9 +197,12 @@ fun Modifier.gtvAppFocusFrame(
     corner: Dp,
     moving: Boolean = false,
     movingColor: Color = Color.Unspecified,
+    afterShift: Boolean = false,
 ): Modifier = composed {
     val motionSpec = tween<Float>(
         durationMillis = if (focused) GtvLayout.FOCUS_FADE_IN_MS else GtvLayout.FOCUS_FADE_OUT_MS,
+        // R30:进焦且这次焦点变化带着行位移 → 等位移走到约 80% 再开始放大;失焦不延迟。
+        delayMillis = if (focused && afterShift) GtvLayout.FOCUS_AFTER_SHIFT_DELAY_MS else 0,
         easing = Theme.AppFocusEasing,
     )
     val scale by animateFloatAsState(

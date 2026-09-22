@@ -90,6 +90,13 @@ fun AppCard(
      * **聚焦与否都画**:每搬一步,焦点要晚一两帧才追到新位置,那几帧里被搬的卡也得认得出来。
      */
     moving: Boolean = false,
+    /**
+     * Ruling R30(owner 反馈 Round 8):这次进焦是否伴随行位移(纵向切行 / 横向滑行)。为 true 时
+     * 缩放 + 描边 + 柔光推迟 [GtvLayout.FOCUS_AFTER_SHIFT_DELAY_MS] 再淡入,让位移先走;判定由
+     * `HomeScreen.CategoryRow` 在焦点回调里做(与 `focused` 同一个事件里写入,下一次重组一起生效)。
+     * 编辑页不传,立即放大。
+     */
+    focusAfterShift: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
     val accent = LocalThemeColors.current.accent
@@ -129,7 +136,7 @@ fun AppCard(
             modifier = modifier
                 // 聚焦缩放 + 描边(贴缩放后边缘)+ 移动态高亮描边(固定几何,不缩放),
                 // 三者都在这一条 gtvAppFocusFrame 里,见其 KDoc 里的绘制顺序说明。
-                .gtvAppFocusFrame(focused, accent, metrics.cardCorner, moving, movingColor)
+                .gtvAppFocusFrame(focused, accent, metrics.cardCorner, moving, movingColor, afterShift = focusAfterShift)
                 .size(metrics.cardWidth, metrics.cardHeight)
                 .focusProperties {
                     if (isRowStart) left = FocusRequester.Cancel

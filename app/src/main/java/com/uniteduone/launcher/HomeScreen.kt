@@ -628,6 +628,7 @@ fun HomeScreen(
                         else -> tgtIdx.getOrElse(tgtRow) { 0 }
                     },
                     carried = if (moveTarget?.row == rowIndex) moveTarget.col else -1,
+                    isActiveRow = rowIndex == activeRowSafe,
                     onFocusChange = { idx, got ->
                         report(rowIndex, idx, got)
                         if (got) {
@@ -786,6 +787,9 @@ private fun CategoryRow(
     targetIndex: Int,
     /** 移动态里被搬的卡在本行第几列;-1 = 不在本行(或不在移动态)。 */
     carried: Int = -1,
+    /** 本行此刻是不是纵向锚定的「当前行」(`activeRowSafe == rowIndex`)。R30 用它判断
+     *  「焦点落到本行会不会触发纵向位移」:不是当前行 → 会。 */
+    isActiveRow: Boolean,
     onFocusChange: (Int, Boolean) -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -796,6 +800,11 @@ private fun CategoryRow(
     // 记住聚焦在第几张,用来算这一行的横向位移(行放得下就不动、放不下才移够用的距离,
     // 见下面 GtvLayout.rowShiftX 的 KDoc——R20)
     var focusedIndex by remember { mutableStateOf(0) }
+    // Ruling R30(owner 反馈 Round 8):最近一次落到本行的焦点有没有带着行位移(纵向切行或
+    // 横向 rowShiftX 目标值变了)。在焦点回调里与 focusedIndex 同一个事件写入,AppCard 下一次
+    // 重组时 focused 与它一起生效,gtvAppFocusFrame 据此决定放大要不要等位移。它只是给绘制动画
+    // 选 spec 用的旁路信号,不进焦点账本、不被任何效果读(铁律 3–7 的链条一处不动)。
+    var landedWithShift by remember { mutableStateOf(false) }
     // gtv 线:标题行盒与标题到卡的间距改读 GtvLayout(Task 9b,消除纵向漂移;24→15dp 是可见的
     // 设计变化,Google 实测就是 15dp——见 docs/research/2026-09-20-google-tv-launcherx-measurements.md §3)。
     Column(verticalArrangement = Arrangement.spacedBy(GtvLayout.ROW_TITLE_TO_CARD.dp)) {
@@ -871,6 +880,7 @@ private fun CategoryRow(
                     fallbackColor = app.fallbackColor?.let { Color(it) },
                     themed = themedCards,
                     moving = index == carried,
+                    focusAfterShift = landedWithShift,
                     onClick = {
                         // 唯一按种类分流的地方:应用行启动包,输入源行切信号源
                         //(packageName 里存的是输入 id)。其余焦点/渲染全部与种类无关。
@@ -893,7 +903,19 @@ private fun CategoryRow(
                         .let { m ->
                             if (index == 0 && firstCard != null) m.focusRequester(firstCard) else m
                         },
-                    onFocusChange = { got -> onFocusChange(index, got); if (got) focusedIndex = index },
+                    onFocusChange = { got ->
+                        if (got) {
+                            // R30:判「这次落焦会不会让行动」——lambda 捕获的 focused / isActiveRow /
+                            // screenWidthDp 都是上一次重组的值,正好是这次焦点变化**之前**的状态。
+                            // 纵向:本行不是当前行,落上来就会切行;横向:目标 rowShiftX 变了才算滑行
+                            // (行放得下时左右移不动,与 R20 的规则一致,不延迟)。
+                            val xBefore = GtvLayout.rowShiftX(focused, cardSize, screenWidthDp)
+                            val xAfter = GtvLayout.rowShiftX(index, cardSize, screenWidthDp)
+                            landedWithShift = !isActiveRow || xAfter != xBefore
+                            focusedIndex = index
+                        }
+                        onFocusChange(index, got)
+                    },
                     isRowStart = index == 0,
                     isRowEnd = index == row.apps.lastIndex,
                     isLastRow = isLastRow,

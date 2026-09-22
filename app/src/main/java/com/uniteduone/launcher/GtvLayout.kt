@@ -235,6 +235,24 @@ object GtvLayout {
     const val FOCUS_FADE_OUT_MS = 150
 
     /**
+     * **Ruling R30(2026-09-22,owner 真机反馈 Round 8)**:焦点放大(缩放 + 描边 + 柔光的淡入)
+     * 在**行位移之后**才开始——owner 原话「移动到某一个焦点之后,那个焦点会自然而然地放大」;
+     * 我们此前是位移与放大同时起步。只有**这次焦点变化触发了行位移**(纵向切行,或横向
+     * `rowShiftX` 的目标值变了)时才加这段延迟;同一行内左右移、行没滑时不加,立即放大——
+     * Google 横向不滑时也是立即的。失焦(缩回)永远不加延迟。
+     *
+     * **拟合值,不是资源原值**:按 [BROWSE_SPRING_STIFFNESS] 那根弹簧走到约 80% 的时刻估的——
+     * 临界阻尼 `1 − (1 + ωt)e^(−ωt) = 0.8` 解得 ωt ≈ 3.0,ω = √700 ≈ 26.5 rad/s → t ≈ 113 ms,
+     * 取整 120。Google 的放大到底是在位移的哪个百分比处起步没有逐帧量过,只有 owner 的
+     * 「移过去之后」这句定性描述;调 stiffness 时这个数要跟着重估(它是 ω 的函数)。
+     *
+     * 用在 `GtvFocusStroke.gtvAppFocusFrame` 的 `afterShift` 分支(`tween` 的 `delayMillis`);
+     * 「这次触发了位移」的判定在 `HomeScreen.CategoryRow` 的焦点回调里做,不动任何焦点效果 /
+     * 看门狗 / `FocusRequester` 链(铁律 3–7)。
+     */
+    const val FOCUS_AFTER_SHIFT_DELAY_MS = 120
+
+    /**
      * **Ruling R27(2026-09-21,owner 真机反馈 Round 7;R29 已取代,见下)**:浏览位移(**四处**:首页行 x/y 平移、
      * 编辑页纵向平移与行内横向平移——最后一处 2026-09-22 整枝审查 B 才补上,此前漏在默认 spring)
      * 的时长,配 [Theme.BrowseEasing] 一起用,取代此前的 `Theme.MotionInMs`(300ms,等同
