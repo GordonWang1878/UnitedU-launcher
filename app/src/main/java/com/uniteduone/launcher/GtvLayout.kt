@@ -688,16 +688,28 @@ object GtvLayout {
      * Google 那边 hero 的图是跟着页面上滑并淡出到黑的(`docs/screenshots/gtv/19-vertical-transition-frames.jpg`
      * #42→#52),浏览态(焦点在行 1 及以下)的背景是纯黑;这里的终值 0 对应那个黑底。
      *
-     * **owner 若想浏览态仍保留壁纸**:改的是 [wallpaperAlpha] 的终值(例如降到 R24 二维衰减层那种暗度,
-     * 而不是 0),不是这个距离;R24 那层本身固定在屏幕坐标上、不随位移走,保持不动。
+     * **owner 若想浏览态仍保留壁纸**:改的是 [wallpaperAlpha] 的终值,不是这个距离——R36 已这么做
+     * (终值 [WALLPAPER_BROWSE_ALPHA] 0.2);R24 那层本身固定在屏幕坐标上、不随位移走,保持不动。
      */
     const val WALLPAPER_FADE_OVER_DP = HERO_HEIGHT
 
     /**
+     * **Ruling R36(2026-09-22,owner 真机反馈 Round 10)**:浏览态壁纸淡出的**终值**——不再淡到 0(纯黑),
+     * 停在 **0.20**,留两成壁纸影子。owner 原话:「现在是完全淡到黑。把淡出终止改成 20% 的暗度,留一点
+     * 壁纸影子更有质感。」R35 的终值 0 对应 Google 浏览态的纯黑底;这是 owner 明确偏离 Google 的手感
+     * 裁定,不是量出来的值。淡出距离([WALLPAPER_FADE_OVER_DP])不变,只改终点。
+     *
+     * 是**线性插值到 0.2**(`1 → 0.2`),不是「原曲线再乘 0.2」——后者在位移 0 时也会把静止态的壁纸
+     * 压到 0.2,静止态(hero 露出)壁纸必须是全亮的。
+     */
+    const val WALLPAPER_BROWSE_ALPHA = 0.20f
+
+    /**
      * R35:整页位移 [shiftDp](与 [pageShiftY] 同一个量,≤ 0 表示上移;正负都按绝对值算,调用方不必
-     * 关心符号)对应的壁纸 alpha:`1 − clamp(|shift| / WALLPAPER_FADE_OVER_DP, 0, 1)`。
+     * 关心符号)对应的壁纸 alpha:`1 − (1 − WALLPAPER_BROWSE_ALPHA) × clamp(|shift| / WALLPAPER_FADE_OVER_DP, 0, 1)`,
+     * 即从 1 线性降到 [WALLPAPER_BROWSE_ALPHA](R36,此前终值是 0)。
      * 每帧的动画值都经这里换算,壁纸的位移与淡出和卡片行走同一根弹簧曲线(`Theme.browseShiftSpec`)。
      */
     fun wallpaperAlpha(shiftDp: Float): Float =
-        1f - (kotlin.math.abs(shiftDp) / WALLPAPER_FADE_OVER_DP).coerceIn(0f, 1f)
+        1f - (1f - WALLPAPER_BROWSE_ALPHA) * (kotlin.math.abs(shiftDp) / WALLPAPER_FADE_OVER_DP).coerceIn(0f, 1f)
 }
