@@ -244,38 +244,20 @@ APK 里有一条**专门命名给浏览用**的插值器:
 
 **它是什么**:`aapt2 optimize --collapse-resource-names`(资源名收拢,为了缩小包体),不是什么新的命名方式。占位串 `0_resource_name_obfuscated` 是 aapt2 自己写进资源表的字面量。清点:新版 1.0.976298245 有 **14845 条被抹名、只剩 13 条有名**;旧版 1.0.595789376 **12446 条全部有名、0 条被抹**。
 
-**三条路,只有第三条通**:
+**四条路,通的是第四条(2026-09-22 补,推翻前一天「只有换镜像」的结论)**:
 
 1. **找公开对照表** —— 不存在。映射只存在于 Google 自己的构建产物(R8 / aapt2 的 resource map),不随 APK 发布。
-2. **跨版本按资源 ID 对齐** —— **不通,实测过**。同 ID 的 dimen 只有 **4.5%** 值相同(1652 条里 74 条),integer 14.1%,fraction 5.1%。原因是资源集从 12446 长到 14858,ID 在类型内整体错位。别再试这条。
-3. **换一份更新的、名字没被收拢的构建** —— **通**。**系统镜像里 `/product/priv-app/` 的预置版从不做名字收拢**,只有 Play 更新下来的那份才收。我们手上这份可读的旧版,正是从 android-34 镜像里拉的。所以要更新的名字表,就去拿更新的系统镜像:
+2. **跨版本按资源 ID 对齐** —— 不通。同 ID 的 dimen 只有 4.5% 值相同(资源集从 12446 长到 14858,ID 在类型内整体错位)。
+3. **换一份更新的、名字没收拢的系统镜像** —— 2026-09-21 实际下了 API 36 的 TV 镜像跑通了全套取文件路径(GPT → super → 扫 ext4 主超级块认卷标 → dd 切分区 → `brew install e2fsprogs` 后 `debugfs -R "dump …"`,不用起 AVD 也不用 sdkmanager),**但那份镜像不带 launcherx**:`/product/priv-app` 里是经典 Android TV 桌面 `TVLauncher`,37 处 launcherx 字符串全在权限配置 XML 里。清单里 arm64 只有 API 31/33/34/36,android-34 仍是唯一带 launcherx 的镜像。这条路本身没错,只是没有更新的货。
+4. **利用「顺序还在」做序列对齐 —— 通,而且是正解**。Gordon 2026-09-22 拒绝接受「走到头」的结论,要求专攻;重新审视后发现一条被漏掉的硬线索:**aapt2 给同一类型的资源分配 ID 时严格按名字字母序**(旧版 dimen/integer/fraction/string/color 五类各 100% 单调)。名字被抹掉,**顺序还在**——新版那 2140 条 dimen 仍按真名的字母序排列。于是两版之间是一道序列对齐题:值相同且顺序一致的条目做 LCS(最长公共子序列),名字直接传过去;对不上的新条目,名字也被夹在相邻两个已匹配名字之间。
 
-```bash
-# 1. 看有哪些 TV 镜像(不需要 sdkmanager)
-curl -s https://dl.google.com/android/repository/sys-img/android-tv/sys-img2-1.xml
-# 2. 下对应 zip,解开后 system.img 是 GPT 磁盘镜像 → super 分区 → 里面是 ext4 逻辑分区。
-#    按 1MB 对齐扫 ext4 主超级块(magic 0xEF53 @ base+1080,且 s_block_group_nr==0),
-#    读 s_volume_name(base+1024+120)认出 system / system_ext / product / vendor,
-#    dd 切出 product 分区,再用 debugfs 取文件(brew install e2fsprogs):
-#      debugfs -R "ls /priv-app" product.img
-#      debugfs -R "dump /priv-app/TVLauncherXPrebuilt/TVLauncherXPrebuilt.apk out.apk" product.img
-#    不用起 AVD,也不用 sdkmanager。
-# 3. aapt2 dump resources → 名字可读
-```
+   **验证**:新版残留的 3 条真名 string 当地面真值,**3/3 通过**(两条精确命中,一条未匹配但上下界正确夹住)。结果:integer 对上 200/246(81%)、fraction 106/126(84%)、dimen 1339/2140(63%)。工具 `scripts/research/align_launcherx_resources.py`,产物 `docs/research/launcherx-1.0.976298245-named-resources.md`。
 
-**⚠ 2026-09-21 实际跑了一遍,结果是否定的,别再下一次(0.97 GB 下载 + 12 GB 解压)**:
-**API 36(Android 16)的 TV 镜像不带 launcherx**,`/product/priv-app` 里是经典 Android TV 桌面
-`TVLauncher`(连同 `Backdrop`、`Katniss`、`LiveTv` 这套 Android TV 组件)。镜像里确实有 37 处
-`com.google.android.apps.tv.launcherx` 字符串,但**全在权限/配置 XML 里,没有 APK**。
-也就是说 Google 在 34 → 36 之间把 TV 镜像的口味从 Google TV 换回了纯 Android TV;而清单里
-arm64-v8a 只有 API 31/33/34/36 四个,**android-34 那份(launcherx 1.0.595789376)仍是目前
-唯一一份资源名可读的官方构建**。
+   **一个漂亮的旁证**:fraction 里有一条**新版新增、旧版没有**的条目 0x7f0a0081,值 1.10,名字夹在 `spotlight_shadow_alpha_min` 与 `topic_banner_focused_scale` 之间——正是像素实测到的那个 1.10;而旧版的 `app_card_focused_scale` 在新版里仍是 1.14。说明"Your apps"行的圆形磁贴用的是一条新加的资源,§10c 当时按旧版名字找到的 `app_card_focused_scale` 从来不是它,是像素实测救了场。**名字帮你找候选,实测确认用的是哪一条,两者缺一不可。**
 
-**还没试过的两条**:①从第三方镜像站找介于 595789376 与 976298245 之间、尚未开启名字收拢的
-Play 版本——可行性未知,但**必须先用签名证书比对确认是 Google 原签**(和设备上已装那份的
-签名者比),不能直接信第三方站点;②找 Google TV 实体设备的系统转储。两条都还没做。
+   **局限,如实记**:①匹配靠"值相等",同一区间内若有多条值相同的条目,名字可能在它们之间错位——但值本身不会错(只匹配相等值),所以"X 的值是多少"这类查询仍可靠,除非 X 恰好改了值又被同值邻居顶替;②「同名改值」候选表只报锚点间旧新未匹配数相等且单位一致的,即便如此仍需人工核(`top_nav_icon_size 30→86dp` 这种一看就不对的也会进表);③ string 只对上 4.9%,因为英文文案在 `split_config.en.apk` 里、base 里几乎没有——不影响,我们不查 string。
 
-**取数顺序据此修订**(替换 §10c 末尾那条):**名字可读的官方构建(目前唯一一份是 android-34 镜像里的 1.0.595789376)→ 目标版像素实测 → 占位值并注明**。像素实测只用来解决「两版之间确实变了」的那几项(例如 app 卡聚焦倍率旧版 1.14、目标版 1.105),不再用来问「Google 这个参数是多少」。
+**取数顺序据此修订**(替换 §10c 末尾那条):**先查对齐表 `launcherx-1.0.976298245-named-resources.md`(目标版自己的值、带名字)→ 表里没有或标了「新增」的,用旧版名字定位候选 + 目标版像素实测确认 → 占位值并注明**。像素实测只用来解决「两版之间确实变了」的那几项(例如 app 卡聚焦倍率旧版 1.14、目标版 1.105),不再用来问「Google 这个参数是多少」。
 
 ## 附:截图
 
