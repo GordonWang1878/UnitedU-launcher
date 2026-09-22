@@ -23,8 +23,8 @@ import androidx.compose.ui.unit.dp
  * `BlurMaskFilter`,全部见 [GtvLayout.APP_FOCUS_GLOW_DP] 一族常量的 KDoc。
  *
  * 画法:一串首尾相接的同心圆角矩形描边,每圈宽 [GtvLayout.APP_FOCUS_GLOW_RING_DP],
- * alpha 走 [GtvLayout.focusGlowAlpha];圆角半径随外扩距离同步增大(与本文件既有的
- * `r = corner + (outX + outY) / 2` 同一写法)。
+ * alpha 走 [GtvLayout.focusGlowAlpha];圆角半径 = 描边外缘的圆角半径 + 该圈的偏移量——
+ * 与卡片同心(R31,同一条不变量见 [GtvLayout.focusRingRadius])。
  *
  * **柔光会铺出卡片间距之外**:[GtvLayout.APP_FOCUS_GLOW_DP](60dp)> `GtvLayout.CARD_GAP`(20dp),
  * 也大于卡片上方到上一行标题的 15dp(`rowVerticalPad` 7 + `ROW_GAP` 8),所以它必然会淡淡地盖到
@@ -95,6 +95,10 @@ private fun DrawScope.drawFocusGlow(
  * 为什么不用 `Modifier.border`:border 画在布局框**上**,画不到框外。`drawBehind` 的画布不受
  * 布局框限制(只要父链上没有 clip),所以用负偏移把矩形撑出去。
  * **父容器不能 clip**:行容器已经有 `wrapContentWidth(unbounded)`,别再加 `clipToBounds`。
+ *
+ * **圆角(R31)**:`r = corner + out`——描边中心线离卡边 `out`,半径就是卡片圆角 + `out`,
+ * 与卡片同心。这里的卡不缩放,所以本来就是同心几何,R31 没有改它;[gtvAppFocusFrame]
+ * 那边缩放后的版本是同一条原则(`corner × scale + gap + stroke/2`,见 [GtvLayout.focusRingRadius])。
  *
  * Fix 3(owner 反馈 R2,2026-09-20):`focused` 曾经直接门控这条 `drawBehind`——瞬间出现 / 瞬间
  * 消失,是「焦点一下子跳到这、一下子跳到那」的卡顿感来源之一。改成 `composed {}`:每个调用点
@@ -224,11 +228,14 @@ fun Modifier.gtvAppFocusFrame(
                 val stroke = GtvLayout.APP_FOCUS_STROKE.dp.toPx()
                 val outX = growX + gap + stroke / 2f
                 val outY = growY + gap + stroke / 2f
-                val r = corner.toPx() + (outX + outY) / 2f
+                // R31:描边与缩放后的卡片同心——半径 = corner × scale + gap + stroke/2,不再把
+                // growX/growY(卡片变大的量,不是描边离卡边的距离)混进半径(见 focusRingRadius 的 KDoc)。
+                val r = GtvLayout.focusRingRadius(corner.toPx(), scale, gap, stroke)
                 // R28 柔光:几何与描边同源(outX/outY 里已经含了当前动画中的 scale,所以柔光
                 // 跟着卡片一起长大),透明度与描边共用同一个 ringAlpha —— 同一份 motionSpec,
                 // 150ms AccelerateDecelerate,柔光是焦点处理的一部分,不另起时长。
-                // 描边走中心线,外缘在 outX + stroke/2 处;先画柔光、描边盖在上面。
+                // 描边走中心线,外缘在 outX + stroke/2 处;柔光各圈的圆角 = 描边外缘半径 + 该圈偏移,
+                // 同样同心;先画柔光、描边盖在上面。
                 drawFocusGlow(
                     edgeX = outX + stroke / 2f,
                     edgeY = outY + stroke / 2f,
@@ -258,7 +265,9 @@ fun Modifier.gtvAppFocusFrame(
                 val w = GtvLayout.FOCUS_STROKE.dp.toPx()
                 val outX = growX + outset
                 val outY = growY + outset
-                val r = corner.toPx() + (outX + outY) / 2f
+                // R31:同一条同心不变量——缩放后卡片的圆角 corner × scale,加上这条描边中心线
+                // 离缩放后边缘的距离 outset。
+                val r = corner.toPx() * scale + outset
                 drawRoundRect(
                     color = movingColor,
                     topLeft = Offset(-outX, -outY),

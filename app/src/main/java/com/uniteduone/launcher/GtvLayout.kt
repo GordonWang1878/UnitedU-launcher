@@ -341,6 +341,26 @@ object GtvLayout {
         dimension * (APP_FOCUS_SCALE - 1f) / 2f + APP_FOCUS_GAP + APP_FOCUS_STROKE
 
     /**
+     * **Ruling R31(2026-09-22,owner 真机反馈 Round 8)**:聚焦描边**中心线**的圆角半径——与缩放后
+     * 的卡片**同心**:`corner × scale + gap + stroke / 2`。owner 原话「描边形状和卡片本身并不是
+     * 等比例的,显得有点膈应;外围的框应该和卡片完全等比例,外围的框和卡片边缘完全不交接」。
+     *
+     * **此前的算式错在哪**:`r = corner + (outX + outY) / 2`,其中 `outX`/`outY` 含缩放长出的
+     * `growX`/`growY`(MEDIUM 卡横向 7.65dp、纵向 4.3dp)——那是卡片**变大**的量,不是描边离卡
+     * 边的距离,却被当成外扩距离加进了半径:算出来约 19dp,而缩放后的卡片圆角只有 8 × 1.10 =
+     * 8.8dp,描边比卡片圆得多,四角处描边离卡边的距离比直边处宽出一截。Google 的资源里
+     * `*_card_corner_correction`(1.05–1.27)一族是「卡片圆角 × 系数」的写法,是等比例思路。
+     *
+     * **同心几何的不变量**:平行于圆角矩形边缘、向外偏移 `d` 的曲线,圆角半径恰好是
+     * `原半径 + d`。缩放后卡片的圆角是 `corner × scale`;描边中心线离缩放后边缘 `gap + stroke/2`;
+     * 所以半径就是这三项之和。柔光每一圈同样按「描边外缘半径 + 该圈偏移」取,
+     * `moving` 描边按「`corner × scale` + 它自己的外扩量」取——同一条不变量,三处共用。
+     * 纯函数、单位无关(调用方传 px 得 px),`GtvLayoutTest` 钉 8×1.10+2+1 = 11.8。
+     */
+    fun focusRingRadius(corner: Float, scale: Float, gap: Float, stroke: Float): Float =
+        corner * scale + gap + stroke / 2f
+
+    /**
      * **Ruling R28(2026-09-21,owner 真机反馈 Round 7)**:焦点柔光向外铺开的总距离(dp),
      * 从**描边外缘**起算。此前 gtv 线只画了一圈 2dp 描边、柔光一点没有——这正是 owner
      * 「从沙发上完全感觉不到动效」的主因:2dp 细环在 150ms 内淡入,那个距离上肉眼捕捉不到;
@@ -443,7 +463,9 @@ object GtvLayout {
      *  实现不一致、Compose 还要另开 layer),而柔光每帧都跟着 `scale` 变几何;一串按指数衰减
      *  的细环是纯几何,逐帧重算的代价是 `APP_FOCUS_GLOW_DP / APP_FOCUS_GLOW_RING_DP` = 30 次 `drawRoundRect`
      *  (只有聚焦中的那张卡才画,而且收尾段那十几圈 alpha 已经接近 0),
-     *  而且圆角半径随外扩距离同步增大这件事直接套用已有写法(`r = corner + (outX + outY) / 2`)。
+     *  而且圆角半径随外扩距离同步增大这件事直接套用同心几何([focusRingRadius]:描边外缘半径
+     *  + 该圈的偏移,R31 起;此前的 `r = corner + (outX + outY) / 2` 把缩放长出的量也算进了半径,
+     *  描边比卡片圆得多)。
      *  相邻圈之间 alpha 只差 2^(−2/16) ≈ 8.3%,在这个 alpha 量级上看不出分层。 */
     const val APP_FOCUS_GLOW_RING_DP = 2f
 

@@ -140,4 +140,19 @@ class GtvLayoutTest {
         // 实际视觉边界」,不是纯缩放量。
         assertEquals(9.4f, GtvLayout.appFocusOverflow(GtvLayout.cardHeight(GtvCardSize.LARGE)), 0.01f)
     }
+
+    // Ruling R31(owner 反馈 Round 8):聚焦描边与缩放后的卡片同心——半径 = corner × scale + gap + stroke/2。
+    // 此前 r = corner + (outX + outY)/2 把缩放长出的 growX/growY 也算进半径,MEDIUM 卡算出约 19dp,
+    // 而缩放后卡片圆角只有 8.8dp,描边比卡片圆得多。数值钉死:8×1.10 + 2 + 2/2 = 11.8。
+    @Test fun `聚焦描边圆角与缩放后卡片同心(R31)`() {
+        assertEquals(
+            11.8f,
+            GtvLayout.focusRingRadius(GtvLayout.CARD_CORNER, GtvLayout.APP_FOCUS_SCALE, GtvLayout.APP_FOCUS_GAP, GtvLayout.APP_FOCUS_STROKE),
+            0.0001f,
+        )
+        // 未缩放(scale = 1)时退化为 corner + 中心线偏移,与内容卡 gtvFocusStroke 的 r = corner + out 同一条不变量
+        assertEquals(8f + 2f + 1f, GtvLayout.focusRingRadius(8f, 1f, 2f, 2f), 0.0001f)
+        // 单位无关:px 进 px 出(density 2 的这台机型,8dp = 16px)
+        assertEquals(23.6f, GtvLayout.focusRingRadius(16f, 1.1f, 4f, 4f), 0.0001f)
+    }
 }
