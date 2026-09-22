@@ -100,6 +100,20 @@ class GtvLayoutTest {
         }
     }
 
+    @Test fun `R35 壁纸随整页位移淡出——0 全亮,一个 hero 高度全黑,一半是 0点5,越界夹紧`() {
+        assertEquals(GtvLayout.HERO_HEIGHT, GtvLayout.WALLPAPER_FADE_OVER_DP, 0f)
+        assertEquals(1f, GtvLayout.wallpaperAlpha(0f), 0f)
+        assertEquals(0f, GtvLayout.wallpaperAlpha(-GtvLayout.HERO_HEIGHT), 0f)
+        assertEquals(0.5f, GtvLayout.wallpaperAlpha(-GtvLayout.HERO_HEIGHT / 2f), 1e-6f)
+        assertEquals("越过 hero 高度后夹在 0,不会变负", 0f, GtvLayout.wallpaperAlpha(-1000f), 0f)
+        assertEquals("正向(理论上不会出现)按绝对值算,同样夹紧", 0f, GtvLayout.wallpaperAlpha(1000f), 0f)
+        assertEquals(0.5f, GtvLayout.wallpaperAlpha(GtvLayout.HERO_HEIGHT / 2f), 1e-6f)
+        // 行 1 的整页位移(中档不显示标题 ≈ −322dp)已超过 hero 高度:停稳时壁纸必定全黑。
+        val shift1 = GtvLayout.pageShiftY(1, GtvCardSize.MEDIUM, showTitles = false)
+        assertTrue(-shift1 > GtvLayout.HERO_HEIGHT)
+        assertEquals(0f, GtvLayout.wallpaperAlpha(shift1), 0f)
+    }
+
     @Test fun `R32 锚点在顶栏之下——浏览态焦点行的标题不与顶栏重叠`() {
         // 焦点行标题顶 = 锚 − ROW_CARD_TOP = 120 − 39.5 = 80.5,顶栏底 = 34 + 36 = 70
         val titleTop = GtvLayout.BROWSE_ROW_ANCHOR - GtvLayout.ROW_CARD_TOP

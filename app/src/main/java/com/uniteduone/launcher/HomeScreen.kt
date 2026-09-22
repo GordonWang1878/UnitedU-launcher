@@ -26,6 +26,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -125,6 +126,13 @@ fun HomeScreen(
     moveLanding: MoveLanding? = null,
     /** 这一次组合画出来的行(含置顶的输入源行)。MainActivity 进移动态时拿最近一份当工作副本。 */
     onRowsShown: (List<Row>) -> Unit = {},
+    /**
+     * **Ruling R35**:整页位移的**每帧动画值**(dp,≤ 0 表示上移,= 下面 `shift`)上报给 MainActivity,
+     * 由它喂给住在 setContent 顶层的壁纸层——壁纸不在这里被位移的 Column 里,要和行走同一根曲线,
+     * 只能把动画值举上去。报的是动画的当前值不是目标值,每一帧都报;首页不在组合里时(编辑页替换首页)
+     * MainActivity 自己把它归 0。
+     */
+    onPageShift: (Dp) -> Unit = {},
 ) {
     val ctx = LocalContext.current
     // gtv 线:卡片尺寸不再由「每行几张」反推,而是旧的 5/6/8 存量档位映射到三个固定尺寸
@@ -349,6 +357,10 @@ fun HomeScreen(
         animationSpec = Theme.browseShiftSpec(),
         label = "rowShift",
     )
+    // R35:每帧把动画的当前值举给 MainActivity(壁纸层住在那里)。这里的 shift 本来就在组合阶段被
+    // 下面 Column 的 offset(y = shift) 读取,动画期间每帧都重组,SideEffect 每次重组后跑一遍;
+    // 值没变时 MainActivity 那颗 mutableStateOf 写入相同值不会触发任何失效。
+    SideEffect { onPageShift(shift) }
     // **焦点看门狗。**判据取自真机日志:根节点的 onFocusChanged 里
     //   hasFocus=true && !isFocused  → 某个子节点持有焦点(正常)
     //   hasFocus=true &&  isFocused  → 焦点停在根上,即**没有任何卡片持有**(要补)

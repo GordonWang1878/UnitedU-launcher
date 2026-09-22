@@ -676,4 +676,28 @@ object GtvLayout {
      */
     fun pageShiftY(activeRow: Int, size: GtvCardSize, showTitles: Boolean): Float =
         if (activeRow <= 0) 0f else BROWSE_ROW_ANCHOR - restCardTop(activeRow, size, showTitles)
+
+    /**
+     * **Ruling R35(2026-09-22,owner 真机反馈 Round 10)**:壁纸随整页位移淡到黑所用的距离(dp)。
+     * 页面上滑 [pageShiftY] 这么多时壁纸的 alpha 由 1 线性降到 0;取 [HERO_HEIGHT],即页面滑过
+     * 一个 hero 高度(行 1 落到 [BROWSE_ROW_ANCHOR] 之前就已走完)壁纸恰好完全淡出。
+     *
+     * 依据:B3 裁定 hero 区留给壁纸,在我们这里「英雄区」**就是壁纸本身**——R32 让 hero 的空位随整页
+     * 走了,但壁纸层 `Wallpaper()` 住在 `MainActivity` 的 setContent 顶层(刻意的,进出编辑页不重解
+     * 1920×1080、不闪黑),不在 HomeScreen 被位移的 Column 里,所以 owner 真机看到「英雄区还是不动」。
+     * Google 那边 hero 的图是跟着页面上滑并淡出到黑的(`docs/screenshots/gtv/19-vertical-transition-frames.jpg`
+     * #42→#52),浏览态(焦点在行 1 及以下)的背景是纯黑;这里的终值 0 对应那个黑底。
+     *
+     * **owner 若想浏览态仍保留壁纸**:改的是 [wallpaperAlpha] 的终值(例如降到 R24 二维衰减层那种暗度,
+     * 而不是 0),不是这个距离;R24 那层本身固定在屏幕坐标上、不随位移走,保持不动。
+     */
+    const val WALLPAPER_FADE_OVER_DP = HERO_HEIGHT
+
+    /**
+     * R35:整页位移 [shiftDp](与 [pageShiftY] 同一个量,≤ 0 表示上移;正负都按绝对值算,调用方不必
+     * 关心符号)对应的壁纸 alpha:`1 − clamp(|shift| / WALLPAPER_FADE_OVER_DP, 0, 1)`。
+     * 每帧的动画值都经这里换算,壁纸的位移与淡出和卡片行走同一根弹簧曲线(`Theme.browseShiftSpec`)。
+     */
+    fun wallpaperAlpha(shiftDp: Float): Float =
+        1f - (kotlin.math.abs(shiftDp) / WALLPAPER_FADE_OVER_DP).coerceIn(0f, 1f)
 }

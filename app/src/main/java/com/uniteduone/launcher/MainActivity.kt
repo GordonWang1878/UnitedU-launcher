@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.*
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
@@ -415,6 +416,12 @@ class MainActivity : ComponentActivity() {
             val wallpaperSpec = remember(revision, wallpaperParams, homeSettings.wallpaperFile) {
                 wallpaperSpecOf(homeSettings)
             }
+            // **Ruling R35**:首页整页位移的每帧动画值(HomeScreen.onPageShift 上报)。壁纸层住在这一层、
+            // 不在首页被位移的 Column 里(刻意的:进出编辑页不重解 1920×1080、不闪黑),要让它跟着行走
+            // 同一根曲线,只能把动画值举到这里再喂给 Wallpaper。编辑页替换首页时首页不在组合里、没人
+            // 上报,这里归 0——编辑页本来就该看到完整壁纸(静止态)。
+            var pageShift by remember { mutableStateOf(0.dp) }
+            LaunchedEffect(editing) { if (editing) pageShift = 0.dp }
             val touched = lastInput
             // **编辑界面和菜单开着时不进入待机。**淡出只做在首页那一层,而吞掉唤醒键是
             // Activity 级的 —— 两头不占的结果是:编辑界面画面全亮(看着醒着),
@@ -528,7 +535,14 @@ class MainActivity : ComponentActivity() {
             // prepare() 在首启/升级那一趟会往 settings.json 写 wallpaperFile,而 homeSettings
             // 是在此之前读的;不重读的话,从 M2 升上来、开着「跟随壁纸主色」的用户整个首次会话
             // 都看不到壁纸主色(见 Wallpapers.prepare 的 KDoc)。
-            Wallpaper(this@MainActivity, wallpaperSpec, onSettingsChanged = { settingsRevision++ })
+            // R35:offsetY / alpha 以 lambda 传入,Wallpaper 在布局 / 绘制阶段读,动画每帧不重组它。
+            Wallpaper(
+                this@MainActivity,
+                wallpaperSpec,
+                onSettingsChanged = { settingsRevision++ },
+                offsetY = { pageShift },
+                alpha = { GtvLayout.wallpaperAlpha(pageShift.value) },
+            )
             // 自定义屏保层(M5 spec §1.4 第 2 层):只看 screensaverActive。不再因「不淡出」不组合——
             // 待机显示只管待机,「不淡出」时屏保照样会来(spec §0);没进屏保时 alpha 为 0,一张图都不画。
             // 不再传 showDate(Ruling R23,终审 2026-09-20):这一层不叠时钟了,没有时钟就没有
@@ -636,6 +650,7 @@ class MainActivity : ComponentActivity() {
                     moving = moving,
                     moveLanding = moveLanding,
                     onRowsShown = { shownRows = it },
+                    onPageShift = { pageShift = it },
                 )
                 // **设置页叠在首页之上**(M7 T5,spec §3.1):首页留在底下继续组合,
                 // 半透明渐变遮罩底下看到的就是真正的首页 —— 改卡片大小 / 标题 / 主题色当场可见。

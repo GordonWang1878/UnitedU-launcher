@@ -8,12 +8,17 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -352,9 +357,25 @@ object Wallpapers {
  * 壁纸层。**住在 MainActivity 的 setContent 顶层,不在 HomeScreen 里**:进出编辑页/设置页会把
  * 那一层整棵拆掉重建,壁纸若跟着走就要每次重解一张 1920×1080,期间纯黑——退出时黑闪一下。
  * key 只有 spec:换图 / 改参数 / 轮播都只换位图;新图就绪前旧图原样留着,再交叉淡入过去。
+ *
+ * **Ruling R35(2026-09-22)**:壁纸随首页整页位移一起上移并淡到黑。正因为它住在这一层、不在
+ * HomeScreen 被位移的 Column 里,R32 的整页位移搬不动它(owner 真机:「英雄区还是不动」——在我们
+ * 这里 hero 区就是壁纸本身,B3)。所以位移量由 HomeScreen 每帧上报、MainActivity 持有,再从这两个
+ * lambda 喂进来:
+ * - [offsetY]:与 `GtvLayout.pageShiftY` 同一个量(dp,≤ 0 表示上移),原样作 `offset` 用;上移后
+ *   底部露出的是 MainActivity 根 Box 的黑底。
+ * - [alpha]:`GtvLayout.wallpaperAlpha(offsetY)`,由调用方算好传入。
+ * 两者都以 lambda 的形式在布局 / 绘制阶段读取(`Modifier.offset {}` + `graphicsLayer {}`),动画的
+ * 每一帧只重排位置与图层透明度,**不重组**这个 composable、更不重解位图。壁纸容器保持全屏不变。
  */
 @Composable
-fun Wallpaper(ctx: Context, spec: WallpaperSpec, onSettingsChanged: () -> Unit = {}) {
+fun Wallpaper(
+    ctx: Context,
+    spec: WallpaperSpec,
+    onSettingsChanged: () -> Unit = {},
+    offsetY: () -> Dp = { 0.dp },
+    alpha: () -> Float = { 1f },
+) {
     // produceState 的 remember 不带 key:spec 变时只重启生产者,旧值留着 → 不闪黑
     val bmp by produceState<Bitmap?>(initialValue = null, spec) {
         val loaded = withContext(Dispatchers.IO) { Wallpapers.load(ctx, spec) }
@@ -373,7 +394,10 @@ fun Wallpaper(ctx: Context, spec: WallpaperSpec, onSettingsChanged: () -> Unit =
             bitmap = bitmap.asImageBitmap(),
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .offset { IntOffset(0, offsetY().roundToPx()) }
+                .graphicsLayer { this.alpha = alpha() },
         )
     }
 }
