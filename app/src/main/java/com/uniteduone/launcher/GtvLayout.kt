@@ -211,6 +211,18 @@ object GtvLayout {
     const val TOP_BAR_CLOCK_TEXT = 16f
 
     /**
+     * **Ruling R41(2026-09-22,owner 真机反馈 Round 10)**:UnitedU 设置页(`SettingsScreen`)左上角
+     * 大标题(「UnitedU 设置」/「UnitedU Settings」)的字号——**32 sp**。owner 原话:「左侧中文'设置'
+     * 过于小了,不需要很大。」此前是 22 sp(硬写在 SettingsScreen 里,没有常量)。
+     *
+     * 出处:`docs/research/2026-09-20-gtv-vs-unitedu-comparison.md` §C「二级页大标题 ≈ 32 sp」,
+     * 由 `2026-09-20-google-tv-launcherx-measurements.md` 里 Apps 页大标题「Your apps」的 cap height
+     * 46 px = 23 dp 按 cap ≈ 0.71 em 反推(23 / 0.71 ≈ 32.4)。同页其它字号(分组 15、行标签 15、
+     * 说明 12/13、提示 11)不动。
+     */
+    const val SETTINGS_TITLE_TEXT = 32f
+
+    /**
      * Fix 3(owner 反馈 R2,2026-09-20):「目前 UI 交互没有任何动画……焦点一下子跳到这、一下子跳到
      * 那」。根因是 decision B1 去掉聚焦缩放之后,`gtvFocusStroke` 的描边与 `GearMenu`/`GtvTopBar`
      * 的填色焦点都是瞬间切换(布尔值直接门控 `drawBehind`/`background`,零动画),丢了缩放曾经

@@ -51,7 +51,10 @@ import kotlinx.coroutines.withContext
 // 所以这里不需要 HomeScreen / 旧设置页那种自算纵向位移 —— 但同样一行滚动容器都不许有(铁律 1)。
 private val PANE_LEFT_W = 260.dp
 private val PANE_RIGHT_W = 640.dp
-private val H_TITLE = 56.dp
+// R41(2026-09-22):标题 22 → 32 sp 后,标题行盒(32×1.2 + 4 + 11×1.2 ≈ 55.4dp)把 56dp 占满、
+// 提示文字贴到第一行分组上;加到 68dp 还原原来约 12dp 的间距。右栏行数上限(8 × 46 = 368dp)
+// 加上这 68dp + 24dp 顶边距仍在 540dp 屏高内。
+private val H_TITLE = 68.dp
 private val H_ROW = 46.dp
 /**
  * 右栏行内标签列宽:标签右边才是控件,同一组的控件因此纵向对齐。
@@ -401,7 +404,9 @@ fun SettingsScreen(
                             fontFamily = Theme.Sans,
                             fontWeight = FontWeight.Medium,
                             color = Theme.EmphasisText,
-                            fontSize = 22.sp,
+                            // R41(owner Round 10):22 → 32 sp,Google 二级页大标题量值,见常量 KDoc。
+                            fontSize = GtvLayout.SETTINGS_TITLE_TEXT.sp,
+                            lineHeight = (GtvLayout.SETTINGS_TITLE_TEXT * 1.2f).sp,
                         ),
                     )
                     Spacer(Modifier.height(4.dp))
