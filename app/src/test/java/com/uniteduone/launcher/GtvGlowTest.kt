@@ -54,7 +54,7 @@ class GtvGlowTest {
         assertEquals(0.5f, GtvLayout.focusGlowIncrement(30f) / GtvLayout.focusGlowIncrement(14f), 0.001f)
     }
 
-    @Test fun `紧贴描边处是峰值,铺到 30dp 之外归零`() {
+    @Test fun `紧贴描边处是峰值,铺到 APP_FOCUS_GLOW_DP 之外归零`() {
         assertEquals(GtvLayout.APP_FOCUS_GLOW_PEAK_INCREMENT, GtvLayout.focusGlowIncrement(0f), 1e-6f)
         assertEquals(0f, GtvLayout.focusGlowIncrement(GtvLayout.APP_FOCUS_GLOW_DP + 0.01f), 1e-6f)
         assertEquals(0f, GtvLayout.focusGlowIncrement(-1f), 1e-6f)
@@ -77,7 +77,7 @@ class GtvGlowTest {
     }
 
     // ——以下是「柔光不进布局」这条不变量:R28 改动前后,这两个函数必须逐值不变。
-    // 任务原话:柔光是视觉溢出,不能加进 focusOverflow / 行高,否则行间距凭空多 30dp。
+    // 任务原话:柔光是视觉溢出,不能加进 focusOverflow / 行高,否则行间距凭空多 APP_FOCUS_GLOW_DP(60dp)。
     @Test fun `柔光不改变 appFocusOverflow(R28 改动前的值逐字不变)`() {
         // 写死在这里当回归闸(整枝审查 C 把 APP_FOCUS_SCALE 1.105 → 1.10 后的值):
         // 153dp 宽的中档卡 → 153×0.05 + 2 + 2 = 11.65,LARGE 卡高 108 → 5.4 + 4 = 9.4
@@ -85,15 +85,12 @@ class GtvGlowTest {
         assertEquals(9.4f, GtvLayout.appFocusOverflow(GtvLayout.cardHeight(GtvCardSize.LARGE)), 0.01f)
         // 公式里只有三项:缩放溢出的一半 + gap + stroke,**没有** APP_FOCUS_GLOW_DP
         for (d in listOf(0f, 122f, 153f, 192f)) {
+            // 精确相等就已经排除了「把柔光算进去」——此前这里还跟着一条 `< … + APP_FOCUS_GLOW_DP`
+            // 的 assertTrue,被上一条蕴含、恒真,整枝审查 2026-09-22 删掉。
             assertEquals(
                 d * (GtvLayout.APP_FOCUS_SCALE - 1f) / 2f + GtvLayout.APP_FOCUS_GAP + GtvLayout.APP_FOCUS_STROKE,
                 GtvLayout.appFocusOverflow(d),
                 0.0001f,
-            )
-            assertTrue(
-                "appFocusOverflow($d) 看起来把 30dp 柔光算进去了",
-                GtvLayout.appFocusOverflow(d) < d * (GtvLayout.APP_FOCUS_SCALE - 1f) / 2f +
-                    GtvLayout.APP_FOCUS_GAP + GtvLayout.APP_FOCUS_STROKE + GtvLayout.APP_FOCUS_GLOW_DP,
             )
         }
     }

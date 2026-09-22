@@ -5,6 +5,7 @@ import android.service.dreams.DreamService
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -134,7 +135,7 @@ class UnitedUDream : DreamService(), SavedStateRegistryOwner {
 
 /**
  * 系统屏保的画面:与桌面自定义屏保同一个轮播层 + 顶栏那一行小时钟字标,位置与首页顶栏相同
- * (右对齐 58 dp 基准线、顶 34 dp)。图库为空 → 黑底 + 时钟,不加阴影(黑底上不需要,spec §4)。
+ * (右对齐 58 dp 基准线、顶 34 dp 起的 36 dp 高顶栏内垂直居中——与 `GtvTopBar` 的 Row 同一套几何)。图库为空 → 黑底 + 时钟,不加阴影(黑底上不需要,spec §4)。
  * 主题色走 [rememberThemeColors],与 MainActivity 同一条路。
  *
  * **Ruling R26(2026-09-21,推翻 R9)**:这里曾经画 84 sp 的 `HeroClock`。R9 定于 Gordon 下达
@@ -152,13 +153,18 @@ private fun DreamContent(settings: Settings, intervalMs: Long) {
             val hasImages = files.isNotEmpty()
             Box(Modifier.fillMaxSize().background(Color.Black)) {
                 if (hasImages) ScreensaverContent(intervalMs = intervalMs, modifier = Modifier.fillMaxSize())
-                ClockWordmark(
-                    showDate = settings.showDate,
-                    shadow = hasImages,
+                // 与首页顶栏同一套几何:GtvTopBar 的 Row 高 = 药丸组 TOP_BAR_HEIGHT(36dp),时钟在其中
+                // 垂直居中;这里没有药丸组,得显式给同样的高度再居中,否则文字顶在 TOP_BAR_TOP 上、
+                // 比首页低约 7dp(整枝审查 minor,2026-09-22)。
+                Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(end = GtvLayout.CONTENT_KEYLINE.dp, top = GtvLayout.TOP_BAR_TOP.dp),
-                )
+                        .padding(end = GtvLayout.CONTENT_KEYLINE.dp, top = GtvLayout.TOP_BAR_TOP.dp)
+                        .height(GtvLayout.TOP_BAR_HEIGHT.dp),
+                    contentAlignment = Alignment.CenterEnd,
+                ) {
+                    ClockWordmark(showDate = settings.showDate, shadow = hasImages)
+                }
             }
         }
     }

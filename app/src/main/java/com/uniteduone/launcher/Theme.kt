@@ -143,7 +143,11 @@ object Theme {
         cardHeight = GtvLayout.cardHeight(size).dp,
         cardCorner = GtvLayout.CARD_CORNER.dp,
         cardSpacing = GtvLayout.CARD_GAP.dp,
-        // 不缩放了,行内上下留白只需容下外扩描边
+        // 行内上下留白 7dp:这是**行距预算**(rowPitch 里给聚焦态留的固定一项),不是溢出容量——
+        // app tile 聚焦缩放 + 贴边描边的纵向视觉溢出是 GtvLayout.appFocusOverflow(cardHeight)
+        // (LARGE 档 9.4dp),靠 rowVerticalPad + ROW_GAP(7 + 8 = 15dp)一起容下(GtvLayoutTest
+        // 「不会碰到下一行标题」断言的就是这条);R28 的柔光更是纯绘制、不在任何预算里。
+        // 数值沿用 content card 时代的 FOCUS_OUTSET + FOCUS_STROKE 只是为了不动 rowPitch(Round 4 要求)。
         rowVerticalPad = (GtvLayout.FOCUS_OUTSET + GtvLayout.FOCUS_STROKE).dp,
         titleGap = GtvLayout.CARD_TITLE_GAP.dp,
         titleLine = GtvLayout.CARD_TITLE_LINE.dp,

@@ -19,24 +19,30 @@ import androidx.compose.ui.unit.dp
 /**
  * **Ruling R28(2026-09-21,owner 真机反馈 Round 7)**:焦点柔光——在描边**外缘**之外再铺一层
  * 按指数衰减的大面积辉光,是 owner 说「从沙发上完全感觉不到动效」的正解(2dp 细环在 150ms 内
- * 淡入,那个距离上肉眼捕捉不到;30dp 的柔光捕捉得到)。数值出处、实测剖面表、为什么不用
+ * 淡入,那个距离上肉眼捕捉不到;[GtvLayout.APP_FOCUS_GLOW_DP] 的柔光捕捉得到)。数值出处、实测剖面表、为什么不用
  * `BlurMaskFilter`,全部见 [GtvLayout.APP_FOCUS_GLOW_DP] 一族常量的 KDoc。
  *
  * 画法:一串首尾相接的同心圆角矩形描边,每圈宽 [GtvLayout.APP_FOCUS_GLOW_RING_DP],
  * alpha 走 [GtvLayout.focusGlowAlpha];圆角半径随外扩距离同步增大(与本文件既有的
  * `r = corner + (outX + outY) / 2` 同一写法)。
  *
- * **柔光会铺出卡片间距之外**:30dp > `GtvLayout.CARD_GAP`(20dp),也大于卡片上方到上一行标题
- * 的 15dp(`rowVerticalPad` 7 + `ROW_GAP` 8),所以它必然会淡淡地盖到邻居卡与上一行标题区——
- * Google 那份实测剖面本身就是这样(它的行距比我们还紧),不是 bug,别为此砍短柔光。
- * 一处**已知的不对称**,留给装机复核:同一行里的卡片按组合顺序绘制,焦点卡左边的邻居先画、
- * 会被柔光盖住,右边的邻居后画、反而盖住柔光。真要对称得给焦点卡加 `Modifier.zIndex`,
- * 那会动到焦点相关的 modifier 链,R28 没有顺手改——d≥20dp 处 alpha 只剩 0.071→0.048(按当时那版的口径),
- * 先看真机上能不能觉察。
+ * **柔光会铺出卡片间距之外**:[GtvLayout.APP_FOCUS_GLOW_DP](60dp)> `GtvLayout.CARD_GAP`(20dp),
+ * 也大于卡片上方到上一行标题的 15dp(`rowVerticalPad` 7 + `ROW_GAP` 8),所以它必然会淡淡地盖到
+ * 邻居卡与上一行标题区——Google 那份实测剖面本身就是这样(它的行距比我们还紧),不是 bug,别为此砍短柔光。
+ *
+ * **绘制顺序上真正的不对称**(整枝审查 F,2026-09-22 更正:此前这里写「要对称得给焦点卡加
+ * zIndex」是错的——首页 `AppCard` 的外层 `Column` 早有 `zIndex(if (focused) 1f else 0f)`,
+ * 同一行内焦点卡本来就浮在左右邻居之上,左右是对称的):
+ * (a) 编辑页的 `AddCard`/`MissingCard` 与 `RowIconPicker` 的格子**没有** zIndex,那里同一行内
+ *     左邻先画被柔光盖住、右邻后画盖住柔光,左右不对称;
+ * (b) **跨行**:zIndex 只在同一个父容器的兄弟之间生效,首页各行是 `Column` 的兄弟,后面的行
+ *     后画——焦点卡 60dp 的柔光向下探到下一行会被下一行的卡切掉,向上探到上一行则盖在上一行
+ *     的卡上,上下不对称。模拟器实测(`docs/screenshots/gtv-review-F-glow-cross-row.jpg`)
+ *     数据区之外的收尾段在下一行卡片处已经很淡,肉眼看不出被切,只改注释、不给行容器加 zIndex。
  *
  * **这是绘制、不是布局**:整段画在 `drawBehind` 里,不改变任何测量尺寸。
  * `GtvLayout.appFocusOverflow`、`rowPitch`、`Theme.gtvCardMetrics.rowVerticalPad` 里**都没有**
- * 柔光这一项,**也不要"顺手补全"**——加进去会把行间距撑开 30dp,破坏已经与 Google 对齐的
+ * 柔光这一项,**也不要"顺手补全"**——加进去会把行间距撑开 [GtvLayout.APP_FOCUS_GLOW_DP](60dp),破坏已经与 Google 对齐的
  * 纵向节奏(理由与实测依据见 [GtvLayout.appFocusOverflow] 与 [GtvLayout.APP_FOCUS_GLOW_DP])。
  *
  * @param edgeX 布局框左/右边到**描边外缘**的距离(px)。注意是外缘,不是 `drawRoundRect` 那个

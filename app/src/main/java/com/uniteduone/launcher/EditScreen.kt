@@ -657,7 +657,8 @@ fun EditScreen(
                     ) {
                         pkgs.forEachIndexed { pi, pkg ->
                             val app = all?.get(pkg)
-                            // 搬运中被搬的那张:3dp accent 描边(与首页移动态同一样式,聚焦与否都画)
+                            // 搬运中被搬的那张:highlight 色 2dp 描边,画在聚焦描边外侧、跟着缩放后边缘走
+                            // (gtvAppFocusFrame 的 moving 分支,与首页移动态同一样式,聚焦与否都画)
                             val carried = carry?.pos?.let { it.row == ri && it.col == pi } == true
                             // requester 挂在**这一行当前聚焦的那一格**上,不是永远挂在第 0 格:
                             // 否则「往右移一位」之后焦点回到行首,把一张卡挪三位要重走三遍

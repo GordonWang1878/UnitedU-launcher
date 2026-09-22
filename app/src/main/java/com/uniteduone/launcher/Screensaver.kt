@@ -37,9 +37,11 @@ import java.io.File
  * owner 真机走查后否掉的不是「两者要不要长得一样」,是**大字时钟本身**——「我的 GTV 就是要
  * 尽可能还原 GTV 的那个样子,你加一个大时钟,整个气氛就破坏掉了」,三个候选方案里选了「只留
  * 顶栏小时钟」。所以这里不再叠 [HeroClock]:待机时不淡出的是 `HomeScreen` 顶栏自己的时钟 +
- * 字标(见其顶部 KDoc 的 `topBarClockAlpha`),不是在这一层新画一份。[UnitedUDream] 保留它
- * 自己独立的 `HeroClock`(系统屏保,R9 的裁定不受影响)——两层「不再长得一样」不是遗留缺口,
- * 是各自的裁定,不要再往这里补。
+ * 字标(见其顶部 KDoc 的 `topBarClockAlpha`),不是在这一层新画一份。**Ruling R26(2026-09-21,
+ * 推翻 R9)起**,系统屏保 [UnitedUDream] 画的也是同一行 `ClockWordmark`(不再是 84 sp `HeroClock`):
+ * 首页待机 CLOCK_ONLY 与系统屏保留下的是同一行顶栏小字;这一层(桌面自定义屏保)按 R23 仍然
+ * **不叠时钟**——照片上不浮任何 UI,`HomeScreen` 的 `topBarClockAlpha` 在自定义屏保期间也淡到 0。
+ * 不要再往这里补。
  */
 @Composable
 fun Screensaver(active: Boolean, intervalMs: Long) {
@@ -66,7 +68,7 @@ fun Screensaver(active: Boolean, intervalMs: Long) {
 /**
  * 轮播层本体(spec §2),桌面自定义屏保 / 系统屏保 / 屏保图库全屏预览三处共用:读 [ScreensaverPlayer]
  * 的当前图,交叉淡入 + Ken Burns。**不画时钟**——时钟由调用方决定要不要叠,三个调用方现在各不相同:
- * 系统屏保([UnitedUDream.DreamContent])在这个组件之外单独叠一层 [HeroClock](R9,未受 R23 影响);
+ * 系统屏保([UnitedUDream.DreamContent])在这个组件之外单独叠一行 `ClockWordmark`(R26 起,与首页顶栏同款小字,不再是 R9 的 [HeroClock]);
  * 桌面自定义屏保([Screensaver])**不叠时钟**(Ruling R23,终审 2026-09-20,撤回 Fix R16 曾经补的那份
  * [HeroClock]——见 [Screensaver] 顶部 KDoc);屏保图库的全屏预览([ImagePicker.kt] 的
  * `ScreensaverPoolViewer`)是在看图,不是在展示待机画面,同样不叠时钟。

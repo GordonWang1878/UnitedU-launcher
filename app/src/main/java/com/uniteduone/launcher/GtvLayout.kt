@@ -97,10 +97,16 @@ object GtvLayout {
      *  `com.google.android.tvrecommendations` 没有 LAUNCHER 活动、被过滤成空行,没有渲染,不影响
      *  另外三个的置信度——`cmd package query-activities` 核实过,不是猜测)。
      *
+     *  字号本身是 [ROW_TITLE_TEXT](14sp);这个行盒高只对那个字号成立,两者要一起改一起测。
+     *
      *  `rowPitch` 与依赖它的 `GtvLayoutTest` 三处断言值随之变化(143.5625→140.5625、
      *  -287.125→-281.125、167.5625→164.5625),这是同一条公式在换了正确输入之后的正确结果,
      *  不是需要另外吸收的偏差,不要为了凑回旧值而改动这个常量或公式。 */
     const val ROW_TITLE_LINE = 20f
+    /** 行标题字号(sp)。Ruling R25 从 16 改回 14;[ROW_TITLE_LINE] 是在**这个字号**下装机实测的
+     *  CJK 行盒高,两者绑定——改了字号必须重测行盒,不能按比例折算。此前 `HomeScreen` 写的是
+     *  `14.sp` 字面量,整枝审查 G(2026-09-22)搬进来。 */
+    const val ROW_TITLE_TEXT = 14f
     const val ROW_TITLE_TO_CARD = 12.5f
     /** Fix round 1(R15,2026-09-20):**125.5 dp 同样是 Google 用 Latin 量出来的行距,对中文标题不
      *  成立,不要试图凑回这个数。** 沿用它会把 `ROW_GAP` 推到约 −10dp(23+12.5+14+86.06−125.5≈−10),
@@ -280,8 +286,8 @@ object GtvLayout {
      *
      *  **[APP_FOCUS_GLOW_DP](R28 的柔光)刻意不在这条公式里,不要"顺手补全"**:这个函数是
      *  **布局约定**(`rowShiftX` 拿它决定行要不要左移、`GtvLayoutTest` 拿它验证不碰下一行标题),
-     *  而柔光是纯视觉溢出,画在 `drawBehind` 里、不参与测量。把 30dp 柔光加进来会让每行凭空
-     *  多出 30dp 的间距预算,破坏已经与 Google 对齐的纵向节奏。详见 [APP_FOCUS_GLOW_DP]。 */
+     *  而柔光是纯视觉溢出,画在 `drawBehind` 里、不参与测量。把 [APP_FOCUS_GLOW_DP](60dp)柔光
+     *  加进来会让每行凭空多出这么多间距预算,破坏已经与 Google 对齐的纵向节奏。详见 [APP_FOCUS_GLOW_DP]。 */
     fun appFocusOverflow(dimension: Float): Float =
         dimension * (APP_FOCUS_SCALE - 1f) / 2f + APP_FOCUS_GAP + APP_FOCUS_STROKE
 
@@ -315,8 +321,8 @@ object GtvLayout {
      *
      * **这是视觉溢出,不是布局量**:柔光在 `GtvFocusStroke` 的 `drawBehind` 里画,不参与任何
      * 测量;[appFocusOverflow]、`rowPitch`、`Theme.gtvCardMetrics.rowVerticalPad` 都**不加**
-     * 这一项(加进去会把行间距撑开 30dp)。代价是柔光会盖到相邻卡片与上一行标题区的底部——
-     * 这是 Google 那张剖面本身就有的样子(它的柔光同样铺出 30dp,行距比这还紧),不是 bug。
+     * 这一项(加进去会把行间距撑开 60dp)。代价是柔光会盖到相邻卡片与上一行标题区的底部——
+     * 这是 Google 那张剖面本身就有的样子(它的柔光同样铺出数据区的 30dp 之外,行距比这还紧),不是 bug。
      */
     const val APP_FOCUS_GLOW_DP = 60f
 
@@ -382,7 +388,7 @@ object GtvLayout {
     const val APP_FOCUS_GLOW_HALF_LIFE_DP = 16f
 
     /** 柔光的画法粒度:一圈同心圆角矩形描边的宽度(dp),同时也是圈与圈之间的步距——
-     *  相邻两圈首尾相接、不重叠。[APP_FOCUS_GLOW_DP] / 这个值 = 15 圈。
+     *  相邻两圈首尾相接、不重叠。[APP_FOCUS_GLOW_DP] / 这个值 = 30 圈(数据区 15 圈 + 收尾段 15 圈)。
      *
      *  **为什么是画一串圆环而不是 `BlurMaskFilter`**:后者在硬件加速画布上行为不稳(各家 GPU
      *  实现不一致、Compose 还要另开 layer),而柔光每帧都跟着 `scale` 变几何;一串按指数衰减
@@ -414,7 +420,8 @@ object GtvLayout {
 
     /**
      * 把 [focusGlowIncrement] 的目标亮度增量换算成实际要用的 alpha:
-     * `alpha = 增量 / 前景亮度`,再夹到 [APP_FOCUS_GLOW_MAX_ALPHA]。
+     * `alpha = 增量 / (前景亮度 − 背景亮度)`(背景 = [APP_FOCUS_GLOW_ASSUMED_BG]),再夹到
+     * [APP_FOCUS_GLOW_MAX_ALPHA]。
      *
      * [foregroundLuminance] 取 **伽马编码空间**的加权和 `0.2126R + 0.7152G + 0.0722B`
      * (R/G/B 是 0–1 的 sRGB 分量),**不是** Compose 的 `Color.luminance()`——后者会先线性化,

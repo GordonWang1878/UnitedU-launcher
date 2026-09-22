@@ -59,6 +59,10 @@ internal fun rememberClockState(): ClockState {
 }
 
 /**
+ * **gtv 线零调用,仅 main 线用**(Ruling R23/R26:gtv 线的待机与两种屏保都只留顶栏 `ClockWordmark`
+ * 小字,84 sp 大字时钟整条线不再出现)。函数保留,不删——main 线的 `HomeScreen`/`UnitedUDream` 仍读它,
+ * 删了合回去只会凭空造冲突。
+ *
  * M8 hero 主体:大字时钟 84sp Medium + 日期 24sp(spec §1.4),颜色 accent(spec §0「accent 落点」)。
  * 位置由调用方给(HomeScreen / UnitedUDream:左对齐 SidePadding、顶 HomeLayout.HERO_TOP);不可聚焦。
  * [shadow](M5 spec §1.5):自定义屏保 / 系统屏保轮播照片时为真——照片可能很亮,时间与日期各加一层淡阴影

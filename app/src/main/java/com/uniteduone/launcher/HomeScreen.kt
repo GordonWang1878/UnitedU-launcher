@@ -36,7 +36,7 @@ import androidx.compose.ui.unit.sp
  * 淡出动画——`contentAlpha`(卡片行 / 渐变 / 顶栏药丸组 / 「新应用」提示)与 `topBarClockAlpha`
  * (顶栏的时钟 + 字标,单独判断,见该 val 自己的注释):
  * - [IdleContent.CLOCK_ONLY](默认):`contentAlpha` 淡出,`topBarClockAlpha` 钉 1——顶栏这行
- *   20sp 小字正是这一档要留住的内容(**Ruling R23**,终审 2026-09-20,撤回 Fix R16 曾经在 hero
+ *   16sp 小字正是这一档要留住的内容(**Ruling R23**,终审 2026-09-20,撤回 Fix R16 曾经在 hero
  *   区加回的 84 sp [HeroClock]:owner 真机走查后否掉大字时钟——「我的 GTV 就是要尽可能还原 GTV
  *   的那个样子,你加一个大时钟,整个气氛就破坏掉了」——三个候选方案里选了「只留顶栏小时钟」)。
  *   不这样拆开的话 `topBarClockAlpha` 会跟着 `contentAlpha` 一起淡到 0,CLOCK_ONLY 就会和
@@ -53,8 +53,9 @@ import androidx.compose.ui.unit.sp
  *
  * [screensaver](M5 spec §1.4)为真 = 自定义屏保:行 / 渐变 / 顶栏一律淡出(「不淡出」也不例外——
  * 照片上不该浮着一排卡片),`topBarClockAlpha` 同样淡到 0——轮播照片上不该再叠一个时钟(见
- * [Screensaver] 顶部 KDoc)。系统屏保不受影响,[UnitedUDream] 里还留着自己独立的 `HeroClock`
- * 调用(R9 的裁定不受影响,不读这里的两个 alpha,恒亮)。
+ * [Screensaver] 顶部 KDoc)。系统屏保不读这里的两个 alpha:[UnitedUDream] 自 **Ruling R26**
+ * (2026-09-21,推翻 R9)起画的也是顶栏同款 `ClockWordmark`(恒亮,照片上带淡阴影),不再是
+ * 84 sp `HeroClock`——三处待机画面里,首页待机 CLOCK_ONLY 与系统屏保是同一行小字,自定义屏保不叠。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
@@ -491,8 +492,11 @@ fun HomeScreen(
         // 第三行整块切掉(实测 MUSIC 行因此始终不可见)。
         // NO_FADE(Task 3):待机时恒 1,卡片/行标题/pill 都不淡出。**自定义屏保例外**(M5 spec §0 / §1.4):
         // 「不淡出」只管待机显示,屏保照样全屏——照片上不能浮着一排卡片,所以 screensaver 为真时一律淡出。
+        // 「该淡出了」的谓词只写一份:contentAlpha 与下面的 topBarClockAlpha 都读它(整枝审查
+        // 2026-09-22 合并,此前两处各抄了一份同样的表达式)。
+        val idleFading = screensaver || (effectiveIdle && effectiveIdleContent != IdleContent.NO_FADE)
         val contentAlpha by animateFloatAsState(
-            targetValue = if (screensaver || (effectiveIdle && effectiveIdleContent != IdleContent.NO_FADE)) 0f else 1f,
+            targetValue = if (idleFading) 0f else 1f,
             animationSpec = tween(if (effectiveIdle) 1200 else 400),
             label = "contentAlpha",
         )
@@ -552,7 +556,7 @@ fun HomeScreen(
         // (spec §2.3 B2),这里什么都不画,壁纸直接透出来——待机时也一样。
         //
         // **Ruling R23(终审 2026-09-20,撤回 Fix R16)**:R16 曾在待机 CLOCK_ONLY 档于这里淡入一份
-        // 84 sp 的 [HeroClock](理由是顶栏那行 20sp 小字随 contentAlpha 一起淡出后,CLOCK_ONLY
+        // 84 sp 的 [HeroClock](理由是顶栏那行 16sp 小字随 contentAlpha 一起淡出后,CLOCK_ONLY
         // 会和 BLACK 长得一模一样)。owner 真机走查后否掉的不是这个判断,是**大字时钟本身**——
         // 「我的 GTV 就是要尽可能还原 GTV 的那个样子,你加一个大时钟,整个气氛就破坏掉了」,
         // 三个候选方案里选了「只留顶栏小时钟」。待机 CLOCK_ONLY 因此不淡出的是顶栏自己的时钟 +
@@ -643,14 +647,13 @@ fun HomeScreen(
         // 不随 shift 走。节点只淡出不移除:移除会连带销毁停在按钮上的焦点,醒来第一下按键落空。
         //
         // **药丸组 / 「新应用」提示随 contentAlpha 淡出,时钟 + 字标另算(Ruling R23,终审
-        // 2026-09-20)**:gtv 线把首页大字时钟挪进了顶栏这行 20sp 小字之后,`IdleContent.CLOCK_ONLY`
+        // 2026-09-20)**:gtv 线把首页大字时钟挪进了顶栏这行 16sp 小字之后,`IdleContent.CLOCK_ONLY`
         // 待机档唯一的意义就是「这行小字仍然看得见」——owner 真机走查否掉了 Fix R16 加回大字时钟
         // 的方案(「气氛就破坏掉了」),选了「只留顶栏小时钟」。所以这一行不能再跟着药丸组一起
         // 淡到 0,否则 CLOCK_ONLY 又会和 BLACK 长得一模一样。BLACK / 非待机 / 自定义屏保三种情形下
         // topBarClockAlpha 与 contentAlpha 取值相同(该淡就淡,BLACK 路径不变);只在「未在自定义
         // 屏保、真待机、且档位是 CLOCK_ONLY」这一种情形下钉 1——与 contentAlpha 同一份 idleFading
-        // 判据,只是多一层例外,不是另起一套逻辑,tween 时长也与 contentAlpha 一致。
-        val idleFading = screensaver || (effectiveIdle && effectiveIdleContent != IdleContent.NO_FADE)
+        // 判据(上面 contentAlpha 处定义的那一份),只是多一层例外,不是另起一套逻辑,tween 时长也与 contentAlpha 一致。
         val topBarClockAlpha by animateFloatAsState(
             targetValue = when {
                 !screensaver && effectiveIdle && effectiveIdleContent == IdleContent.CLOCK_ONLY -> 1f
@@ -814,7 +817,7 @@ private fun CategoryRow(
                 // 那个全局 scale。
                 style = androidx.tv.material3.MaterialTheme.typography.titleMedium.copy(
                     color = accent,
-                    fontSize = 14.sp,
+                    fontSize = GtvLayout.ROW_TITLE_TEXT.sp,
                     lineHeight = GtvLayout.ROW_TITLE_LINE.sp,
                 ),
             )
