@@ -711,6 +711,33 @@ object GtvLayout {
     fun pageShiftY(activeRow: Int, size: GtvCardSize, showTitles: Boolean): Float =
         if (activeRow <= 0) 0f else BROWSE_ROW_ANCHOR - restCardTop(activeRow, size, showTitles)
 
+    /** 行 [row] 的**行标题行盒顶边**在静止态(位移 0)的屏幕 y(dp)= [ROWS_TOP] + row × pitch。
+     *  与 [restCardTop] 同源,少的是 [ROW_CARD_TOP] 那段(标题在卡片之上)。 */
+    fun restTitleTop(row: Int, size: GtvCardSize, showTitles: Boolean): Float =
+        ROWS_TOP + row.coerceAtLeast(0) * rowPitch(size, showTitles)
+
+    /**
+     * **Ruling R40(2026-09-22,owner 真机反馈 Round 10)**:行标题淡入的几何判据——行 [row] 的标题
+     * 行盒在整页位移 [shiftDp](与 [pageShiftY] 同一个量、可以是动画中的每帧值)之下,有没有任何一部分
+     * 落在屏幕(高 [screenHeightDp])内:`top + ROW_TITLE_LINE > 0 && top < screenHeight`,
+     * `top = restTitleTop(row) + shift`。
+     *
+     * owner 原话:「行标题现在是硬切出来的,没有 Google TV 那种淡入感。」`HomeScreen.CategoryRow` 用它
+     * 决定标题 alpha 的目标值:从「不在屏内」翻到「在屏内」(行从屏幕底部滑进来、或回到行 0 时从顶部
+     * 滑回来)以及首次组合时 0 → 1 走 250 ms 减速 tween;一直在屏内的行标题不动;滑出屏外时直接
+     * 归 0(反正看不见),下次滑回来再淡一次。**纯几何、不读焦点状态**——喂进来的 shift 是
+     * `animateDpAsState` 的当前值,它由 activeRow 派生,但这里只认数字。
+     */
+    fun rowTitleOnScreen(row: Int, shiftDp: Float, size: GtvCardSize, showTitles: Boolean, screenHeightDp: Float): Boolean {
+        val top = restTitleTop(row, size, showTitles) + shiftDp
+        return top + ROW_TITLE_LINE > 0f && top < screenHeightDp
+    }
+
+    /** R40:行标题淡入时长(ms),减速曲线([Theme.MotionEasing])。Google 的标题淡入没有量到逐字
+     *  数值(它随 RecyclerView 的行进场一起动),250 取 leanback `lb_browse_rows_anim_duration`
+     *  / 设计 token `gtvm3_sys_motion_duration_medium1` 收敛到的同一个数(与 [BROWSE_SHIFT_MS] 同源)。 */
+    const val ROW_TITLE_FADE_MS = 250
+
     /**
      * **Ruling R35(2026-09-22,owner 真机反馈 Round 10)**:壁纸随整页位移淡到黑所用的距离(dp)。
      * 页面上滑 [pageShiftY] 这么多时壁纸的 alpha 由 1 线性降到 0;取 [HERO_HEIGHT],即页面滑过

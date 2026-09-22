@@ -1,6 +1,7 @@
 package com.uniteduone.launcher
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -120,6 +121,37 @@ class GtvLayoutTest {
         val samples = (0..20).map { GtvLayout.wallpaperAlpha(-it * 20f) }
         assertTrue(samples.zipWithNext().all { (a, b) -> b <= a })
         assertTrue("不低于终值(浮点误差内)", samples.all { it >= floor - 1e-6f })
+    }
+
+    @Test fun `R40 行标题在屏内的几何判据——静止 y + 当前位移,与 restCardTop 同源`() {
+        val size = GtvCardSize.MEDIUM; val titles = false; val h = 540f
+        val pitch = GtvLayout.rowPitch(size, titles)
+        // 静止标题顶 = ROWS_TOP + row × pitch;卡顶比它多 ROW_CARD_TOP。
+        assertEquals(GtvLayout.ROWS_TOP, GtvLayout.restTitleTop(0, size, titles), 0.01f)
+        assertEquals(GtvLayout.ROWS_TOP + 2 * pitch, GtvLayout.restTitleTop(2, size, titles), 0.01f)
+        assertEquals(GtvLayout.restCardTop(2, size, titles) - GtvLayout.ROW_CARD_TOP, GtvLayout.restTitleTop(2, size, titles), 0.01f)
+        // 静止态:行 0、行 1 在屏内(262、405.5 < 540),行 2 起(549 ≥ 540)在屏外。
+        assertTrue(GtvLayout.rowTitleOnScreen(0, 0f, size, titles, h))
+        assertTrue(GtvLayout.rowTitleOnScreen(1, 0f, size, titles, h))
+        assertFalse(GtvLayout.rowTitleOnScreen(2, 0f, size, titles, h))
+        assertFalse(GtvLayout.rowTitleOnScreen(3, 0f, size, titles, h))
+        // 焦点到行 1(整页位移 ≈ −322):行 2、行 3 滑进屏内,行 0 的标题(顶 −60,底 −40)滑出。
+        val shift1 = GtvLayout.pageShiftY(1, size, titles)
+        assertFalse(GtvLayout.rowTitleOnScreen(0, shift1, size, titles, h))
+        assertTrue(GtvLayout.rowTitleOnScreen(1, shift1, size, titles, h))
+        assertTrue(GtvLayout.rowTitleOnScreen(2, shift1, size, titles, h))
+        assertTrue(GtvLayout.rowTitleOnScreen(3, shift1, size, titles, h))
+        // 「任何一部分在屏内」:标题底边刚露出 1dp 即算在屏内;顶边刚过屏底即不算。
+        val top3 = GtvLayout.restTitleTop(3, size, titles)
+        assertTrue(GtvLayout.rowTitleOnScreen(3, -(top3 + GtvLayout.ROW_TITLE_LINE - 1f), size, titles, h))
+        assertFalse(GtvLayout.rowTitleOnScreen(3, -(top3 + GtvLayout.ROW_TITLE_LINE), size, titles, h))
+        assertTrue(GtvLayout.rowTitleOnScreen(3, h - top3 - 1f, size, titles, h))
+        assertFalse(GtvLayout.rowTitleOnScreen(3, h - top3, size, titles, h))
+        // 动画中途(位移走到一半,−161):行 3(顶 683.7 − 161 = 522.7)刚进屏、行 4(824 − 161)还没有——
+        // 淡入是逐行随几何触发的,不是一起翻。
+        assertTrue(GtvLayout.rowTitleOnScreen(3, shift1 / 2f, size, titles, h))
+        assertFalse(GtvLayout.rowTitleOnScreen(4, shift1 / 2f, size, titles, h))
+        assertEquals(250, GtvLayout.ROW_TITLE_FADE_MS)
     }
 
     @Test fun `R32 锚点在顶栏之下——浏览态焦点行的标题不与顶栏重叠`() {

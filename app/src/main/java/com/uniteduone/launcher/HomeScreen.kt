@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalConfiguration
@@ -648,6 +649,9 @@ fun HomeScreen(
                     },
                     carried = if (moveTarget?.row == rowIndex) moveTarget.col else -1,
                     isActiveRow = rowIndex == activeRowSafe,
+                    // R40:行标题淡入的几何输入——行号 + 当前(动画中的)整页位移,纯数字,不含焦点。
+                    rowIndex = rowIndex,
+                    pageShiftDp = shift.value,
                     onFocusChange = { idx, got ->
                         report(rowIndex, idx, got)
                         if (got) {
@@ -809,9 +813,27 @@ private fun CategoryRow(
     /** 本行此刻是不是纵向锚定的「当前行」(`activeRowSafe == rowIndex`)。R30 用它判断
      *  「焦点落到本行会不会触发纵向位移」:不是当前行 → 会。 */
     isActiveRow: Boolean,
+    /** R40:本行在 rows 里的下标,与 [pageShiftDp] 一起喂给 [GtvLayout.rowTitleOnScreen]。 */
+    rowIndex: Int,
+    /** R40:整页位移的**当前动画值**(dp,≤ 0),与 HomeScreen 那根 Column 的 `offset(y)` 同一个量。 */
+    pageShiftDp: Float,
     onFocusChange: (Int, Boolean) -> Unit,
 ) {
     val ctx = LocalContext.current
+    // Ruling R40(owner 反馈 Round 10):行标题淡入。判据纯几何(GtvLayout.rowTitleOnScreen):标题行盒
+    // 有没有任何部分在屏内。首次组合从 0 起淡到 1(Animatable 初值 0),之后「不在屏内 → 在屏内」再淡一次,
+    // 一直在屏内的不动;滑出屏外直接 snap 到 0(看不见,不必淡)。只改这一行标题 Row 的 alpha,
+    // 不进焦点账本、不碰任何 FocusRequester / 看门狗(铁律 3–7)。
+    val screenHeightDp = LocalConfiguration.current.screenHeightDp.toFloat()
+    val titleOnScreen = GtvLayout.rowTitleOnScreen(rowIndex, pageShiftDp, cardSize, showTitles, screenHeightDp)
+    val titleAlpha = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(titleOnScreen) {
+        if (titleOnScreen) {
+            titleAlpha.animateTo(1f, tween(GtvLayout.ROW_TITLE_FADE_MS, easing = Theme.MotionEasing))
+        } else {
+            titleAlpha.snapTo(0f)
+        }
+    }
     // 行标题文字 + 行图标 = 主题 **accent**(与齿轮同一个饱和色),换预设时和齿轮一起明显变色。
     // 早先用的是 highlight(accent 混 55% 白后近白),六个预设的近白值肉眼几乎无差,看着「换了预设也没变」
     // (2026-09-16 Gordon 真机指出);卡片聚焦的呼吸光晕仍读 highlight,那处要浅色不刺眼。
@@ -828,7 +850,11 @@ private fun CategoryRow(
     // 设计变化,Google 实测就是 15dp——见 docs/research/2026-09-20-google-tv-launcherx-measurements.md §3)。
     Column(verticalArrangement = Arrangement.spacedBy(GtvLayout.ROW_TITLE_TO_CARD.dp)) {
         Row(
-            modifier = Modifier.padding(start = GtvLayout.CONTENT_KEYLINE.dp).height(GtvLayout.ROW_TITLE_LINE.dp),
+            modifier = Modifier
+                .padding(start = GtvLayout.CONTENT_KEYLINE.dp)
+                .height(GtvLayout.ROW_TITLE_LINE.dp)
+                // R40:标题(含行图标)整体淡入;graphicsLayer 只在绘制阶段读 alpha,动画每帧不重组本行。
+                .graphicsLayer { alpha = titleAlpha.value },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(GtvLayout.ROW_TITLE_ICON_GAP.dp),
         ) {
