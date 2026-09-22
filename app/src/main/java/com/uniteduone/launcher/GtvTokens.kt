@@ -26,7 +26,7 @@ object GtvTokens {
      * 首页仍看得见(实时预览还在,只是暗了),但整页读成「桌面之上的一层」。
      * 进出设置页时由 `MainActivity` 用 150 ms tween 淡入淡出(设置页本身没有转场,scrim 单独动)。
      */
-    val SettingsScrim = Color(0x8C000000)
+    val SettingsScrim = Color(0xBF000000)
 
     /**
      * Ruling R24(终审 2026-09-21,owner 真机走查 Round 3 后补):2D 背景衰减(取代 R22 的纯横向
