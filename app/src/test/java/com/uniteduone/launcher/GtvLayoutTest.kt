@@ -202,9 +202,8 @@ class GtvLayoutTest {
         assertEquals(GtvLayout.ROWS_TOP, GtvLayout.restTitleTop(0, size, titles), 0.01f)
         assertEquals(GtvLayout.ROWS_TOP + 2 * pitch, GtvLayout.restTitleTop(2, size, titles), 0.01f)
         assertEquals(GtvLayout.restCardTop(2, size, titles) - GtvLayout.ROW_CARD_TOP, GtvLayout.restTitleTop(2, size, titles), 0.01f)
-        // Google 实测:焦点 270 px / 非焦点 154 px ≈ 1.75;灰 ≈ 0.7 白;≈ 300 ms。
-        assertEquals(1.75f, GtvLayout.ROW_TITLE_FOCUS_SCALE, 1e-6f)
-        assertEquals(0.7f, GtvLayout.ROW_TITLE_UNFOCUSED_ALPHA, 1e-6f)
+        // R46 Google 实测(cap height 换算):焦点 ≈ 32 sp / 非焦点 ≈ 18 sp ≈ 1.78;≈ 300 ms。
+        assertEquals(1.78f, GtvLayout.ROW_TITLE_FOCUS_SCALE, 1e-6f)
         assertEquals(300, GtvLayout.ROW_TITLE_FOCUS_MS)
     }
 

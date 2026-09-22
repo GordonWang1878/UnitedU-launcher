@@ -12,6 +12,14 @@ object GtvTokens {
     val MenuBg = Color(0xFF0E0E0F)
     /** 菜单项药丸,未聚焦(Task 8)。聚焦态改用 LocalThemeColors.current.accent,不是固定色。 */
     val MenuItemIdle = Color(0xFF161718)
+    /** **Ruling R46(2026-09-22)**:首页行标题的两态色——Google 浏览态实测(`#46` 帧,1 dp = 1 px):
+     *  焦点行标题近白(字芯峰值 ≈ RGB(230,243,255)),其余行灰(字芯峰值 ≈ RGB(145,152,160))。
+     *  **不随主题 accent 变**(R43 用 accent + alpha 0.7,owner 看后否决)。取值方法:我们的模拟器截图
+     *  按 BOX 缩到同尺度 960×540 后,字芯峰值与 Google 帧对齐(先试 0xFFBDC1C6,峰值 ≈ 215 明显偏亮,
+     *  0xFF9AA0A6 仍略亮,定 0xFF959BA3);对照图
+     *  见 `docs/screenshots/gtv-r46-vs-google-row-title.jpg`。 */
+    val RowTitleFocused = Color(0xFFE6F2FD)
+    val RowTitleIdle = Color(0xFF959BA3)
     /** 浮层压暗。真机验收再调。 */
     val ScrimOverlay = Color(0xA6000000)
     /**

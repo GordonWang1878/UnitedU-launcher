@@ -790,15 +790,28 @@ object GtvLayout {
      *
      * Google 实测(模拟器 launcherx 录像抽帧 `gd-titles.png`):焦点行的标题是大号纯白,其余行小号灰字;
      * 「Continue watching」非焦点 154 px、焦点 270 px(960 宽帧,1 px = 1 dp)→ **约 1.75 倍**;
-     * 灰 ≈ 0.7 × 白。换行时新行标题从小灰长大变亮、旧行缩回变灰,与页面位移同时,**约 300 ms 内完成**
+     * 灰 ≈ 0.7 × 白(R46 起改为白 / 灰两个定色,不再用 alpha)。换行时新行标题从小灰长大变亮、旧行缩回变灰,与页面位移同时,**约 300 ms 内完成**
      * (#47 9.45 s 仍小灰 → #48 9.72 s 已大白)。
      *
      * `HomeScreen.CategoryRow` 用 `graphicsLayer` 缩放(原点左下,往上、往右长),**不改布局**——
      * 行距不变(铁律 1),放大的部分画进上一行卡片底与本行标题之间的间隙。
+     *
+     * **Ruling R46(2026-09-22,owner 真机看 R43 后:「现在这个效果太傻叉了,你能不能照着 Google 的样子做?」)**
+     * 按 Google 浏览态 `#46` 帧(1 dp = 1 px)重测,取首字母 cap height、按 Google Sans cap ≈ 0.71 em 换算:
+     * 焦点行标题 cap 23 dp ≈ **32 sp**,其余行 cap 13 dp ≈ **18 sp** → 倍率 32/18 ≈ **1.78**(R43 的 1.75
+     * 是按字宽量的,混进了字距)。颜色白 / 灰两态,不走主题色(见 [GtvTokens.RowTitleFocused])。
+     * Google 标题下降部到本行卡顶两态都约 18 dp;我们的行盒底边不动、原点左下,放大只会让下降部离卡更远。
+     *
+     * **基准字号刻意不跟 Google 的 18 sp**:我们非焦点行标题保持 [ROW_TITLE_TEXT] 14 sp——owner 在 R25 前
+     * 专门反馈过整体字号偏大,14 是他认可过的值;只照搬 Google 的**比例**,焦点行视觉 ≈ 14 × 1.78 ≈ 25 sp。
+     *
+     * 行图标(UnitedU 自有,Google 没有)不跟着放大,保持 1×;焦点行图标淡到 0、文字左移占住图标位,
+     * 焦点行标题左缘落在内容基准线上(与 Google 同构图),非焦点行仍显示图标(方案对比见 `CategoryRow`)。
      */
-    const val ROW_TITLE_FOCUS_SCALE = 1.75f
-    /** R43:非焦点行标题(图标 + 文字)的 alpha;焦点行为 1。颜色仍是主题 accent(B6),只调 alpha。 */
-    const val ROW_TITLE_UNFOCUSED_ALPHA = 0.7f
+    const val ROW_TITLE_FOCUS_SCALE = 1.78f
+    /** R46:行标题 cap height / 字号(em)。Roboto(系统 Latin 字体)cap = 1456/2048 ≈ 0.711 em;
+     *  只用来求 cap 中线、让 1× 的行图标跟放大中的字垂直居中,不参与布局。 */
+    const val ROW_TITLE_CAP_EM = 0.711f
     /** R43:行标题放大 / 缩回的时长(ms),减速曲线([Theme.MotionEasing]);实测出处见 [ROW_TITLE_FOCUS_SCALE]。 */
     const val ROW_TITLE_FOCUS_MS = 300
 

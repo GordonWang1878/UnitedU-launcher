@@ -835,24 +835,21 @@ private fun CategoryRow(
     onFocusChange: (Int, Boolean) -> Unit,
 ) {
     val ctx = LocalContext.current
-    // Ruling R43(owner 反馈 Round 10,取代 R40 的「屏外进屏内淡入」):焦点行标题放大变亮,
-    // 其余行缩回变暗,300 ms 减速 tween,与整页位移同时发生(Google 实测见 GtvLayout.ROW_TITLE_FOCUS_SCALE)。
-    // 只影响下面标题 Row 的 graphicsLayer(绘制阶段读值,动画每帧不重组本行、不改布局),
-    // 不进焦点账本、不碰任何 FocusRequester / 看门狗(铁律 3–7)。
-    val titleScale by animateFloatAsState(
-        targetValue = if (isTitleFocusRow) GtvLayout.ROW_TITLE_FOCUS_SCALE else 1f,
+    // Ruling R46(owner 反馈 2026-09-22,真机看 R43 后:「现在这个效果太傻叉了,你能不能照着 Google 的样子做?」):
+    // 焦点行标题放大 + 由灰变白,其余行缩回变灰,300 ms 减速 tween,与整页位移同时发生
+    // (Google 实测见 GtvLayout.ROW_TITLE_FOCUS_SCALE)。一个进度量 titleFocus 0→1 同时驱动缩放、
+    // 颜色插值与图标补偿位移,三者都在绘制阶段读(graphicsLayer / ColorProducer / drawBehind),
+    // 动画每帧不重组本行、不改布局;不进焦点账本、不碰任何 FocusRequester / 看门狗(铁律 3–7)。
+    val titleFocus by animateFloatAsState(
+        targetValue = if (isTitleFocusRow) 1f else 0f,
         animationSpec = tween(GtvLayout.ROW_TITLE_FOCUS_MS, easing = Theme.MotionEasing),
-        label = "rowTitleScale",
+        label = "rowTitleFocus",
     )
-    val titleAlpha by animateFloatAsState(
-        targetValue = if (isTitleFocusRow) 1f else GtvLayout.ROW_TITLE_UNFOCUSED_ALPHA,
-        animationSpec = tween(GtvLayout.ROW_TITLE_FOCUS_MS, easing = Theme.MotionEasing),
-        label = "rowTitleAlpha",
-    )
-    // 行标题文字 + 行图标 = 主题 **accent**(与齿轮同一个饱和色),换预设时和齿轮一起明显变色。
-    // 早先用的是 highlight(accent 混 55% 白后近白),六个预设的近白值肉眼几乎无差,看着「换了预设也没变」
-    // (2026-09-16 Gordon 真机指出);卡片聚焦的呼吸光晕仍读 highlight,那处要浅色不刺眼。
-    val accent = LocalThemeColors.current.accent
+    // 行标题 **不走主题 accent**(R46 推翻 R43 起沿用的 accent + alpha):Google 的行标题是白 / 灰两态,
+    // 与主题色无关;B6 的「焦点实填用主题色」说的是卡片 / 药丸的焦点填充,不涵盖行标题。
+    val titleColor = { androidx.compose.ui.graphics.lerp(GtvTokens.RowTitleIdle, GtvTokens.RowTitleFocused, titleFocus) }
+    // 文字首行基线(px),onTextLayout 量得;图标补偿位移用它求字的 cap 中线。
+    var titleBaselinePx by remember { mutableStateOf(Float.NaN) }
     // 记住聚焦在第几张,用来算这一行的横向位移(行放得下就不动、放不下才移够用的距离,
     // 见下面 GtvLayout.rowShiftX 的 KDoc——R20)
     var focusedIndex by remember { mutableStateOf(0) }
@@ -867,24 +864,31 @@ private fun CategoryRow(
         Row(
             modifier = Modifier
                 .padding(start = GtvLayout.CONTENT_KEYLINE.dp)
-                .height(GtvLayout.ROW_TITLE_LINE.dp)
-                // R43:标题(含行图标)整体按焦点行缩放 + 调 alpha。原点左下:往上、往右长,
-                // 行盒底边(离卡片最近的那条边)不动,放大的部分画进上一行卡片与本行标题之间的间隙;
-                // graphicsLayer 不参与测量,行距不变(铁律 1)。
-                .graphicsLayer {
-                    scaleX = titleScale
-                    scaleY = titleScale
-                    alpha = titleAlpha
-                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 1f)
-                },
+                .height(GtvLayout.ROW_TITLE_LINE.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(GtvLayout.ROW_TITLE_ICON_GAP.dp),
         ) {
-            RowIcon(row.name, row.kind, row.icon, tint = accent)
+            // R46:行图标(UnitedU 自有功能,Google 无对应物)**不跟着文字放大**,保持 1×。
+            // 两种方案都做了截图对比(`docs/screenshots/gtv-r46-vs-google-row-title.jpg` 的来源帧):
+            //  A. 图标 1× 留在大字左侧,随字的 cap 中线上移——字被图标推离内容基准线 28 dp,焦点行标题
+            //     左缘与卡片左缘对不齐;
+            //  B. 焦点行图标淡到 0、文字左移 28 dp 占住图标位——焦点行标题左缘正落在卡片左缘
+            //     (CONTENT_KEYLINE),与 Google「Your apps」同一构图。**选 B**;非焦点行仍显示图标。
+            // cap 中线补偿(A 的做法)保留:淡出途中图标仍与放大中的字对齐,不会在下沉的位置上消失。
+            RowIcon(
+                row.name, row.kind, row.icon,
+                tint = titleColor,
+                modifier = Modifier.graphicsLayer {
+                    val s = 1f + (GtvLayout.ROW_TITLE_FOCUS_SCALE - 1f) * titleFocus
+                    val capMid = if (titleBaselinePx.isNaN()) size.height / 2f
+                        else titleBaselinePx - GtvLayout.ROW_TITLE_CAP_EM * GtvLayout.ROW_TITLE_TEXT.sp.toPx() / 2f
+                    translationY = -(size.height - capMid) * (s - 1f)
+                    alpha = 1f - titleFocus
+                },
+            )
             BasicText(
                 text = row.name,
-                // 行标题 = titleMedium 14sp Medium(spec §2.3,Ruling R25 从 16sp 改回),颜色 accent
-                // (spec §0「accent 落点」)。
+                // 行标题 = titleMedium 14sp Medium(spec §2.3,Ruling R25 从 16sp 改回),颜色见上 titleColor。
                 // Fix round 1(R15):不再继承 titleMedium 的 Material3 默认行高——那是本任务标题
                 // 裁切的根因(见 GtvLayout.ROW_TITLE_LINE 的 KDoc:Material 默认行高是给 Latin 定的,
                 // 换成中文字形回落到系统 CJK 字体后需要的行盒高度不一样,必须装机重测,不能沿用默认值
@@ -893,10 +897,21 @@ private fun CategoryRow(
                 // .titleMedium 本身的其它属性(fontWeight 等)——其它界面(设置页分组标题等)还在读
                 // 那个全局 scale。
                 style = androidx.tv.material3.MaterialTheme.typography.titleMedium.copy(
-                    color = accent,
                     fontSize = GtvLayout.ROW_TITLE_TEXT.sp,
                     lineHeight = GtvLayout.ROW_TITLE_LINE.sp,
                 ),
+                color = titleColor,
+                onTextLayout = { titleBaselinePx = it.firstBaseline },
+                // R43/R46:文字按焦点行缩放。原点左下:往上、往右长,行盒底边(离卡片最近的那条边)不动,
+                // 下降部离卡片只会更远(≥ ROW_TITLE_TO_CARD);graphicsLayer 不参与测量,行距不变(铁律 1)。
+                modifier = Modifier.graphicsLayer {
+                    val s = 1f + (GtvLayout.ROW_TITLE_FOCUS_SCALE - 1f) * titleFocus
+                    scaleX = s
+                    scaleY = s
+                    // 方案 B:焦点行文字左移一个「图标 + 间距」,左缘落到内容基准线(与卡片左缘对齐)。
+                    translationX = -(GtvLayout.ROW_TITLE_LINE + GtvLayout.ROW_TITLE_ICON_GAP).dp.toPx() * titleFocus
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 1f)
+                },
             )
         }
         // **绝不能用 LazyRow / horizontalScroll**:任何可滚动容器都会挡住纵向焦点外出。

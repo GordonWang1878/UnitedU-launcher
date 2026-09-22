@@ -16,6 +16,9 @@ import androidx.compose.material.icons.outlined.SettingsInputHdmi
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Tv
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.Composable
@@ -43,14 +46,9 @@ fun RowIcon(
     icon: String? = null,
     tint: androidx.compose.ui.graphics.Color = Theme.RowTitle,
 ) {
-    // 输入源行的标题是本地化文字(「输入源」/「Inputs」),按 name 匹配跨语言不可靠 ——
-    // 用 kind 判定,不看标题文字。
-    val vector = if (kind == RowKind.INPUTS) {
-        Icons.Outlined.SettingsInputHdmi     // 信号源:HDMI 插口
-    } else rowIconVector(effectiveRowIconId(name, icon))
     // 用 Image + ColorFilter 着色,免得为一个 Icon 引入整套 material3
     Image(
-        imageVector = vector,
+        imageVector = rowIconFor(name, kind, icon),
         contentDescription = name,
         colorFilter = ColorFilter.tint(tint),
         // owner 反馈 Round 5:框高改为与行标题的行盒(GtvLayout.ROW_TITLE_LINE)相等,理由见本
@@ -58,6 +56,31 @@ fun RowIcon(
         modifier = Modifier.size(GtvLayout.ROW_TITLE_LINE.dp),
     )
 }
+
+/** R46:首页行标题用的版本——颜色在**绘制阶段**读([tint] 每帧求值),跟着行标题的灰 → 白插值走,
+ *  动画不重组;尺寸 / 图形与上面的 [RowIcon] 相同。 */
+@Composable
+fun RowIcon(
+    name: String,
+    kind: RowKind,
+    icon: String?,
+    tint: () -> androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier,
+) {
+    val painter = rememberVectorPainter(rowIconFor(name, kind, icon))
+    Box(
+        modifier
+            .size(GtvLayout.ROW_TITLE_LINE.dp)
+            .drawBehind { with(painter) { draw(size, colorFilter = ColorFilter.tint(tint())) } },
+    )
+}
+
+// 输入源行的标题是本地化文字(「输入源」/「Inputs」),按 name 匹配跨语言不可靠 ——
+// 用 kind 判定,不看标题文字。
+private fun rowIconFor(name: String, kind: RowKind, icon: String?): ImageVector =
+    if (kind == RowKind.INPUTS) {
+        Icons.Outlined.SettingsInputHdmi     // 信号源:HDMI 插口
+    } else rowIconVector(effectiveRowIconId(name, icon))
 
 /** 行图标 id → 矢量图。movie / tv / music 三个与 M4b 之前按名字匹配的图完全相同(外观不变)。 */
 internal fun rowIconVector(id: String): ImageVector = when (id) {
