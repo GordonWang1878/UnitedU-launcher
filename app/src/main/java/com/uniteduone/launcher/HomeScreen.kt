@@ -632,6 +632,11 @@ fun HomeScreen(
                     style = hintStyle,
                 )
             }
+            // Ruling R43:哪一行的标题是「焦点行」大白态。焦点在顶栏药丸组(tgtGear)→ 没有焦点行(-1);
+            // 否则就是 activeRowSafe(整页位移用的同一个量,标题与位移同时变)。两者都只在卡片 / 药丸
+            // 真的拿到焦点时改写、浮层 / ON_PAUSE 期间冻结,所以标题在浮层与退后台时保持最后状态。
+            // 纯派生,不写任何状态,不进任何效果的 key 或守卫(铁律 3–7 一处不动)。
+            val titleFocusRow = if (tgtGear) -1 else activeRowSafe
             rows.forEachIndexed { rowIndex, row ->
                 CategoryRow(
                     row = row,
@@ -662,9 +667,8 @@ fun HomeScreen(
                     // (R42 下换行而位移不变是常态,那时放大不该等一个不存在的位移)。
                     landingShiftsPage = rowIndex != activeRowSafe &&
                         GtvLayout.nextPageShiftY(shiftTarget, rowIndex, rows.size, cardSize, showTitles, screenHeightDp) != shiftTarget,
-                    // R40:行标题淡入的几何输入——行号 + 当前(动画中的)整页位移,纯数字,不含焦点。
-                    rowIndex = rowIndex,
-                    pageShiftDp = shift.value,
+                    // R43:行标题放大变亮 ⇔ 本行是焦点行。只读焦点账本、不写(见 titleFocusRow)。
+                    isTitleFocusRow = rowIndex == titleFocusRow,
                     onFocusChange = { idx, got ->
                         report(rowIndex, idx, got)
                         if (got) {
@@ -826,27 +830,25 @@ private fun CategoryRow(
     /** R30 + R42:焦点落到本行会不会改变整页纵向位移的目标(HomeScreen 用 `nextPageShiftY` 预先算好)。
      *  R42 起换行不一定位移(最小位移),所以不能再用「不是当前行」代替。 */
     landingShiftsPage: Boolean,
-    /** R40:本行在 rows 里的下标,与 [pageShiftDp] 一起喂给 [GtvLayout.rowTitleOnScreen]。 */
-    rowIndex: Int,
-    /** R40:整页位移的**当前动画值**(dp,≤ 0),与 HomeScreen 那根 Column 的 `offset(y)` 同一个量。 */
-    pageShiftDp: Float,
+    /** R43:本行是不是焦点行(焦点在本行卡片上);是则行标题放大到 [GtvLayout.ROW_TITLE_FOCUS_SCALE] 并全亮。 */
+    isTitleFocusRow: Boolean,
     onFocusChange: (Int, Boolean) -> Unit,
 ) {
     val ctx = LocalContext.current
-    // Ruling R40(owner 反馈 Round 10):行标题淡入。判据纯几何(GtvLayout.rowTitleOnScreen):标题行盒
-    // 有没有任何部分在屏内。首次组合从 0 起淡到 1(Animatable 初值 0),之后「不在屏内 → 在屏内」再淡一次,
-    // 一直在屏内的不动;滑出屏外直接 snap 到 0(看不见,不必淡)。只改这一行标题 Row 的 alpha,
+    // Ruling R43(owner 反馈 Round 10,取代 R40 的「屏外进屏内淡入」):焦点行标题放大变亮,
+    // 其余行缩回变暗,300 ms 减速 tween,与整页位移同时发生(Google 实测见 GtvLayout.ROW_TITLE_FOCUS_SCALE)。
+    // 只影响下面标题 Row 的 graphicsLayer(绘制阶段读值,动画每帧不重组本行、不改布局),
     // 不进焦点账本、不碰任何 FocusRequester / 看门狗(铁律 3–7)。
-    val screenHeightDp = LocalConfiguration.current.screenHeightDp.toFloat()
-    val titleOnScreen = GtvLayout.rowTitleOnScreen(rowIndex, pageShiftDp, cardSize, showTitles, screenHeightDp)
-    val titleAlpha = remember { androidx.compose.animation.core.Animatable(0f) }
-    LaunchedEffect(titleOnScreen) {
-        if (titleOnScreen) {
-            titleAlpha.animateTo(1f, tween(GtvLayout.ROW_TITLE_FADE_MS, easing = Theme.MotionEasing))
-        } else {
-            titleAlpha.snapTo(0f)
-        }
-    }
+    val titleScale by animateFloatAsState(
+        targetValue = if (isTitleFocusRow) GtvLayout.ROW_TITLE_FOCUS_SCALE else 1f,
+        animationSpec = tween(GtvLayout.ROW_TITLE_FOCUS_MS, easing = Theme.MotionEasing),
+        label = "rowTitleScale",
+    )
+    val titleAlpha by animateFloatAsState(
+        targetValue = if (isTitleFocusRow) 1f else GtvLayout.ROW_TITLE_UNFOCUSED_ALPHA,
+        animationSpec = tween(GtvLayout.ROW_TITLE_FOCUS_MS, easing = Theme.MotionEasing),
+        label = "rowTitleAlpha",
+    )
     // 行标题文字 + 行图标 = 主题 **accent**(与齿轮同一个饱和色),换预设时和齿轮一起明显变色。
     // 早先用的是 highlight(accent 混 55% 白后近白),六个预设的近白值肉眼几乎无差,看着「换了预设也没变」
     // (2026-09-16 Gordon 真机指出);卡片聚焦的呼吸光晕仍读 highlight,那处要浅色不刺眼。
@@ -866,8 +868,15 @@ private fun CategoryRow(
             modifier = Modifier
                 .padding(start = GtvLayout.CONTENT_KEYLINE.dp)
                 .height(GtvLayout.ROW_TITLE_LINE.dp)
-                // R40:标题(含行图标)整体淡入;graphicsLayer 只在绘制阶段读 alpha,动画每帧不重组本行。
-                .graphicsLayer { alpha = titleAlpha.value },
+                // R43:标题(含行图标)整体按焦点行缩放 + 调 alpha。原点左下:往上、往右长,
+                // 行盒底边(离卡片最近的那条边)不动,放大的部分画进上一行卡片与本行标题之间的间隙;
+                // graphicsLayer 不参与测量,行距不变(铁律 1)。
+                .graphicsLayer {
+                    scaleX = titleScale
+                    scaleY = titleScale
+                    alpha = titleAlpha
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 1f)
+                },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(GtvLayout.ROW_TITLE_ICON_GAP.dp),
         ) {

@@ -783,26 +783,24 @@ object GtvLayout {
         ROWS_TOP + row.coerceAtLeast(0) * rowPitch(size, showTitles)
 
     /**
-     * **Ruling R40(2026-09-22,owner 真机反馈 Round 10)**:行标题淡入的几何判据——行 [row] 的标题
-     * 行盒在整页位移 [shiftDp](与 [pageShiftY] 同一个量、可以是动画中的每帧值)之下,有没有任何一部分
-     * 落在屏幕(高 [screenHeightDp])内:`top + ROW_TITLE_LINE > 0 && top < screenHeight`,
-     * `top = restTitleTop(row) + shift`。
+     * **Ruling R43(2026-09-22,owner 真机反馈 Round 10,取代 R40)**:行标题 = **焦点行放大变亮**。
+     * owner 原话:「行标题的淡入依然没有,向上、向下滑动,行标题有淡入吗?」——R40 做的是「标题从屏外
+     * 进入屏内时淡入」,首页两三行全在屏内时永远不触发,改错了对象;R40 的 `rowTitleOnScreen` /
+     * `ROW_TITLE_FADE_MS` 已删除。
      *
-     * owner 原话:「行标题现在是硬切出来的,没有 Google TV 那种淡入感。」`HomeScreen.CategoryRow` 用它
-     * 决定标题 alpha 的目标值:从「不在屏内」翻到「在屏内」(行从屏幕底部滑进来、或回到行 0 时从顶部
-     * 滑回来)以及首次组合时 0 → 1 走 250 ms 减速 tween;一直在屏内的行标题不动;滑出屏外时直接
-     * 归 0(反正看不见),下次滑回来再淡一次。**纯几何、不读焦点状态**——喂进来的 shift 是
-     * `animateDpAsState` 的当前值,它由 activeRow 派生,但这里只认数字。
+     * Google 实测(模拟器 launcherx 录像抽帧 `gd-titles.png`):焦点行的标题是大号纯白,其余行小号灰字;
+     * 「Continue watching」非焦点 154 px、焦点 270 px(960 宽帧,1 px = 1 dp)→ **约 1.75 倍**;
+     * 灰 ≈ 0.7 × 白。换行时新行标题从小灰长大变亮、旧行缩回变灰,与页面位移同时,**约 300 ms 内完成**
+     * (#47 9.45 s 仍小灰 → #48 9.72 s 已大白)。
+     *
+     * `HomeScreen.CategoryRow` 用 `graphicsLayer` 缩放(原点左下,往上、往右长),**不改布局**——
+     * 行距不变(铁律 1),放大的部分画进上一行卡片底与本行标题之间的间隙。
      */
-    fun rowTitleOnScreen(row: Int, shiftDp: Float, size: GtvCardSize, showTitles: Boolean, screenHeightDp: Float): Boolean {
-        val top = restTitleTop(row, size, showTitles) + shiftDp
-        return top + ROW_TITLE_LINE > 0f && top < screenHeightDp
-    }
-
-    /** R40:行标题淡入时长(ms),减速曲线([Theme.MotionEasing])。Google 的标题淡入没有量到逐字
-     *  数值(它随 RecyclerView 的行进场一起动),250 取 leanback `lb_browse_rows_anim_duration`
-     *  / 设计 token `gtvm3_sys_motion_duration_medium1` 收敛到的同一个数(与 [BROWSE_SHIFT_MS] 同源)。 */
-    const val ROW_TITLE_FADE_MS = 250
+    const val ROW_TITLE_FOCUS_SCALE = 1.75f
+    /** R43:非焦点行标题(图标 + 文字)的 alpha;焦点行为 1。颜色仍是主题 accent(B6),只调 alpha。 */
+    const val ROW_TITLE_UNFOCUSED_ALPHA = 0.7f
+    /** R43:行标题放大 / 缩回的时长(ms),减速曲线([Theme.MotionEasing]);实测出处见 [ROW_TITLE_FOCUS_SCALE]。 */
+    const val ROW_TITLE_FOCUS_MS = 300
 
     /**
      * **Ruling R35(2026-09-22,owner 真机反馈 Round 10)**:壁纸随整页位移淡到黑所用的距离(dp)。
