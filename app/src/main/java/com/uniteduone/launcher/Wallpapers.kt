@@ -8,6 +8,11 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -363,8 +368,8 @@ object Wallpapers {
  * HomeScreen 被位移的 Column 里,R32 的整页位移搬不动它(owner 真机:「英雄区还是不动」——在我们
  * 这里 hero 区就是壁纸本身,B3)。所以位移量由 HomeScreen 每帧上报、MainActivity 持有,再从这两个
  * lambda 喂进来:
- * - [offsetY]:与 `GtvLayout.pageShiftY` 同一个量(dp,≤ 0 表示上移),原样作 `offset` 用;上移后
- *   底部露出的是 MainActivity 根 Box 的黑底。
+ * - [offsetY]:与 `GtvLayout.pageShiftY` 同一个量(dp,≤ 0 表示上移),**夹到 −HERO_HEIGHT 为止**再作 `offset`
+ *   用(只跟 hero 滑走那一下,见 Image 上的注释);壁纸画高 HERO_HEIGHT,所以底部不露黑。
  * - [alpha]:`GtvLayout.wallpaperAlpha(offsetY)`,由调用方算好传入。
  * 两者都以 lambda 的形式在布局 / 绘制阶段读取(`Modifier.offset {}` + `graphicsLayer {}`),动画的
  * 每一帧只重排位置与图层透明度,**不重组**这个 composable、更不重解位图。壁纸容器保持全屏不变。
@@ -395,9 +400,20 @@ fun Wallpaper(
             bitmap = bitmap.asImageBitmap(),
             contentDescription = null,
             contentScale = ContentScale.Crop,
+            // R35 修正(2026-09-22 真机):壁纸只跟页面滑**一个 hero 高度**就停住,不再跟整页滑到底。
+            // 原来原样跟 pageShiftY 走,下两行时页面已上移 600+ px,整张壁纸被推出屏幕顶部、下面全是
+            // 黑底——owner 反馈「看到的都没变」,R36 的 20% 影子根本没有可显示的壁纸。hero 区滑走那一下
+            // 仍与卡片同帧同曲线(owner 要的「英雄区一起往上」),之后壁纸当静止的背景影子。
+            // 为此把壁纸画高 HERO_HEIGHT(wrapContentHeight(unbounded) 顶对齐,同铁律 1 的放开测量手法),
+            // 上移到头时底部也不会露出黑带。
             modifier = Modifier
-                .fillMaxSize()
-                .offset { IntOffset(0, offsetY().roundToPx()) }
+                .fillMaxWidth()
+                .wrapContentHeight(Alignment.Top, unbounded = true)
+                .height((LocalConfiguration.current.screenHeightDp + GtvLayout.HERO_HEIGHT).dp)
+                .offset {
+                    val y = offsetY().coerceAtLeast(-GtvLayout.HERO_HEIGHT.dp)
+                    IntOffset(0, y.roundToPx())
+                }
                 .graphicsLayer { this.alpha = alpha() },
         )
     }
