@@ -148,7 +148,8 @@ fun GearMenu(
 }
 
 /**
- * 左半:banner + 应用名。[app] 为 null(齿轮设置菜单、编辑页行菜单)时没有具体应用,只画 [name]。
+ * 左半:banner + 应用名。[app] 为 null(齿轮设置菜单、编辑页行菜单)时没有具体应用,只画 [name],
+ * 而且它此时是整页标题(R44:32 sp 的 [GtvLayout.SETTINGS_TITLE_TEXT]),不是 12 sp 的图片注脚。
  */
 @Composable
 private fun MenuBanner(app: AppEntry?, name: String) {
@@ -193,18 +194,35 @@ private fun MenuBanner(app: AppEntry?, name: String) {
             }
             Spacer(Modifier.height(GtvLayout.MENU_BANNER_NAME_GAP.dp))
         }
+        // Ruling R44(owner 真机反馈 Round 10):「点击齿轮设置按钮进来后……左侧中文'设置'这两个字过于小了」。
+        // 12 sp 是 Google 长按菜单里**应用 banner 的注脚**(docs/screenshots/gtv/16-app-longpress-menu.png),
+        // 字小是因为上面有一整张图;没有图时(齿轮设置菜单、编辑页行菜单)这行字就是整页唯一的标题,
+        // 改用与「UnitedU 设置」页大标题同一个常量 SETTINGS_TITLE_TEXT(32 sp,Google 二级页大标题)、
+        // 同字重同颜色。有图的长按菜单保持 12 sp 注脚不变。
+        val isPageTitle = app == null
         BasicText(
             text = name,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            style = TextStyle(
-                fontFamily = Theme.Sans,
-                fontWeight = FontWeight.Medium,
-                color = LocalThemeColors.current.highlight,
-                fontSize = GtvLayout.MENU_BANNER_NAME_TEXT.sp,
-                letterSpacing = GtvLayout.MENU_BANNER_NAME_LETTER_SPACING.sp,
-                textAlign = TextAlign.Center,
-            ),
+            style = if (isPageTitle) {
+                TextStyle(
+                    fontFamily = Theme.Sans,
+                    fontWeight = FontWeight.Medium,
+                    color = Theme.EmphasisText,
+                    fontSize = GtvLayout.SETTINGS_TITLE_TEXT.sp,
+                    lineHeight = (GtvLayout.SETTINGS_TITLE_TEXT * 1.2f).sp,
+                    textAlign = TextAlign.Center,
+                )
+            } else {
+                TextStyle(
+                    fontFamily = Theme.Sans,
+                    fontWeight = FontWeight.Medium,
+                    color = LocalThemeColors.current.highlight,
+                    fontSize = GtvLayout.MENU_BANNER_NAME_TEXT.sp,
+                    letterSpacing = GtvLayout.MENU_BANNER_NAME_LETTER_SPACING.sp,
+                    textAlign = TextAlign.Center,
+                )
+            },
         )
     }
 }
