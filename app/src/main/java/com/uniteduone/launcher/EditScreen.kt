@@ -630,9 +630,20 @@ fun EditScreen(
                     // 表现为「进编辑界面后按下键焦点就没了,之后按什么都没反应」。
                     // 横向位移自己算(把行尾的加号也算成一格)。
                     val fi = rowFocused.getOrElse(ri) { 0 }.coerceIn(0, pkgs.size)
-                    val right = Theme.SidePadding + metrics.cardWidth * (fi + 1) + metrics.cardSpacing * fi
+                    // 整枝审查 B(2026-09-22):判据用**视觉**右缘——加上聚焦缩放 + 贴边描边的溢出
+                    // (GtvLayout.appFocusOverflow,与首页 rowShiftX 的 Round 4 §5 同一规则),否则
+                    // 「布局右缘刚好没超、缩放后的描边已经超」时不挪行,最右那格的描边被屏缘裁掉。
+                    // AddCard / MissingCard / AppCard 三种格子都走 gtvAppFocusFrame,溢出量相同。
+                    val right = Theme.SidePadding + metrics.cardWidth * (fi + 1) + metrics.cardSpacing * fi +
+                        GtvLayout.appFocusOverflow(metrics.cardWidth.value).dp
                     val over = right + Theme.SidePadding - LocalConfiguration.current.screenWidthDp.dp
-                    val dx by animateDpAsState(if (over > 0.dp) -over else 0.dp, label = "editRowX")
+                    val dx by animateDpAsState(
+                        targetValue = if (over > 0.dp) -over else 0.dp,
+                        // Ruling R27(整枝审查 B 补漏):编辑页的横向位移与纵向位移、首页的 x/y 位移是
+                        // 同一个 browse 手势,此前漏在默认 spring 上,是 R27 四处调用点里唯一没换的一处。
+                        animationSpec = tween(GtvLayout.BROWSE_SHIFT_MS, easing = Theme.BrowseEasing),
+                        label = "editRowX",
+                    )
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(metrics.cardSpacing),
                         modifier = Modifier

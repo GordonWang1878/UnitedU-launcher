@@ -9,8 +9,9 @@ import org.junit.Test
  * [GtvLayout.BROWSE_SHIFT_MS]。
  *
  * **这个测试覆盖不到什么**(如实记录):它只断言常量与纯函数的数值,不渲染 Compose——
- * 某个调用点哪天又改回 `Theme.MotionInMs`/`MotionEasing`,这里照样全绿。那一类回归只能靠
- * 读调用点(`HomeScreen` 两处、`EditScreen` 一处)或装机逐帧比对发现。
+ * 某个调用点哪天又改回 `Theme.MotionInMs`/`MotionEasing`(或漏在 `animateDpAsState` 的默认
+ * spring 上),这里照样全绿。那一类回归只能靠读调用点(**四处**:`HomeScreen` 的行 x/y 位移两处、
+ * `EditScreen` 的纵向位移与行内横向位移两处——后者 2026-09-22 整枝审查 B 才补上)或装机逐帧比对发现。
  */
 class GtvMotionTest {
     @Test fun `browse 位移时长 = 250ms(R27)`() {

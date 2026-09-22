@@ -229,8 +229,9 @@ object GtvLayout {
     const val FOCUS_FADE_OUT_MS = 150
 
     /**
-     * **Ruling R27(2026-09-21,owner 真机反馈 Round 7)**:浏览位移(首页行 x/y 平移、编辑页纵向
-     * 平移)的时长,配 [Theme.BrowseEasing] 一起用,取代此前的 `Theme.MotionInMs`(300ms,等同
+     * **Ruling R27(2026-09-21,owner 真机反馈 Round 7)**:浏览位移(**四处**:首页行 x/y 平移、
+     * 编辑页纵向平移与行内横向平移——最后一处 2026-09-22 整枝审查 B 才补上,此前漏在默认 spring)
+     * 的时长,配 [Theme.BrowseEasing] 一起用,取代此前的 `Theme.MotionInMs`(300ms,等同
      * Material 的 `material_motion_duration_long_1`,一个与 browse 无关的通用值)。
      *
      * **证据强度必须如实说清,这个数字没有像曲线那样拿到逐字证据**:
