@@ -36,15 +36,15 @@ class GtvLayoutTest {
 
     @Test fun `行溢出时只移动刚好够用的距离,不多移(R20,Round4 起用含缩放+描边的视觉右缘)`() {
         // 8 张卡的 MEDIUM 行,聚焦第 8 张(index 7):
-        // 视觉 focusRight = 58 + 153×8 + 20×7 + overflow(153) = 1422 + 12.0325 = 1434.0325
-        // overflow(153) = 153×0.105/2(缩放溢出的一半,APP_FOCUS_SCALE=1.105) + 2(APP_FOCUS_GAP)
-        //               + 2(APP_FOCUS_STROKE) = 8.0325 + 4 = 12.0325
-        // overRight = 1434.0325 + 58 - 960 = 532.0325
-        assertEquals(-532.0325f, GtvLayout.rowShiftX(7, GtvCardSize.MEDIUM, 960f), 0.01f)
-        // 位移之后焦点卡的**视觉**右缘(含缩放+描边)= 1434.0325 - 532.0325 = 902 =
+        // 视觉 focusRight = 58 + 153×8 + 20×7 + overflow(153) = 1422 + 11.65 = 1433.65
+        // overflow(153) = 153×0.10/2(缩放溢出的一半,APP_FOCUS_SCALE=1.10,整枝审查 C 起)
+        //               + 2(APP_FOCUS_GAP) + 2(APP_FOCUS_STROKE) = 7.65 + 4 = 11.65
+        // overRight = 1433.65 + 58 - 960 = 531.65
+        assertEquals(-531.65f, GtvLayout.rowShiftX(7, GtvCardSize.MEDIUM, 960f), 0.01f)
+        // 位移之后焦点卡的**视觉**右缘(含缩放+描边)= 1433.65 - 531.65 = 902 =
         // 960 - CONTENT_KEYLINE(58)——刚好贴右基准线,不多不少;owner 反馈 Round 4 之前这里断言的
         // 是布局右缘,现在必须是视觉右缘,否则最右那张完全可见的卡的描边会被屏幕边缘裁掉(§5)。
-        assertEquals(960f - GtvLayout.CONTENT_KEYLINE, 1434.0325f - 532.0325f, 0.01f)
+        assertEquals(960f - GtvLayout.CONTENT_KEYLINE, 1433.65f - 531.65f, 0.01f)
     }
 
     @Test fun `临界点连续,不会跳变(R20)`() {
@@ -134,9 +134,10 @@ class GtvLayoutTest {
                 overflowY < available,
             )
         }
-        // LARGE 档的具体数字留痕(108 × 0.105 / 2 + 2 + 2 = 5.67 + 4 = 9.67dp),
-        // 对照任务原话「108 dp 高 → 5.7 dp overflow」——那句话只算了缩放那一半,没有加上描边的
-        // 2dp gap + 2dp stroke;这里连描边一起算,是「贴到屏幕/下一行的实际视觉边界」,不是纯缩放量。
-        assertEquals(9.67f, GtvLayout.appFocusOverflow(GtvLayout.cardHeight(GtvCardSize.LARGE)), 0.01f)
+        // LARGE 档的具体数字留痕(108 × 0.10 / 2 + 2 + 2 = 5.4 + 4 = 9.4dp;整枝审查 C 把缩放
+        // 1.105 → 1.10 之前是 9.67),对照任务原话「108 dp 高 → 5.7 dp overflow」——那句话只算了
+        // 缩放那一半,没有加上描边的 2dp gap + 2dp stroke;这里连描边一起算,是「贴到屏幕/下一行的
+        // 实际视觉边界」,不是纯缩放量。
+        assertEquals(9.4f, GtvLayout.appFocusOverflow(GtvLayout.cardHeight(GtvCardSize.LARGE)), 0.01f)
     }
 }

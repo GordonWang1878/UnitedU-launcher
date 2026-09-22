@@ -250,11 +250,21 @@ object GtvLayout {
 
     /**
      * owner 反馈 Round 4:Google 对 **app tile**(不是 content card)的聚焦处理——放大,不是外扩
-     * 静态描边。旧版本(1.0.595789376)`fraction/app_card_focused_scale = 1.14`;但 controller
-     * 在**本项目实际对照的目标版本**(1.0.976298245)上装机像素量测聚焦态应用图块
-     * 152 → 168 px = **1.105×**——两代版本数值不同,以目标版本的实测为准,1.14 只作为旧版记录,
-     * 不要把它当成现在该用的数字。 */
-    const val APP_FOCUS_SCALE = 1.105f
+     * 静态描边。
+     *
+     * **1.10 的出处(整枝审查 C,2026-09-22)**:目标版本(1.0.976298245)的资源表里
+     * fraction `0x7f0a0081` = **1.099976**(`docs/research/launcherx-1.0.976298245-named-resources.md`
+     * 「fraction · 新增、对不上名字」一节,位于 `spotlight_shadow_alpha_min … topic_banner_focused_scale`
+     * 之间,是目标版新增、旧版没有的条目),这是 Google 自己写在资源里的值;同表里
+     * `*_card_focused_scale` 一族(`card_focused_scale`/`recommended_app_card_focused_scale`/
+     * `kid_app_card_focused_scale` 等十余条)也都是 1.099976。此前的 1.105 是 controller 在同一
+     * 版本上装机像素反推(聚焦态应用图块 152 → 168 px),像素量测的分辨率是 ±1px ≈ ±0.007 倍,
+     * 1.10(→167.2px)与 1.105 都落在这个误差带内,取资源里的原值、不取反推值。
+     *
+     * 旧版本(1.0.595789376)`fraction/app_card_focused_scale = 1.14` 在目标版里同名同值仍在,
+     * 但它对不上像素实测(1.14 → 173px,与 168 差 5px,远超误差带),说明目标版的 app 行不走
+     * 这条资源;1.14 只作为旧版记录,不要把它当成现在该用的数字。 */
+    const val APP_FOCUS_SCALE = 1.10f
     /** app tile 聚焦描边与**缩放后**边缘之间的间隙(dp)。controller 在目标版本(1.0.976298245)
      *  上装机像素量测得出,不是命名资源(Google 没有给这段间隙单独取名字)。 */
     const val APP_FOCUS_GAP = 2f

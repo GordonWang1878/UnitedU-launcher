@@ -79,9 +79,10 @@ class GtvGlowTest {
     // ——以下是「柔光不进布局」这条不变量:R28 改动前后,这两个函数必须逐值不变。
     // 任务原话:柔光是视觉溢出,不能加进 focusOverflow / 行高,否则行间距凭空多 30dp。
     @Test fun `柔光不改变 appFocusOverflow(R28 改动前的值逐字不变)`() {
-        // Round 4 起的既有值,写死在这里当回归闸:153dp 宽的中档卡 → 12.0325,LARGE 卡高 → 9.67
-        assertEquals(12.0325f, GtvLayout.appFocusOverflow(GtvLayout.cardWidth(GtvCardSize.MEDIUM)), 0.0001f)
-        assertEquals(9.67f, GtvLayout.appFocusOverflow(GtvLayout.cardHeight(GtvCardSize.LARGE)), 0.01f)
+        // 写死在这里当回归闸(整枝审查 C 把 APP_FOCUS_SCALE 1.105 → 1.10 后的值):
+        // 153dp 宽的中档卡 → 153×0.05 + 2 + 2 = 11.65,LARGE 卡高 108 → 5.4 + 4 = 9.4
+        assertEquals(11.65f, GtvLayout.appFocusOverflow(GtvLayout.cardWidth(GtvCardSize.MEDIUM)), 0.0001f)
+        assertEquals(9.4f, GtvLayout.appFocusOverflow(GtvLayout.cardHeight(GtvCardSize.LARGE)), 0.01f)
         // 公式里只有三项:缩放溢出的一半 + gap + stroke,**没有** APP_FOCUS_GLOW_DP
         for (d in listOf(0f, 122f, 153f, 192f)) {
             assertEquals(
@@ -114,7 +115,8 @@ class GtvGlowTest {
 
     @Test fun `柔光不改变行位移判据(rowShiftX 逐字不变)`() {
         assertEquals(0f, GtvLayout.rowShiftX(2, GtvCardSize.MEDIUM, 960f), 0.0001f)
-        assertEquals(-532.0325f, GtvLayout.rowShiftX(7, GtvCardSize.MEDIUM, 960f), 0.0001f)
+        // 1422 + 11.65(overflow)+ 58 − 960 = 531.65(整枝审查 C 之后的值)
+        assertEquals(-531.65f, GtvLayout.rowShiftX(7, GtvCardSize.MEDIUM, 960f), 0.0001f)
     }
 
     @Test fun `收尾段——数据区边界不跳值、外缘归零、全程单调`() {

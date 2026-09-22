@@ -153,7 +153,7 @@ fun Modifier.gtvFocusStroke(focused: Boolean, color: Color, corner: Dp): Modifie
  *
  * **描边为什么不能简单套一层 `graphicsLayer` 就跟着放大**:Google 的间隙/描边宽度是固定 dp
  * 值,不随缩放倍数变粗——如果描边跟着卡片一起进同一个 `graphicsLayer`,描边本身的粗细也会被
- * 放大 1.105 倍,不符实测。所以这里的画法是:描边在 `drawBehind` 里**手动**按「未缩放尺寸 ×
+ * 放大 1.10 倍,不符实测。所以这里的画法是:描边在 `drawBehind` 里**手动**按「未缩放尺寸 ×
  * 当前动画中的 scale 值」算出缩放后边缘的位置,再往外加固定的 gap/stroke,画完之后才对
  * **后续**的实际内容(卡片背景/图片/圆角裁剪)应用 `graphicsLayer` 缩放——`drawBehind` 在
  * `graphicsLayer` 之前(链上更外层),不受它影响,数值计算与视觉缩放各管一段。
