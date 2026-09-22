@@ -763,7 +763,7 @@ object GtvLayout {
      * 是**线性插值到 0.2**(`1 → 0.2`),不是「原曲线再乘 0.2」——后者在位移 0 时也会把静止态的壁纸
      * 压到 0.2,静止态(hero 露出)壁纸必须是全亮的。
      */
-    const val WALLPAPER_BROWSE_ALPHA = 0.20f
+    const val WALLPAPER_BROWSE_ALPHA = 0.45f
 
     /**
      * R35:整页位移 [shiftDp](与 [pageShiftY] 同一个量,≤ 0 表示上移;正负都按绝对值算,调用方不必

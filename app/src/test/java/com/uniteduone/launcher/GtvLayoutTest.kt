@@ -104,15 +104,15 @@ class GtvLayoutTest {
     @Test fun `R35+R36 壁纸随整页位移淡出——0 全亮,一个 hero 高度到终值 0点2,一半是 0点6,越界夹紧`() {
         assertEquals(GtvLayout.HERO_HEIGHT, GtvLayout.WALLPAPER_FADE_OVER_DP, 0f)
         // R36(owner Round 10):终值不再是 0,留 20% 壁纸影子;静止态仍全亮。
-        assertEquals(0.20f, GtvLayout.WALLPAPER_BROWSE_ALPHA, 0f)
+        assertEquals(0.45f, GtvLayout.WALLPAPER_BROWSE_ALPHA, 0f)
         val floor = GtvLayout.WALLPAPER_BROWSE_ALPHA
         assertEquals(1f, GtvLayout.wallpaperAlpha(0f), 0f)
         assertEquals(floor, GtvLayout.wallpaperAlpha(-GtvLayout.HERO_HEIGHT), 1e-6f)
         // 线性插值 1 → 0.2,不是「原曲线 × 0.2」:一半处是 0.6,不是 0.1。
-        assertEquals(0.6f, GtvLayout.wallpaperAlpha(-GtvLayout.HERO_HEIGHT / 2f), 1e-6f)
+        assertEquals(0.725f, GtvLayout.wallpaperAlpha(-GtvLayout.HERO_HEIGHT / 2f), 1e-6f)
         assertEquals("越过 hero 高度后夹在终值,不会更低", floor, GtvLayout.wallpaperAlpha(-1000f), 1e-6f)
         assertEquals("正向(理论上不会出现)按绝对值算,同样夹紧", floor, GtvLayout.wallpaperAlpha(1000f), 1e-6f)
-        assertEquals(0.6f, GtvLayout.wallpaperAlpha(GtvLayout.HERO_HEIGHT / 2f), 1e-6f)
+        assertEquals(0.725f, GtvLayout.wallpaperAlpha(GtvLayout.HERO_HEIGHT / 2f), 1e-6f)
         // 行 1 的整页位移(中档不显示标题 ≈ −322dp)已超过 hero 高度:停稳时壁纸必定在终值。
         val shift1 = GtvLayout.pageShiftY(1, GtvCardSize.MEDIUM, showTitles = false)
         assertTrue(-shift1 > GtvLayout.HERO_HEIGHT)
