@@ -120,9 +120,10 @@ object GtvLayout {
      *  gtv 线首页已经没有任何卡片走这套画法(`AppCard`/`AddCard`/`MissingCard` 全部改用
      *  [APP_FOCUS_SCALE] 一族的 app 处理,见 `GtvFocusStroke.gtvAppFocusFrame`)——但这两个常量
      *  **没有变成死代码**,仍在两处活着:①`RowIconPicker` 的行图标格子(小网格图标,不是
-     *  app,继续用这套画法,理由见该文件);②`gtvAppFocusFrame` 里 `moving`(首页原地移动态)
-     *  分支——被搬的那张卡的高亮描边是 UnitedU 自己的交互反馈,Google 没有对应物,不跟着
-     *  app 聚焦一起缩放,沿用这套固定外扩几何。`rowVerticalPad`
+     *  app,继续用这套画法,理由见该文件);②`gtvAppFocusFrame` 里 `moving`(首页原地移动态 /
+     *  编辑页搬运态)分支——被搬的那张卡的高亮描边是 UnitedU 自己的交互反馈,Google 没有对应物;
+     *  它借用这两个常量当外扩量与线宽,但几何**跟着缩放后的边缘走**(整枝审查 A,2026-09-22:
+     *  固定在布局框外 5dp 会被缩放后的卡片整条盖住)。`rowVerticalPad`
      *  (`Theme.gtvCardMetrics`)的留白量也仍然读这两个常量,`rowPitch` 因此不受本轮影响
      *  (owner 反馈 Round 4 明确要求不改 rowPitch)。 */
     const val FOCUS_STROKE = 2f

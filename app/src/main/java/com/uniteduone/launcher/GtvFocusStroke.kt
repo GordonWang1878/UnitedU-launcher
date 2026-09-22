@@ -82,8 +82,9 @@ private fun DrawScope.drawFocusGlow(
  * **内容卡**(content card)焦点画法(实测):不缩放,在布局框外扩 [GtvLayout.FOCUS_OUTSET] dp 处
  * 画一圈 [GtvLayout.FOCUS_STROKE] dp 的描边。owner 反馈 Round 4(2026-09-21)之后,gtv 线首页的
  * 应用卡片已经全部改用 [gtvAppFocusFrame](app tile 的缩放 + 描边处理,见该函数 KDoc);这个
- * 函数继续被 `RowIconPicker`(小网格图标,不是 app)与 `gtvAppFocusFrame` 的 `moving` 分支
- * (首页原地移动态的高亮描边,Google 没有对应物)使用,不是死代码。
+ * 函数继续被 `RowIconPicker`(小网格图标,不是 app)使用,不是死代码;`gtvAppFocusFrame` 的
+ * `moving` 分支(首页原地移动态的高亮描边,Google 没有对应物)只借用这里的 `FOCUS_OUTSET` /
+ * `FOCUS_STROKE` 两个常量,几何自 2026-09-22 起跟着缩放后边缘走(见该函数 `moving` 参数说明)。
  *
  * 为什么不用 `Modifier.border`:border 画在布局框**上**,画不到框外。`drawBehind` 的画布不受
  * 布局框限制(只要父链上没有 clip),所以用负偏移把矩形撑出去。
@@ -164,9 +165,13 @@ fun Modifier.gtvFocusStroke(focused: Boolean, color: Color, corner: Dp): Modifie
  *
  * **绘制顺序**:柔光 → 聚焦描边 → 移动描边,由外向内、后画的盖在先画的上面。
  *
- * @param moving 首页原地移动态(M4b):被搬的那张卡的高亮描边,与 [gtvFocusStroke] 的 `moving`
- *   分支是同一件事、同一套固定外扩几何(不随 `focused` 的缩放变化——它标的是「正在搬哪张」,
- *   与 Google 的 app 聚焦缩放无关)。默认 `false`(`AddCard` 没有搬运概念,不传)。
+ * @param moving 首页原地移动态(M4b)与编辑页搬运态:被搬的那张卡的高亮描边,它标的是
+ *   「正在搬哪张」,Google 没有对应物。**几何跟着缩放后的边缘走**(整枝审查 A,2026-09-22):
+ *   外扩 = 当前 `scale` 的溢出 + [GtvLayout.FOCUS_OUTSET],与聚焦描边同一算法,只是外扩量换成
+ *   FOCUS_OUTSET(5dp)、落在聚焦描边外缘(4dp)之外。此前写成固定的布局框外 5dp,被缩放后的
+ *   卡片(横向外扩 7.65dp)整条盖住——搬运中焦点恒在被搬的卡上,等于这条描边从没露出过。
+ *   未聚焦时 `scale` = 1,退化为固定几何。默认 `false`(`AddCard` 没有搬运概念,不传)。
+ *   `AppCard` 与 `EditScreen.MissingCard` 都经这里画,两处同修。
  *   **绘制顺序**:聚焦描边先画、移动描边后画、盖在上面——两者都在缩放之外(同一个
  *   `drawBehind`,不是分成两次 `gtvFocusStroke`/`gtvAppFocusFrame` 调用叠链),不会因为
  *   `graphicsLayer` 在中间插了一刀而让后画的移动描边被意外裹进缩放里。
@@ -222,14 +227,24 @@ fun Modifier.gtvAppFocusFrame(
                 )
             }
             if (moving) {
-                // 与 gtvFocusStroke 的 moving 分支同一套固定几何,不随 scale 变化(见函数 KDoc)。
-                val out = GtvLayout.FOCUS_OUTSET.dp.toPx()
+                // 整枝审查 A(2026-09-22):外扩必须**跟着缩放后的边缘走**,与上面聚焦描边同一算法
+                // (growX/growY + 固定 dp),不能再是固定的布局框外 FOCUS_OUTSET——搬运中焦点恒在
+                // 被搬的卡上,scale 恒为 APP_FOCUS_SCALE,MEDIUM 卡横向外扩 153×0.05=7.65dp 已经
+                // 大于原来描边外缘的 6dp,左右整条被缩放后的卡片盖住,纵向也只露 1.5dp——这条描边
+                // 在它唯一该出现的场景里几乎不可见。现在描边中心线在缩放后边缘外 FOCUS_OUTSET 处,
+                // 正好贴在聚焦描边(外缘 = 缩放后边缘 + APP_FOCUS_GAP + APP_FOCUS_STROKE = 4dp)
+                // 的外侧、不重叠。未聚焦时 scale = 1,退化为原来的固定几何。
+                val growX = size.width * (scale - 1f) / 2f
+                val growY = size.height * (scale - 1f) / 2f
+                val outset = GtvLayout.FOCUS_OUTSET.dp.toPx()
                 val w = GtvLayout.FOCUS_STROKE.dp.toPx()
-                val r = corner.toPx() + out
+                val outX = growX + outset
+                val outY = growY + outset
+                val r = corner.toPx() + (outX + outY) / 2f
                 drawRoundRect(
                     color = movingColor,
-                    topLeft = Offset(-out, -out),
-                    size = Size(size.width + 2 * out, size.height + 2 * out),
+                    topLeft = Offset(-outX, -outY),
+                    size = Size(size.width + 2 * outX, size.height + 2 * outY),
                     cornerRadius = CornerRadius(r, r),
                     style = Stroke(width = w),
                 )
