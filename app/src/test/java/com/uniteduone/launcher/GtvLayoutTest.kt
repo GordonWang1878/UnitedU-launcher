@@ -126,7 +126,7 @@ class GtvLayoutTest {
         assertEquals(0f, down, 0f)
         assertEquals(0f, next(down, 0, rows = 2), 0f)
         assertEquals(0f, next(0f, 1, rows = 2), 0f)
-        // 壁纸上层 alpha 随位移:位移 0 → 全亮,不淡
+        // 壁纸 alpha 随位移(R45 单层):位移 0 → 全亮,不淡
         assertEquals(1f, GtvLayout.wallpaperAlpha(down), 0f)
     }
 
@@ -178,21 +178,21 @@ class GtvLayoutTest {
         assertEquals(GtvLayout.TOP_SAFE, top(1) + next(0f, 1, h = 200f), 0.01f)
     }
 
-    @Test fun `R35+R36 两层壁纸——上层随整页淡到 0,底层常驻 20% 影子`() {
+    @Test fun `R45 单层壁纸——alpha 随位移从 1 线性降到 20%,不位移`() {
         assertEquals(GtvLayout.HERO_HEIGHT, GtvLayout.WALLPAPER_FADE_OVER_DP, 0f)
-        // 底层常量:owner 给的 20%。浏览态看到的影子就是它(上层已淡完)。
         assertEquals(0.20f, GtvLayout.WALLPAPER_BROWSE_ALPHA, 0f)
-        // 上层:0 全亮,一个 hero 高度淡完,一半 0.5,越界夹紧,按绝对值算。
+        val d = GtvLayout.WALLPAPER_FADE_OVER_DP
+        // 0 → 1(静止态全亮)、FADE_OVER → 0.2、一半 → 0.6;越界夹紧;按绝对值算。
         assertEquals(1f, GtvLayout.wallpaperAlpha(0f), 0f)
-        assertEquals(0f, GtvLayout.wallpaperAlpha(-GtvLayout.HERO_HEIGHT), 1e-6f)
-        assertEquals(0.5f, GtvLayout.wallpaperAlpha(-GtvLayout.HERO_HEIGHT / 2f), 1e-6f)
-        assertEquals(0f, GtvLayout.wallpaperAlpha(-1000f), 1e-6f)
-        assertEquals(0.5f, GtvLayout.wallpaperAlpha(GtvLayout.HERO_HEIGHT / 2f), 1e-6f)
-        val shift1 = GtvLayout.pageShiftY(1, GtvCardSize.MEDIUM, showTitles = false)
-        assertTrue(-shift1 > GtvLayout.HERO_HEIGHT)
-        assertEquals(0f, GtvLayout.wallpaperAlpha(shift1), 1e-6f)
+        assertEquals(0.2f, GtvLayout.wallpaperAlpha(-d), 1e-6f)
+        assertEquals(0.6f, GtvLayout.wallpaperAlpha(-d / 2f), 1e-6f)
+        assertEquals(0.2f, GtvLayout.wallpaperAlpha(-1000f), 1e-6f)
+        assertEquals(0.6f, GtvLayout.wallpaperAlpha(d / 2f), 1e-6f)
+        assertEquals(1f, GtvLayout.wallpaperAlpha(1e-9f), 1e-6f)
+        // 单调不增,且永远不低于 0.2(浏览态保留两成壁纸)。
         val samples = (0..20).map { GtvLayout.wallpaperAlpha(-it * 20f) }
         assertTrue(samples.zipWithNext().all { (x, y) -> y <= x })
+        assertTrue(samples.all { it >= GtvLayout.WALLPAPER_BROWSE_ALPHA - 1e-6f })
     }
 
     @Test fun `R43 行标题焦点态常量 + restTitleTop 与 restCardTop 同源`() {

@@ -538,12 +538,11 @@ class MainActivity : ComponentActivity() {
             // prepare() 在首启/升级那一趟会往 settings.json 写 wallpaperFile,而 homeSettings
             // 是在此之前读的;不重读的话,从 M2 升上来、开着「跟随壁纸主色」的用户整个首次会话
             // 都看不到壁纸主色(见 Wallpapers.prepare 的 KDoc)。
-            // R35:offsetY / alpha 以 lambda 传入,Wallpaper 在布局 / 绘制阶段读,动画每帧不重组它。
+            // R45:壁纸单层、不位移,只有 alpha 随整页位移变暗;以 lambda 传入,绘制阶段读,动画每帧不重组它。
             Wallpaper(
                 this@MainActivity,
                 wallpaperSpec,
                 onSettingsChanged = { settingsRevision++ },
-                offsetY = { pageShift },
                 alpha = { GtvLayout.wallpaperAlpha(pageShift.value) },
             )
             // 自定义屏保层(M5 spec §1.4 第 2 层):只看 screensaverActive。不再因「不淡出」不组合——

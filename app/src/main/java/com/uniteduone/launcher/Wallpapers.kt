@@ -8,7 +8,6 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -16,9 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -358,23 +354,23 @@ object Wallpapers {
  * 那一层整棵拆掉重建,壁纸若跟着走就要每次重解一张 1920×1080,期间纯黑——退出时黑闪一下。
  * key 只有 spec:换图 / 改参数 / 轮播都只换位图;新图就绪前旧图原样留着,再交叉淡入过去。
  *
- * **Ruling R35(2026-09-22)**:壁纸随首页整页位移一起上移并淡出(R36 起淡到 `GtvLayout.WALLPAPER_BROWSE_ALPHA`
- * 0.2 而不是 0,留两成影子)。正因为它住在这一层、不在
- * HomeScreen 被位移的 Column 里,R32 的整页位移搬不动它(owner 真机:「英雄区还是不动」——在我们
- * 这里 hero 区就是壁纸本身,B3)。所以位移量由 HomeScreen 每帧上报、MainActivity 持有,再从这两个
- * lambda 喂进来:
- * - [offsetY]:首页整页位移(R42 起由 `GtvLayout.nextPageShiftY` 给目标,dp,≤ 0 表示上移),原样作 `offset` 用;上移后
- *   底部露出的是 MainActivity 根 Box 的黑底。
- * - [alpha]:`GtvLayout.wallpaperAlpha(offsetY)`,由调用方算好传入。
- * 两者都以 lambda 的形式在布局 / 绘制阶段读取(`Modifier.offset {}` + `graphicsLayer {}`),动画的
- * 每一帧只重排位置与图层透明度,**不重组**这个 composable、更不重解位图。壁纸容器保持全屏不变。
+ * **Ruling R45(2026-09-22,取代 R35 的「壁纸随整页上移」与 R36 的两层方案)**:壁纸**单层、原地不动**,
+ * 只随首页整页位移变暗。owner 真机:「右边的壁纸有双重的残影,这很恐怖:我移上去的时候,龙猫会向上移,
+ * 但它原来位置上留了一个残影。」R36 是两层同一位图(上层随页面 1:1 上移并淡出、底层原地常驻 20%),
+ * R42 最小位移后常常只移几十 dp,上层淡不完,两只错位的龙猫同时可见——只要两份错位副本同时可见就必然
+ * 残影,所以撤掉的是方案本身。Google 实测(`docs/screenshots/gtv/22-google-backdrop-static-while-scrolling.jpg`,
+ * launcherx 录像 #12/#13/#14、#26/#28/#30):上下滚动时 backdrop 图原地一动不动,只变暗 / 换图。
+ *
+ * 位移量仍由 HomeScreen 每帧上报、MainActivity 持有,但只用来算 [alpha]:
+ * `GtvLayout.wallpaperAlpha(pageShift)`,1 → `GtvLayout.WALLPAPER_BROWSE_ALPHA`(0.2)。以 lambda 的形式
+ * 在绘制阶段读取(`graphicsLayer {}`),动画每一帧只改图层透明度,**不重组**这个 composable、更不重解位图。
+ * 静止态(位移 0)alpha 1、无位移、取景不变,与 R35 之前逐像素一致。
  */
 @Composable
 fun Wallpaper(
     ctx: Context,
     spec: WallpaperSpec,
     onSettingsChanged: () -> Unit = {},
-    offsetY: () -> Dp = { 0.dp },
     alpha: () -> Float = { 1f },
 ) {
     // produceState 的 remember 不带 key:spec 变时只重启生产者,旧值留着 → 不闪黑
@@ -391,27 +387,15 @@ fun Wallpaper(
         animationSpec = tween(Theme.WallpaperCrossfadeMs),
         label = "wallpaperCrossfade",
     ) { bitmap ->
-        val img = bitmap.asImageBitmap()
-        // R36 修正(2026-09-22,owner 指出「把壁纸画高是作弊」):**两层同一张图、同一个取景**。
-        // 底层原样全屏、永远不动,常驻 WALLPAPER_BROWSE_ALPHA(20%)——浏览态透出来的就是这道影子;
-        // 上层跟整页一起上滑(hero 真的滑走),滑过一个 hero 高度淡完(alpha() → 0)。静止时上层 alpha 1、
-        // 位置 0,把底层完全盖住,画面与改动前逐像素一致。**不许**为了浏览态改动静止态的取景
-        // (放大、画高、裁边都算),那次被否的做法就是把壁纸画高 192 dp,静止时整张图被放大约 18%。
+        // R45:**单层、不位移**。R36 的「底层常驻 20% + 上层随页面上移淡出」两层会在小位移时露出两份
+        // 错位的图(owner:「双重的残影」),已删除。**仍然不许**为了浏览态改动静止态的取景
+        // (放大、画高、裁边都算;R36 修正时被否的做法是把壁纸画高 192 dp,静止时整张图被放大约 18%)。
         Image(
-            bitmap = img,
+            bitmap = bitmap.asImageBitmap(),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer { this.alpha = GtvLayout.WALLPAPER_BROWSE_ALPHA },
-        )
-        Image(
-            bitmap = img,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxSize()
-                .offset { IntOffset(0, offsetY().roundToPx()) }
                 .graphicsLayer { this.alpha = alpha() },
         )
     }

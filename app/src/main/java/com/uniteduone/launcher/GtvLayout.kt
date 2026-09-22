@@ -803,6 +803,17 @@ object GtvLayout {
     const val ROW_TITLE_FOCUS_MS = 300
 
     /**
+     * **Ruling R45(2026-09-22,owner 真机反馈,取代 R35「壁纸跟页面上移」与 R36 两层方案)**:壁纸**单层、
+     * 不位移**,只按整页位移调暗。owner 原话:「右边的壁纸有双重的残影,这很恐怖:我移上去的时候,龙猫会
+     * 向上移,但它原来位置上留了一个残影。」根因是 R36 的两层同一位图——上层随整页 1:1 上移并在本距离内
+     * 淡出、底层原地常驻 20%;R42 最小位移后常常只移几十 dp,上层淡不完,两份错位的副本同时可见。
+     * 只要两份错位副本同时可见就必然残影,所以换方案而不是调参数。
+     * Google 实测(`docs/screenshots/gtv/22-google-backdrop-static-while-scrolling.jpg`,launcherx 录像
+     * #12/#13/#14、#26/#28/#30):上下滚动时 backdrop 图**原地一动不动**,往上走的只有 hero 文字和各行
+     * 内容,图只变暗 / 换图。
+     *
+     * 下面是 R35 的原始依据,「距离」这一半沿用,「随页面上移」这一半已被 R45 撤销:
+     *
      * **Ruling R35(2026-09-22,owner 真机反馈 Round 10)**:壁纸随整页位移淡到黑所用的距离(dp)。
      * 页面上滑 [pageShiftY] 这么多时壁纸的 alpha 由 1 线性降到 0;取 [HERO_HEIGHT],即页面滑过
      * 一个 hero 高度(行 1 落到 [BROWSE_ROW_ANCHOR] 之前就已走完)壁纸恰好完全淡出。
@@ -815,6 +826,7 @@ object GtvLayout {
      *
      * **owner 若想浏览态仍保留壁纸**:改的是 [wallpaperAlpha] 的终值,不是这个距离——R36 已这么做
      * (终值 [WALLPAPER_BROWSE_ALPHA] 0.2);R24 那层本身固定在屏幕坐标上、不随位移走,保持不动。
+     * R45 起壁纸本身也不随位移走,只有 alpha 按这个距离从 1 降到 [WALLPAPER_BROWSE_ALPHA]。
      */
     const val WALLPAPER_FADE_OVER_DP = HERO_HEIGHT
 
@@ -826,15 +838,20 @@ object GtvLayout {
      *
      * 是**线性插值到 0.2**(`1 → 0.2`),不是「原曲线再乘 0.2」——后者在位移 0 时也会把静止态的壁纸
      * 压到 0.2,静止态(hero 露出)壁纸必须是全亮的。
+     *
+     * R36 当时用「底层常驻 0.2 + 上层随页面上移淡到 0」两层叠出这个终值;R45 删掉了两层(残影),
+     * 终值改由单层的 [wallpaperAlpha] 直接插值到这里。
      */
     const val WALLPAPER_BROWSE_ALPHA = 0.20f
 
     /**
-     * R35:整页位移 [shiftDp](与 [pageShiftY] 同一个量,≤ 0 表示上移;正负都按绝对值算,调用方不必
-     * 关心符号)对应的壁纸 alpha:`1 − (1 − WALLPAPER_BROWSE_ALPHA) × clamp(|shift| / WALLPAPER_FADE_OVER_DP, 0, 1)`,
-     * 即从 1 线性降到 [WALLPAPER_BROWSE_ALPHA](R36,此前终值是 0)。
-     * 每帧的动画值都经这里换算,壁纸的位移与淡出和卡片行走同一根弹簧曲线(`Theme.browseShiftSpec`)。
+     * R45:整页位移 [shiftDp](与 [pageShiftY] 同一个量,≤ 0 表示上移;正负都按绝对值算,调用方不必
+     * 关心符号)对应的**单层**壁纸 alpha:
+     * `1 − (1 − WALLPAPER_BROWSE_ALPHA) × clamp(|shift| / WALLPAPER_FADE_OVER_DP, 0, 1)`,
+     * 即从 1 线性降到 [WALLPAPER_BROWSE_ALPHA]。壁纸不再位移(R45),只有这一个量随页面变;
+     * 每帧的动画值都经这里换算,变暗与卡片行走同一根弹簧曲线(`Theme.browseShiftSpec`)。
+     * (R36 版本这里返回的是上层 alpha 1 → 0,终值 0.2 靠底层常驻层叠出来。)
      */
     fun wallpaperAlpha(shiftDp: Float): Float =
-        1f - (kotlin.math.abs(shiftDp) / WALLPAPER_FADE_OVER_DP).coerceIn(0f, 1f)
+        1f - (1f - WALLPAPER_BROWSE_ALPHA) * (kotlin.math.abs(shiftDp) / WALLPAPER_FADE_OVER_DP).coerceIn(0f, 1f)
 }
