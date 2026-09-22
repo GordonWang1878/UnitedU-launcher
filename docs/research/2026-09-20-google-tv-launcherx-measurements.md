@@ -257,6 +257,21 @@ APK 里有一条**专门命名给浏览用**的插值器:
 
    **局限,如实记**:①匹配靠"值相等",同一区间内若有多条值相同的条目,名字可能在它们之间错位——但值本身不会错(只匹配相等值),所以"X 的值是多少"这类查询仍可靠,除非 X 恰好改了值又被同值邻居顶替;②「同名改值」候选表只报锚点间旧新未匹配数相等且单位一致的,即便如此仍需人工核(`top_nav_icon_size 30→86dp` 这种一看就不对的也会进表);③ string 只对上 4.9%,因为英文文案在 `split_config.en.apk` 里、base 里几乎没有——不影响,我们不查 string。
 
+5. **第三方镜像站的中间版本(2026-09-22 已试,否定)**:APKMirror 上
+   [Google TV Home 的版本史](https://www.apkmirror.com/apk/google-inc/google-tv-home-android-tv/)
+   一路到目标版。经 Gordon 批准下了 1.0.708496270(2025-01;内嵌浏览器不落盘、curl 被 Cloudflare
+   人机校验挡住且不绕,最后用 Chrome 下的):**它也被抹了**(有名 5 / 被抹 14225)。Play 渠道在
+   595789376 之后不久就开了收拢,中间只剩 616930155,即便有名也只比手上那份新一点,不值得再下。
+   **595789376 是最后一份有名字的官方构建。** 下载件已删。签名核对那步 apksigner 没跑出来
+   (调用前没 `source scripts/env.sh`),文件既已弃用不补;以后从第三方站拿 APK,签名比对先跑通再看内容。
+
+**搜索线(Gordon 要求「别闭门造车,看别人怎么解决」)**:
+- Google 自己的 [Life of an Android Resource](https://chromium.googlesource.com/chromium/src/build/+/HEAD/android/docs/life_of_a_resource.md)
+  明说 R.txt 保存 ID→名字映射,「官方构建的 R.txt,**Googler** 可在归档 APK 旁拿到」——对照表存在,只对内部开放;
+  Play 的 `edits.deobfuscationfiles` 是给应用所有者**上传**映射的接口。
+- JEB / jadx / apktool 都只做到「遇到抹名资源不崩」,没有任何工具能还原名字——字符串已不在文件里。
+- 没看到别人发表过「按 aapt2 字母序对齐旧版」这个办法,但它就是 aapt2 的排序规则,不玄。
+
 **取数顺序据此修订**(替换 §10c 末尾那条):**先查对齐表 `launcherx-1.0.976298245-named-resources.md`(目标版自己的值、带名字)→ 表里没有或标了「新增」的,用旧版名字定位候选 + 目标版像素实测确认 → 占位值并注明**。像素实测只用来解决「两版之间确实变了」的那几项(例如 app 卡聚焦倍率旧版 1.14、目标版 1.105),不再用来问「Google 这个参数是多少」。
 
 ## 附:截图
