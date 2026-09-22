@@ -585,6 +585,62 @@ object GtvLayout {
         ROW_TITLE_LINE + ROW_TITLE_TO_CARD + 2f * (FOCUS_OUTSET + FOCUS_STROKE) +
             cardHeight(size) + titleHeight(showTitles) + ROW_GAP
 
+    /** **Ruling R32 之前**的首页纵向位移:只按行数累加 pitch,hero 的空间始终留着(行 0 静止在
+     *  hero 下方,切到行 1 时行 1 也落在同一个位置)。R32 起首页改读 [pageShiftY],这个函数保留给
+     *  单测与「每行再移一个 pitch」这一半的推导(pageShiftY 的 activeRow ≥ 1 分支就是它再加一段
+     *  常量);gtv 线目前没有别的调用点。 */
     fun rowShiftY(activeRow: Int, size: GtvCardSize, showTitles: Boolean): Float =
         -activeRow.coerceAtLeast(0) * rowPitch(size, showTitles)
+
+    /**
+     * **Ruling R32(2026-09-22,owner 真机反馈 Round 9)**:浏览态(焦点在行 1 及以下)焦点行钉住的
+     * 屏幕 y(dp)——量的是**焦点行的卡片布局框顶边**(未缩放的 a11y bounds 顶边,不是行标题顶),
+     * 出处 `docs/research/2026-09-20-google-tv-launcherx-measurements.md` §8b:launcherx 从
+     * 「Your apps」行起连按三次下键,焦点卡 a11y bounds 恒为 `[116,240][268,392]`,y = 240 px =
+     * **120 dp**,一次不差;`docs/screenshots/gtv/09-apps-row-focused.jpg` 可核——聚焦的「Live TV」
+     * 旁边未缩放的「YouTube」图块顶边正在 240 px,「Your apps」标题在它上面(约 130–185 px),
+     * 所以 240 是卡顶不是标题顶。
+     *
+     * owner 原话:「我往下滑,页面整体往上滑(包括英雄区也是整体往上滑)」——此前只有行块按
+     * [rowPitch] 平移、hero 那 192 dp 的空间永远留着,每次只动 ~143 dp、像「一下一下」;现在
+     * 整个内容块(hero 顶到最后一行)按 [pageShiftY] 一起走,行 1 直接落到这条锚线上。
+     *
+     * 静止态(焦点在行 0 或顶栏)**不用这条锚**:行 0 仍在 hero 下方(见 [ROWS_TOP]),与现状一致。
+     * 顶栏按 R21 不折叠、不动(Google 会折叠,owner 明确说过不要)。
+     *
+     * **副作用要知道(如实记录,不是 bug)**:锚在 120 dp、顶栏占 34–70 dp,浏览态下焦点行的标题
+     * 行盒落在 80.5–100.5 dp,与顶栏只隔 10.5 dp;上一行的卡片会有 65.5 dp 露在屏幕顶部、压在
+     * 顶栏药丸下面(Google 只露约 20 dp,差别来自它的行标题区更高)。owner 看真机不满意时,调的
+     * 是这个常量,不是 [pageShiftY] 的公式。
+     */
+    const val BROWSE_ROW_ANCHOR = 120f
+
+    /** 行 0 的**行标题顶边**在静止态的屏幕 y(dp)= 顶栏 + hero:`HomeScreen` 那根被位移的 Column
+     *  的 `padding(top)` 就是这个值(hero 的空间以 padding 的形式放在 Column **内**、`offset` 之外,
+     *  所以位移时 hero 跟着一起走——R32 要的「整页位移」靠的正是这个顺序,不要把 padding 挪到
+     *  offset 外面)。 */
+    const val ROWS_TOP = TOP_BAR_TOP + TOP_BAR_HEIGHT + HERO_HEIGHT
+
+    /** 一行内部,从行标题顶边到卡片布局框顶边的距离(dp):标题行盒 + 标题到卡 + 上侧描边留白
+     *  (`rowVerticalPad` = FOCUS_OUTSET + FOCUS_STROKE)。与 [rowPitch] 前三项同源,`CategoryRow`
+     *  的渲染顺序就是这三段。 */
+    const val ROW_CARD_TOP = ROW_TITLE_LINE + ROW_TITLE_TO_CARD + FOCUS_OUTSET + FOCUS_STROKE
+
+    /** 行 [row] 的卡片布局框顶边在**静止态**(位移 0)的屏幕 y(dp)。 */
+    fun restCardTop(row: Int, size: GtvCardSize, showTitles: Boolean): Float =
+        ROWS_TOP + ROW_CARD_TOP + row.coerceAtLeast(0) * rowPitch(size, showTitles)
+
+    /**
+     * R32 的首页整页纵向位移(dp,≤ 0):`HomeScreen` 里装着 hero 空间与全部行的那根 Column 的
+     * `offset(y)`。
+     * - `activeRow ≤ 0`(焦点在行 0 或顶栏)→ 0:静止态,hero 露出,行 0 在 hero 下方。
+     * - `activeRow ≥ 1` → 让该行的卡顶落到 [BROWSE_ROW_ANCHOR]:`ANCHOR − restCardTop(activeRow)`,
+     *   即 `−(ROWS_TOP + ROW_CARD_TOP − ANCHOR) − activeRow × rowPitch`;行 1 一次走
+     *   ROWS_TOP + ROW_CARD_TOP − ANCHOR + pitch(中档不显示标题:181.5 + 140.5625 = 322.06),
+     *   之后每行再走一个 pitch([rowShiftY] 那一半)。往上回到行 0 时整体复原、hero 重新露出。
+     *
+     * 与 [rowShiftX] 一样不含 Compose 类型,`GtvLayoutTest` 钉住三个行号的值。
+     */
+    fun pageShiftY(activeRow: Int, size: GtvCardSize, showTitles: Boolean): Float =
+        if (activeRow <= 0) 0f else BROWSE_ROW_ANCHOR - restCardTop(activeRow, size, showTitles)
 }

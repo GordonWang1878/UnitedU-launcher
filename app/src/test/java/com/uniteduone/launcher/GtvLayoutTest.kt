@@ -79,6 +79,36 @@ class GtvLayoutTest {
         assertEquals(-281.125f, GtvLayout.rowShiftY(2, GtvCardSize.MEDIUM, showTitles = false), 0.3f)
     }
 
+    // Ruling R32(owner 反馈 Round 9):整页位移——行 1 及以下的卡顶钉到 BROWSE_ROW_ANCHOR(120dp,
+    // §8b 的 y=240px 是卡片 a11y bounds 顶边),行 0 静止态不动、hero 露出。三个行号逐个钉住。
+    @Test fun `R32 整页位移——行 0 为 0,行 1 = 行 1 静止卡顶 − 锚点,行 2 再加一个 pitch`() {
+        val pitch = GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = false)
+        assertEquals(0f, GtvLayout.pageShiftY(0, GtvCardSize.MEDIUM, showTitles = false), 0f)
+        assertEquals("顶栏(activeRow 负值)与行 0 同为静止态", 0f, GtvLayout.pageShiftY(-1, GtvCardSize.MEDIUM, false), 0f)
+        // 行 1 静止卡顶 = 顶栏 34+36 + hero 192 + 行内 20+12.5+7 + 1 × pitch = 301.5 + 140.5625 = 442.0625
+        val rest1 = GtvLayout.restCardTop(1, GtvCardSize.MEDIUM, showTitles = false)
+        assertEquals(442.0625f, rest1, 0.01f)
+        val shift1 = GtvLayout.pageShiftY(1, GtvCardSize.MEDIUM, showTitles = false)
+        assertEquals(GtvLayout.BROWSE_ROW_ANCHOR - rest1, shift1, 0.01f)
+        assertEquals("行 1 一次走 hero+顶栏+行内卡顶−锚 + 1 pitch ≈ 322dp(量级 300+,不再是一格 143)", -322.0625f, shift1, 0.01f)
+        val shift2 = GtvLayout.pageShiftY(2, GtvCardSize.MEDIUM, showTitles = false)
+        assertEquals(shift1 - pitch, shift2, 0.01f)
+        // 不变量:位移后焦点行的卡顶恒在锚点上(与横向「焦点卡钉基准线」同构,§8b)
+        for (r in 1..5) {
+            val top = GtvLayout.restCardTop(r, GtvCardSize.MEDIUM, false) + GtvLayout.pageShiftY(r, GtvCardSize.MEDIUM, false)
+            assertEquals("行 $r 位移后卡顶", GtvLayout.BROWSE_ROW_ANCHOR, top, 0.01f)
+        }
+    }
+
+    @Test fun `R32 锚点在顶栏之下——浏览态焦点行的标题不与顶栏重叠`() {
+        // 焦点行标题顶 = 锚 − ROW_CARD_TOP = 120 − 39.5 = 80.5,顶栏底 = 34 + 36 = 70
+        val titleTop = GtvLayout.BROWSE_ROW_ANCHOR - GtvLayout.ROW_CARD_TOP
+        assertTrue("标题顶 $titleTop 应在顶栏底 ${GtvLayout.TOP_BAR_TOP + GtvLayout.TOP_BAR_HEIGHT} 之下",
+            titleTop > GtvLayout.TOP_BAR_TOP + GtvLayout.TOP_BAR_HEIGHT)
+        assertEquals(39.5f, GtvLayout.ROW_CARD_TOP, 0.01f)
+        assertEquals(262f, GtvLayout.ROWS_TOP, 0.01f)
+    }
+
     // Task 9b:CategoryRow 实际渲染的纵向每一项(标题行盒、标题到卡间距、焦点描边留白、卡高、
     // 行外间距)曾经各自散落在 HomeLayout 字面量与 GtvLayout 公式两处,互相对不上,累积成每行
     // 26.5dp 的漂移。这里刻意把 rowPitch() 该覆盖的每一项摊开重算一遍、不直接调 rowPitch() 本身

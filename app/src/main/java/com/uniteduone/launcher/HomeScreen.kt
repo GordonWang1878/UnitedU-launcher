@@ -331,13 +331,18 @@ fun HomeScreen(
     var activeRow by remember { mutableStateOf(0) }
 
     // 垂直位置自己算,不用 verticalScroll(铁律 1)。gtv 线:hero 区固定 192dp + 顶栏 34+36dp(spec §3/§4),
-    // 应用行顶部起点是这三个常量之和,不再是「屏高 × 2/3」(HomeLayout.anchorTop 那套比例锚点,main 线仍用)。
+    // 应用行顶部起点是这三个常量之和(GtvLayout.ROWS_TOP),不再是「屏高 × 2/3」(HomeLayout.anchorTop
+    // 那套比例锚点,main 线仍用)。
     val activeRowSafe = activeRow.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
-    val anchorTop = (GtvLayout.HERO_HEIGHT + GtvLayout.TOP_BAR_TOP + GtvLayout.TOP_BAR_HEIGHT).dp
+    val anchorTop = GtvLayout.ROWS_TOP.dp
     val shift by animateDpAsState(
-        // gtv 线:卡片尺寸已经改读 GtvLayout(见 cardSize),继续用 HomeLayout.shift 反算的行高
-        // 会跟实际卡高对不上,所以行距也一并换成 GtvLayout.rowShiftY(controller ruling R5)。
-        targetValue = GtvLayout.rowShiftY(activeRowSafe, cardSize, showTitles).dp,
+        // Ruling R32(owner 反馈 Round 9):整页位移——焦点从行 0 移到行 1 时,hero 空间 + 全部行
+        // 一起上移,把行 1 的卡顶钉到 GtvLayout.BROWSE_ROW_ANCHOR(120dp);再往下每行再走一个
+        // rowPitch;回到行 0 整体复原、hero 重新露出。此前读 rowShiftY(只按行数累加 pitch,hero
+        // 的空间永远留着,每次只动 ~143dp),owner 真机原话「一下一下」的根因就是它。公式与推导
+        // 见 GtvLayout.pageShiftY 的 KDoc。hero 的空间是下面 Column 的 padding(top)、在 offset
+        // 之内,所以它随这个 shift 一起走。
+        targetValue = GtvLayout.pageShiftY(activeRowSafe, cardSize, showTitles).dp,
         // Ruling R29(owner 反馈 Round 8):换行时整块内容的纵向平移 = Google TV 的 browse 手势,
         // 逐帧实测是先加速后减速的临界阻尼弹簧(R27 的 tv_easing_browse 是纯硬减速,对不上),
         // 四处位移共用 Theme.browseShiftSpec,依据见 GtvLayout.BROWSE_SPRING_STIFFNESS。
@@ -581,6 +586,8 @@ fun HomeScreen(
                 // 框架的焦点恢复 —— 症状是「醒来后按确定永远没反应」。待机的唤醒改由
                 // MainActivity.dispatchKeyEvent 吞掉第一下按键来实现,焦点全程不动。
                 .focusProperties { canFocus = !covered }
+                // R32:offset 在 padding 之外——padding(top = ROWS_TOP)就是 hero 的空间,它必须
+                // 随 shift 一起走(整页位移),两者顺序不能对调。
                 .offset(y = shift)
                 .padding(top = anchorTop),
             // gtv 线:行外间距改读 GtvLayout(Task 9b)——之前留读 HomeLayout.ROW_GAP(20dp)是
