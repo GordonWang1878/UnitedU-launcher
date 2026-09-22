@@ -158,7 +158,7 @@ object Theme {
     /** 焦点 / 位移动效:tv-material SurfaceScaleTokens 同一条减速曲线与进焦时长。
      *  **Ruling R27(2026-09-21)之后,gtv 分支上只剩图片选择器(`ImagePicker` 的网格翻页位移)
      *  这一个读者**——首页行位移(row shift x/y)与编辑页纵向位移已改读 [BrowseEasing] +
-     *  [GtvLayout.BROWSE_SHIFT_MS]。这两个常量**保留不删**:`main` 分支的 `HomeScreen`
+     *  [GtvLayout.BROWSE_SHIFT_MS],R29(2026-09-22)起再改为 [browseShiftSpec] 的弹簧。这两个常量**保留不删**:`main` 分支的 `HomeScreen`
      *  (`HomeLayout` 那套行位移,三处)仍然逐字读它们,在这里删掉只会在合回去时凭空造冲突,
      *  而 main 线的动效不在本轮验收范围里。
      *
@@ -187,6 +187,23 @@ object Theme {
      *   **owner 反馈 Round 7 已核实我们这一条与 Google 逐字相同,不要动它。**
      */
     val BrowseEasing = androidx.compose.animation.core.CubicBezierEasing(0.18f, 1f, 0.22f, 1f)
+
+    /**
+     * **Ruling R29(2026-09-22,owner 真机反馈 Round 8)**:浏览位移(首页行 x/y、编辑页纵向 /
+     * 行内横向,四处)的动画规格——临界阻尼弹簧,取代 R27 的 `tween(BROWSE_SHIFT_MS, BrowseEasing)`。
+     * 依据、拟合过程与「这不是资源原值」的说明见 [GtvLayout.BROWSE_SPRING_STIFFNESS] 的 KDoc。
+     * [BrowseEasing] 自此在 gtv 线没有调用点,保留作 R27 的记录(那条曲线本身是真的,只是不是
+     * 行位移用的那条);别把它接回位移上。
+     *
+     * 四处调用点必须都读这一个工厂,不各自写 `spring(...)`——`GtvMotionTest` 钉的是这个工厂的
+     * 三个参数,调用点自己写就脱离了测试。
+     */
+    fun browseShiftSpec(): androidx.compose.animation.core.SpringSpec<Dp> =
+        androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+            stiffness = GtvLayout.BROWSE_SPRING_STIFFNESS,
+            visibilityThreshold = GtvLayout.BROWSE_SPRING_THRESHOLD_DP.dp,
+        )
 
     /**
      * owner 反馈 Round 4(2026-09-21):Google 的 app tile 聚焦动画的真实插值器,从旧版 launcherx

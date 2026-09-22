@@ -235,7 +235,7 @@ object GtvLayout {
     const val FOCUS_FADE_OUT_MS = 150
 
     /**
-     * **Ruling R27(2026-09-21,owner 真机反馈 Round 7)**:浏览位移(**四处**:首页行 x/y 平移、
+     * **Ruling R27(2026-09-21,owner 真机反馈 Round 7;R29 已取代,见下)**:浏览位移(**四处**:首页行 x/y 平移、
      * 编辑页纵向平移与行内横向平移——最后一处 2026-09-22 整枝审查 B 才补上,此前漏在默认 spring)
      * 的时长,配 [Theme.BrowseEasing] 一起用,取代此前的 `Theme.MotionInMs`(300ms,等同
      * Material 的 `material_motion_duration_long_1`,一个与 browse 无关的通用值)。
@@ -251,8 +251,39 @@ object GtvLayout {
      *   250ms 与 300ms 的差别落在单帧间隔量级以内,分辨不出来,不要拿它当佐证。
      *
      * 真的又量到更可靠的数字才改;不要凭手感往回调到 300。
+     *
+     * **Ruling R29(2026-09-22,owner 真机反馈 Round 8)起,行位移不再读这个常量**——改走
+     * [BROWSE_SPRING_STIFFNESS] 的临界阻尼弹簧(见那里)。保留这个常量只为记录 R27 的历史与
+     * 证据链,以及将来可能出现的其它 browse 场景(tween 形态的);gtv 线目前没有任何调用点。
      */
     const val BROWSE_SHIFT_MS = 250
+
+    /**
+     * **Ruling R29(2026-09-22,owner 真机反馈 Round 8)**:浏览位移(四处:首页行 x/y 平移、
+     * 编辑页纵向平移与行内横向平移)改用**临界阻尼弹簧**,取代 R27 的
+     * `tween(BROWSE_SHIFT_MS, BrowseEasing)`。
+     *
+     * **为什么 R27 用错了曲线**:owner 真机原话「Google 是带着一种加快又减慢的阻尼感去移动;
+     * 我们的是一下一下的、每次都很快」。对 Google TV 纵向位移逐帧实测的归一化轨迹(12 帧):
+     * 0.18, 0.28, 0.47, 0.72, 0.84, 0.91, 0.94, 0.97, 0.98, 0.995, 0.997, 1.0——**先加速后减速**。
+     * `tv_easing_browse`(0.18, 1, 0.22, 1)是纯硬减速(1/4 进度已走 85%),对不上这条轨迹;
+     * 拟合结果是临界阻尼弹簧误差 6%(最佳)。原因在于 Google 的行滚动走的是 RecyclerView 的
+     * smooth scroller,根本不经过那条插值器资源(它不吃 `animator_duration_scale` 已实证)——
+     * R27 拿到的曲线是真的,只是不是行位移用的那条。
+     *
+     * **这是拟合值,不是资源原值,证据强度要说清**:轨迹上 ω·t 在 12 帧内走到 ≈ 7(临界阻尼
+     * `1 − (1 + ωt)e^(−ωt)` 到 0.995 附近),帧率不稳、12 帧按 40–60 fps 折算为 200–300 ms,
+     * ω ≈ 7 / (0.2–0.3 s) ≈ 23–35 rad/s,stiffness = ω² ≈ 550–1200。取 **700**,落在 Compose
+     * 的 `Spring.StiffnessMediumLow`(400)与 `StiffnessMedium`(1500)之间。阻尼比取
+     * `Spring.DampingRatioNoBouncy`(1.0,临界阻尼,不过冲)。**owner 真机手感是最终判据**,
+     * 这个数字允许在 550–1200 之间按手感调;超出这个区间就不再是那条轨迹了。
+     *
+     * 曲线本身由 Compose 的 `spring()` 生成(`Theme.browseShiftSpec`),`animateDpAsState` 走
+     * spring 需要 `visibilityThreshold`,取 0.5 dp(半个 dp 以内视为到位,一像素以下肉眼不可辨)。
+     */
+    const val BROWSE_SPRING_STIFFNESS = 700f
+    /** [BROWSE_SPRING_STIFFNESS] 弹簧的收敛阈值(dp),见那里。 */
+    const val BROWSE_SPRING_THRESHOLD_DP = 0.5f
 
     /**
      * owner 反馈 Round 4:Google 对 **app tile**(不是 content card)的聚焦处理——放大,不是外扩

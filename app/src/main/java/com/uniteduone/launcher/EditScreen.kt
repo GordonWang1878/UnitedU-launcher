@@ -2,7 +2,6 @@ package com.uniteduone.launcher
 
 import android.content.Context
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.clickable
@@ -456,9 +455,9 @@ fun EditScreen(
     val shiftPx = if (firstRow == 0) 0 else headerPx + (0 until firstRow).sumOf { rowHeights[it] ?: pitchPx }
     val yShift by animateDpAsState(
         targetValue = with(density) { (-shiftPx).toDp() },
-        // Ruling R27(owner 反馈 Round 7):编辑页的纵向平移与首页换行是同一件事——焦点在网格里
-        // 移动、内容跟着平移,属 browse 手势,同样换成 Theme.BrowseEasing + BROWSE_SHIFT_MS。
-        animationSpec = tween(GtvLayout.BROWSE_SHIFT_MS, easing = Theme.BrowseEasing),
+        // Ruling R29(owner 反馈 Round 8,承 R27):编辑页的纵向平移与首页换行是同一件事——焦点在
+        // 网格里移动、内容跟着平移,属 browse 手势,同样走 Theme.browseShiftSpec 的临界阻尼弹簧。
+        animationSpec = Theme.browseShiftSpec(),
         label = "editYShift",
     )
 
@@ -639,9 +638,10 @@ fun EditScreen(
                     val over = right + Theme.SidePadding - LocalConfiguration.current.screenWidthDp.dp
                     val dx by animateDpAsState(
                         targetValue = if (over > 0.dp) -over else 0.dp,
-                        // Ruling R27(整枝审查 B 补漏):编辑页的横向位移与纵向位移、首页的 x/y 位移是
-                        // 同一个 browse 手势,此前漏在默认 spring 上,是 R27 四处调用点里唯一没换的一处。
-                        animationSpec = tween(GtvLayout.BROWSE_SHIFT_MS, easing = Theme.BrowseEasing),
+                        // Ruling R29(承 R27 / 整枝审查 B):编辑页的横向位移与纵向位移、首页的 x/y 位移是
+                        // 同一个 browse 手势,四处同读 Theme.browseShiftSpec(此前是 R27 的 tween;
+                        // 再之前漏在默认 spring 上——默认 spring 的 stiffness 是 1500,不是现在这根)。
+                        animationSpec = Theme.browseShiftSpec(),
                         label = "editRowX",
                     )
                     Row(

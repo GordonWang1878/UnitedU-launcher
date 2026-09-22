@@ -338,9 +338,10 @@ fun HomeScreen(
         // gtv 线:卡片尺寸已经改读 GtvLayout(见 cardSize),继续用 HomeLayout.shift 反算的行高
         // 会跟实际卡高对不上,所以行距也一并换成 GtvLayout.rowShiftY(controller ruling R5)。
         targetValue = GtvLayout.rowShiftY(activeRowSafe, cardSize, showTitles).dp,
-        // Ruling R27(owner 反馈 Round 7):换行时整块内容的纵向平移 = Google TV 的 browse 手势,
-        // 用 Google 自己那条 `tv_easing_browse` + browse 档时长,不再用 Material 的通用减速曲线。
-        animationSpec = tween(GtvLayout.BROWSE_SHIFT_MS, easing = Theme.BrowseEasing),
+        // Ruling R29(owner 反馈 Round 8):换行时整块内容的纵向平移 = Google TV 的 browse 手势,
+        // 逐帧实测是先加速后减速的临界阻尼弹簧(R27 的 tv_easing_browse 是纯硬减速,对不上),
+        // 四处位移共用 Theme.browseShiftSpec,依据见 GtvLayout.BROWSE_SPRING_STIFFNESS。
+        animationSpec = Theme.browseShiftSpec(),
         label = "rowShift",
     )
     // **焦点看门狗。**判据取自真机日志:根节点的 onFocusChanged 里
@@ -840,9 +841,9 @@ private fun CategoryRow(
         val screenWidthDp = LocalConfiguration.current.screenWidthDp.toFloat()
         val xShift by animateDpAsState(
             targetValue = GtvLayout.rowShiftX(focused, cardSize, screenWidthDp).dp,
-            // Ruling R27(owner 反馈 Round 7):行内横向平移与上面的换行纵向平移是同一个 browse
-            // 手势的两个方向,同一条曲线同一个时长(见 Theme.BrowseEasing 的 KDoc)。
-            animationSpec = tween(GtvLayout.BROWSE_SHIFT_MS, easing = Theme.BrowseEasing),
+            // Ruling R29(owner 反馈 Round 8):行内横向平移与上面的换行纵向平移是同一个 browse
+            // 手势的两个方向,同一根弹簧(见 Theme.browseShiftSpec 的 KDoc)。
+            animationSpec = Theme.browseShiftSpec(),
             label = "rowXShift",
         )
         Row(
