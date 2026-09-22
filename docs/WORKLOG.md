@@ -1205,3 +1205,37 @@ worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs
 - 收尾把模拟器前台切回 Google TV(`launcherx`)供 Gordon 对比。
 - 报告:`.superpowers/sdd/2026-09-20-gtv-line/owner-feedback-fix-report.md`「Round 6」。本地提交,
   未推送(等 Gordon 说「推」)。
+
+## 2026-09-22 · gtv 整枝审查修复波:A–G + minor 六个 commit,存疑三条核实
+
+- **A `c5ceea4`**:`gtvAppFocusFrame` 的 `moving` 描边固定画在布局框外 5dp,被放大 1.10 倍后的卡片
+  (MEDIUM 横向外扩 7.65dp)整条盖住——搬运中焦点恒在被搬的卡上,这条描边在唯一该出现的场景里
+  从没露出过。改成 growX/growY + FOCUS_OUTSET,与聚焦描边同一算法、落在它外缘之外。`MissingCard`
+  与 `AppCard` 都经这一个函数画,一处改两处修(审查说「同病同修」,实际不需要第二处改动)。
+  模拟器搬运态四边逐像素:highlight 4px → accent 4px → 2dp 间隙 → 卡片,
+  `docs/screenshots/gtv-review-A-moving-stroke-visible.jpg`。
+- **B `3eb1069`**:编辑页行内横向 `animateDpAsState` 是 R27 四处里唯一漏在默认 spring 的;补
+  `tween(BROWSE_SHIFT_MS, BrowseEasing)`,`right` 判据加 `appFocusOverflow(cardWidth)`。
+- **C `b6a259a`**:`APP_FOCUS_SCALE` 1.105 → 1.10。依据 `docs/research/launcherx-1.0.976298245-named-resources.md`
+  fraction `0x7f0a0081` = 1.099976(目标版新增、未命名),同表 `*_card_focused_scale` 一族十余条同值;
+  1.105 是 152→168px 像素反推,±1px 即 ±0.007 倍,两者同一误差带,取资源原值。`app_card_focused_scale`
+  1.14 在目标版仍在但对不上实测(→173px),不用。测试期望值 12.0325/9.67/532.0325 → 11.65/9.4/531.65。
+- **D `91b32c7`**:spec §2/§3/§4/§5/§8/§11 按 R20–R28 重写,旧文删除线保留,每处标裁定编号。
+- **E/F/G + minor `7e68e12`**:R26 残留注释三处;R28 「30dp / 15 圈」→ 60dp / 30 圈;
+  `GtvFocusStroke` 那段「要对称得给焦点卡加 zIndex」是错的(`AppCard` 早有),改成如实两条不对称;
+  **跨行柔光模拟器实测**:焦点卡(row 2)柔光到上下两行卡片边界处已 ≤2/255(d≈48–55dp 在收尾段),
+  肉眼不可察,只改注释不加行容器 zIndex(`docs/screenshots/gtv-review-F-glow-cross-row.jpg`)。
+  `ROW_TITLE_TEXT = 14f` 新常量;`UnitedUDream` 时钟加 36dp 高度 + 垂直居中,与首页顶栏同位。
+- **存疑 3 `2add4ea`(复现即修)**:`edgeColor` 桶界撕票——0xDF/0xE0 各 30% + 40% 蓝,旧实现蓝当选。
+  修法:邻桶(RGB 各 ±1)合并计分选赢家簇,返回簇内核心桶的均值(不拉平整簇;另一条测试钉住
+  55% 白 + 45% 浅灰必须返回白)。296 tests(+2),0 failures。
+- **存疑 1(只报告)**:`showTitles=true` 时 MEDIUM/LARGE 聚焦描边**确实压在卡片标题字顶上**
+  (`q1-medium-titles.png`/`q1-large-titles.png` 在 scratchpad):描边外缘在卡片布局底下方 8.3/9.4dp,
+  而标题行盒只隔 `CARD_TITLE_GAP` 4dp,cap 顶正好在描边那一条上。
+- **存疑 2(只报告)**:亮壁纸(自造 ~240/255 米白)+ 待机 CLOCK_ONLY,顶栏小时钟 accent(208,188,255)
+  对比度 **1.46:1**,基本看不清;非待机时靠 R24 暗色背景也只有 1.90:1。内置 6 张壁纸都是暗底,
+  只有用户自选亮壁纸会撞上。
+- **审查判断存疑之处(报告里直说)**:E 建议的措辞「R26 起三处待机都画 ClockWordmark」与代码不符——
+  桌面自定义屏保(`Screensaver`)按 R23 不叠时钟,`HomeScreen.topBarClockAlpha` 在自定义屏保期间
+  淡到 0;R26 的 commit message 说「三处」是说过头了。注释按代码实情写(两处画、一处不叠)。
+- 模拟器:测完 settings.json / layout.json 还原、临时亮壁纸删除。未碰电视、未 push、未合 main。
