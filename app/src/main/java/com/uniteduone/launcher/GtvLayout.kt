@@ -97,17 +97,33 @@ object GtvLayout {
      *  `com.google.android.tvrecommendations` 没有 LAUNCHER 活动、被过滤成空行,没有渲染,不影响
      *  另外三个的置信度——`cmd package query-activities` 核实过,不是猜测)。
      *
-     *  字号本身是 [ROW_TITLE_TEXT](14sp);这个行盒高只对那个字号成立,两者要一起改一起测。
+     *  字号本身是 14sp(R25);这个行盒高只对那个字号成立,两者要一起改一起测。
      *
-     *  `rowPitch` 与依赖它的 `GtvLayoutTest` 三处断言值随之变化(143.5625→140.5625、
-     *  -287.125→-281.125、167.5625→164.5625),这是同一条公式在换了正确输入之后的正确结果,
-     *  不是需要另外吸收的偏差,不要为了凑回旧值而改动这个常量或公式。 */
+     *  **Ruling R48(2026-09-22)起首页不再画行标题**(见 [ROW_ICON_SIZE]),`rowPitch` 不再含这一项;
+     *  这个常量只剩编辑页的行标题行盒(`EditScreen`,13sp)与 `RowIcon` 默认图标框在读。
+     *  R48 同时删掉了只有首页行标题在用的 `ROW_TITLE_TEXT`(14sp)、`ROW_TITLE_TO_CARD`(12.5dp)、
+     *  `ROW_TITLE_ICON_GAP`(8dp)、`ROW_TITLE_FOCUS_SCALE`(1.78)、`ROW_TITLE_CAP_EM`(0.711)。 */
     const val ROW_TITLE_LINE = 20f
-    /** 行标题字号(sp)。Ruling R25 从 16 改回 14;[ROW_TITLE_LINE] 是在**这个字号**下装机实测的
-     *  CJK 行盒高,两者绑定——改了字号必须重测行盒,不能按比例折算。此前 `HomeScreen` 写的是
-     *  `14.sp` 字面量,整枝审查 G(2026-09-22)搬进来。 */
-    const val ROW_TITLE_TEXT = 14f
-    const val ROW_TITLE_TO_CARD = 12.5f
+    /**
+     * **Ruling R48(2026-09-22)**:首页行图标的方框边长(dp)。owner 原话:「可不可以不要行标题?……
+     * 把行图标留着:1. 图标和应用卡片放在同一行内,纵向居中,放在最左边;2. 不再以标题的形式呈现,
+     * 只要一个图标,不要文字。」owner 看过效果图后选 **A2**(`docs/screenshots/mockups/A2-no-title-icon-in-margin.jpg`):
+     * 图标画在左侧边距里,水平中心 x = [CONTENT_KEYLINE] / 2(29 dp),纵向与本行卡片中心对齐。
+     *
+     * 尺寸来源:效果图里的图标是 R48 之前行标题图标(方框 [ROW_TITLE_LINE] = 20 dp,Material 24 格
+     * 视口)的 **×1.3** = 26 dp 方框。核对:效果图(1920 px 宽,2 px/dp)里胶片图标墨迹高 ≈ 40 px =
+     * 20 dp;`Icons.Filled.Theaters` 墨迹占视口 18/24,26 dp 方框的墨迹 = 19.5 dp,与效果图一致。
+     * 焦点行近白、其余行灰(R46 的两色,[GtvTokens.RowIconFocused]/[GtvTokens.RowIconIdle]),
+     * 走 `Theme.rowTitleFocusSpec()` 那根弹簧过渡,**不缩放**。
+     */
+    const val ROW_ICON_SIZE = 26f
+    /**
+     * **Ruling R48**:hero 底到行 0 布局块顶之间保留的空白(dp)。效果图 A2 的说明是「卡片位置不动,
+     * 行距收紧 32dp」——行 0 的卡片仍在 R48 之前的位置(静止卡顶 301.5 dp),所以原来行 0 标题带
+     * (标题行盒 20 + 标题到卡 12.5 = 32.5 dp)那一段留作 hero 底边距;行与行之间的同一段则去掉,
+     * 每行 [rowPitch] 少 32.5 dp。
+     */
+    const val ROWS_LEAD = 32.5f
     /** Fix round 1(R15,2026-09-20):**125.5 dp 同样是 Google 用 Latin 量出来的行距,对中文标题不
      *  成立,不要试图凑回这个数。** 沿用它会把 `ROW_GAP` 推到约 −10dp(23+12.5+14+86.06−125.5≈−10),
      *  而 `rowVerticalPad`(上下各 7dp)是货真价实要留给外扩焦点描边的空间——那么负的 `ROW_GAP` 会让
@@ -117,7 +133,11 @@ object GtvLayout {
      *  紧贴在 `Column` 顶部、前面不再有别的 padding。取 **8 dp**:比行内自己的 `ROW_TITLE_TO_CARD`
      *  (12.5dp)略窄,让一行标题在视觉上更贴近它自己那一行的卡片、不与上一行混淆,同时明显大于
      *  `FOCUS_STROKE`(2dp),保证聚焦描边与下一行标题之间总有可见的黑色间隙,不会贴到一起。
-     *  装机验证见 `task-9b-report.md` Fix round 1 一节。 */
+     *  装机验证见 `task-9b-report.md` Fix round 1 一节。
+     *
+     *  **R48 起**首页没有行标题,「行 N+1 标题行盒开始」变成「行 N+1 卡片行(含它上方 7dp 描边留白)
+     *  开始」:相邻两行卡片布局框之间 = 7 + 8 + 7 = 22 dp(卡片标题开着时再加标题高),焦点卡的纵向
+     *  溢出(LARGE 9.4 dp)仍小于 7 + 8,不碰下一行的留白带(`GtvLayoutTest`)。数值不变。 */
     const val ROW_GAP = 8f
     const val CARD_CORNER = 8f
     /** **内容卡**(content card,16:9 无边界推荐流那种)专用的焦点描边几何:画在布局框**外**
@@ -156,8 +176,6 @@ object GtvLayout {
      *  `.superpowers/sdd/2026-09-20-gtv-line/owner-feedback-fix-report.md`「Round 2 · Fix 1」与
      *  `docs/screenshots/gtv-owner-fix1-card-title-{clipped,fixed}-*.png` 的裁切前后对照。 */
     const val CARD_TITLE_LINE = 20f
-    /** 行标题图标与文字之间的间距(CategoryRow)。Fix 4(终审 2026-09-20)从字面量搬进来,数值不变。 */
-    const val ROW_TITLE_ICON_GAP = 8f
 
     /** 长按 / 齿轮菜单(GearMenu,Task 8):药丸尺寸,实测报告 §7,268×55 dp,全圆角(h/2)。 */
     const val MENU_ITEM_WIDTH = 268f
@@ -647,10 +665,12 @@ object GtvLayout {
      *  **Fix round 1(R15):中档、不显示标题时的返回值不再是 125.5——那是 Google 用 Latin 标题量出来的
      *  行距,`ROW_TITLE_LINE`/`ROW_GAP` 已经为了不裁切中文字形改成 CJK 实测值,现在是 143.5625。
      *  这不是需要修的偏差,是同一个公式在换了正确输入之后的正确结果;不要为了凑回 125.5 而改动
-     *  `ROW_TITLE_LINE`/`ROW_GAP`,见两个常量各自的 KDoc。** */
+     *  `ROW_TITLE_LINE`/`ROW_GAP`,见两个常量各自的 KDoc。**
+     *
+     *  **Ruling R48(2026-09-22)**:首页取消行标题,去掉标题行盒 20 + 标题到卡 12.5 = 32.5 dp;
+     *  中档不显示标题 140.5625 → **108.0625**(效果图 A2「行距收紧 32dp」)。 */
     fun rowPitch(size: GtvCardSize, showTitles: Boolean): Float =
-        ROW_TITLE_LINE + ROW_TITLE_TO_CARD + 2f * (FOCUS_OUTSET + FOCUS_STROKE) +
-            cardHeight(size) + titleHeight(showTitles) + ROW_GAP
+        2f * (FOCUS_OUTSET + FOCUS_STROKE) + cardHeight(size) + titleHeight(showTitles) + ROW_GAP
 
     /** **Ruling R32 之前**的首页纵向位移:只按行数累加 pitch,hero 的空间始终留着(行 0 静止在
      *  hero 下方,切到行 1 时行 1 也落在同一个位置)。R32 起首页改读 [pageShiftY],这个函数保留给
@@ -685,16 +705,16 @@ object GtvLayout {
      */
     const val BROWSE_ROW_ANCHOR = 120f
 
-    /** 行 0 的**行标题顶边**在静止态的屏幕 y(dp)= 顶栏 + hero:`HomeScreen` 那根被位移的 Column
+    /** 行 0 布局块顶边(R48 之前是行标题顶边)在静止态的屏幕 y(dp)= 顶栏 + hero + [ROWS_LEAD]:`HomeScreen` 那根被位移的 Column
      *  的 `padding(top)` 就是这个值(hero 的空间以 padding 的形式放在 Column **内**、`offset` 之外,
      *  所以位移时 hero 跟着一起走——R32 要的「整页位移」靠的正是这个顺序,不要把 padding 挪到
      *  offset 外面)。 */
-    const val ROWS_TOP = TOP_BAR_TOP + TOP_BAR_HEIGHT + HERO_HEIGHT
+    const val ROWS_TOP = TOP_BAR_TOP + TOP_BAR_HEIGHT + HERO_HEIGHT + ROWS_LEAD
 
-    /** 一行内部,从行标题顶边到卡片布局框顶边的距离(dp):标题行盒 + 标题到卡 + 上侧描边留白
-     *  (`rowVerticalPad` = FOCUS_OUTSET + FOCUS_STROKE)。与 [rowPitch] 前三项同源,`CategoryRow`
-     *  的渲染顺序就是这三段。 */
-    const val ROW_CARD_TOP = ROW_TITLE_LINE + ROW_TITLE_TO_CARD + FOCUS_OUTSET + FOCUS_STROKE
+    /** 一行内部,从行布局块顶边到卡片布局框顶边的距离(dp):上侧描边留白
+     *  (`rowVerticalPad` = FOCUS_OUTSET + FOCUS_STROKE)。R48 之前还有标题行盒 + 标题到卡两段(共 39.5),
+     *  现在只剩 7;`ROWS_TOP` 多出的 [ROWS_LEAD] 让行 0 的静止卡顶仍是 301.5 dp。 */
+    const val ROW_CARD_TOP = FOCUS_OUTSET + FOCUS_STROKE
 
     /** 行 [row] 的卡片布局框顶边在**静止态**(位移 0)的屏幕 y(dp)。 */
     fun restCardTop(row: Int, size: GtvCardSize, showTitles: Boolean): Float =
@@ -717,14 +737,16 @@ object GtvLayout {
     fun pageShiftY(activeRow: Int, size: GtvCardSize, showTitles: Boolean): Float =
         if (activeRow <= 0) 0f else BROWSE_ROW_ANCHOR - restCardTop(activeRow, size, showTitles)
 
-    /** R42:可见窗口上界(dp)——顶栏底再留 16:焦点行的行标题不压在顶栏药丸下面。 */
+    /** R42:可见窗口上界(dp)——顶栏底再留 16。R48 之前要露全的是焦点行的行标题行盒顶;R48 起没有
+     *  行标题,要露全的是焦点卡的**视觉**顶边(卡顶 − 聚焦放大与描边溢出,见 [restVisibleTop]),
+     *  数值不变。 */
     const val TOP_SAFE = TOP_BAR_TOP + TOP_BAR_HEIGHT + 16f
     /** R42:**需要上移时**下沿对齐的线离屏幕底边的留白(dp),取 [CONTENT_KEYLINE]——与 R20 横向右侧
      *  留白对称。注意它**不是**「要不要动」的判据:判据是屏幕物理底边(见 [nextPageShiftY])。 */
     const val BOTTOM_SAFE = CONTENT_KEYLINE
 
     /** R42:行 [row] 在静止态(位移 0)「需要可见」区间的下沿(dp):卡底 + 聚焦放大与描边的
-     *  纵向溢出([appFocusOverflow])+ 卡片标题([titleHeight],关掉时为 0)。上沿就是 [restTitleTop]。 */
+     *  纵向溢出([appFocusOverflow])+ 卡片标题([titleHeight],关掉时为 0)。上沿是 [restVisibleTop]。 */
     fun restRowVisibleBottom(row: Int, size: GtvCardSize, showTitles: Boolean): Float =
         restCardTop(row, size, showTitles) + cardHeight(size) + appFocusOverflow(cardHeight(size)) +
             titleHeight(showTitles)
@@ -742,7 +764,7 @@ object GtvLayout {
      * 不动):「明明完全显示得了,干嘛还要往上滚?滚动条的作用是当前画幅无法显示所有内容才上下滚动。」
      *
      * 规则(从上一次的位移 [prevShiftDp] 出发,只做最小修正):
-     * - 焦点行「需要可见」区间 = 行标题顶([restTitleTop])… [restRowVisibleBottom];
+     * - 焦点行「需要可见」区间 = [restVisibleTop](R48 前是行标题顶)… [restRowVisibleBottom];
      * - **要不要动**看画幅:下沿超出屏幕物理底边 `screenHeightDp` → 上移;上沿高过 [TOP_SAFE] → 下移。
      *   都没超 → 不动(同一行左右移、本来就完整可见的行,都不改位移);
      * - **动的话动到哪**:上移时下沿贴 `screenHeightDp − BOTTOM_SAFE`(底部留一条与 R20 右侧对称的
@@ -767,7 +789,7 @@ object GtvLayout {
         if (activeRow <= 0 || rowCount <= 1) return 0f
         val row = activeRow.coerceAtMost(rowCount - 1)
         val align = screenHeightDp - BOTTOM_SAFE
-        val top = restTitleTop(row, size, showTitles)
+        val top = restVisibleTop(row, size, showTitles)
         val bottom = restRowVisibleBottom(row, size, showTitles)
         var shift = prevShiftDp
         if (bottom + shift > screenHeightDp) shift = align - bottom
@@ -777,43 +799,21 @@ object GtvLayout {
         return shift.coerceIn(minShift, 0f)
     }
 
-    /** 行 [row] 的**行标题行盒顶边**在静止态(位移 0)的屏幕 y(dp)= [ROWS_TOP] + row × pitch。
-     *  与 [restCardTop] 同源,少的是 [ROW_CARD_TOP] 那段(标题在卡片之上)。 */
-    fun restTitleTop(row: Int, size: GtvCardSize, showTitles: Boolean): Float =
-        ROWS_TOP + row.coerceAtLeast(0) * rowPitch(size, showTitles)
+    /** **R48**:行 [row] 在静止态(位移 0)「需要可见」区间的**上沿**(dp)= 卡顶 − 聚焦放大与描边的
+     *  纵向溢出([appFocusOverflow]),与 [restRowVisibleBottom] 对称。取代 R42 的 `restTitleTop`
+     *  (行标题行盒顶)——首页没有行标题了。行图标与卡片纵向居中、比卡矮,不单独进这个区间。 */
+    fun restVisibleTop(row: Int, size: GtvCardSize, showTitles: Boolean): Float =
+        restCardTop(row, size, showTitles) - appFocusOverflow(cardHeight(size))
 
-    /**
-     * **Ruling R43(2026-09-22,owner 真机反馈 Round 10,取代 R40)**:行标题 = **焦点行放大变亮**。
-     * owner 原话:「行标题的淡入依然没有,向上、向下滑动,行标题有淡入吗?」——R40 做的是「标题从屏外
-     * 进入屏内时淡入」,首页两三行全在屏内时永远不触发,改错了对象;R40 的 `rowTitleOnScreen` /
-     * `ROW_TITLE_FADE_MS` 已删除。
-     *
-     * Google 实测(模拟器 launcherx 录像抽帧 `gd-titles.png`):焦点行的标题是大号纯白,其余行小号灰字;
-     * 「Continue watching」非焦点 154 px、焦点 270 px(960 宽帧,1 px = 1 dp)→ **约 1.75 倍**;
-     * 灰 ≈ 0.7 × 白(R46 起改为白 / 灰两个定色,不再用 alpha)。换行时新行标题从小灰长大变亮、旧行缩回变灰,与页面位移同时,**约 300 ms 内完成**
-     * (#47 9.45 s 仍小灰 → #48 9.72 s 已大白)。
-     *
-     * `HomeScreen.CategoryRow` 用 `graphicsLayer` 缩放(原点左下,往上、往右长),**不改布局**——
-     * 行距不变(铁律 1),放大的部分画进上一行卡片底与本行标题之间的间隙。
-     *
-     * **Ruling R46(2026-09-22,owner 真机看 R43 后:「现在这个效果太傻叉了,你能不能照着 Google 的样子做?」)**
-     * 按 Google 浏览态 `#46` 帧(1 dp = 1 px)重测,取首字母 cap height、按 Google Sans cap ≈ 0.71 em 换算:
-     * 焦点行标题 cap 23 dp ≈ **32 sp**,其余行 cap 13 dp ≈ **18 sp** → 倍率 32/18 ≈ **1.78**(R43 的 1.75
-     * 是按字宽量的,混进了字距)。颜色白 / 灰两态,不走主题色(见 [GtvTokens.RowTitleFocused])。
-     * Google 标题下降部到本行卡顶两态都约 18 dp;我们的行盒底边不动、原点左下,放大只会让下降部离卡更远。
-     *
-     * **基准字号刻意不跟 Google 的 18 sp**:我们非焦点行标题保持 [ROW_TITLE_TEXT] 14 sp——owner 在 R25 前
-     * 专门反馈过整体字号偏大,14 是他认可过的值;只照搬 Google 的**比例**,焦点行视觉 ≈ 14 × 1.78 ≈ 25 sp。
-     *
-     * 行图标(UnitedU 自有,Google 没有)不跟着放大,保持 1×;焦点行图标淡到 0、文字左移占住图标位,
-     * 焦点行标题左缘落在内容基准线上(与 Google 同构图),非焦点行仍显示图标(方案对比见 `CategoryRow`)。
+    /*
+     * **Ruling R48(2026-09-22)删除了 R43/R46 的行标题焦点态**(焦点行标题放大 `ROW_TITLE_FOCUS_SCALE`
+     * 1.78、白/灰两态、图标淡出、cap 中线补偿 `ROW_TITLE_CAP_EM`)——首页不再画行标题。只保留一个轻量
+     * 焦点提示给行图标:焦点行近白、其余行灰(R46 从 Google 取的两色),同一根弹簧过渡,不缩放
+     * (见 [ROW_ICON_SIZE])。
      */
-    const val ROW_TITLE_FOCUS_SCALE = 1.78f
-    /** R46:行标题 cap height / 字号(em)。Roboto(系统 Latin 字体)cap = 1456/2048 ≈ 0.711 em;
-     *  只用来求 cap 中线、让 1× 的行图标跟放大中的字垂直居中,不参与布局。 */
-    const val ROW_TITLE_CAP_EM = 0.711f
     /*
      * **Ruling R47(2026-09-22)**:R43 的 `ROW_TITLE_FOCUS_MS`(300 ms 减速 tween)已删除,行标题焦点态
+     * (R48 起只剩行图标的灰↔白)
      * 改走 [Theme.rowTitleFocusSpec]——与整页位移**同一根**临界阻尼弹簧([BROWSE_SPRING_STIFFNESS])。
      * owner 原话:「抄 Google 的那个动效,也就是三个东西的三层联动:先滚动,滚动的同时标题行淡入;淡入到位的
      * 时候,焦点移下来,然后再放大。这只是我的描述,整体上你按照 Google 那样去做。」

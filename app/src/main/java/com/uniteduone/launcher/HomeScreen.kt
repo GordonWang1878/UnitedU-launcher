@@ -632,11 +632,11 @@ fun HomeScreen(
                     style = hintStyle,
                 )
             }
-            // Ruling R43:哪一行的标题是「焦点行」大白态。焦点在顶栏药丸组(tgtGear)→ 没有焦点行(-1);
-            // 否则就是 activeRowSafe(整页位移用的同一个量,标题与位移同时变)。两者都只在卡片 / 药丸
-            // 真的拿到焦点时改写、浮层 / ON_PAUSE 期间冻结,所以标题在浮层与退后台时保持最后状态。
-            // 纯派生,不写任何状态,不进任何效果的 key 或守卫(铁律 3–7 一处不动)。
-            val titleFocusRow = if (tgtGear) -1 else activeRowSafe
+            // Ruling R43 → R48:哪一行的行图标是「焦点行」近白态(R48 前是行标题大白态)。焦点在顶栏药丸组
+            // (tgtGear)→ 没有焦点行(-1);否则就是 activeRowSafe(整页位移用的同一个量,图标与位移同时变)。
+            // 两者都只在卡片 / 药丸真的拿到焦点时改写、浮层 / ON_PAUSE 期间冻结,所以图标在浮层与退后台时
+            // 保持最后状态。纯派生,不写任何状态,不进任何效果的 key 或守卫(铁律 3–7 一处不动)。
+            val iconFocusRow = if (tgtGear) -1 else activeRowSafe
             rows.forEachIndexed { rowIndex, row ->
                 CategoryRow(
                     row = row,
@@ -667,8 +667,8 @@ fun HomeScreen(
                     // (R42 下换行而位移不变是常态,那时放大不该等一个不存在的位移)。
                     landingShiftsPage = rowIndex != activeRowSafe &&
                         GtvLayout.nextPageShiftY(shiftTarget, rowIndex, rows.size, cardSize, showTitles, screenHeightDp) != shiftTarget,
-                    // R43:行标题放大变亮 ⇔ 本行是焦点行。只读焦点账本、不写(见 titleFocusRow)。
-                    isTitleFocusRow = rowIndex == titleFocusRow,
+                    // R48:行图标近白 ⇔ 本行是焦点行。只读焦点账本、不写(见 iconFocusRow)。
+                    isFocusRow = rowIndex == iconFocusRow,
                     onFocusChange = { idx, got ->
                         report(rowIndex, idx, got)
                         if (got) {
@@ -745,7 +745,7 @@ fun HomeScreen(
         }
 
         // 移动态底部提示(M4b spec §0-10:视觉只加描边与这一行)。字样沿用首页提示文字;垫一层与 scrim 底端
-        // 同色同透明度的底:焦点行下面那一行的行标题正好露在屏幕底部,不垫的话两行字叠在一起认不出来。
+        // 同色同透明度的底:焦点行下面那一行正好露在屏幕底部(R48 前是它的行标题),不垫的话提示字与卡片叠在一起认不出来。
         if (moving != null) {
             BasicText(
                 text = stringResource(R.string.home_move_hint),
@@ -830,27 +830,21 @@ private fun CategoryRow(
     /** R30 + R42:焦点落到本行会不会改变整页纵向位移的目标(HomeScreen 用 `nextPageShiftY` 预先算好)。
      *  R42 起换行不一定位移(最小位移),所以不能再用「不是当前行」代替。 */
     landingShiftsPage: Boolean,
-    /** R43:本行是不是焦点行(焦点在本行卡片上);是则行标题放大到 [GtvLayout.ROW_TITLE_FOCUS_SCALE] 并全亮。 */
-    isTitleFocusRow: Boolean,
+    /** R48:本行是不是焦点行(焦点在本行卡片上);是则行图标近白,否则灰(不缩放)。 */
+    isFocusRow: Boolean,
     onFocusChange: (Int, Boolean) -> Unit,
 ) {
     val ctx = LocalContext.current
-    // Ruling R46(owner 反馈 2026-09-22,真机看 R43 后:「现在这个效果太傻叉了,你能不能照着 Google 的样子做?」):
-    // 焦点行标题放大 + 由灰变白,其余行缩回变灰,与整页位移同时发生(R47 起走位移同一根弹簧)
-    // (Google 实测见 GtvLayout.ROW_TITLE_FOCUS_SCALE)。一个进度量 titleFocus 0→1 同时驱动缩放、
-    // 颜色插值与图标补偿位移,三者都在绘制阶段读(graphicsLayer / ColorProducer / drawBehind),
-    // 动画每帧不重组本行、不改布局;不进焦点账本、不碰任何 FocusRequester / 看门狗(铁律 3–7)。
-    val titleFocus by animateFloatAsState(
-        targetValue = if (isTitleFocusRow) 1f else 0f,
-        // R47:与整页位移同一根弹簧,同起同止(Google 实测,见 Theme.rowTitleFocusSpec)。
+    // Ruling R48(2026-09-22,owner 看效果图后选 A2):首页取消行标题,行图标留在左边距里当焦点提示。
+    // 焦点行近白、其余行灰(R46 的两色),与整页位移同一根弹簧(R47 的 Theme.rowTitleFocusSpec),
+    // **不缩放**。进度量 iconFocus 只在绘制阶段读(RowIcon 的 tint lambda),动画每帧不重组本行、
+    // 不改布局;不进焦点账本、不碰任何 FocusRequester / 看门狗(铁律 3–7)。
+    val iconFocus by animateFloatAsState(
+        targetValue = if (isFocusRow) 1f else 0f,
         animationSpec = Theme.rowTitleFocusSpec(),
-        label = "rowTitleFocus",
+        label = "rowIconFocus",
     )
-    // 行标题 **不走主题 accent**(R46 推翻 R43 起沿用的 accent + alpha):Google 的行标题是白 / 灰两态,
-    // 与主题色无关;B6 的「焦点实填用主题色」说的是卡片 / 药丸的焦点填充,不涵盖行标题。
-    val titleColor = { androidx.compose.ui.graphics.lerp(GtvTokens.RowTitleIdle, GtvTokens.RowTitleFocused, titleFocus) }
-    // 文字首行基线(px),onTextLayout 量得;图标补偿位移用它求字的 cap 中线。
-    var titleBaselinePx by remember { mutableStateOf(Float.NaN) }
+    val iconColor = { androidx.compose.ui.graphics.lerp(GtvTokens.RowIconIdle, GtvTokens.RowIconFocused, iconFocus) }
     // 记住聚焦在第几张,用来算这一行的横向位移(行放得下就不动、放不下才移够用的距离,
     // 见下面 GtvLayout.rowShiftX 的 KDoc——R20)
     var focusedIndex by remember { mutableStateOf(0) }
@@ -859,62 +853,21 @@ private fun CategoryRow(
     // 重组时 focused 与它一起生效,gtvAppFocusFrame 据此决定放大要不要等位移。它只是给绘制动画
     // 选 spec 用的旁路信号,不进焦点账本、不被任何效果读(铁律 3–7 的链条一处不动)。
     var landedWithShift by remember { mutableStateOf(false) }
-    // gtv 线:标题行盒与标题到卡的间距改读 GtvLayout(Task 9b,消除纵向漂移;24→15dp 是可见的
-    // 设计变化,Google 实测就是 15dp——见 docs/research/2026-09-20-google-tv-launcherx-measurements.md §3)。
-    Column(verticalArrangement = Arrangement.spacedBy(GtvLayout.ROW_TITLE_TO_CARD.dp)) {
-        Row(
-            modifier = Modifier
-                .padding(start = GtvLayout.CONTENT_KEYLINE.dp)
-                .height(GtvLayout.ROW_TITLE_LINE.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(GtvLayout.ROW_TITLE_ICON_GAP.dp),
-        ) {
-            // R46:行图标(UnitedU 自有功能,Google 无对应物)**不跟着文字放大**,保持 1×。
-            // 两种方案都做了截图对比(`docs/screenshots/gtv-r46-vs-google-row-title.jpg` 的来源帧):
-            //  A. 图标 1× 留在大字左侧,随字的 cap 中线上移——字被图标推离内容基准线 28 dp,焦点行标题
-            //     左缘与卡片左缘对不齐;
-            //  B. 焦点行图标淡到 0、文字左移 28 dp 占住图标位——焦点行标题左缘正落在卡片左缘
-            //     (CONTENT_KEYLINE),与 Google「Your apps」同一构图。**选 B**;非焦点行仍显示图标。
-            // cap 中线补偿(A 的做法)保留:淡出途中图标仍与放大中的字对齐,不会在下沉的位置上消失。
-            RowIcon(
-                row.name, row.kind, row.icon,
-                tint = titleColor,
-                modifier = Modifier.graphicsLayer {
-                    val s = 1f + (GtvLayout.ROW_TITLE_FOCUS_SCALE - 1f) * titleFocus
-                    val capMid = if (titleBaselinePx.isNaN()) size.height / 2f
-                        else titleBaselinePx - GtvLayout.ROW_TITLE_CAP_EM * GtvLayout.ROW_TITLE_TEXT.sp.toPx() / 2f
-                    translationY = -(size.height - capMid) * (s - 1f)
-                    alpha = 1f - titleFocus
-                },
-            )
-            BasicText(
-                text = row.name,
-                // 行标题 = titleMedium 14sp Medium(spec §2.3,Ruling R25 从 16sp 改回),颜色见上 titleColor。
-                // Fix round 1(R15):不再继承 titleMedium 的 Material3 默认行高——那是本任务标题
-                // 裁切的根因(见 GtvLayout.ROW_TITLE_LINE 的 KDoc:Material 默认行高是给 Latin 定的,
-                // 换成中文字形回落到系统 CJK 字体后需要的行盒高度不一样,必须装机重测,不能沿用默认值
-                // 或按字号比例折算)。这里显式给 lineHeight 赋值,与容器高度共用同一个 GtvLayout 常量,
-                // 两处不会各自漂移。只改这一处 TextStyle 的 fontSize/lineHeight,不碰 typography
-                // .titleMedium 本身的其它属性(fontWeight 等)——其它界面(设置页分组标题等)还在读
-                // 那个全局 scale。
-                style = androidx.tv.material3.MaterialTheme.typography.titleMedium.copy(
-                    fontSize = GtvLayout.ROW_TITLE_TEXT.sp,
-                    lineHeight = GtvLayout.ROW_TITLE_LINE.sp,
-                ),
-                color = titleColor,
-                onTextLayout = { titleBaselinePx = it.firstBaseline },
-                // R43/R46:文字按焦点行缩放。原点左下:往上、往右长,行盒底边(离卡片最近的那条边)不动,
-                // 下降部离卡片只会更远(≥ ROW_TITLE_TO_CARD);graphicsLayer 不参与测量,行距不变(铁律 1)。
-                modifier = Modifier.graphicsLayer {
-                    val s = 1f + (GtvLayout.ROW_TITLE_FOCUS_SCALE - 1f) * titleFocus
-                    scaleX = s
-                    scaleY = s
-                    // 方案 B:焦点行文字左移一个「图标 + 间距」,左缘落到内容基准线(与卡片左缘对齐)。
-                    translationX = -(GtvLayout.ROW_TITLE_LINE + GtvLayout.ROW_TITLE_ICON_GAP).dp.toPx() * titleFocus
-                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 1f)
-                },
-            )
-        }
+    // R48:没有标题行了,本行 = 行图标(左边距)+ 卡片行。Box 里先画图标、再画卡片行:行放不下、
+    // 整行左移(rowShiftX)时卡片从图标上面滑过、把它盖住,而不是图标压在卡片内容上。
+    Box {
+        // 水平中心 x = CONTENT_KEYLINE / 2(29 dp),纵向中心 = 卡片中心(上侧描边留白 + 半个卡高;
+        // 卡片标题开着时标题在卡下方,不参与居中——效果图 A2 对齐的是卡片本身)。
+        // 行名由 RowIcon 的 contentDescription 带给无障碍服务。图标不随 xShift 走。
+        RowIcon(
+            row.name, row.kind, row.icon,
+            tint = iconColor,
+            boxSize = GtvLayout.ROW_ICON_SIZE.dp,
+            modifier = Modifier.padding(
+                start = ((GtvLayout.CONTENT_KEYLINE - GtvLayout.ROW_ICON_SIZE) / 2f).dp,
+                top = metrics.rowVerticalPad + metrics.cardHeight / 2 - (GtvLayout.ROW_ICON_SIZE / 2f).dp,
+            ),
+        )
         // **绝不能用 LazyRow / horizontalScroll**:任何可滚动容器都会挡住纵向焦点外出。
         // 2026-09-11 真机实测:按上/下时 Compose 找不到候选,平台的 View 级焦点导航接手,
         // 把整棵树的焦点清空(日志里是 ROOT hasFocus=false → 再 isFocused=true),

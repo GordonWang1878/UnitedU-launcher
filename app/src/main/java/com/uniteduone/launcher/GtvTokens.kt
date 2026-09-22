@@ -17,9 +17,12 @@ object GtvTokens {
      *  **不随主题 accent 变**(R43 用 accent + alpha 0.7,owner 看后否决)。取值方法:我们的模拟器截图
      *  按 BOX 缩到同尺度 960×540 后,字芯峰值与 Google 帧对齐(先试 0xFFBDC1C6,峰值 ≈ 215 明显偏亮,
      *  0xFF9AA0A6 仍略亮,定 0xFF959BA3);对照图
-     *  见 `docs/screenshots/gtv-r46-vs-google-row-title.jpg`。 */
-    val RowTitleFocused = Color(0xFFE6F2FD)
-    val RowTitleIdle = Color(0xFF959BA3)
+     *  见 `docs/screenshots/gtv-r46-vs-google-row-title.jpg`。
+     *
+     *  **Ruling R48(2026-09-22)**:首页不再画行标题,这两色改给**行图标**当焦点提示(焦点行近白、
+     *  其余行灰),改名 `RowTitleFocused`/`RowTitleIdle` → 现名,数值不变。 */
+    val RowIconFocused = Color(0xFFE6F2FD)
+    val RowIconIdle = Color(0xFF959BA3)
     /** 浮层压暗。真机验收再调。 */
     val ScrimOverlay = Color(0xA6000000)
     /**

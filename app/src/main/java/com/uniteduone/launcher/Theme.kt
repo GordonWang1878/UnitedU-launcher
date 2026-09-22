@@ -210,6 +210,7 @@ object Theme {
      * 临界阻尼弹簧(stiffness = [GtvLayout.BROWSE_SPRING_STIFFNESS]),标题与位移同起同止——Google
      * 实测两者都在位移起步后 ~0.3 s 到 95%(数据见 `GtvLayout` 里 R47 一节)。阈值 0.002(进度量纲,
      * 1.78 倍放大下不到 0.2% 字宽,肉眼不可辨)。
+     * **R48 起**首页没有行标题,这根弹簧只驱动行图标的灰 ↔ 近白(不缩放),名字沿用。
      */
     fun rowTitleFocusSpec(): androidx.compose.animation.core.SpringSpec<Float> =
         androidx.compose.animation.core.spring(

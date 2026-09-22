@@ -24,6 +24,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 
 /**
  * 行标题前的小图标。用真的 Material 图标,不再手画:
@@ -57,8 +59,10 @@ fun RowIcon(
     )
 }
 
-/** R46:首页行标题用的版本——颜色在**绘制阶段**读([tint] 每帧求值),跟着行标题的灰 → 白插值走,
- *  动画不重组;尺寸 / 图形与上面的 [RowIcon] 相同。 */
+/** R46:首页用的版本——颜色在**绘制阶段**读([tint] 每帧求值),跟着焦点态的灰 ↔ 近白插值走,
+ *  动画不重组;图形与上面的 [RowIcon] 相同。
+ *  **R48**:首页不再画行标题,图标独自画在左边距里,方框改为 [boxSize](首页传 `GtvLayout.ROW_ICON_SIZE`);
+ *  行名改由这里的 `contentDescription` 带给无障碍服务(原来由旁边的标题文字提供)。 */
 @Composable
 fun RowIcon(
     name: String,
@@ -66,11 +70,13 @@ fun RowIcon(
     icon: String?,
     tint: () -> androidx.compose.ui.graphics.Color,
     modifier: Modifier = Modifier,
+    boxSize: androidx.compose.ui.unit.Dp = GtvLayout.ROW_TITLE_LINE.dp,
 ) {
     val painter = rememberVectorPainter(rowIconFor(name, kind, icon))
     Box(
         modifier
-            .size(GtvLayout.ROW_TITLE_LINE.dp)
+            .size(boxSize)
+            .semantics { contentDescription = name }
             .drawBehind { with(painter) { draw(size, colorFilter = ColorFilter.tint(tint())) } },
     )
 }

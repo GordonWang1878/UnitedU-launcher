@@ -70,14 +70,41 @@ class GtvLayoutTest {
     // owner 反馈 Round 5(R25):ROW_TITLE_LINE 从 23(16sp 实测)改为 20(14sp 重新实测),
     // 143.5625 随之变成 140.5625——同一条公式换了正确输入之后的正确结果,数值出处见
     // ROW_TITLE_LINE 的 KDoc,不是这里另外调整的。
-    @Test fun `中档行间距 = CJK 不裁切前提下的值,不是 Google 的 Latin 125点5`() {
-        // 20(CJK 实测行盒,14sp) + 12.5 + 14(焦点描边留白) + 86.0625(中档卡高) + 8(ROW_GAP) = 140.5625
-        assertEquals(140.5625f, GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = false), 0.01f)
+    // Ruling R48(2026-09-22):首页取消行标题,行距去掉标题行盒 20 + 标题到卡 12.5 = 32.5 dp,
+    // 140.5625 → 108.0625(效果图 A2「行距收紧 32dp」)。
+    @Test fun `中档行间距 = R48 无行标题`() {
+        // 14(焦点描边留白) + 86.0625(中档卡高) + 8(ROW_GAP) = 108.0625
+        assertEquals(108.0625f, GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = false), 0.01f)
     }
 
     @Test fun `纵向位移按行数累加`() {
-        // -2 × 140.5625 = -281.125
-        assertEquals(-281.125f, GtvLayout.rowShiftY(2, GtvCardSize.MEDIUM, showTitles = false), 0.3f)
+        // -2 × 108.0625 = -216.125
+        assertEquals(-216.125f, GtvLayout.rowShiftY(2, GtvCardSize.MEDIUM, showTitles = false), 0.3f)
+    }
+
+    // R48 效果图 A2:卡片位置不动(行 0 静止卡顶仍是 301.5)、行距收紧 32.5;行图标在左边距里,
+    // 水平中心 = CONTENT_KEYLINE / 2,方框 = R48 之前行标题图标(20 dp)× 1.3。
+    @Test fun `R48 无行标题几何——行 0 卡顶不动、每行收紧 32点5、图标在左边距里不碰焦点卡`() {
+        assertEquals(301.5f, GtvLayout.restCardTop(0, M, false), 0.01f)
+        assertEquals(301.5f + 108.0625f, GtvLayout.restCardTop(1, M, false), 0.01f)
+        assertEquals(32.5f, GtvLayout.ROWS_LEAD, 0f)
+        assertEquals(7f, GtvLayout.ROW_CARD_TOP, 0f)
+        for (size in GtvCardSize.values()) for (titles in listOf(false, true)) {
+            // R48 之前的公式(标题行盒 + 标题到卡)减去今天的值恰好是 32.5
+            val old = 20f + 12.5f + GtvLayout.rowPitch(size, titles)
+            assertEquals(32.5f, old - GtvLayout.rowPitch(size, titles), 0.001f)
+        }
+        assertEquals(26f, GtvLayout.ROW_ICON_SIZE, 0f)
+        assertEquals(GtvLayout.ROW_TITLE_LINE * 1.3f, GtvLayout.ROW_ICON_SIZE, 0.01f)
+        val iconRight = GtvLayout.CONTENT_KEYLINE / 2f + GtvLayout.ROW_ICON_SIZE / 2f
+        assertEquals(42f, iconRight, 0f)
+        for (size in GtvCardSize.values()) {
+            // 焦点卡放大 + 描边后的视觉左缘仍在图标右边:LARGE 58 − 13.6 = 44.4 > 42
+            val focusLeft = GtvLayout.CONTENT_KEYLINE - GtvLayout.appFocusOverflow(GtvLayout.cardWidth(size))
+            assertTrue("$size 焦点卡左缘 $focusLeft 压到图标右缘 $iconRight", focusLeft > iconRight)
+            // 与卡片纵向居中:图标比最矮的卡还矮,不伸出本行
+            assertTrue(GtvLayout.ROW_ICON_SIZE < GtvLayout.cardHeight(size))
+        }
     }
 
     // Ruling R32(owner 反馈 Round 9):整页位移——行 1 及以下的卡顶钉到 BROWSE_ROW_ANCHOR(120dp,
@@ -86,12 +113,12 @@ class GtvLayoutTest {
         val pitch = GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = false)
         assertEquals(0f, GtvLayout.pageShiftY(0, GtvCardSize.MEDIUM, showTitles = false), 0f)
         assertEquals("顶栏(activeRow 负值)与行 0 同为静止态", 0f, GtvLayout.pageShiftY(-1, GtvCardSize.MEDIUM, false), 0f)
-        // 行 1 静止卡顶 = 顶栏 34+36 + hero 192 + 行内 20+12.5+7 + 1 × pitch = 301.5 + 140.5625 = 442.0625
+        // 行 1 静止卡顶 = 顶栏 34+36 + hero 192 + ROWS_LEAD 32.5 + 行内 7 + 1 × pitch = 301.5 + 108.0625 = 409.5625(R48)
         val rest1 = GtvLayout.restCardTop(1, GtvCardSize.MEDIUM, showTitles = false)
-        assertEquals(442.0625f, rest1, 0.01f)
+        assertEquals(409.5625f, rest1, 0.01f)
         val shift1 = GtvLayout.pageShiftY(1, GtvCardSize.MEDIUM, showTitles = false)
         assertEquals(GtvLayout.BROWSE_ROW_ANCHOR - rest1, shift1, 0.01f)
-        assertEquals("行 1 一次走 hero+顶栏+行内卡顶−锚 + 1 pitch ≈ 322dp(量级 300+,不再是一格 143)", -322.0625f, shift1, 0.01f)
+        assertEquals("行 1 一次走 hero+顶栏+行内卡顶−锚 + 1 pitch ≈ 290dp(R48 行距收紧后)", -289.5625f, shift1, 0.01f)
         val shift2 = GtvLayout.pageShiftY(2, GtvCardSize.MEDIUM, showTitles = false)
         assertEquals(shift1 - pitch, shift2, 0.01f)
         // 不变量:位移后焦点行的卡顶恒在锚点上(与横向「焦点卡钉基准线」同构,§8b)
@@ -107,7 +134,7 @@ class GtvLayoutTest {
         GtvLayout.nextPageShiftY(prev, row, rows, size, titles, h)
     private fun align(h: Float) = h - GtvLayout.BOTTOM_SAFE
     private fun bot(r: Int, titles: Boolean = false, size: GtvCardSize = M) = GtvLayout.restRowVisibleBottom(r, size, titles)
-    private fun top(r: Int, titles: Boolean = false, size: GtvCardSize = M) = GtvLayout.restTitleTop(r, size, titles)
+    private fun top(r: Int, titles: Boolean = false, size: GtvCardSize = M) = GtvLayout.restVisibleTop(r, size, titles)
 
     @Test fun `R42 窗口边界——顶栏下 16dp、对齐线留 CONTENT_KEYLINE、下沿含聚焦溢出与卡片标题`() {
         assertEquals(86f, GtvLayout.TOP_SAFE, 0f)
@@ -116,8 +143,10 @@ class GtvLayoutTest {
         assertEquals(GtvLayout.restCardTop(1, M, false) + ch + GtvLayout.appFocusOverflow(ch), bot(1), 0.01f)
         assertEquals(GtvLayout.restCardTop(1, M, true) + ch + GtvLayout.appFocusOverflow(ch) + GtvLayout.titleHeight(true),
             bot(1, titles = true), 0.01f)
-        // 960×540 屏、中档无标题:行 1 下沿 536.43 在画幅内(owner 眼里「两行完整可见」)
-        assertEquals(536.43f, bot(1), 0.01f)
+        // R48:上沿 = 卡顶 − 聚焦溢出(与下沿对称),不再是行标题顶
+        assertEquals(GtvLayout.restCardTop(1, M, false) - GtvLayout.appFocusOverflow(ch), top(1), 0.01f)
+        // 960×540 屏、中档无标题:行 1 下沿 503.93 在画幅内(owner 眼里「两行完整可见」;R48 前 536.43)
+        assertEquals(503.93f, bot(1), 0.01f)
     }
 
     @Test fun `R42 owner 硬验收——两行都在画幅内时下移、上移页面都不动`() {
@@ -154,18 +183,21 @@ class GtvLayoutTest {
         val s2 = next(s1, 2); val s3 = next(s2, 3)
         assertEquals(align(540f), bot(2) + s2, 0.01f)
         assertEquals(align(540f), bot(3) + s3, 0.01f)
-        assertEquals(-195.0f, s2, 0.1f)
-        assertEquals(-335.6f, s3, 0.1f)
+        assertEquals(-130.0f, s2, 0.1f)
+        assertEquals(-238.1f, s3, 0.1f)
         assertTrue(s2 > GtvLayout.pageShiftY(2, M, false))
-        for ((r, s) in listOf(2 to s2, 3 to s3)) assertTrue("行 $r 标题露全", top(r) + s >= GtvLayout.TOP_SAFE)
+        for ((r, s) in listOf(2 to s2, 3 to s3)) assertTrue("行 $r 卡顶(含聚焦溢出)露全", top(r) + s >= GtvLayout.TOP_SAFE)
     }
 
     @Test fun `R42 往上走只在出顶边时回移,且只移到上沿贴上界,回行 0 归 0`() {
-        val s3 = next(next(next(0f, 1), 2), 3)
-        val up2 = next(s3, 2)
-        assertEquals("行 3 → 行 2:行 2 仍在窗口内,不回跳", s3, up2, 0f)
+        // R48 行距收紧后 4 行里从行 3 回到行 1 已不需要回移,改用 6 行、下到行 4 再往上走。
+        val s4 = next(next(next(next(0f, 1, rows = 6), 2, rows = 6), 3, rows = 6), 4, rows = 6)
+        val up3 = next(s4, 3, rows = 6)
+        assertEquals("行 4 → 行 3:行 3 仍在窗口内,不回跳", s4, up3, 0f)
+        val up2 = next(up3, 2, rows = 6)
+        assertEquals("行 3 → 行 2:行 2 仍在窗口内,不回跳", s4, up2, 0f)
         assertTrue(top(1) + up2 < GtvLayout.TOP_SAFE)
-        val up1 = next(up2, 1)
+        val up1 = next(up2, 1, rows = 6)
         assertEquals(GtvLayout.TOP_SAFE, top(1) + up1, 0.01f)
         assertEquals(0f, next(up1, 0), 0f)
         assertEquals(0f, next(up1, -1), 0f)
@@ -195,24 +227,22 @@ class GtvLayoutTest {
         assertTrue(samples.all { it >= GtvLayout.WALLPAPER_BROWSE_ALPHA - 1e-6f })
     }
 
-    @Test fun `R43 行标题焦点态常量 + restTitleTop 与 restCardTop 同源`() {
+    @Test fun `R48 restVisibleTop 与 restCardTop 同源`() {
         val size = GtvCardSize.MEDIUM; val titles = false
         val pitch = GtvLayout.rowPitch(size, titles)
-        // 静止标题顶 = ROWS_TOP + row × pitch;卡顶比它多 ROW_CARD_TOP(R42 的最小位移仍读它)。
-        assertEquals(GtvLayout.ROWS_TOP, GtvLayout.restTitleTop(0, size, titles), 0.01f)
-        assertEquals(GtvLayout.ROWS_TOP + 2 * pitch, GtvLayout.restTitleTop(2, size, titles), 0.01f)
-        assertEquals(GtvLayout.restCardTop(2, size, titles) - GtvLayout.ROW_CARD_TOP, GtvLayout.restTitleTop(2, size, titles), 0.01f)
-        // R46 Google 实测(cap height 换算):焦点 ≈ 32 sp / 非焦点 ≈ 18 sp ≈ 1.78。时长见 GtvMotionTest(R47)。
-        assertEquals(1.78f, GtvLayout.ROW_TITLE_FOCUS_SCALE, 1e-6f)
+        val ov = GtvLayout.appFocusOverflow(GtvLayout.cardHeight(size))
+        // 行布局块顶 = ROWS_TOP + row × pitch;卡顶多 ROW_CARD_TOP;可见上沿再减聚焦溢出。
+        assertEquals(GtvLayout.ROWS_TOP + GtvLayout.ROW_CARD_TOP - ov, GtvLayout.restVisibleTop(0, size, titles), 0.01f)
+        assertEquals(GtvLayout.ROWS_TOP + GtvLayout.ROW_CARD_TOP + 2 * pitch - ov, GtvLayout.restVisibleTop(2, size, titles), 0.01f)
     }
 
-    @Test fun `R32 锚点在顶栏之下——浏览态焦点行的标题不与顶栏重叠`() {
-        // 焦点行标题顶 = 锚 − ROW_CARD_TOP = 120 − 39.5 = 80.5,顶栏底 = 34 + 36 = 70
-        val titleTop = GtvLayout.BROWSE_ROW_ANCHOR - GtvLayout.ROW_CARD_TOP
-        assertTrue("标题顶 $titleTop 应在顶栏底 ${GtvLayout.TOP_BAR_TOP + GtvLayout.TOP_BAR_HEIGHT} 之下",
-            titleTop > GtvLayout.TOP_BAR_TOP + GtvLayout.TOP_BAR_HEIGHT)
-        assertEquals(39.5f, GtvLayout.ROW_CARD_TOP, 0.01f)
-        assertEquals(262f, GtvLayout.ROWS_TOP, 0.01f)
+    @Test fun `R32 锚点在顶栏之下——浏览态焦点卡(含聚焦溢出)不与顶栏重叠`() {
+        // R48:焦点卡视觉顶 = 锚 − 聚焦溢出 = 120 − 8.3 ≈ 111.7,顶栏底 = 34 + 36 = 70
+        val cardTop = GtvLayout.BROWSE_ROW_ANCHOR - GtvLayout.appFocusOverflow(GtvLayout.cardHeight(GtvCardSize.MEDIUM))
+        assertTrue("卡顶 $cardTop 应在顶栏底 ${GtvLayout.TOP_BAR_TOP + GtvLayout.TOP_BAR_HEIGHT} 之下",
+            cardTop > GtvLayout.TOP_BAR_TOP + GtvLayout.TOP_BAR_HEIGHT)
+        assertEquals(7f, GtvLayout.ROW_CARD_TOP, 0.01f)
+        assertEquals(294.5f, GtvLayout.ROWS_TOP, 0.01f)
     }
 
     // Task 9b:CategoryRow 实际渲染的纵向每一项(标题行盒、标题到卡间距、焦点描边留白、卡高、
@@ -226,17 +256,16 @@ class GtvLayoutTest {
     // 这个测试依然会通过,因为它根本不知道 `CategoryRow` 读的是哪个常量。这一类回归目前只能靠
     // Step 5 那样的装机 uiautomator 量测发现,没有自动化测试能兜底。
     @Test fun `rowPitch 等于纵向每一项之和,不允许再漏项`() {
-        val expected = GtvLayout.ROW_TITLE_LINE +
-            GtvLayout.ROW_TITLE_TO_CARD +
-            2f * (GtvLayout.FOCUS_OUTSET + GtvLayout.FOCUS_STROKE) + // 焦点描边留白:上下各一份
+        // R48:首页没有行标题,标题行盒与标题到卡两项已去掉。
+        val expected = 2f * (GtvLayout.FOCUS_OUTSET + GtvLayout.FOCUS_STROKE) + // 焦点描边留白:上下各一份
             GtvLayout.cardHeight(GtvCardSize.MEDIUM) +
             GtvLayout.ROW_GAP
         assertEquals(expected, GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = false), 0.01f)
         // Fix round 1:不再对齐 Google 的 Latin 125.5——对齐的是「CJK 不裁切」这个新前提下的值,
         // 数值出处见 ROW_TITLE_LINE/ROW_GAP 各自的 KDoc,不是这里随手写的。
         // owner 反馈 Round 5(R25):140.5625 是 ROW_TITLE_LINE 改成 20(14sp)之后的新值,取代
-        // 之前 16sp 下测得的 143.5625。
-        assertEquals(140.5625f, expected, 0.01f)
+        // 之前 16sp 下测得的 143.5625。R48 去掉行标题带(32.5)后是 108.0625。
+        assertEquals(108.0625f, expected, 0.01f)
     }
 
     // Fix 1(owner 反馈 R2,2026-09-20):showTitles = true 这个分支此前**没有任何断言覆盖**——
@@ -248,8 +277,8 @@ class GtvLayoutTest {
         val withTitles = GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = true)
         val withoutTitles = GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = false)
         assertEquals(GtvLayout.titleHeight(true), withTitles - withoutTitles, 0.01f)
-        // 164.5625 = 140.5625(showTitles=false,R25 之后的新值)+ 24(CARD_TITLE_GAP 4 + CARD_TITLE_LINE 20)
-        assertEquals(164.5625f, withTitles, 0.01f)
+        // 132.0625 = 108.0625(showTitles=false,R48 之后的新值)+ 24(CARD_TITLE_GAP 4 + CARD_TITLE_LINE 20)
+        assertEquals(132.0625f, withTitles, 0.01f)
     }
 
     // owner 反馈 Round 4(2026-09-21)§5:「验证,不要假设」——app 卡片聚焦缩放
