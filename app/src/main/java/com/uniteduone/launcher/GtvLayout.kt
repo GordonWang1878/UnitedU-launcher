@@ -255,8 +255,14 @@ object GtvLayout {
      *
      * 终值倍率仍是 [APP_FOCUS_SCALE] 1.10(静态 PNG 实测;录像里因运动模糊面积被低估读到 1.135,
      * 不可信,不要改倍率)。柔光与描边的淡入与缩放同一份 spec(一起慢慢显出来),失焦一起 150 收。
+     *
+     * **Ruling R37(2026-09-22,owner 真机反馈 Round 10)**:**1200 → 600 ms**。Google 原值 ~1200
+     * (上面那份资源表),owner 真机原话「焦点刚移到卡片上的时候,要么停顿时间过长,要么慢慢变大得太慢,
+     * 矫枉过正」——按他手感缩短一半,曲线仍是减速型([Theme.AppFocusScaleInEasing]),失焦 150 不变
+     * (仍不对称:600 / 150)。这是手感裁定,不是量出来的;与 [FOCUS_AFTER_SHIFT_DELAY_MS] 的 160 → 80
+     * 同一轮改,两者一起决定「刚落焦那一下」的迟滞感。
      */
-    const val FOCUS_SCALE_IN_MS = 1200
+    const val FOCUS_SCALE_IN_MS = 600
 
     /**
      * **Ruling R30(2026-09-22,owner 真机反馈 Round 8)**:焦点放大(缩放 + 描边 + 柔光的淡入)
@@ -275,8 +281,16 @@ object GtvLayout {
      * 用在 `GtvFocusStroke.gtvAppFocusFrame` 的 `afterShift` 分支(`tween` 的 `delayMillis`);
      * 「这次触发了位移」的判定在 `HomeScreen.CategoryRow` 的焦点回调里做,不动任何焦点效果 /
      * 看门狗 / `FocusRequester` 链(铁律 3–7)。
+     *
+     * **Ruling R37(2026-09-22,owner 真机反馈 Round 10)**:**160 → 80 ms**。Google 原值 ~200
+     * (模拟器 pts 实测放大起步在按键后 ~200 ms),owner 真机原话「焦点刚移到卡片上的时候,要么停顿
+     * 时间过长,要么慢慢变大得太慢,矫枉过正」——按他手感缩短。**80 ms 不再对应「弹簧到 80%」**:
+     * 按 [BROWSE_SPRING_STIFFNESS] 350(ω ≈ 18.7)算,80 ms 时位移只到 **44%**,放大在位移进行到
+     * 一小半时就起步、两者大部分时间是叠着走的;这是 owner 要的手感,不再追 Google 的「先滑完再放大」。
+     * 上面「ω 的函数」那句从此只是历史推导:改 stiffness 时把这里的百分比重算写进 KDoc 即可,数值本身
+     * 按手感定。
      */
-    const val FOCUS_AFTER_SHIFT_DELAY_MS = 160
+    const val FOCUS_AFTER_SHIFT_DELAY_MS = 80
 
     /**
      * **Ruling R27(2026-09-21,owner 真机反馈 Round 7;R29 已取代,见下)**:浏览位移(**四处**:首页行 x/y 平移、

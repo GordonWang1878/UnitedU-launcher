@@ -208,7 +208,7 @@ fun Modifier.gtvAppFocusFrame(
     movingColor: Color = Color.Unspecified,
     afterShift: Boolean = false,
 ): Modifier = composed {
-    // R34:进焦 / 失焦不对称——进焦 1200 ms 减速曲线(focused_frame_animator_duration_ms),
+    // R34:进焦 / 失焦不对称——进焦 FOCUS_SCALE_IN_MS 减速曲线(R34 1200 = focused_frame_animator_duration_ms,R37 起 600),
     // 失焦 150 ms AccelerateDecelerate(card_unfocus)。缩放、描边、柔光三者共用这一份 spec。
     val motionSpec = if (focused) {
         tween<Float>(
@@ -244,7 +244,7 @@ fun Modifier.gtvAppFocusFrame(
                 val r = GtvLayout.focusRingRadius(corner.toPx(), scale, gap, stroke)
                 // R28 柔光:几何与描边同源(outX/outY 里已经含了当前动画中的 scale,所以柔光
                 // 跟着卡片一起长大),透明度与描边共用同一个 ringAlpha —— 同一份 motionSpec
-                // (R34:进焦 1200 ms 减速 / 失焦 150 ms),柔光是焦点处理的一部分,不另起时长。
+                // (R34/R37:进焦 FOCUS_SCALE_IN_MS 减速 / 失焦 150 ms),柔光是焦点处理的一部分,不另起时长。
                 // 描边走中心线,外缘在 outX + stroke/2 处;柔光各圈的圆角 = 描边外缘半径 + 该圈偏移,
                 // 同样同心;先画柔光、描边盖在上面。
                 drawFocusGlow(

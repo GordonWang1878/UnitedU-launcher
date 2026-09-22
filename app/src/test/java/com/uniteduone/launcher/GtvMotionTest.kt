@@ -57,12 +57,13 @@ class GtvMotionTest {
         assertTrue(x(1.75 / omega) < 0.6)
     }
 
-    // Ruling R34(owner 反馈 Round 9):app 卡片进焦放大 1200 ms 减速曲线,失焦仍 150 ms——不对称。
-    @Test fun `R34 进焦放大 1200 ms(focused_frame_animator_duration_ms),失焦 150 ms,不对称`() {
-        assertEquals(1200, GtvLayout.FOCUS_SCALE_IN_MS)
+    // Ruling R34(owner 反馈 Round 9):app 卡片进焦放大走减速曲线,失焦仍 150 ms——不对称。
+    // Ruling R37(owner 反馈 Round 10):进焦 1200 → 600 ms(Google 原值 ~1200,owner 手感「矫枉过正」)。
+    @Test fun `R34+R37 进焦放大 600 ms(Google 原值 1200,owner 手感缩短),失焦 150 ms,不对称`() {
+        assertEquals(600, GtvLayout.FOCUS_SCALE_IN_MS)
         assertEquals(150, GtvLayout.FOCUS_FADE_OUT_MS)
         assertEquals("内容卡描边 / 菜单药丸仍读 card_focus 150", 150, GtvLayout.FOCUS_FADE_IN_MS)
-        assertTrue("进焦必须明显慢于失焦", GtvLayout.FOCUS_SCALE_IN_MS > 4 * GtvLayout.FOCUS_FADE_OUT_MS)
+        assertTrue("进焦必须明显慢于失焦", GtvLayout.FOCUS_SCALE_IN_MS >= 4 * GtvLayout.FOCUS_FADE_OUT_MS)
         assertEquals("终值倍率不因录像里的运动模糊改动", 1.10f, GtvLayout.APP_FOCUS_SCALE, 1e-6f)
     }
 
@@ -79,12 +80,15 @@ class GtvMotionTest {
         assertTrue(Theme.AppFocusEasing.transform(0.25f) < 0.2f)
     }
 
-    @Test fun `R30 放大延迟 = 弹簧走到 80% 的时刻,随 stiffness 350 重算为 160 ms`() {
+    @Test fun `R30+R37 放大延迟 80 ms(owner 手感,不再钉「弹簧到 80%」),按当前刚度位移约 44%`() {
+        // R37:Google ~200 / R30 拟合 160 → owner 真机说迟滞过强,缩到 80。延迟时刻的位移百分比只是
+        // KDoc 里的记录值,不再是设计判据;这里钉住它防止有人改了 stiffness 忘了更新 KDoc。
+        assertEquals(80, GtvLayout.FOCUS_AFTER_SHIFT_DELAY_MS)
         val omega = kotlin.math.sqrt(GtvLayout.BROWSE_SPRING_STIFFNESS.toDouble())
         fun x(t: Double) = 1.0 - (1.0 + omega * t) * kotlin.math.exp(-omega * t)
         val t = GtvLayout.FOCUS_AFTER_SHIFT_DELAY_MS / 1000.0
-        assertTrue("延迟时刻位移应在 75–85%,实际 ${x(t)}", x(t) in 0.75..0.85)
-        assertEquals(160, GtvLayout.FOCUS_AFTER_SHIFT_DELAY_MS)
+        assertEquals("KDoc 写的是 44%(stiffness 350)", 0.44, x(t), 0.02)
+        assertTrue("放大必须在位移停稳之前起步(叠着走)", x(t) < 0.9)
     }
 
     @Test fun `R27 的 browse 曲线保留为历史记录,形状不变`() {

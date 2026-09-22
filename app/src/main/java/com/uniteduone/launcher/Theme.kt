@@ -224,7 +224,7 @@ object Theme {
 
     /**
      * **Ruling R34(2026-09-22,owner 真机反馈 Round 9)**:app 卡片**进焦**放大(缩放 + 描边 +
-     * 柔光淡入,[GtvLayout.FOCUS_SCALE_IN_MS] 1200 ms)的曲线——Material 标准减速
+     * 柔光淡入,[GtvLayout.FOCUS_SCALE_IN_MS],R34 1200 ms、R37 起 600 ms)的曲线——Material 标准减速
      * `cubic-bezier(0, 0, 0.2, 1)`,前段快后段慢,与模拟器 pts 实测的慢放大形态一致。
      * **不是** [AppFocusEasing]:那条 AccelerateDecelerate 是 `card_focus` 150 ms 旧路径的平台
      * 默认插值器,只剩失焦缩回(150 ms)与内容卡描边 / 菜单药丸还在用。控制点与 [MotionEasing]
