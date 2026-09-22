@@ -57,6 +57,36 @@ class GtvMotionTest {
         assertTrue(x(1.75 / omega) < 0.6)
     }
 
+    // Ruling R34(owner 反馈 Round 9):app 卡片进焦放大 1200 ms 减速曲线,失焦仍 150 ms——不对称。
+    @Test fun `R34 进焦放大 1200 ms(focused_frame_animator_duration_ms),失焦 150 ms,不对称`() {
+        assertEquals(1200, GtvLayout.FOCUS_SCALE_IN_MS)
+        assertEquals(150, GtvLayout.FOCUS_FADE_OUT_MS)
+        assertEquals("内容卡描边 / 菜单药丸仍读 card_focus 150", 150, GtvLayout.FOCUS_FADE_IN_MS)
+        assertTrue("进焦必须明显慢于失焦", GtvLayout.FOCUS_SCALE_IN_MS > 4 * GtvLayout.FOCUS_FADE_OUT_MS)
+        assertEquals("终值倍率不因录像里的运动模糊改动", 1.10f, GtvLayout.APP_FOCUS_SCALE, 1e-6f)
+    }
+
+    @Test fun `R34 进焦曲线是减速型(前段快后段慢),不是 AccelerateDecelerate`() {
+        val e = Theme.AppFocusScaleInEasing
+        assertEquals(0f, e.transform(0f), 1e-4f)
+        assertEquals(1f, e.transform(1f), 1e-4f)
+        // 减速型:速度单调递减——前半段走的路程多于后半段,且 1/4 进度已过约 40%。
+        val dt = 0.02f
+        val v = (0 until 50).map { i -> (e.transform((i + 1) * dt) - e.transform(i * dt)) / dt }
+        assertTrue("速度应单调递减(允许数值噪声)", (0 until v.lastIndex).all { v[it + 1] <= v[it] + 1e-3f })
+        assertTrue("前段快:1/4 进度应已走 40% 以上,实际 ${e.transform(0.25f)}", e.transform(0.25f) > 0.4f)
+        // 对照:AccelerateDecelerate 在 1/4 进度只走约 15%(两头慢),两条曲线不能互换。
+        assertTrue(Theme.AppFocusEasing.transform(0.25f) < 0.2f)
+    }
+
+    @Test fun `R30 放大延迟 = 弹簧走到 80% 的时刻,随 stiffness 350 重算为 160 ms`() {
+        val omega = kotlin.math.sqrt(GtvLayout.BROWSE_SPRING_STIFFNESS.toDouble())
+        fun x(t: Double) = 1.0 - (1.0 + omega * t) * kotlin.math.exp(-omega * t)
+        val t = GtvLayout.FOCUS_AFTER_SHIFT_DELAY_MS / 1000.0
+        assertTrue("延迟时刻位移应在 75–85%,实际 ${x(t)}", x(t) in 0.75..0.85)
+        assertEquals(160, GtvLayout.FOCUS_AFTER_SHIFT_DELAY_MS)
+    }
+
     @Test fun `R27 的 browse 曲线保留为历史记录,形状不变`() {
         assertEquals(250, GtvLayout.BROWSE_SHIFT_MS)
         assertEquals(0f, Theme.BrowseEasing.transform(0f), 1e-4f)

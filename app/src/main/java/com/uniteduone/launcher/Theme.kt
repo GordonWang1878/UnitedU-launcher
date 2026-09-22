@@ -221,6 +221,17 @@ object Theme {
     val AppFocusEasing = androidx.compose.animation.core.Easing { t ->
         (kotlin.math.cos((t + 1f) * Math.PI) / 2.0 + 0.5).toFloat()
     }
+
+    /**
+     * **Ruling R34(2026-09-22,owner 真机反馈 Round 9)**:app 卡片**进焦**放大(缩放 + 描边 +
+     * 柔光淡入,[GtvLayout.FOCUS_SCALE_IN_MS] 1200 ms)的曲线——Material 标准减速
+     * `cubic-bezier(0, 0, 0.2, 1)`,前段快后段慢,与模拟器 pts 实测的慢放大形态一致。
+     * **不是** [AppFocusEasing]:那条 AccelerateDecelerate 是 `card_focus` 150 ms 旧路径的平台
+     * 默认插值器,只剩失焦缩回(150 ms)与内容卡描边 / 菜单药丸还在用。控制点与 [MotionEasing]
+     * 恰好相同,但两者语义不同(那条是 main 线 / 图片选择器的位置动画),分开命名,别互相替换。
+     * 只有 `GtvFocusStroke.gtvAppFocusFrame` 的进焦分支读它。
+     */
+    val AppFocusScaleInEasing = androidx.compose.animation.core.CubicBezierEasing(0f, 0f, 0.2f, 1f)
     /** 编辑页专用(观感不动,M8 不碰二级界面);随二级界面换皮时删。 */
     val EditRowSpacing = 25.4.dp
     val EditRowTitleGap = 2.3.dp

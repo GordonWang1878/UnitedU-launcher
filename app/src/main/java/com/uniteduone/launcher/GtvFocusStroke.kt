@@ -156,6 +156,11 @@ fun Modifier.gtvFocusStroke(focused: Boolean, color: Color, corner: Dp): Modifie
  * `AccelerateDecelerateInterpolator`,即 [Theme.AppFocusEasing]),描边贴着**缩放后**的边缘
  * 外扩 [GtvLayout.APP_FOCUS_GAP] + [GtvLayout.APP_FOCUS_STROKE]。
  *
+ * **Ruling R34(owner 反馈 Round 9,2026-09-22)**:上一段说的 `card_focus` 150 ms 只剩**失焦**
+ * 一半还成立——真机上看到的进焦放大慢得多(`focused_frame_animator_duration_ms = 1200`,减速型),
+ * 进焦走 [GtvLayout.FOCUS_SCALE_IN_MS] + [Theme.AppFocusScaleInEasing],失焦走
+ * [GtvLayout.FOCUS_FADE_OUT_MS] + [Theme.AppFocusEasing],不对称;缩放 / 描边 / 柔光三者同一份 spec。
+ *
  * **缩放不能影响布局**(owner 反馈原话「no layout change」):用 `graphicsLayer(scaleX/scaleY)`
  * 而不是 `Modifier.scale()` 或改 `.size()`——前者只在绘制阶段变换像素,父级看到的测量尺寸
  * 始终是未缩放的 `cardWidth × cardHeight`,卡片下方的标题文字(`AppCard` 里的兄弟节点,按
@@ -203,12 +208,18 @@ fun Modifier.gtvAppFocusFrame(
     movingColor: Color = Color.Unspecified,
     afterShift: Boolean = false,
 ): Modifier = composed {
-    val motionSpec = tween<Float>(
-        durationMillis = if (focused) GtvLayout.FOCUS_FADE_IN_MS else GtvLayout.FOCUS_FADE_OUT_MS,
-        // R30:进焦且这次焦点变化带着行位移 → 等位移走到约 80% 再开始放大;失焦不延迟。
-        delayMillis = if (focused && afterShift) GtvLayout.FOCUS_AFTER_SHIFT_DELAY_MS else 0,
-        easing = Theme.AppFocusEasing,
-    )
+    // R34:进焦 / 失焦不对称——进焦 1200 ms 减速曲线(focused_frame_animator_duration_ms),
+    // 失焦 150 ms AccelerateDecelerate(card_unfocus)。缩放、描边、柔光三者共用这一份 spec。
+    val motionSpec = if (focused) {
+        tween<Float>(
+            durationMillis = GtvLayout.FOCUS_SCALE_IN_MS,
+            // R30:这次焦点变化带着行位移 → 等位移走到约 80% 再开始放大。
+            delayMillis = if (afterShift) GtvLayout.FOCUS_AFTER_SHIFT_DELAY_MS else 0,
+            easing = Theme.AppFocusScaleInEasing,
+        )
+    } else {
+        tween(durationMillis = GtvLayout.FOCUS_FADE_OUT_MS, easing = Theme.AppFocusEasing)
+    }
     val scale by animateFloatAsState(
         targetValue = if (focused) GtvLayout.APP_FOCUS_SCALE else 1f,
         animationSpec = motionSpec,
@@ -232,8 +243,8 @@ fun Modifier.gtvAppFocusFrame(
                 // growX/growY(卡片变大的量,不是描边离卡边的距离)混进半径(见 focusRingRadius 的 KDoc)。
                 val r = GtvLayout.focusRingRadius(corner.toPx(), scale, gap, stroke)
                 // R28 柔光:几何与描边同源(outX/outY 里已经含了当前动画中的 scale,所以柔光
-                // 跟着卡片一起长大),透明度与描边共用同一个 ringAlpha —— 同一份 motionSpec,
-                // 150ms AccelerateDecelerate,柔光是焦点处理的一部分,不另起时长。
+                // 跟着卡片一起长大),透明度与描边共用同一个 ringAlpha —— 同一份 motionSpec
+                // (R34:进焦 1200 ms 减速 / 失焦 150 ms),柔光是焦点处理的一部分,不另起时长。
                 // 描边走中心线,外缘在 outX + stroke/2 处;柔光各圈的圆角 = 描边外缘半径 + 该圈偏移,
                 // 同样同心;先画柔光、描边盖在上面。
                 drawFocusGlow(

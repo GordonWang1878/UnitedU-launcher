@@ -223,16 +223,40 @@ object GtvLayout {
      * = 150`,进焦出焦**对称同为 150ms**,不是 150/120 的非对称值。**这不再是占位值,不要再加
      * "未测量"字样**——真的又量到更精确的数字才改,不要凭直觉往回调。
      *
-     * 用在:app 卡片的缩放 + 描边(`GtvFocusStroke.gtvAppFocusFrame`,见 [APP_FOCUS_SCALE] 一族);
-     * `gtvFocusStroke` 覆盖的另外两处内容卡式描边(`RowIconPicker`、`gtvAppFocusFrame` 的
-     * `moving` 分支)延续复用同一对时长——`card_focus`/`_unfocus` 是 Google 对「app 卡片」的量测,
-     * 这两处不是严格意义上的 app 卡片聚焦,只是为了整条线的焦点淡入淡出手感统一而借用同一个数字,
-     * 不是又找到了各自的独立测量,如实记录不夸大。`GearMenu.MenuPill` 同理复用(见该文件调用点
-     * 的注释)。曲线用 `Theme.AppFocusEasing`(同一份 APK 引用的 `AccelerateDecelerateInterpolator`,
+     * 用在:`gtvFocusStroke` 覆盖的内容卡式描边(`RowIconPicker`、`gtvAppFocusFrame` 的
+     * `moving` 分支)——`card_focus`/`_unfocus` 是 Google 对「app 卡片」的量测,这两处不是严格
+     * 意义上的 app 卡片聚焦,只是为了整条线的焦点淡入淡出手感统一而借用同一个数字,不是又找到了
+     * 各自的独立测量,如实记录不夸大。`GearMenu.MenuPill` 同理复用(见该文件调用点的注释)。
+     * 曲线用 `Theme.AppFocusEasing`(同一份 APK 引用的 `AccelerateDecelerateInterpolator`,
      * 不是 `Theme.MotionEasing` 那条给「位置动画」用的减速曲线)。
+     *
+     * **Ruling R34(2026-09-22,owner 真机反馈 Round 9)起,app 卡片的进焦放大不再读
+     * [FOCUS_FADE_IN_MS]**——那条 150 ms 的 `card_focus` 是旧路径,真机上看到的慢放大走的是另一条
+     * animator,见 [FOCUS_SCALE_IN_MS];失焦缩回仍读 [FOCUS_FADE_OUT_MS](`card_unfocus` 150),
+     * **进焦 / 失焦不对称**。[FOCUS_FADE_IN_MS] 本身继续给上面列的几处内容卡描边 / 菜单药丸用。
      */
     const val FOCUS_FADE_IN_MS = 150
     const val FOCUS_FADE_OUT_MS = 150
+
+    /**
+     * **Ruling R34(2026-09-22,owner 真机反馈 Round 9)**:app 卡片**进焦**放大(缩放 + 描边 +
+     * 柔光一起淡入)的时长——**1200 ms**,出处目标版资源表 `focused_frame_animator_duration_ms
+     * = 1200`(`docs/research/launcherx-1.0.976298245-named-resources.md`)。owner 原话「走到停下来
+     * 的时候,焦点所在的位置再慢慢放大」;模拟器 pts 实测放大在位移到 ~80% 时起步、**1.2 s 量级
+     * 才到顶**,曲线是减速型(前段快后段慢)——与 `card_focus` 那条 150 ms 对称路径不是同一个
+     * animator,不要把两者合并。
+     *
+     * **失焦仍是 150 ms**([FOCUS_FADE_OUT_MS],`card_unfocus`),**不对称**:进焦 1200 / 失焦 150。
+     * 录像里确认失焦缩回是瞬间量级,不随进焦一起变慢。
+     *
+     * 曲线用 [Theme.AppFocusScaleInEasing](`CubicBezierEasing(0, 0, 0.2, 1)`,Material 标准减速),
+     * **不再用 AccelerateDecelerate**——那是 `card_focus` 150 ms 旧路径的平台默认插值器,慢放大
+     * 的减速形态对不上它「两头慢中间快」的对称曲线。失焦保持 AccelerateDecelerate 150。
+     *
+     * 终值倍率仍是 [APP_FOCUS_SCALE] 1.10(静态 PNG 实测;录像里因运动模糊面积被低估读到 1.135,
+     * 不可信,不要改倍率)。柔光与描边的淡入与缩放同一份 spec(一起慢慢显出来),失焦一起 150 收。
+     */
+    const val FOCUS_SCALE_IN_MS = 1200
 
     /**
      * **Ruling R30(2026-09-22,owner 真机反馈 Round 8)**:焦点放大(缩放 + 描边 + 柔光的淡入)
@@ -242,15 +266,17 @@ object GtvLayout {
      * Google 横向不滑时也是立即的。失焦(缩回)永远不加延迟。
      *
      * **拟合值,不是资源原值**:按 [BROWSE_SPRING_STIFFNESS] 那根弹簧走到约 80% 的时刻估的——
-     * 临界阻尼 `1 − (1 + ωt)e^(−ωt) = 0.8` 解得 ωt ≈ 3.0,ω = √700 ≈ 26.5 rad/s → t ≈ 113 ms,
-     * 取整 120。Google 的放大到底是在位移的哪个百分比处起步没有逐帧量过,只有 owner 的
-     * 「移过去之后」这句定性描述;调 stiffness 时这个数要跟着重估(它是 ω 的函数)。
+     * 临界阻尼 `1 − (1 + ωt)e^(−ωt) = 0.8` 解得 ωt ≈ 2.99。R30 时 stiffness 700(ω ≈ 26.5)
+     * → 113 ms,取 120;**R33/R34(2026-09-22)stiffness 改 350(ω ≈ 18.7)后重算 → 160 ms**。
+     * Google 模拟器 pts 实测放大起步在按键后 ~200 ms(那时 Google 自己的位移已到 ~90%,不是 80%);
+     * 这里按「我们这根弹簧到 80%」的定义取 160,与 Google 的 200 差 40 ms(约两帧),
+     * owner 真机觉得放大起得太早就往 200 调——它是 ω 的函数,调 stiffness 时要跟着重估。
      *
      * 用在 `GtvFocusStroke.gtvAppFocusFrame` 的 `afterShift` 分支(`tween` 的 `delayMillis`);
      * 「这次触发了位移」的判定在 `HomeScreen.CategoryRow` 的焦点回调里做,不动任何焦点效果 /
      * 看门狗 / `FocusRequester` 链(铁律 3–7)。
      */
-    const val FOCUS_AFTER_SHIFT_DELAY_MS = 120
+    const val FOCUS_AFTER_SHIFT_DELAY_MS = 160
 
     /**
      * **Ruling R27(2026-09-21,owner 真机反馈 Round 7;R29 已取代,见下)**:浏览位移(**四处**:首页行 x/y 平移、
