@@ -202,9 +202,8 @@ class GtvLayoutTest {
         assertEquals(GtvLayout.ROWS_TOP, GtvLayout.restTitleTop(0, size, titles), 0.01f)
         assertEquals(GtvLayout.ROWS_TOP + 2 * pitch, GtvLayout.restTitleTop(2, size, titles), 0.01f)
         assertEquals(GtvLayout.restCardTop(2, size, titles) - GtvLayout.ROW_CARD_TOP, GtvLayout.restTitleTop(2, size, titles), 0.01f)
-        // R46 Google 实测(cap height 换算):焦点 ≈ 32 sp / 非焦点 ≈ 18 sp ≈ 1.78;≈ 300 ms。
+        // R46 Google 实测(cap height 换算):焦点 ≈ 32 sp / 非焦点 ≈ 18 sp ≈ 1.78。时长见 GtvMotionTest(R47)。
         assertEquals(1.78f, GtvLayout.ROW_TITLE_FOCUS_SCALE, 1e-6f)
-        assertEquals(300, GtvLayout.ROW_TITLE_FOCUS_MS)
     }
 
     @Test fun `R32 锚点在顶栏之下——浏览态焦点行的标题不与顶栏重叠`() {

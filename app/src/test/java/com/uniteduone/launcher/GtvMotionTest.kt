@@ -90,6 +90,19 @@ class GtvMotionTest {
         assertTrue("放大必须在位移停稳之前起步(叠着走)", x(t) < 0.9)
     }
 
+    @Test fun `R47 行标题焦点态与整页位移同一根弹簧,约 0点3 s 到 95%(Google 同起同止)`() {
+        val t = Theme.rowTitleFocusSpec()
+        assertEquals(Theme.browseShiftSpec().stiffness, t.stiffness, 0f)
+        assertEquals(Spring.DampingRatioNoBouncy, t.dampingRatio, 0f)
+        val omega = kotlin.math.sqrt(t.stiffness.toDouble())
+        fun x(s: Double) = 1.0 - (1.0 + omega * s) * kotlin.math.exp(-omega * s)
+        val t95 = (1..2000).map { it / 1000.0 }.first { x(it) >= 0.95 }
+        // Google 两段实测:位移与标题都在 +0.29–0.31 s 到 95%;R38 刚度 220 → 0.32 s。
+        assertTrue("标题到 95% 的时刻 $t95 s 应与 Google 的 ~0.3 s 同量级", t95 in 0.25..0.4)
+        // 焦点卡放大在标题收尾之前就起步(Google +0.02–0.07 s),不是等标题到位再放大。
+        assertTrue(GtvLayout.FOCUS_AFTER_SHIFT_DELAY_MS / 1000.0 < t95 / 2)
+    }
+
     @Test fun `R27 的 browse 曲线保留为历史记录,形状不变`() {
         assertEquals(250, GtvLayout.BROWSE_SHIFT_MS)
         assertEquals(0f, Theme.BrowseEasing.transform(0f), 1e-4f)

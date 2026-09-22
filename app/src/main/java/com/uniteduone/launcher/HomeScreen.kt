@@ -836,13 +836,14 @@ private fun CategoryRow(
 ) {
     val ctx = LocalContext.current
     // Ruling R46(owner 反馈 2026-09-22,真机看 R43 后:「现在这个效果太傻叉了,你能不能照着 Google 的样子做?」):
-    // 焦点行标题放大 + 由灰变白,其余行缩回变灰,300 ms 减速 tween,与整页位移同时发生
+    // 焦点行标题放大 + 由灰变白,其余行缩回变灰,与整页位移同时发生(R47 起走位移同一根弹簧)
     // (Google 实测见 GtvLayout.ROW_TITLE_FOCUS_SCALE)。一个进度量 titleFocus 0→1 同时驱动缩放、
     // 颜色插值与图标补偿位移,三者都在绘制阶段读(graphicsLayer / ColorProducer / drawBehind),
     // 动画每帧不重组本行、不改布局;不进焦点账本、不碰任何 FocusRequester / 看门狗(铁律 3–7)。
     val titleFocus by animateFloatAsState(
         targetValue = if (isTitleFocusRow) 1f else 0f,
-        animationSpec = tween(GtvLayout.ROW_TITLE_FOCUS_MS, easing = Theme.MotionEasing),
+        // R47:与整页位移同一根弹簧,同起同止(Google 实测,见 Theme.rowTitleFocusSpec)。
+        animationSpec = Theme.rowTitleFocusSpec(),
         label = "rowTitleFocus",
     )
     // 行标题 **不走主题 accent**(R46 推翻 R43 起沿用的 accent + alpha):Google 的行标题是白 / 灰两态,

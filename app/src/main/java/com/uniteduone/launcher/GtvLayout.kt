@@ -812,8 +812,27 @@ object GtvLayout {
     /** R46:行标题 cap height / 字号(em)。Roboto(系统 Latin 字体)cap = 1456/2048 ≈ 0.711 em;
      *  只用来求 cap 中线、让 1× 的行图标跟放大中的字垂直居中,不参与布局。 */
     const val ROW_TITLE_CAP_EM = 0.711f
-    /** R43:行标题放大 / 缩回的时长(ms),减速曲线([Theme.MotionEasing]);实测出处见 [ROW_TITLE_FOCUS_SCALE]。 */
-    const val ROW_TITLE_FOCUS_MS = 300
+    /*
+     * **Ruling R47(2026-09-22)**:R43 的 `ROW_TITLE_FOCUS_MS`(300 ms 减速 tween)已删除,行标题焦点态
+     * 改走 [Theme.rowTitleFocusSpec]——与整页位移**同一根**临界阻尼弹簧([BROWSE_SPRING_STIFFNESS])。
+     * owner 原话:「抄 Google 的那个动效,也就是三个东西的三层联动:先滚动,滚动的同时标题行淡入;淡入到位的
+     * 时候,焦点移下来,然后再放大。这只是我的描述,整体上你按照 Google 那样去做。」
+     *
+     * Google 实测(`unitedu-gtv` 模拟器 launcherx,`screenrecord --size 960x540` mp4 + `ffprobe` pts,
+     * `animator_duration_scale` 1.0;时间相对位移起步):
+     *
+     * | 段 | Top picks → Your apps(app 行) | Your apps → Continue watching |
+     * |---|---|---|
+     * | 页面位移 起步 / 到 95% | 0 / +0.29 s | 0 / +0.31 s |
+     * | 行标题长大 起步 / 到 95% | ≈0 / ≈+0.30 s | +0.02 / +0.31 s |
+     * | 焦点卡放大 起步 / 到顶 | +0.02–0.04 / +0.13 s | +0.07 / +0.17 s |
+     *
+     * 即 Google 的行标题与位移**同起同止**(像是被滚动直接带着走),焦点卡在位移刚起步时就开始放大、位移过半前
+     * 已放完。我们 R43 的标题 300 ms 减速 tween 在 +0.14 s 就到 95%,比位移早一倍收尾——这是「三层没联动」
+     * 的一半;换成同一根弹簧后标题与位移同起同止(+0.31 s 到 95%)。
+     * 焦点卡的起步延迟 [FOCUS_AFTER_SHIFT_DELAY_MS] 80 ms 与 Google 的 +0.02–0.07 s 同量级,**不改**;
+     * 放大时长 [FOCUS_SCALE_IN_MS] 600 ms 是 R37 owner 手感值(Google 只有 ~0.1–0.13 s),**不改**。
+     */
 
     /**
      * **Ruling R45(2026-09-22,owner 真机反馈,取代 R35「壁纸跟页面上移」与 R36 两层方案)**:壁纸**单层、

@@ -206,6 +206,19 @@ object Theme {
         )
 
     /**
+     * **Ruling R47(2026-09-22)**:首页行标题焦点态(放大 + 灰→白)的进度 0→1 走与整页位移**同一根**
+     * 临界阻尼弹簧(stiffness = [GtvLayout.BROWSE_SPRING_STIFFNESS]),标题与位移同起同止——Google
+     * 实测两者都在位移起步后 ~0.3 s 到 95%(数据见 `GtvLayout` 里 R47 一节)。阈值 0.002(进度量纲,
+     * 1.78 倍放大下不到 0.2% 字宽,肉眼不可辨)。
+     */
+    fun rowTitleFocusSpec(): androidx.compose.animation.core.SpringSpec<Float> =
+        androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+            stiffness = GtvLayout.BROWSE_SPRING_STIFFNESS,
+            visibilityThreshold = 0.002f,
+        )
+
+    /**
      * owner 反馈 Round 4(2026-09-21):Google 的 app tile 聚焦动画的真实插值器,从旧版 launcherx
      * APK(1.0.595789376,资源名未混淆)反编译读出——`animator/card_focus`/`card_unfocus` 两个
      * ObjectAnimator **都没有写 `interpolator` 属性**,Android 对 `ObjectAnimator` 的平台默认值是
