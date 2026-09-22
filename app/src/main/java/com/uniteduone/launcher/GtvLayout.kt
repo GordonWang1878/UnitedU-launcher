@@ -177,6 +177,37 @@ object GtvLayout {
      *  `docs/screenshots/gtv-owner-fix1-card-title-{clipped,fixed}-*.png` 的裁切前后对照。 */
     const val CARD_TITLE_LINE = 20f
 
+    /**
+     * **Ruling R49(2026-09-22)**:卡片淡化。owner 原话:「卡片颜色太鲜艳了……让卡片在整个 UI 中不那么
+     * 鲜艳、突兀,变淡一些,不破坏整个壁纸的感觉。」owner 看过效果图后选 **B4**
+     * (`docs/screenshots/mockups/B4-cards-desat70-dim25.jpg`,本体,不是「焦点卡恢复原色」变体):
+     * `gray = (R+G+B)/3`;`out = (gray + (c − gray) × 0.30) × 0.75`——饱和度保留 30%、亮度乘 0.75。
+     * 灰度是**三通道等权平均**(照效果图,不是 Rec.709 亮度,以免观感漂移)。矩阵见 [cardFadeMatrix]。
+     *
+     * 作用范围:所有卡片**内容**(banner、图标、边缘色底、无 banner 的纯色底、卡片标题),含焦点卡;
+     * 不作用于聚焦描边、柔光、搬运态描边(主题色,淡化会让焦点不清楚)。首页、编辑页、长按菜单左侧
+     * banner 淡化;「添加应用」列表与换卡片图的图片选择器不淡化(那是找东西用的,要认得清)。
+     */
+    const val CARD_FADE_SATURATION = 0.30f
+    /** R49:见 [CARD_FADE_SATURATION]。 */
+    const val CARD_FADE_BRIGHTNESS = 0.75f
+
+    /** R49:B4 算法的 4×5 颜色矩阵(Compose `ColorMatrix` 的行优先布局,alpha 不变、无偏移)。
+     *  `out_c = b × (s × c + (1 − s) × (R+G+B)/3)`,展开后对角 `b(s + (1−s)/3)`、非对角 `b(1−s)/3`。 */
+    fun cardFadeMatrix(
+        saturation: Float = CARD_FADE_SATURATION,
+        brightness: Float = CARD_FADE_BRIGHTNESS,
+    ): FloatArray {
+        val off = brightness * (1f - saturation) / 3f
+        val diag = brightness * saturation + off
+        return floatArrayOf(
+            diag, off, off, 0f, 0f,
+            off, diag, off, 0f, 0f,
+            off, off, diag, 0f, 0f,
+            0f, 0f, 0f, 1f, 0f,
+        )
+    }
+
     /** 长按 / 齿轮菜单(GearMenu,Task 8):药丸尺寸,实测报告 §7,268×55 dp,全圆角(h/2)。 */
     const val MENU_ITEM_WIDTH = 268f
     const val MENU_ITEM_HEIGHT = 55f

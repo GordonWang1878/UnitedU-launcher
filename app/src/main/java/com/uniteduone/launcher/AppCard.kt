@@ -19,7 +19,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -137,6 +139,9 @@ fun AppCard(
                 // 聚焦缩放 + 描边(贴缩放后边缘)+ 移动态高亮描边(固定几何,不缩放),
                 // 三者都在这一条 gtvAppFocusFrame 里,见其 KDoc 里的绘制顺序说明。
                 .gtvAppFocusFrame(focused, accent, metrics.cardCorner, moving, movingColor, afterShift = focusAfterShift)
+                // R49:淡化只包卡片内容(容器底色 + banner / 图标 / 文字回落),挂在 gtvAppFocusFrame
+                // **之内**——描边、柔光、搬运态描边在它外层的 drawBehind 里,不经过这层滤镜。
+                .gtvCardFade()
                 .size(metrics.cardWidth, metrics.cardHeight)
                 .focusProperties {
                     if (isRowStart) left = FocusRequester.Cancel
@@ -206,11 +211,31 @@ fun AppCard(
                     textAlign = TextAlign.Center,
                     lineHeight = metrics.titleLine.value.sp,
                 ),
-                modifier = Modifier.padding(top = metrics.titleGap).width(metrics.cardWidth).height(metrics.titleLine),
+                modifier = Modifier.padding(top = metrics.titleGap).width(metrics.cardWidth).height(metrics.titleLine)
+                    .gtvCardFade(),   // R49:卡片标题同样淡化
             )
         } else if (reserveTitleSpace) {
             // 与上面标题那一行等高(padding titleGap + 行高 titleLine),只占位不画
             Spacer(Modifier.height(metrics.titleGap + metrics.titleLine))
         }
     }
+}
+
+private val CardFadePaint by lazy {
+    androidx.compose.ui.graphics.Paint().apply {
+        colorFilter = ColorFilter.colorMatrix(ColorMatrix(GtvLayout.cardFadeMatrix()))
+    }
+}
+
+/**
+ * **Ruling R49**:卡片淡化(效果图 B4,算法与常量见 [GtvLayout.CARD_FADE_SATURATION])。把本节点及其
+ * 内层画的全部内容放进一个带颜色矩阵的离屏层(`saveLayer` + paint 的 colorFilter,效果同
+ * `graphicsLayer { compositingStrategy = Offscreen }` 再上滤镜)。**只挂在卡片内容那一层**:
+ * 外层的聚焦描边 / 柔光 / 搬运态描边(`gtvAppFocusFrame` 的 drawBehind)不在这层里,颜色不变。
+ * 用在首页 / 编辑页的 [AppCard] 与长按菜单左侧 banner;「添加应用」列表与图片选择器不用。
+ */
+fun Modifier.gtvCardFade(): Modifier = drawWithContent {
+    drawIntoCanvas { it.saveLayer(androidx.compose.ui.geometry.Rect(androidx.compose.ui.geometry.Offset.Zero, size), CardFadePaint) }
+    drawContent()
+    drawIntoCanvas { it.restore() }
 }

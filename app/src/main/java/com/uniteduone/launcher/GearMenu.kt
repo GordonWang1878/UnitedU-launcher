@@ -173,6 +173,8 @@ private fun MenuBanner(app: AppEntry?, name: String) {
                 modifier = Modifier
                     .size(bannerWidth, bannerHeight)
                     .clip(RoundedCornerShape(GtvLayout.CARD_CORNER.dp))
+                    // R49:同一张卡在首页与长按菜单里颜色不该突变——banner 与首页卡片同样淡化(B4)。
+                    .gtvCardFade()
                     .background(container),
                 contentAlignment = Alignment.Center,
             ) {

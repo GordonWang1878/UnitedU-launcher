@@ -320,4 +320,30 @@ class GtvLayoutTest {
         // 单位无关:px 进 px 出(density 2 的这台机型,8dp = 16px)
         assertEquals(23.6f, GtvLayout.focusRingRadius(16f, 1.1f, 4f, 4f), 0.0001f)
     }
+
+    // Ruling R49(效果图 B4):gray = (R+G+B)/3,out = (gray + (c − gray) × 0.30) × 0.75。
+    // 矩阵逐点对照效果图公式,灰度是三通道等权平均(不是 Rec.709)。
+    @Test fun `R49 卡片淡化矩阵 = B4 公式(饱和度 30%、亮度 × 0点75、等权灰度)`() {
+        assertEquals(0.30f, GtvLayout.CARD_FADE_SATURATION, 0f)
+        assertEquals(0.75f, GtvLayout.CARD_FADE_BRIGHTNESS, 0f)
+        val m = GtvLayout.cardFadeMatrix()
+        assertEquals(20, m.size)
+        fun apply(r: Float, g: Float, b: Float): FloatArray =
+            FloatArray(3) { row -> m[row * 5] * r + m[row * 5 + 1] * g + m[row * 5 + 2] * b + m[row * 5 + 4] }
+        fun b4(r: Float, g: Float, b: Float): FloatArray {
+            val gray = (r + g + b) / 3f
+            return floatArrayOf(r, g, b).map { (gray + (it - gray) * 0.30f) * 0.75f }.toFloatArray()
+        }
+        val rnd = java.util.Random(49)
+        repeat(500) {
+            val c = FloatArray(3) { rnd.nextFloat() }
+            val got = apply(c[0], c[1], c[2]); val want = b4(c[0], c[1], c[2])
+            for (k in 0..2) assertEquals(want[k], got[k], 1e-5f)
+        }
+        // 具体数:白 → 0.75 灰;纯红 → (0.4, 0.175, 0.175);alpha 行不动。
+        apply(1f, 1f, 1f).forEach { assertEquals(0.75f, it, 1e-6f) }
+        val red = apply(1f, 0f, 0f)
+        assertEquals(0.4f, red[0], 1e-6f); assertEquals(0.175f, red[1], 1e-6f); assertEquals(0.175f, red[2], 1e-6f)
+        assertEquals(listOf(0f, 0f, 0f, 1f, 0f), m.slice(15..19))
+    }
 }
