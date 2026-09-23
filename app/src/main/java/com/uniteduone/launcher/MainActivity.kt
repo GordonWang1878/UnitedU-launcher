@@ -851,7 +851,9 @@ class MainActivity : ComponentActivity() {
             if (pickerTarget != null) return true
             // 编辑页搬运中 MENU 什么都不做(M4b spec §0-18,同首页移动态「其余键按下去什么都不发生」);
             // 要走先按返回取消,或确定放下。
-            if (editing) { if (!editCarrying) leaveEdit(); return true }
+            // Ruling R76(2026-09-23 交互测试):从设置外壳进来的编辑页按 MENU 整个收回首页(编辑页 + 外壳),
+            // 与外壳其他层按 MENU 一致;不是从外壳进来的(shellStack 空)leaveSettings 什么都不做,行为不变。
+            if (editing) { if (!editCarrying) { leaveEdit(); leaveSettings() }; return true }
             // 设置外壳(含叠在它上面的关于页)开着:三条杠键 = 整个收掉(R69;与 M7 起「MENU 关设置页」同一语义)。
             // 关于页只能从外壳第一层打开,所以两者一起收。
             if (shellStack.isNotEmpty() || about) { closeAbout(); leaveSettings(); return true }
