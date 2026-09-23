@@ -1514,3 +1514,6 @@ R42(`1c8118e`):行底边(含聚焦溢出)超出屏幕物理底边才上移,上�
 - GitHub Release(已装用户会在「检查更新」里收到)未提,与推送一并待定。
 
 **同日续 · 「图标没变」**:Gordon 切到正式包后说图标没变。核实:默认桌面 = `com.uniteduone.launcher`、电视上的 APK 与新构建 sha256 一致、badging 里 icon 已指向自适应图标——安装无误。原因是**电视系统设置进程(`com.android.tv.settings`)昨天 16:33 起就没退出过**,内存里缓存着旧图标;当贝 / Projectivy 等桌面进程也是昨天起的,各有缓存。`am force-stop com.android.tv.settings` 与 `com.sony.dtv.settings` 后让他重开设置核对。三个包在系统里的名字:UnitedU(正式包)/ UnitedU GTV(旧 gtv 包)/ **United UI**(TvHome 原型,名字很像,别选错)。
+
+**同日续 · 旧包卸载**:Gordon 确认新版无误(「可以卸了」)。卸前核对默认桌面与 `screensaver_components` 都已指向正式包;两个旧包的 APK + 外部数据备份到 `~/unitedu-backup/20260923-130620-before-uninstall/`(gtv 57 个文件、TvHome 35 个,附 sha256 清单),然后 `adb uninstall com.uniteduone.launcher.gtv` 与 `com.gordonwang.tvhome` 均 Success。**电视上现在我们只有一个包:UnitedU `com.uniteduone.launcher`(1.0 = gtv 线,新图标)。** 当贝的 `com.dangbei.TVHomeLauncher` 名字里带 TVHome,不是我们的。
+仍待定:推 GitHub(126 个提交,含 Google TV 截图与头像,见上)、是否发 GitHub Release、WORKLOG 排队小修(顶栏后露出上一行卡片等)、`gtv` 分支与 `.claude/worktrees/gtv` 工作树已并入 main 可清理。
