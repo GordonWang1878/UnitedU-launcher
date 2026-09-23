@@ -294,5 +294,5 @@
     <string name="shell_root_screensaver_desc">Screensaver timing, gallery, system screensaver</string>
     <string name="settings_card_saturation">Card Saturation</string>
     <string name="settings_card_brightness">Card Brightness</string>
-    <string name="shell_preview_hint">Preview: %1$s · OK to save, Back to keep</string>
+    <string name="shell_preview_hint">Preview: %1$s · OK to save, Back to cancel</string>
 </resources>
