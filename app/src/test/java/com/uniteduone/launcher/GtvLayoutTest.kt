@@ -84,15 +84,20 @@ class GtvLayoutTest {
 
     // R48 效果图 A2:卡片位置不动(行 0 静止卡顶仍是 301.5)、行距收紧 32.5;行图标在左边距里,
     // 水平中心 = CONTENT_KEYLINE / 2,方框 = R48 之前行标题图标(20 dp)× 1.3。
-    @Test fun `R48 无行标题几何——行 0 卡顶不动、每行收紧 32点5、图标在左边距里不碰焦点卡`() {
-        assertEquals(301.5f, GtvLayout.restCardTop(0, M, false), 0.01f)
+    @Test fun `R48 无行标题几何——行 0 卡顶每档不动、行距逐项(比 R48 前少 32点5)、图标在左边距里不碰焦点卡`() {
         assertEquals(301.5f + 108.0625f, GtvLayout.restCardTop(1, M, false), 0.01f)
         assertEquals(32.5f, GtvLayout.ROWS_LEAD, 0f)
         assertEquals(7f, GtvLayout.ROW_CARD_TOP, 0f)
         for (size in GtvCardSize.values()) for (titles in listOf(false, true)) {
-            // R48 之前的公式(标题行盒 + 标题到卡)减去今天的值恰好是 32.5
-            val old = 20f + 12.5f + GtvLayout.rowPitch(size, titles)
-            assertEquals(32.5f, old - GtvLayout.rowPitch(size, titles), 0.001f)
+            // A2「卡片位置不动」:行 0 静止卡顶与档位、卡片标题开关都无关,恒为 R48 之前的 301.5。
+            // R48 前 = 顶栏 34 + 36 + hero 192 + 行标题行盒 20 + 标题到卡 12.5 + 描边留白 7;
+            // R48 后 = 34 + 36 + 192 + ROWS_LEAD 32.5 + 7——标题带那 32.5 dp 挪去当 hero 底边距。
+            assertEquals("$size titles=$titles 行 0 卡顶", 301.5f, GtvLayout.restCardTop(0, size, titles), 0.001f)
+            // 行距逐项,每项写字面量、不拿 rowPitch 去比 rowPitch:上下描边留白 2 × 7 + 卡高
+            // + 卡片标题(开着时 4 + 20)+ ROW_GAP 8。R48 前还有行标题行盒 20 + 标题到卡 12.5 两项,
+            // 所以每档每个开关都恰好少 32.5。
+            val perItem = 2f * 7f + GtvLayout.cardHeight(size) + (if (titles) 4f + 20f else 0f) + 8f
+            assertEquals("$size titles=$titles 行距", perItem, GtvLayout.rowPitch(size, titles), 0.001f)
         }
         assertEquals(26f, GtvLayout.ROW_ICON_SIZE, 0f)
         assertEquals(GtvLayout.ROW_TITLE_LINE * 1.3f, GtvLayout.ROW_ICON_SIZE, 0.01f)
@@ -190,17 +195,26 @@ class GtvLayoutTest {
     }
 
     @Test fun `R42 往上走只在出顶边时回移,且只移到上沿贴上界,回行 0 归 0`() {
-        // R48 行距收紧后 4 行里从行 3 回到行 1 已不需要回移,改用 6 行、下到行 4 再往上走。
-        val s4 = next(next(next(next(0f, 1, rows = 6), 2, rows = 6), 3, rows = 6), 4, rows = 6)
-        val up3 = next(s4, 3, rows = 6)
+        // R48 行距收紧后 4 行里从行 3 回到行 1 已不需要回移(行 1 上沿 401.26 − 238.05 = 163.2 ≥ 86),
+        // 改用 5 行(应用行上限 MAX_ROWS,或输入源行 + 4 条应用行)、下到行 4 再往上走。
+        // 960×540、中档、无标题手算(上沿 = 卡顶 − 聚焦溢出 8.303,下沿 = 卡底 + 8.303):
+        //   行 4 下沿 828.12 出底边 → s4 = 482 − 828.12 = −346.12,恰好也是 5 行的 minShift;
+        //   回行 3 / 行 2:上沿 617.38 / 509.32 + s4 = 271.27 / 163.21 ≥ 86 → 不回跳;
+        //   回行 1:上沿 401.26 + s4 = 55.14 < 86 → up1 = 86 − 401.26 = −315.26。
+        // 输入源行 + 5 条应用行的 6 行布局也造得出:minShift 更深(−454.18)、夹不到这一串,逐位相同。
+        val rows = 5
+        val s4 = next(next(next(next(0f, 1, rows = rows), 2, rows = rows), 3, rows = rows), 4, rows = rows)
+        assertEquals(-346.12f, s4, 0.01f)
+        val up3 = next(s4, 3, rows = rows)
         assertEquals("行 4 → 行 3:行 3 仍在窗口内,不回跳", s4, up3, 0f)
-        val up2 = next(up3, 2, rows = 6)
+        val up2 = next(up3, 2, rows = rows)
         assertEquals("行 3 → 行 2:行 2 仍在窗口内,不回跳", s4, up2, 0f)
         assertTrue(top(1) + up2 < GtvLayout.TOP_SAFE)
-        val up1 = next(up2, 1, rows = 6)
+        val up1 = next(up2, 1, rows = rows)
         assertEquals(GtvLayout.TOP_SAFE, top(1) + up1, 0.01f)
-        assertEquals(0f, next(up1, 0), 0f)
-        assertEquals(0f, next(up1, -1), 0f)
+        assertEquals(-315.26f, up1, 0.01f)
+        assertEquals(0f, next(up1, 0, rows = rows), 0f)
+        assertEquals(0f, next(up1, -1, rows = rows), 0f)
     }
 
     @Test fun `R42 粘性——同一行重算不改位移,行数变少夹回,区间比窗口高时上沿优先`() {
