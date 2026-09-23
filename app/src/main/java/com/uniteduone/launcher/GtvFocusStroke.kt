@@ -27,8 +27,9 @@ import androidx.compose.ui.unit.dp
  * 与卡片同心(R31,同一条不变量见 [GtvLayout.focusRingRadius])。
  *
  * **柔光会铺出卡片间距之外**:[GtvLayout.APP_FOCUS_GLOW_DP](60dp)> `GtvLayout.CARD_GAP`(20dp),
- * 也大于卡片上方到上一行标题的 15dp(`rowVerticalPad` 7 + `ROW_GAP` 8),所以它必然会淡淡地盖到
- * 邻居卡与上一行标题区——Google 那份实测剖面本身就是这样(它的行距比我们还紧),不是 bug,别为此砍短柔光。
+ * 也大于上下两行卡片之间的 22dp(本行 `rowVerticalPad` 7 + `ROW_GAP` 8 + 邻行 `rowVerticalPad` 7,
+ * 卡片标题关着时;R48 之前上方还隔着本行的行标题带),所以它必然会淡淡地盖到左右邻居卡与上一行卡片的
+ * 底部——Google 那份实测剖面本身就是这样(它的行距比我们还紧),不是 bug,别为此砍短柔光。
  *
  * **绘制顺序上真正的不对称**(整枝审查 F,2026-09-22 更正:此前这里写「要对称得给焦点卡加
  * zIndex」是错的——首页 `AppCard` 的外层 `Column` 早有 `zIndex(if (focused) 1f else 0f)`,
@@ -37,8 +38,13 @@ import androidx.compose.ui.unit.dp
  *     左邻先画被柔光盖住、右邻后画盖住柔光,左右不对称;
  * (b) **跨行**:zIndex 只在同一个父容器的兄弟之间生效,首页各行是 `Column` 的兄弟,后面的行
  *     后画——焦点卡 60dp 的柔光向下探到下一行会被下一行的卡切掉,向上探到上一行则盖在上一行
- *     的卡上,上下不对称。模拟器实测(`docs/screenshots/gtv-review-F-glow-cross-row.jpg`)
- *     数据区之外的收尾段在下一行卡片处已经很淡,肉眼看不出被切,只改注释、不给行容器加 zIndex。
+ *     的卡上,上下不对称。R48 之前行间还隔着行标题带,模拟器实测(`docs/screenshots/gtv-review-F-glow-cross-row.jpg`)
+ *     柔光到下一行卡片处已进收尾段、≤ 2/255,看不出被切,当时只改注释、不给行容器加 zIndex。
+ *     **R48 行距收紧 32.5dp 后这条不再成立**(整枝评审 2026-09-23 模拟器复测,中档无卡片标题、默认主题色,
+ *     焦点在第 0 张与第 1 张两帧相减):描边外缘到邻行卡片只剩 13.7dp,还在数据区。焦点卡与下一行之间的
+ *     暗色间隙被抬高约 +27~44/255,到下一行卡片上边缘一步掉回 0(后画的卡把柔光盖住);上一行浅色卡片的
+ *     底部只亮 +1~2(卡本身接近 accent 的亮度),间隙同样 +27~29。owner 真机试过 R48/R49 说「可以了」,
+ *     这里只如实记录,没有改。
  *
  * **这是绘制、不是布局**:整段画在 `drawBehind` 里,不改变任何测量尺寸。
  * `GtvLayout.appFocusOverflow`、`rowPitch`、`Theme.gtvCardMetrics.rowVerticalPad` 里**都没有**
@@ -179,6 +185,12 @@ fun Modifier.gtvFocusStroke(focused: Boolean, color: Color, corner: Dp): Modifie
  * `ringAlpha`,**但只是绘制,不进任何布局量**(见 [GtvLayout.appFocusOverflow] 的 KDoc)。
  *
  * **绘制顺序**:柔光 → 聚焦描边 → 移动描边,由外向内、后画的盖在先画的上面。
+ *
+ * **R49 边界(整枝评审 2026-09-23 补)**:本函数必须挂在 `gtvCardFade`(`AppCard.kt`,卡片淡化)的
+ * **外层**,即 modifier 链上更靠前。这里的 `drawBehind`(柔光 → 聚焦描边 → 移动描边)画在淡化层的
+ * 离屏图层之外,主题色原样;挂反了,三者全画进淡化层——被去饱和、亮度 × 0.75,而且那个离屏图层以
+ * 卡片自己的布局框为界,画在框外的描边与柔光会被整个裁掉。`AppCard` 经 `gtvFocusFrameOverFade` 一处
+ * 组合两者,`GtvGlowTest` 按 modifier 链的元素顺序钉住;新卡片要同时用两者时也走那个函数,别自己拼链。
  *
  * **Ruling R30(owner 反馈 Round 8)**:[afterShift] 为 true 且正在进焦时,缩放 + 描边 + 柔光
  * 的淡入整体推迟 [GtvLayout.FOCUS_AFTER_SHIFT_DELAY_MS](`tween` 的 `delayMillis`),让行位移

@@ -661,7 +661,7 @@ class MainActivity : ComponentActivity() {
                 // 写在选择器层(PickerLayer)**之前**:从设置页里打开的换壁纸 / 导入图片 / 默认桌面卡要盖在它上面,
                 // 同时设置页收到 `covered` 让路(焦点归那一层管,铁律 3)。
                 // **Ruling R39(2026-09-22,owner 真机反馈 Round 10)**:设置页之下先铺一层均匀压暗
-                // (GtvTokens.SettingsScrim,黑 0.55),150 ms 淡入淡出。铺在这里而不是设置页根节点上,
+                // (GtvTokens.SettingsScrim,黑 0.75),150 ms 淡入淡出。铺在这里而不是设置页根节点上,
                 // 是因为 `settings` 翻 false 时设置页当场离开组合,只有留在外面的这一层能淡出。
                 // 纯绘制层,不可聚焦、不吃按键,不进任何焦点账本(铁律 3–7 一处不动)。
                 val settingsScrim by animateFloatAsState(

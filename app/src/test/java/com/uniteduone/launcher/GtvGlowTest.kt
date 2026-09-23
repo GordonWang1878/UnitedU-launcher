@@ -1,5 +1,8 @@
 package com.uniteduone.launcher
 
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -11,6 +14,8 @@ import org.junit.Test
  * **这个测试覆盖不到什么**(如实记录):它验证的是纯函数 [GtvLayout.focusGlowAlpha] 与几何
  * 公式,不渲染 Compose——`GtvFocusStroke.drawFocusGlow` 把圈画到错误的半径上、或者哪天有人
  * 把柔光从 `drawBehind` 挪进布局,这里照样全绿。那一类回归只能靠装机截图逐像素比剖面发现。
+ * 末尾那条 R49 边界测试看的是 modifier 链的**结构**(元素顺序),同样不渲染;它守得住
+ * `gtvFocusFrameOverFade` 里的顺序,守不住有人绕开它、在别处把两者拼反。
  */
 class GtvGlowTest {
     /** 模拟器实测剖面(1920×1080 @ density 2.0):d = 超出描边外缘的距离 dp → 高出背景的亮度 /255。 */
@@ -164,5 +169,21 @@ class GtvGlowTest {
         )
         // 增量为 0 的地方,alpha 也必须是 0(不能被 MAX_ALPHA 的兜底路径吃掉)
         assertEquals(0f, GtvLayout.focusGlowAlphaFor(GtvLayout.APP_FOCUS_GLOW_DP + 1f, 0.0f), 1e-6f)
+    }
+
+    // R49 边界(整枝评审 2026-09-23):聚焦框(柔光 / 聚焦描边 / 搬运描边)必须挂在淡化层外层——挂反了
+    // 会被一起去饱和、压暗,框外部分还会被淡化层的离屏图层(以卡片布局框为界)裁掉。按 modifier 链的
+    // 元素顺序钉住 AppCard 用的那一处组合。认「哪个元素是淡化层」靠值相等:gtvCardFade 的 lambda
+    // 不捕获任何东西,两次调用得到相等的元素(第一条断言守住这个前提)。
+    @Test fun `R49 边界——聚焦框在淡化层外层(modifier 链更前),描边与柔光不被淡化`() {
+        val fade = Modifier.gtvCardFade()
+        assertEquals("前提:gtvCardFade 两次调用得到相等的元素,否则下面的判别失效", fade, Modifier.gtvCardFade())
+        for (moving in listOf(false, true)) {
+            val chain = Modifier.gtvFocusFrameOverFade(focused = true, accentColor = Color.White, corner = 8.dp, moving = moving)
+            val elements = chain.foldIn(emptyList<Modifier.Element>()) { acc, e -> acc + e }
+            assertEquals("聚焦框 + 淡化层各一个元素", 2, elements.size)
+            assertEquals("淡化层必须在链的最内层(最后)", fade, elements.last())
+            assertTrue("聚焦框必须在淡化层之前(外层)", elements.first() != fade)
+        }
     }
 }

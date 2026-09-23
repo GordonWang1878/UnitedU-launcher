@@ -136,12 +136,10 @@ fun AppCard(
             onClick = onClick,
             onLongClick = null,
             modifier = modifier
-                // 聚焦缩放 + 描边(贴缩放后边缘)+ 移动态高亮描边(固定几何,不缩放),
-                // 三者都在这一条 gtvAppFocusFrame 里,见其 KDoc 里的绘制顺序说明。
-                .gtvAppFocusFrame(focused, accent, metrics.cardCorner, moving, movingColor, afterShift = focusAfterShift)
-                // R49:淡化只包卡片内容(容器底色 + banner / 图标 / 文字回落),挂在 gtvAppFocusFrame
-                // **之内**——描边、柔光、搬运态描边在它外层的 drawBehind 里,不经过这层滤镜。
-                .gtvCardFade()
+                // 聚焦缩放 + 描边(贴缩放后边缘)+ 移动态高亮描边(固定几何,不缩放),三者都在
+                // gtvAppFocusFrame 里(见其 KDoc 里的绘制顺序说明);R49 的淡化只包卡片内容(容器底色 +
+                // banner / 图标 / 文字回落),挂在它**之内**——顺序由 gtvFocusFrameOverFade 一处固定。
+                .gtvFocusFrameOverFade(focused, accent, metrics.cardCorner, moving, movingColor, afterShift = focusAfterShift)
                 .size(metrics.cardWidth, metrics.cardHeight)
                 .focusProperties {
                     if (isRowStart) left = FocusRequester.Cancel
@@ -233,9 +231,25 @@ private val CardFadePaint by lazy {
  * `graphicsLayer { compositingStrategy = Offscreen }` 再上滤镜)。**只挂在卡片内容那一层**:
  * 外层的聚焦描边 / 柔光 / 搬运态描边(`gtvAppFocusFrame` 的 drawBehind)不在这层里,颜色不变。
  * 用在首页 / 编辑页的 [AppCard] 与长按菜单左侧 banner;「添加应用」列表与图片选择器不用。
+ * 与聚焦框同用时走 [gtvFocusFrameOverFade],不要自己拼链(顺序是硬约束,见那里)。
  */
 fun Modifier.gtvCardFade(): Modifier = drawWithContent {
     drawIntoCanvas { it.saveLayer(androidx.compose.ui.geometry.Rect(androidx.compose.ui.geometry.Offset.Zero, size), CardFadePaint) }
     drawContent()
     drawIntoCanvas { it.restore() }
 }
+
+/**
+ * **R49 边界**:卡片的聚焦框([gtvAppFocusFrame]:柔光 → 聚焦描边 → 搬运描边 + 缩放)与淡化层
+ * ([gtvCardFade])只在这里组合,顺序是硬约束——聚焦框在外层(modifier 链更前),它的 `drawBehind`
+ * 画在淡化层的离屏图层之外、主题色原样;反过来,描边与柔光会被去饱和压暗,而且因为离屏图层以卡片
+ * 布局框为界,框外的描边与柔光会被整个裁掉。`GtvGlowTest` 按 modifier 链的元素顺序钉住这一点。
+ */
+internal fun Modifier.gtvFocusFrameOverFade(
+    focused: Boolean,
+    accentColor: Color,
+    corner: androidx.compose.ui.unit.Dp,
+    moving: Boolean = false,
+    movingColor: Color = Color.Unspecified,
+    afterShift: Boolean = false,
+): Modifier = gtvAppFocusFrame(focused, accentColor, corner, moving, movingColor, afterShift).gtvCardFade()

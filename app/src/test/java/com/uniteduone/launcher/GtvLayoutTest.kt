@@ -100,7 +100,6 @@ class GtvLayoutTest {
             assertEquals("$size titles=$titles 行距", perItem, GtvLayout.rowPitch(size, titles), 0.001f)
         }
         assertEquals(26f, GtvLayout.ROW_ICON_SIZE, 0f)
-        assertEquals(GtvLayout.ROW_TITLE_LINE * 1.3f, GtvLayout.ROW_ICON_SIZE, 0.01f)
         val iconRight = GtvLayout.CONTENT_KEYLINE / 2f + GtvLayout.ROW_ICON_SIZE / 2f
         assertEquals(42f, iconRight, 0f)
         for (size in GtvCardSize.values()) {
@@ -241,13 +240,23 @@ class GtvLayoutTest {
         assertTrue(samples.all { it >= GtvLayout.WALLPAPER_BROWSE_ALPHA - 1e-6f })
     }
 
-    @Test fun `R48 restVisibleTop 与 restCardTop 同源`() {
-        val size = GtvCardSize.MEDIUM; val titles = false
-        val pitch = GtvLayout.rowPitch(size, titles)
-        val ov = GtvLayout.appFocusOverflow(GtvLayout.cardHeight(size))
-        // 行布局块顶 = ROWS_TOP + row × pitch;卡顶多 ROW_CARD_TOP;可见上沿再减聚焦溢出。
-        assertEquals(GtvLayout.ROWS_TOP + GtvLayout.ROW_CARD_TOP - ov, GtvLayout.restVisibleTop(0, size, titles), 0.01f)
-        assertEquals(GtvLayout.ROWS_TOP + GtvLayout.ROW_CARD_TOP + 2 * pitch - ov, GtvLayout.restVisibleTop(2, size, titles), 0.01f)
+    // R48 的可见区间:不复述 restVisibleTop 的公式,钉它在 KDoc 里承诺的两条性质——
+    // ①上下对称:卡顶之上与卡底之下(不算卡片标题)各留一份同样的聚焦溢出;
+    // ②行图标(与卡片纵向居中)整个落在区间里,所以它不必单独进区间。
+    @Test fun `R48 可见区间——上下各一份相同的聚焦溢出,行图标落在区间内`() {
+        for (size in GtvCardSize.values()) for (titles in listOf(false, true)) for (r in 0 until MAX_ROWS) {
+            val cardTop = GtvLayout.restCardTop(r, size, titles)
+            val cardBottom = cardTop + GtvLayout.cardHeight(size)
+            val top = GtvLayout.restVisibleTop(r, size, titles)
+            val bottom = GtvLayout.restRowVisibleBottom(r, size, titles)
+            val above = cardTop - top
+            val below = bottom - GtvLayout.titleHeight(titles) - cardBottom
+            assertTrue("$size titles=$titles 行 $r:卡顶之上要留出聚焦溢出", above > 0f)
+            assertEquals("$size titles=$titles 行 $r:上下溢出对称", above, below, 0.001f)
+            val iconTop = cardTop + GtvLayout.cardHeight(size) / 2f - GtvLayout.ROW_ICON_SIZE / 2f
+            assertTrue("$size 行 $r 图标顶 $iconTop 高出可见上沿 $top", iconTop >= top)
+            assertTrue("$size 行 $r 图标底高出可见下沿 $bottom", iconTop + GtvLayout.ROW_ICON_SIZE <= bottom)
+        }
     }
 
     @Test fun `R32 锚点在顶栏之下——浏览态焦点卡(含聚焦溢出)不与顶栏重叠`() {
@@ -297,19 +306,20 @@ class GtvLayoutTest {
 
     // owner 反馈 Round 4(2026-09-21)§5:「验证,不要假设」——app 卡片聚焦缩放
     // (GtvLayout.APP_FOCUS_SCALE)+ 贴边描边比原来的静态外扩(FOCUS_OUTSET+FOCUS_STROKE)更往外
-    // 探,必须确认这份新的视觉溢出不会碰到下一行的标题字形。可用的纵向余量是
+    // 探,必须确认这份新的视觉溢出不会碰到下一行。可用的纵向余量是
     // rowVerticalPad(= FOCUS_OUTSET+FOCUS_STROKE,任务明确要求不改 rowPitch,这个量因此维持
-    // 原值)+ ROW_GAP——这是「本行卡片内容结束」到「下一行标题行盒开始」之间的物理间距,
+    // 原值)+ ROW_GAP——这是「本行卡片内容结束」到「下一行布局块开始」之间的物理间距。R48 起首页
+    // 没有行标题,下一行布局块一开头就是它卡片上方的 7dp 描边留白带(R48 前是下一行的标题行盒),
     // 与 rowPitch() 的推导一致(见该函数 KDoc)。SMALL/MEDIUM/LARGE 三档都测,任务特别点名
     // LARGE(108dp 高、溢出最大)。
-    @Test fun `app 卡片聚焦缩放溢出不会碰到下一行标题(owner 反馈 Round4 §5)`() {
+    @Test fun `app 卡片聚焦缩放溢出不会碰到下一行卡片的描边留白带(owner 反馈 Round4 §5)`() {
         for (size in GtvCardSize.values()) {
             // 逐档从 Theme.gtvCardMetrics 取 rowVerticalPad——现在各档数值相同(常量不随 size 变),
             // 但这里不假设"以后也一定相同",按各自档位实际配置的值算,以后有人改了也不会漏测。
             val available = Theme.gtvCardMetrics(size).rowVerticalPad.value + GtvLayout.ROW_GAP
             val overflowY = GtvLayout.appFocusOverflow(GtvLayout.cardHeight(size))
             assertTrue(
-                "$size 的纵向溢出 ${overflowY}dp 超过了可用余量 ${available}dp,会碰到下一行标题",
+                "$size 的纵向溢出 ${overflowY}dp 超过了可用余量 ${available}dp,会压进下一行卡片的描边留白带",
                 overflowY < available,
             )
         }

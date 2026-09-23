@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalConfiguration
@@ -519,7 +518,7 @@ fun HomeScreen(
         val effectiveIdleContent = demoIdle ?: idleContent
         // 待机用 alpha 淡出,不用 AnimatedVisibility——后者自带裁剪,会把超出屏幕的
         // 第三行整块切掉(实测 MUSIC 行因此始终不可见)。
-        // NO_FADE(Task 3):待机时恒 1,卡片/行标题/pill 都不淡出。**自定义屏保例外**(M5 spec §0 / §1.4):
+        // NO_FADE(Task 3):待机时恒 1,卡片/行图标/pill 都不淡出。**自定义屏保例外**(M5 spec §0 / §1.4):
         // 「不淡出」只管待机显示,屏保照样全屏——照片上不能浮着一排卡片,所以 screensaver 为真时一律淡出。
         // 「该淡出了」的谓词只写一份:contentAlpha 与下面的 topBarClockAlpha 都读它(整枝审查
         // 2026-09-22 合并,此前两处各抄了一份同样的表达式)。
@@ -544,8 +543,8 @@ fun HomeScreen(
         // 下面画两条独立的纯黑半透明 1D 渐变(这一层管横向,下一层管纵向),Compose 默认的图层
         // over 合成本身就是透光率相乘,不需要手写 2D shader。
         //
-        // 铺满全屏(不只是 192dp 的 hero 条):行标题贴的是同一条左基准线,一路往下到最后一行都是,
-        // 只压 hero 那一段的话第一行以下的标题依旧没人管。
+        // 铺满全屏(不只是 192dp 的 hero 条):卡片行与左边距里的行图标(R48 前是贴左基准线的行标题)
+        // 一路往下到最后一行都是,只压 hero 那一段的话第一行以下依旧没人管。
         // 随 contentAlpha 一起淡出——待机 / 自定义屏保时两层暗色一起消失,只剩干净壁纸,
         // 与 HomeScreen 顶部 KDoc「screensaver 为真时行 / 渐变 / 顶栏一律淡出」说的是同一件事;
         // 两层共读同一个 `contentAlpha`,不会互相错拍。
@@ -836,12 +835,12 @@ private fun CategoryRow(
 ) {
     val ctx = LocalContext.current
     // Ruling R48(2026-09-22,owner 看效果图后选 A2):首页取消行标题,行图标留在左边距里当焦点提示。
-    // 焦点行近白、其余行灰(R46 的两色),与整页位移同一根弹簧(R47 的 Theme.rowTitleFocusSpec),
+    // 焦点行近白、其余行灰(R46 的两色),与整页位移同一根弹簧(R47 的 Theme.rowIconFocusSpec),
     // **不缩放**。进度量 iconFocus 只在绘制阶段读(RowIcon 的 tint lambda),动画每帧不重组本行、
     // 不改布局;不进焦点账本、不碰任何 FocusRequester / 看门狗(铁律 3–7)。
     val iconFocus by animateFloatAsState(
         targetValue = if (isFocusRow) 1f else 0f,
-        animationSpec = Theme.rowTitleFocusSpec(),
+        animationSpec = Theme.rowIconFocusSpec(),
         label = "rowIconFocus",
     )
     val iconColor = { androidx.compose.ui.graphics.lerp(GtvTokens.RowIconIdle, GtvTokens.RowIconFocused, iconFocus) }

@@ -61,7 +61,8 @@ fun RowIcon(
 
 /** R46:首页用的版本——颜色在**绘制阶段**读([tint] 每帧求值),跟着焦点态的灰 ↔ 近白插值走,
  *  动画不重组;图形与上面的 [RowIcon] 相同。
- *  **R48**:首页不再画行标题,图标独自画在左边距里,方框改为 [boxSize](首页传 `GtvLayout.ROW_ICON_SIZE`);
+ *  **R48**:首页不再画行标题,图标独自画在左边距里,方框改为 [boxSize](没有默认值,唯一调用点首页显式传
+ *  `GtvLayout.ROW_ICON_SIZE`);
  *  行名改由这里的 `contentDescription` 带给无障碍服务(原来由旁边的标题文字提供)。 */
 @Composable
 fun RowIcon(
@@ -70,7 +71,7 @@ fun RowIcon(
     icon: String?,
     tint: () -> androidx.compose.ui.graphics.Color,
     modifier: Modifier = Modifier,
-    boxSize: androidx.compose.ui.unit.Dp = GtvLayout.ROW_TITLE_LINE.dp,
+    boxSize: androidx.compose.ui.unit.Dp,
 ) {
     val painter = rememberVectorPainter(rowIconFor(name, kind, icon))
     Box(

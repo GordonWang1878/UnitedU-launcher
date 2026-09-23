@@ -90,8 +90,8 @@ class GtvMotionTest {
         assertTrue("放大必须在位移停稳之前起步(叠着走)", x(t) < 0.9)
     }
 
-    @Test fun `R47 行标题焦点态与整页位移同一根弹簧,约 0点3 s 到 95%(Google 同起同止)`() {
-        val t = Theme.rowTitleFocusSpec()
+    @Test fun `R47 行图标焦点态(R48 前是行标题)与整页位移同一根弹簧,约 0点3 s 到 95%(Google 同起同止)`() {
+        val t = Theme.rowIconFocusSpec()
         assertEquals(Theme.browseShiftSpec().stiffness, t.stiffness, 0f)
         assertEquals(Spring.DampingRatioNoBouncy, t.dampingRatio, 0f)
         val omega = kotlin.math.sqrt(t.stiffness.toDouble())

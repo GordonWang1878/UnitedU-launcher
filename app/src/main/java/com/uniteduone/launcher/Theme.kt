@@ -146,7 +146,7 @@ object Theme {
         // 行内上下留白 7dp:这是**行距预算**(rowPitch 里给聚焦态留的固定一项),不是溢出容量——
         // app tile 聚焦缩放 + 贴边描边的纵向视觉溢出是 GtvLayout.appFocusOverflow(cardHeight)
         // (LARGE 档 9.4dp),靠 rowVerticalPad + ROW_GAP(7 + 8 = 15dp)一起容下(GtvLayoutTest
-        // 「不会碰到下一行标题」断言的就是这条);R28 的柔光更是纯绘制、不在任何预算里。
+        // 「不会碰到下一行卡片的描边留白带」断言的就是这条);R28 的柔光更是纯绘制、不在任何预算里。
         // 数值沿用 content card 时代的 FOCUS_OUTSET + FOCUS_STROKE 只是为了不动 rowPitch(Round 4 要求)。
         rowVerticalPad = (GtvLayout.FOCUS_OUTSET + GtvLayout.FOCUS_STROKE).dp,
         titleGap = GtvLayout.CARD_TITLE_GAP.dp,
@@ -210,9 +210,10 @@ object Theme {
      * 临界阻尼弹簧(stiffness = [GtvLayout.BROWSE_SPRING_STIFFNESS]),标题与位移同起同止——Google
      * 实测两者都在位移起步后 ~0.3 s 到 95%(数据见 `GtvLayout` 里 R47 一节)。阈值 0.002(进度量纲,
      * 1.78 倍放大下不到 0.2% 字宽,肉眼不可辨)。
-     * **R48 起**首页没有行标题,这根弹簧只驱动行图标的灰 ↔ 近白(不缩放),名字沿用。
+     * **R48 起**首页没有行标题,这根弹簧只驱动行图标的灰 ↔ 近白(不缩放);函数名原是
+     * `rowTitleFocusSpec`,整枝评审(2026-09-23)随之改为现名。
      */
-    fun rowTitleFocusSpec(): androidx.compose.animation.core.SpringSpec<Float> =
+    fun rowIconFocusSpec(): androidx.compose.animation.core.SpringSpec<Float> =
         androidx.compose.animation.core.spring(
             dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
             stiffness = GtvLayout.BROWSE_SPRING_STIFFNESS,
@@ -249,6 +250,9 @@ object Theme {
     /** 编辑页专用(观感不动,M8 不碰二级界面);随二级界面换皮时删。 */
     val EditRowSpacing = 25.4.dp
     val EditRowTitleGap = 2.3.dp
+    /** 编辑页行名前的图标与行名之间的间距。M4b 起就是 8dp,当时与首页行标题的图标间距同值;gtv 线首页曾把
+     *  那个值常量化为 `GtvLayout.ROW_TITLE_ICON_GAP`,R48 随首页行标题一起删掉,此后只剩编辑页在用。 */
+    val EditRowIconGap = 8.dp
 
     // 邻居压暗的数值写在 AppCard 的 shade 里,以那里为准(左邻居 0.09、隔一张 0.06、
     // 右邻居 0.05)。这里不再复述——注释抄一份就会各自漂移,先前就漂成了 0.17/0.09/0.04。

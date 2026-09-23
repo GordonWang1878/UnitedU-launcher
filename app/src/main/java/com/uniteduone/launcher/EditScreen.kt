@@ -608,16 +608,17 @@ fun EditScreen(
                         .padding(bottom = Theme.EditRowSpacing),
                     verticalArrangement = Arrangement.spacedBy(Theme.EditRowTitleGap),
                 ) {
-                    // 行标题前画这一行的图标(M4b spec §2):与首页同一个组件、同一个 24dp 与 accent 色,
-                    // 行高固定 24dp、竖直居中(同首页 CategoryRow),中英文名字的行高差不会让各行高低不一。
+                    // 行名前画这一行的图标(M4b spec §2):`RowIcon` 固定尺寸的那个重载,方框 = 行盒高
+                    // GtvLayout.ROW_TITLE_LINE(20dp),accent 色。**与首页不是同一套画法**:R48 起首页不画行名,
+                    // 行图标走另一个重载(26dp、放在左边距、焦点行近白 / 其余灰)。行高固定、竖直居中,
+                    // 中英文名字的行高差不会让各行高低不一。
                     Row(
-                        // Ruling R18:行标题行高改读 GtvLayout(与首页 CategoryRow 同一个值),不再是
-                        // HomeLayout.ROW_TITLE_LINE(24dp,main 线 titleMedium 的默认行高反推值)——
-                        // 编辑页现在用的是 gtv 三档卡片,行标题理应对齐同一条 gtv 几何,不是凑巧撞在
-                        // 一起的两个数字(24 vs 23,肉眼几乎看不出,但概念上不该分属两套体系)。
+                        // Ruling R18:行标题行高改读 GtvLayout,不再是 HomeLayout.ROW_TITLE_LINE(24dp,main 线
+                        // titleMedium 的默认行高反推值)——编辑页用的是 gtv 三档卡片,行标题理应对齐同一条 gtv 几何。
+                        // (R18 时首页 CategoryRow 也读这个值;R48 起首页没有行标题,这里是它仅剩的行盒读者。)
                         modifier = Modifier.padding(start = Theme.SidePadding).height(GtvLayout.ROW_TITLE_LINE.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(Theme.EditRowIconGap),
                     ) {
                         RowIcon(name, RowKind.APPS, row.icon, tint = LocalThemeColors.current.accent)
                         BasicText(
