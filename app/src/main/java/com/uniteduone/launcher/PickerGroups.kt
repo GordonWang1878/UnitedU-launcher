@@ -25,11 +25,13 @@ data class PackageFacts(
 )
 
 /**
- * 平台 / 厂商命名空间:系统预装、又在这些前缀下的「有启动入口」的包,是电视设置、直播频道、索尼的
- * 帮助 / 计时器 / 通知中心这类工具,不是内容应用。`com.google.android.` 下的 YouTube 同样是预装,
- * 但它随 Play 更新过(FLAG_UPDATED_SYSTEM_APP),在第一条规则就归进应用,走不到这里。
+ * 平台 / 厂商**工具**命名空间:系统预装、又在这些前缀下的「有启动入口」的包,是电视设置、直播频道、索尼的
+ * 帮助 / 计时器 / 通知中心 / MySony 这类工具,不是内容应用——**更新过也一样**(A95L 只读实测:
+ * `com.sony.dtv.mysony` 带 FLAG_UPDATED_SYSTEM_APP,按「更新过 = 应用」会漏进应用组)。
+ * 不收宽泛的 `com.google.android.`:YouTube(`com.google.android.youtube.tv`)在 Google TV 机型上是预装系统应用,
+ * 它是内容应用;Google TV 自己的系统工具在 `com.google.android.tv.` 下。
  */
-internal val PLATFORM_PREFIXES = listOf("com.android.", "com.google.android.", "com.sony.dtv.", "mediatek.", "com.mediatek.")
+internal val PLATFORM_PREFIXES = listOf("com.android.", "com.google.android.tv.", "com.sony.dtv.", "mediatek.", "com.mediatek.")
 
 internal fun isPlatformNamespace(pkg: String): Boolean =
     pkg == "android" || PLATFORM_PREFIXES.any { pkg.startsWith(it) }
@@ -37,16 +39,15 @@ internal fun isPlatformNamespace(pkg: String): Boolean =
 /**
  * 一个包在「添加应用」列表里归哪组;null = 不列。规则按顺序:
  * 1. 本应用自身不列。
- * 2. 有启动分类 + (非系统 **或** 系统但更新过)→ 应用(第三方应用;YouTube、Play 商店这类随商店更新的预装)。
- * 3. 有启动分类 + 系统 + 平台 / 厂商命名空间 → 系统工具(电视设置、索尼工具、直播频道)。
- * 4. 有启动分类 + 系统 + 其他命名空间 → 应用(腾讯视频、乐播投屏、当贝市场这类厂商预装的内容应用)。
- * 5. 只有裸 MAIN:要有 exported 的 MAIN,且(在 [DEFAULT_LAYOUT] 里 **或** 非系统)→ 应用;其余是系统组件,不列。
+ * 2. 有启动分类 + 系统(含更新过的)+ 工具命名空间 → 系统工具(电视设置、索尼工具含 MySony、Play 商店、直播频道)。
+ * 3. 有启动分类 + 其余(第三方;或其他命名空间的预装,如腾讯视频、乐播投屏、当贝市场、Google TV 上预装的 YouTube)→ 应用。
+ * 4. 只有裸 MAIN:要有 exported 的 MAIN,且(在 [DEFAULT_LAYOUT] 里 **或** 非系统)→ 应用;其余是系统组件,不列。
  */
 fun pickerGroupOf(f: PackageFacts, selfPackage: String): PickerGroup? {
     if (f.packageName == selfPackage) return null
     if (f.hasLauncherEntry) {
-        if (!f.isSystem || f.isUpdatedSystem) return PickerGroup.APPS
-        return if (isPlatformNamespace(f.packageName)) PickerGroup.SYSTEM_TOOLS else PickerGroup.APPS
+        // 系统预装 + 工具命名空间 → 系统工具,不看是否更新过(MySony 就是更新过的索尼工具)
+        return if (f.isSystem && isPlatformNamespace(f.packageName)) PickerGroup.SYSTEM_TOOLS else PickerGroup.APPS
     }
     if (!f.hasExportedMain) return null
     return if (f.inDefaultLayout || !f.isSystem) PickerGroup.APPS else null

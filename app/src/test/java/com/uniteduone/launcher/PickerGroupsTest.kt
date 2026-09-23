@@ -58,7 +58,9 @@ class PickerGroupsTest {
     @Test fun updatedSystemAppsWithLauncherAreApps() {
         // YouTube / Play 商店:预装在 com.google.android. / com.android. 下,但随商店更新过
         assertEquals(PickerGroup.APPS, pickerGroupOf(preinstalled("com.google.android.youtube.tv", updated = true), self))
-        assertEquals(PickerGroup.APPS, pickerGroupOf(preinstalled("com.android.vending", updated = true), self))
+        assertEquals(PickerGroup.SYSTEM_TOOLS, pickerGroupOf(preinstalled("com.android.vending", updated = true), self))
+        // A95L 只读实测:MySony 带 FLAG_UPDATED_SYSTEM_APP,仍是索尼工具
+        assertEquals(PickerGroup.SYSTEM_TOOLS, pickerGroupOf(preinstalled("com.sony.dtv.mysony", updated = true), self))
     }
 
     @Test fun thirdPartyAppsAreApps() {
