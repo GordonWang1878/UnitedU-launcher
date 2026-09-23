@@ -51,11 +51,20 @@ internal val layoutWrites: CoroutineDispatcher = Dispatchers.IO.limitedParalleli
  * layout.json 形如:
  *   {"rows":[{"name":"VIDEO","icon":"movie","apps":["com.a","com.b"]}, ...]}
  * `icon` 是可选字段(M4b 起,见 RowIcons.kt):缺失或不认识的 id 一律按名字回落,不影响读取。
- * 缺失或损坏时回落到内置默认([DEFAULT_LAYOUT]),并把默认写回磁盘,方便 adb 拉下来改。
+ * 缺失或损坏时回落到内置默认([DEFAULT_LAYOUT])按已装过滤的那份([installedDefaultLayout]),并写回磁盘,方便 adb 拉下来改。
  *
  * **「文件缺失就写默认」是首次引导三态判定的前提**(spec §8):任何跑过旧版本的用户都一定有
  * layout.json,所以 `MainActivity.onCreate` 必须赶在任何人调 [read] 之前看一眼它在不在。
  */
+/**
+ * 内置默认布局按**已装、可启动**过滤(R68):三行照旧,没装的条目不写进文件。与首次引导「继续」同一个函数、
+ * 同一个已装集合(`plannedLayout` + `installedDefaultApps`);查询失败时 `Apps.load` 返回空,结果是三个空行
+ * (与「跳过」相同),桌面空着但编辑页的「+」都在,不是死胡同。在 [Layout] 的锁里调用(IO 线程)。
+ */
+internal fun installedDefaultLayout(ctx: Context): List<LayoutRow> =
+    runCatching { plannedLayout(DEFAULT_LAYOUT, installedDefaultApps(ctx).keys) }
+        .getOrElse { skippedLayout(DEFAULT_LAYOUT) }
+
 object Layout {
     private const val TAG = "UnitedU"
 
@@ -84,10 +93,14 @@ object Layout {
                 if (got.restored) write(ctx, got.value)
                 got.value
             }
-            // Missing = 正式文件与 .prev 都不在:真正的首次运行;Corrupt = 一份都解析不了
+            // Missing = 正式文件与 .prev 都不在:真正的首次运行;Corrupt = 一份都解析不了。
+            // 写回的默认值**按已装过滤**(Ruling R68,与首次引导「继续」同一口径:plannedLayout + installedDefaultApps):
+            // 不过滤的话,没装的默认条目会被启动清理([pruneMissingPackages])当成「没装」去掉——在一台一个默认应用
+            // 都没装的机器上,11 个里 11 个没装,正好撞上「比例异常就整次跳过」,于是永远清不掉。
             else -> {
-                write(ctx, DEFAULT_LAYOUT)
-                DEFAULT_LAYOUT
+                val fallback = installedDefaultLayout(ctx)
+                write(ctx, fallback)
+                fallback
             }
         }
     }
@@ -124,6 +137,15 @@ object Layout {
         next !== rows && write(ctx, next)
     }
 
+    /**
+     * 同 [update],但**没有任何已保存的布局时什么都不做**(不读,也就不会写默认值):启动清理
+     * ([pruneMissingPackages])挂在 onResume 上,真正首次运行时 layout.json 还不在——若照 [update] 走 [read],
+     * 就会抢在引导前把默认布局写出来。判断与读改写在同一把锁里。
+     */
+    fun updateSaved(ctx: Context, transform: (List<LayoutRow>) -> List<LayoutRow>): Boolean = store.locked {
+        hasSaved(ctx) && update(ctx, transform)
+    }
+
     /** 同 [update],但无论结果是否与盘上相同都写一次;@return 是否落盘。给「写失败要告诉用户」的调用方(放下移动)。 */
     fun rewrite(ctx: Context, transform: (List<LayoutRow>) -> List<LayoutRow>): Boolean = store.locked {
         write(ctx, transform(read(ctx)))
@@ -147,10 +169,15 @@ object Layout {
 
     /**
      * 应用被**真正卸载**(`PACKAGE_FULLY_REMOVED`)后从所有行移除;不在任何行 → false,不写盘。
-     * 只在卸载事件上调,**绝不在读取时按「未安装」清理**:默认布局里的包可能还没装(装上就该自动出现),
-     * 应用更新过程中包也会短暂"不存在"。2026-09-16 A95L 真机:从长按菜单卸载后首页卡片消失,
-     * 编辑页原位却留着一张「未安装 com.dangbei.dbmusic.sonyos.tab」的僵尸卡——就是缺这一步。
-     * 同一次卸载会被两个接收器各调一次(见 [pruneUninstalled]),靠 [update] 的锁串行,第二次是无操作。
+     * 2026-09-16 A95L 真机:从长按菜单卸载后首页卡片消失,编辑页原位却留着一张「未安装 com.dangbei.dbmusic.sonyos.tab」
+     * 的僵尸卡——就是缺这一步。同一次卸载会被两个接收器各调一次(见 [pruneUninstalled]),靠 [update] 的锁串行,第二次是无操作。
+     *
+     * **读取时仍然不按「未安装」清理**([read] 只读不删),但「没装的包留在文件里等它装上自动出现」这条旧规则
+     * **作废了**(Ruling R68,2026-09-23,Gordon:「应用卸载后,卡片消失,布局里那个位置也消失」)。旧规则的前提是
+     * 默认布局列着还没装的包、装上就该冒出来——首次引导起默认布局按已装过滤后才写盘(`plannedLayout`,
+     * [read] 的缺失回落也是),这个前提不存在了。现行规则:卸载事件上清(这里),**再加**启动 / 回到前台时的兜底清理
+     * ([pruneMissingPackages]:接收器没收到、进程不在、历史残留),防误删的判据在那里(更新窗口、查询出错、比例异常)。
+     * 清理不放进 [read]:read 在锁里、被每个读者调用,一次 PackageManager 抽风就会连带写盘。
      */
     fun removePackage(ctx: Context, pkg: String): Boolean = update(ctx) { withoutPackage(it, pkg) }
 

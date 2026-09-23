@@ -215,7 +215,8 @@ class MainActivity : ComponentActivity() {
     private var renameTarget by mutableStateOf<CardRef?>(null)
     /** 编辑页该定位到哪张卡:编辑页里「换卡片图」的选择器关掉、编辑页重建时(M7 终审 C1)。
      *  (M4b 起长按菜单「移动位置」改为首页原地移动,不再经过这里。)**(layout.json 行号, 包名)** ——
-     *  列号不能带:编辑页按 layout.json 排,里面还有装不到的包占位,渲染列号对不上。
+     *  列号不带:R67 起编辑页只画已装、可启动的包(与首页同口径),可见列号 ≠ layout.json 下标;
+     *  编辑页按包名在它看得见的那份里查列号。行号两边一致(编辑页连空行都画)。
      *  只有 `leaveEdit()` 清它;编辑期间留着无害(编辑页按「已应用的目标」比对,同一个实例只应用一次)。 */
     private var editTarget by mutableStateOf<Pair<Int, String>?>(null)
     /**
@@ -297,6 +298,11 @@ class MainActivity : ComponentActivity() {
     private val packageChanges = object : android.content.BroadcastReceiver() {
         override fun onReceive(c: android.content.Context?, i: Intent?) {
             val pkg = i?.data?.schemeSpecificPart
+            // 更新(覆盖安装)时系统先发带 EXTRA_REPLACING 的 PACKAGE_REMOVED、再发 PACKAGE_ADDED:记下来,
+            // 启动清理([pruneMissingPackages])在更新窗口内不把它当成「没装」(Ruling R68)
+            if (pkg != null && i?.getBooleanExtra(Intent.EXTRA_REPLACING, false) == true) {
+                recentReplacements.note(pkg, android.os.SystemClock.elapsedRealtime())
+            }
             if (i?.action == Intent.ACTION_PACKAGE_FULLY_REMOVED && pkg != null) {
                 lifecycleScope.launch {
                     withContext(Dispatchers.IO) { pruneUninstalled(this@MainActivity, pkg) }
@@ -1350,6 +1356,11 @@ class MainActivity : ComponentActivity() {
         // 第一下按键才建立、而且落在第一张卡)。所以这里必须补一次请求;
         // 界面那边现在会把它送回**离开前那张卡**,不再是第一行第一张。
         focusNonce++
+        // 兜底清掉布局里已经没装的包(Ruling R68):卸载广播漏掉的、进程不在时卸的、历史残留。
+        // 改了才 revision++(首页 / 编辑页按新文件重读);防误删的判据都在 pruneMissingPackages 里。
+        lifecycleScope.launch {
+            if (withContext(Dispatchers.IO) { pruneMissingPackages(this@MainActivity) }) revision++
+        }
     }
 
     override fun onPause() {
