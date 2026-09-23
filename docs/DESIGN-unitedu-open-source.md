@@ -109,7 +109,7 @@ UnitedU 设置   ← 行数/卡片大小/标题开关/输入源行/壁纸/主题
 - **去 adb 依赖**:`RelaunchAfterUpdate` 检测 `SYSTEM_ALERT_WINDOW` appop 未授权时静默跳过;权限声明保留。
 - **文案**:全部抽到 `strings.xml`,简 / 繁 / 英三份(现在中英混写在 Kotlin 里)。
 - **发布件**:`LICENSE`(Apache-2.0)、`NOTICE`(DM Sans OFL、Material Icons Apache、NanoHTTPD(BSD-3)、ZXing(Apache-2.0)、内置壁纸来源)、面向用户的 README(安装、设默认桌面、上传图片、回退)。
-- **首发 v1.0.0-beta**。测试设备 = Gordon 的索尼 A95L + Android TV 模拟器(装在 Core:emulator + TV 系统镜像);README 征集其他品牌社区测试。
+- **~~首发 v1.0.0-beta~~ → 发布版本 1.0 = 第一个有信心公开发布的版本,尚未发布(Gordon 2026-09-23)**。区分两个号:APK 上的 versionName/versionCode 是**内部版本**(现为 1.0.0-beta / 2,未发布前无所谓);**发布版本**是对外发布时用的号,从 1.0 起。测试设备 = Gordon 的索尼 A95L + Android TV 模拟器(装在 Core:emulator + TV 系统镜像);README 征集其他品牌社区测试。
 - 无崩溃上报;README 教 `adb logcat`。
 
 ## 9. 不做(v1 明确排除)
@@ -140,6 +140,8 @@ brainstorming 阶段按「最小设置」估 7.5 天;grilling 后范围约翻倍
 
 合计约 **20 个工作日**。Gordon 的电视只在 M8 被占用,且开发全程继续跑 TvHome;UnitedU 装上只是多一个应用,验收失败切回 TvHome 一条命令。
 
-**现状与后续路线(2026-09-20 更新)**:遗留 bug 批、M4b(行管理 / 原地移动 / 输入源 / CEC 去重)与两个真机补丁(编辑页跨行搬卡、多调谐器合并)已全部完成、A95L 真机验收通过并推到 GitHub(`ec51330`/`83091b1`)。**下一条线是 gtv(全 app 复刻真 Google TV),开工说明见 `docs/gtv-line-kickoff.md`**(方向、已定的四件事、已下好的 Google TV 镜像、第一步做什么都在里面);之后才是 1.0.0-beta 全程回归、真机终验与发布(主线 UI 若胜出再补 M8b 二级界面换皮)。
+**现状与后续路线(2026-09-23 更新)**:gtv 线(「Google 的壳、UnitedU 的内容」)经 owner 十轮真机反馈与两轮整枝评审后,**被选为正式界面**,已并入本地 main,包名回到 `com.uniteduone.launcher`,应用名 UnitedU,新图标(笑脸 U,`docs/design/icon-masters/`)。A95L 上旧的 `.gtv` 包与 TvHome 原型已卸载,只剩正式包。**还没到发布版本 1.0**(Gordon:1.0 = 第一个有信心公开发布的版本;现在相当于 0.9,还有 UI 改进要做;APK 上的内部版本号不必跟着改);未推远程、未发 Release。gtv 线的设计与全部裁定见 `docs/superpowers/specs/2026-09-20-gtv-line-design.md`(§12 裁定索引),下文 2026-09-20 及更早的段落为历史。
+
+**现状与后续路线(2026-09-20,历史)**:遗留 bug 批、M4b(行管理 / 原地移动 / 输入源 / CEC 去重)与两个真机补丁(编辑页跨行搬卡、多调谐器合并)已全部完成、A95L 真机验收通过并推到 GitHub(`ec51330`/`83091b1`)。**下一条线是 gtv(全 app 复刻真 Google TV),开工说明见 `docs/gtv-line-kickoff.md`**(方向、已定的四件事、已下好的 Google TV 镜像、第一步做什么都在里面);之后才是 1.0.0-beta 全程回归、真机终验与发布(主线 UI 若胜出再补 M8b 二级界面换皮)。
 
 **历史(2026-09-19)**:已完成 M1–M8 全部八个里程碑——注意 **M8 的编号被「首页视觉 Google TV 化」占用**,上表原定的 M8「全程回归 + 真机验收 + Release」顺延为最后一个里程碑。M5 待机与屏保(spec `docs/superpowers/specs/2026-09-19-m5-standby-screensaver-design.md`、plan `docs/superpowers/plans/2026-09-19-m5-standby-screensaver.md`)2026-09-19 A95L 真机验收 9/9 通过。**顺序(Gordon 2026-09-19 定)**:先把 main 做成「精简版完成态」——修掉全部遗留 bug + 补完 M4b 功能(行管理:1–5 行增删 / 命名 / 图标;原地移动;输入源逐项隐藏 / 改名;HDMI-CEC 父子去重),**任何 UI 美化都先不做**(M8b 二级界面换皮、行尾「+」卡、差距报告 6 h 子集一律不做);然后从做完的 main 开 **gtv 线**:全 app 复刻真 Google TV(`launcherx`,官方 google-tv 模拟器镜像实测,不是 `tvlauncher` 7.7.15),「Google 的壳、UnitedU 的内容」,独立包名 `com.uniteduone.launcher.gtv`(「UnitedU GTV」)与 UnitedU 并存安装对比;对比定了用哪套界面,再做 1.0.0-beta 全程回归、真机终验与发布(主线 UI 胜出才补 M8b 换皮)。决策记录见 WORKLOG 2026-09-19。**M4b 状态(2026-09-19)**:行管理(增删 / 命名 / 图标 / 上下移)、首页原地移动、输入源逐项隐藏 / 改名、HDMI-CEC 父子去重六个任务已实施完毕(worktree `.claude/worktrees/m4b`,SDD 台账 `.superpowers/sdd/2026-09-19-m4b-rows-move-inputs/`),本节前三条(应用行 / 输入源行 / 移动位置)已按实现改写为现状;模拟器全量回归通过,**待 A95L 真机验收**(清单见 WORKLOG「M4b」一节),验收通过后并入 main 收口「精简版完成态」,再开 gtv 线。

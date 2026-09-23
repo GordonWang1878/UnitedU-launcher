@@ -4,7 +4,7 @@
 
 面向**国行无 GMS 的 Android TV**(索尼/小米/TCL 等买不到 Google 服务的电视)的开源桌面替代品。全程不联网,唯一的例外是你自己按「检查更新」的那一刻。不上架 Play 商店或国内应用市场——本项目只以 GitHub Release 的 APK 形式分发,需要自己下载安装。
 
-包名 `com.uniteduone.launcher`,最低支持 Android 9(API 28)。首发版本号 `1.0.0-beta`(`versionCode 2`)。许可证与源码地址见文末。
+包名 `com.uniteduone.launcher`,最低支持 Android 9(API 28)。尚未正式发布;对外发布的第一个版本将是 1.0(APK 上的版本号是内部版本号,与发布版本号分开)。许可证与源码地址见文末。
 
 ## 安装
 
