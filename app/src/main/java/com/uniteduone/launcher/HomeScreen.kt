@@ -21,6 +21,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
@@ -659,6 +660,14 @@ fun HomeScreen(
                         GtvLayout.rowShiftY(rowIndex, cardSize, showTitles) != shiftTarget,
                     // R48:行图标近白 ⇔ 本行是焦点行。只读焦点账本、不写(见 iconFocusRow)。
                     isFocusRow = rowIndex == iconFocusRow,
+                    // R53:顶栏下淡出。本行当前卡顶 = 焦点线 + rowIndex × pitch + 动画中的 shift;
+                    // lambda 在 graphicsLayer 里(绘制阶段)才读 shift,位移每帧只重放图层,不为此重组本行。
+                    rowAlpha = {
+                        GtvLayout.topFadeAlpha(
+                            anchorTop.value + GtvLayout.ROW_CARD_TOP +
+                                rowIndex * GtvLayout.rowPitch(cardSize, showTitles) + shift.value,
+                        )
+                    },
                     onFocusChange = { idx, got ->
                         report(rowIndex, idx, got)
                         if (got) {
@@ -822,6 +831,8 @@ private fun CategoryRow(
     landingShiftsPage: Boolean,
     /** R48:本行是不是焦点行(焦点在本行卡片上);是则行图标近白,否则灰(不缩放)。 */
     isFocusRow: Boolean,
+    /** R53:本行(卡片 + 行图标)的 alpha,只在绘制阶段读(见 [GtvLayout.topFadeAlpha])。 */
+    rowAlpha: () -> Float,
     onFocusChange: (Int, Boolean) -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -845,7 +856,9 @@ private fun CategoryRow(
     var landedWithShift by remember { mutableStateOf(false) }
     // R48:没有标题行了,本行 = 行图标(左边距)+ 卡片行。Box 里先画图标、再画卡片行:行放不下、
     // 整行左移(rowShiftX)时卡片从图标上面滑过、把它盖住,而不是图标压在卡片内容上。
-    Box {
+    // R53:整行(图标 + 卡片)一起按卡顶位置在顶栏下淡出;graphicsLayer 的 block 在绘制阶段读 rowAlpha,
+    // 不改布局、不碰焦点(淡出的行不可能是焦点行,焦点行卡顶恒在焦点线上)。
+    Box(Modifier.graphicsLayer { alpha = rowAlpha() }) {
         // 水平中心 x = CONTENT_KEYLINE / 2(29 dp),纵向中心 = 卡片中心(上侧描边留白 + 半个卡高;
         // 卡片标题开着时标题在卡下方,不参与居中——效果图 A2 对齐的是卡片本身)。
         // 行名由 RowIcon 的 contentDescription 带给无障碍服务。图标不随 xShift 走。

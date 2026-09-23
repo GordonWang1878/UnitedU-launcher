@@ -186,6 +186,33 @@ class GtvLayoutTest {
         assertTrue(samples.all { it >= GtvLayout.WALLPAPER_BROWSE_ALPHA - 1e-6f })
     }
 
+    // Ruling R53(owner 2026-09-23 同轮):R52 焦点线靠下,焦点行上面的行会升到顶栏下——按当前卡顶淡出。
+    @Test fun `R53 顶栏下淡出——卡顶 110 以下全亮、70 处为 0、中间线性`() {
+        assertEquals(40f, GtvLayout.TOP_FADE_BAND, 0f)
+        val barBottom = GtvLayout.TOP_BAR_TOP + GtvLayout.TOP_BAR_HEIGHT
+        assertEquals(70f, barBottom, 0f)
+        assertEquals(1f, GtvLayout.topFadeAlpha(110f), 0f)
+        assertEquals(1f, GtvLayout.topFadeAlpha(413f), 0f)
+        assertEquals(0f, GtvLayout.topFadeAlpha(70f), 0f)
+        assertEquals(0f, GtvLayout.topFadeAlpha(-7f), 0f)
+        assertEquals(0.5f, GtvLayout.topFadeAlpha(90f), 1e-6f)
+        // 单调不减
+        val a = (0..60).map { GtvLayout.topFadeAlpha(40f + it * 2f) }
+        assertTrue(a.zipWithNext().all { (x, y) -> y >= x })
+    }
+
+    @Test fun `R53 焦点行永远全亮,焦点行上两行在 540 屏中档无标题时仍全亮、上三行全透明`() {
+        for ((size, titles) in SIZES_TITLES) for (h in HEIGHTS) {
+            assertEquals("$size titles=$titles h=$h 焦点行", 1f, GtvLayout.topFadeAlpha(GtvLayout.focusLineCardTop(size, titles, h)), 0f)
+        }
+        val line = GtvLayout.focusLineCardTop(M, false, 540f)
+        val pitch = GtvLayout.rowPitch(M, false)
+        assertEquals(133.51f, line - 2 * pitch, 0.01f)   // 裁定里的「约 133」
+        assertEquals(1f, GtvLayout.topFadeAlpha(line - 2 * pitch), 0f)
+        assertEquals(-6.55f, line - 3 * pitch, 0.01f)    // 裁定里的「约 −7」
+        assertEquals(0f, GtvLayout.topFadeAlpha(line - 3 * pitch), 0f)
+    }
+
     // R48 的可见区间:不复述 restVisibleTop 的公式,钉它在 KDoc 里承诺的两条性质——
     // ①上下对称:卡顶之上与卡底之下(不算卡片标题)各留一份同样的聚焦溢出;
     // ②行图标(与卡片纵向居中)整个落在区间里,所以它不必单独进区间。

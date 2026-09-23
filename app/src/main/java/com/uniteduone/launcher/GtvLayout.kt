@@ -782,6 +782,21 @@ object GtvLayout {
     fun restVisibleTop(row: Int, size: GtvCardSize, showTitles: Boolean, screenHeightDp: Float): Float =
         restCardTop(row, size, showTitles, screenHeightDp) - appFocusOverflow(cardHeight(size))
 
+    /** **Ruling R53(2026-09-23)**:顶栏下淡出带的高度(dp)。见 [topFadeAlpha]。 */
+    const val TOP_FADE_BAND = 40f
+
+    /**
+     * **Ruling R53**:首页一行(卡片 + 行图标一起)按它**当前动画中的**卡顶屏幕 y [cardTopDp] 取的 alpha:
+     * `clamp((cardTop − (TOP_BAR_TOP + TOP_BAR_HEIGHT)) / TOP_FADE_BAND, 0, 1)`——卡顶在 110 dp 以下全亮,
+     * 升到 70 dp(顶栏底)淡到 0。
+     *
+     * 为什么需要:R52 的焦点线在屏幕下部,焦点行上面的行会一路升到顶栏下面(540 屏中档无标题、焦点在行 2 时
+     * 行 0 卡顶 ≈ 133,焦点在行 3 时行 0 ≈ −7),不淡就与药丸 / 时钟叠在一起。焦点行卡顶恒在焦点线(≥ 300 dp),
+     * 永远全亮;淡出的行不可能持有焦点,所以这是纯绘制,不碰焦点。
+     */
+    fun topFadeAlpha(cardTopDp: Float): Float =
+        ((cardTopDp - (TOP_BAR_TOP + TOP_BAR_HEIGHT)) / TOP_FADE_BAND).coerceIn(0f, 1f)
+
     /*
      * **Ruling R52 删除**(2026-09-23):R42 的最小位移 `nextPageShiftY` 与它的窗口边界 `TOP_SAFE`(顶栏下 16)/
      * `BOTTOM_SAFE`(58),R32 的锚点位移 `pageShiftY`,R48 的 `ROWS_TOP` / `ROWS_LEAD`(行 0 卡顶钉在 301.5)。
