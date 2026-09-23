@@ -1549,3 +1549,10 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 已知可读性问题(未改):浅色主题下搬运描边(highlight)与聚焦描边(accent)几乎分不出;色板选中环对比低;待机时钟用 accent,浅色主题在亮壁纸上更吃力。
 - 已定下一步:三个图片网格(屏保图库 / 换壁纸 / 换卡片图)首格加「＋ 从手机添加」,扫码页按来源预选分页,传完回原网格焦点落新图;空态主按钮同。
 - 待 Gordon:卡片饱和度 / 亮度做成设置(已同意可行,等新外壳);**设置页整体改版**——以齿轮菜单第一层「左主体 + 右胶囊列」为统一外壳、左侧实时桌面预览、胶囊多层跳转,只有安卓原生设置例外。已按 grilling 发出 Q1–Q4(选项类进下一层 / 连续值滑块胶囊、焦点即预览返回复原、预览用缩小真实桌面、第一层去掉「UnitedU 设置」直接 7 个胶囊),等回复。
+
+**同日续 · 严重 bug:首页卸载一个应用,整个首页被换成默认布局(已修,`da26053`,分支 `fix/layout-write-race`,待并 main)**
+- Gordon 20:08 在首页卸载「云视听虎电竞」(`com.huya.nftv`)后,首页变成 5/2/2,他加的应用全没了。电视只读取证:`layout.json` 内容 = 代码里的 `DEFAULT_LAYOUT`(`com.ktcp.tvvideo`、无行图标、还带着刚卸载的 huya),没有 `layout.json.bad` ⇒ 走的是「文件不存在 → 写默认」分支,不是损坏分支。
+- 根因:同一次卸载,MainActivity 动态接收器(IO 协程)与清单 `PackageRemovedReceiver`(裸线程)各跑一遍 `Layout.removePackage` 的 read → 改 → write,共用 `layout.json.tmp`;输的一方 rename 失败走兜底 `dst.delete()`,正式文件消失,下一次 `read` 当首次运行写回默认。`SettingsStore` 早为同一坑加了锁(注释「不加它会真的丢掉全部设置」),Layout/Titles 一直没加;`Onboarding.kt` 注释也点过这个风险,只在引导处局部串行。
+- 修:新增 `LockedFile`(锁 + 每次独立临时文件 + 写前旧版复制为 `.prev` + 读时缺失从 `.prev` 恢复),Layout/Titles 全部读写走它;`removePackage`/`removeFromRow` 锁内 update;放下移动改锁内 `Layout.rewrite`;引导老用户判定把 `.prev` 算作已有布局。`EditScreen` 保存写的是内存快照、非读改写,未动。
+- 验证:`LockedFileTest` 旧算法下复现「读到文件不存在」;模拟器(unitedu-tv-2,5558)首页开着时卸载布局里的应用,**修复前 10 轮丢 7 次**(内容与真机一致),**修复后 10/10 完好**;335 测试绿。20:25 装上 A95L。
+- Gordon 的布局:出事前版本无备份;最接近的是 13:06 卸载旧包时备份的 gtv 布局(5/6/2)。他已在电视上手动重排,是否用备份恢复待他定。
