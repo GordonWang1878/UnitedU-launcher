@@ -74,8 +74,6 @@ object Theme {
     val InfoRowBackground = Color(0xFF1E1E1E)
     /** 未聚焦的交互面:图片选择器缩略图卡片、默认桌面卡片主按钮共用。 */
     val UnfocusedSurface = Color(0xFF222222)
-    /** 编辑页「未安装」卡片(未聚焦)背景。 */
-    val MissingCardBackground = Color(0xFF241414)
     /** 编辑页「加载中」占位卡片(未聚焦)背景。 */
     val PendingCardBackground = Color(0xFF242426)
     /** 默认桌面卡片里应用图标占位框背景。 */
@@ -84,9 +82,6 @@ object Theme {
     val AddCardBackground = Color(0xFF2A2A2C)
     /** 图片选择器缩略图加载中的占位背景。 */
     val ThumbPlaceholderBackground = Color(0xFF333333)
-    // MissingCardFocusedBackground(编辑页「未安装」卡片聚焦底色)随 Ruling R18(终审 2026-09-20)删除:
-    // MissingCard 聚焦改用 gtvFocusStroke 外扩描边,不再靠换底色表示聚焦(同 AppCard),
-    // 零调用点后就地删掉,不留死代码。
     /** 编辑页「加载中」占位卡片(聚焦)背景。 */
     val PendingCardFocusedBackground = Color(0xFF3A3A3C)
     /** 弹窗底部「返回关闭」一类提示文字:关于页、默认桌面卡片共用(gtv 线 Task 8 起齿轮菜单不再用——
@@ -104,9 +99,7 @@ object Theme {
     val SecondaryText = Color(0xFF9A9A9A)
     /** 图片选择器缩略图标签(未聚焦)。 */
     val ThumbLabelText = Color(0xFFAAAAAA)
-    /** 编辑页「未安装」卡片提示文字。 */
-    val MissingCardText = Color(0xFFB08080)
-    /** 关于页检查更新的失败提示(网络 / 格式 / 下载 / 校验 / 安装失败)。与上一行撞色,用途不同分开命名。 */
+    /** 关于页检查更新的失败提示(网络 / 格式 / 下载 / 校验 / 安装失败)。 */
     val StatusErrorText = Color(0xFFB08080)
     /** 齿轮菜单条目标题(未聚焦)。 */
     val MenuItemText = Color(0xFFB0B0B0)

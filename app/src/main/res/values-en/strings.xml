@@ -94,7 +94,6 @@
     <string name="edit_change_image_desc">Pick a 16:9 image to replace it</string>
     <string name="edit_remove">Remove From Row</string>
     <string name="edit_remove_desc">The app itself won\'t be uninstalled</string>
-    <string name="edit_not_installed">Not installed\n%1$s</string>
     <string name="edit_add_app_title">Add App</string>
     <string name="edit_loading_apps">Loading app list…</string>
     <string name="edit_no_more_apps">No more apps to add</string>

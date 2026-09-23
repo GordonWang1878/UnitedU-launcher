@@ -91,7 +91,7 @@ fun EditScreen(
     /**
      * 「换卡片图」:(layout.json 行号, 包名)。**选择器会替换本页**(M7 终审 C1):选择器开着时本页不在组合里,
      * 关掉后整页重建、所有 `remember` 归零——调用方必须把这两个值原样当 [initialTarget] 喂回来,
-     * 焦点才回得到这张卡。行号就是本页 `rows` 的下标(本页按 `Layout.read` 原样排,与 layout.json 一致)。
+     * 焦点才回得到这张卡。行号就是本页 `rows` 的下标(本页连空行都画,行号与 layout.json 一致;列号不一致,见 [initialTarget])。
      */
     onPickIcon: (row: Int, pkg: String) -> Unit,
     onExit: () -> Unit,
@@ -106,9 +106,9 @@ fun EditScreen(
      * (M4b 起首页长按「移动位置」改为首页原地移动,不再从这里进来);null = 正常进入,
      * 落在第 1 行第 1 张卡(第 1 行空则落它的「+」)。
      *
-     * 用包名而不是列号:首页那边 `buildRows` 把装不到的包丢掉了,编辑页这边是
-     * `Layout.read` 的原样(缺的包也占一格,画成暗红的「未安装」)—— 两边的列号对不上。
-     * 包名在一行里唯一(`Layout.read` 做过 distinct),按它查才落在同一张卡上。
+     * 用包名而不是列号:本页只画已装、可启动的包(Ruling R67,与首页 `buildRows` 同口径),
+     * 看得见的列号 ≠ layout.json 下标(盘上可能还有看不见的包:被停用的、还没清掉的已卸载包)。
+     * 包名在一行里唯一(`Layout.read` 做过 distinct),在**看得见的那份**里按它查,才落在同一张卡上。
      */
     initialTarget: Pair<Int, String>? = null,
     /**
@@ -132,6 +132,9 @@ fun EditScreen(
     var picking by remember { mutableStateOf<Int?>(null) }        // 正在给第几行加应用
     var acting by remember { mutableStateOf<Pair<Int, Int>?>(null) } // (行, 位置) 的操作菜单
     // M4b 行管理的四层浮层,都记「第几行」(= layout.json 行号 = 本页 rows 下标)。
+    // **坐标口径(Ruling R67)**:`rows` 是整份(盘上的原样,含看不见的包);凡是「第几格」(acting 的列、
+    // 搬运位置、焦点目标)一律是**看得见的那份**(view(),与首页同口径)里的列号。行内改动在 view() 上算,
+    // 经 applyView() 合回整份(看不见的包留在原位,见 withVisibleEdits);行级操作(增删 / 交换 / 改名 / 图标)直接作用在整份上。
     var rowMenu by remember { mutableStateOf<Int?>(null) }          // 行菜单(按行尾「+」打开)
     var renamingRow by remember { mutableStateOf<Int?>(null) }      // 改行名对话框
     var iconRow by remember { mutableStateOf<Int?>(null) }          // 行图标选择器
@@ -160,8 +163,8 @@ fun EditScreen(
     // 看门狗不重启,而它的守卫正是 `all.isEmpty()`:于是初始焦点一次都不会请求,
     // 进编辑界面后按什么都没反应(而进编辑界面恰恰是首页空掉后的自救动作)。
     // 连同「这份数据是给哪套 needed 算的」一起存:onPick 之后 needed 先变、all 还是旧值,
-    // 新包在旧 map 里查不到 —— 直接渲染成暗红的「未安装」,像是加错了。
-    // 只有数据与当前 needed 对得上时,「查不到」才真的等于「没装」。
+    // 新包在旧 map 里查不到 —— 不带这个的话它会被当成没装、直接藏掉,像是没加上。
+    // 只有**查过**的包「查不到」才真的等于「没装」(见 editCardShown)。
     val loadedFor by produceState<Pair<Set<String>, Map<String, AppEntry>>?>(
         initialValue = null, needed, revision,
     ) {
@@ -172,7 +175,23 @@ fun EditScreen(
         }
     }
     val all = loadedFor?.second
-    val allFresh = loadedFor?.first == needed
+    /**
+     * 这一格画不画(R67,[editCardShown]):查过没查到的包不画——不再有暗红的「未安装」占位。
+     * **函数而不是组合期的 val**:搬运的方向键可能在两次组合之间连着来,读的必须是此刻的 loadedFor。
+     */
+    fun shownNow(): (String) -> Boolean {
+        val lf = loadedFor
+        val found = lf?.second?.keys.orEmpty()
+        return { pkg -> editCardShown(pkg, lf?.first, found) }
+    }
+    /** 看得见的那份(R67):行与 rows 一一对应,只留要画的包。所有列号按它算。同上,每次现算。 */
+    fun view(): List<LayoutRow> = visibleRows(rows, shownNow())
+    /** 把对 view() 的行内改动合回整份 rows([withVisibleEdits]:看不见的包留在原来的下标上)。 */
+    fun applyView(edited: List<LayoutRow>, base: List<LayoutRow> = rows) {
+        rows = withVisibleEdits(base, edited, shownNow())
+    }
+    /** 这一次组合画的那份(= 此刻的 view());组合期读,回调里一律现调 view()。 */
+    val viewRows = view()
     // 每个新界面都必须显式给初始焦点,否则遥控器进来后按什么都没反应
     // (2026-09-10 实测:编辑界面漏了这一步,后续所有按键全部落空)。
     // 每行一个 focus requester:改完某一行后把焦点还给那一行,
@@ -234,10 +253,10 @@ fun EditScreen(
         retargetCol = col
         focusTarget[ri.coerceIn(0, focusTarget.lastIndex)] = col
     }
-    /** 这一行的「+」(行尾加号那一格 = 应用数)。行浮层关掉之后焦点都回这里。 */
+    /** 这一行的「+」(行尾加号那一格 = 看得见的应用数)。行浮层关掉之后焦点都回这里。 */
     fun toRowEnd(ri: Int) {
         val r = ri.coerceIn(0, rows.lastIndex.coerceAtLeast(0))
-        retarget(r, rows.getOrNull(r)?.apps?.size ?: 0)
+        retarget(r, view().getOrNull(r)?.apps?.size ?: 0)
     }
 
     // 写盘与搬运的四个动作放在一起,排在下面的生命周期观察者之前(它要调 cancelCarry)。
@@ -269,12 +288,17 @@ fun EditScreen(
         carry = EditCarry(pos = at, from = at, original = rows)
         retarget(ri, pi)
     }
-    /** 搬一步。到头 / 那个方向没有行 / 相邻行已有同一个应用:moveInLayout 原样返回同一个 list,什么都不动。 */
+    /**
+     * 搬一步。到头 / 那个方向没有行 / 相邻行已有同一个应用:moveInLayout 原样返回同一个 list,什么都不动。
+     * 在看得见的那份上搬(R67:不会和一个看不见的包换位、白按一下),合回时以**进入搬运那一刻的整份**为底
+     * (`base = c.original`):看不见的包始终按出发时的下标摆,搬出去再搬回来,整份原样复原,放下时不会误判成「动过」。
+     */
     fun stepCarry(dir: MoveDir) {
         val c = carry ?: return
-        val (next, pos) = moveInLayout(rows, c.pos, dir)
-        if (next === rows) return
-        rows = next
+        val v = view()
+        val (next, pos) = moveInLayout(v, c.pos, dir)
+        if (next === v) return
+        applyView(next, base = c.original)
         carry = c.copy(pos = pos)
         retarget(pos.row, pos.col)
     }
@@ -282,7 +306,7 @@ fun EditScreen(
      * 放下(确定键短按松开)。没动过就不写盘(同首页)。显式再调一次 `retarget(c.pos.row, c.pos.col)`,
      * 不能只信「焦点已经在那儿」:多数时候确实已经在,循环一次就追平(铁律 2 的判据当场成立,
      * 代价一次多余的重组);但被搬的应用如果在搬运途中被卸载/禁用,松开这一刻的重载会把这一格的
-     * AppCard 整个换成 MissingCard——节点换新,系统把焦点收去 (0,0),而账本(focusRow/focusTarget)
+     * AppCard 整个摘掉(R67 起看不见的包不画)——节点没了,系统把焦点收去 (0,0),而账本(focusRow/focusTarget)
      * 搬运期间全程冻结、没人上报丢焦点,看门狗见着「有节点在报」也就不出手,焦点会停在 (0,0) 出不来。
      */
     fun dropCarry() {
@@ -314,9 +338,9 @@ fun EditScreen(
         if (all == null || appliedTarget == t) return@LaunchedEffect
         appliedTarget = t
         val ri = t.first.coerceIn(0, rows.lastIndex.coerceAtLeast(0))
-        // **按包名查列号**,不信任首页传来的渲染列号(两边的行内容不一样,见 initialTarget 的 KDoc)。
+        // **按包名查列号**,在看得见的那份里查(R67,见 initialTarget 的 KDoc)。
         // 查不到(那一行刚被别处改过)就退到行首,至少落在正确的那一行上,绝不乱指一张卡。
-        val ci = rows.getOrNull(ri)?.apps?.indexOf(t.second) ?: -1
+        val ci = view().getOrNull(ri)?.apps?.indexOf(t.second) ?: -1
         if (ci >= 0) retarget(ri, ci) else retarget(ri, 0)
     }
 
@@ -402,11 +426,7 @@ fun EditScreen(
     // 复审就因此误删了 VIDEO 行的一个应用。HomeScreen 那份早就是双条件,这里漏了。
     LaunchedEffect(retargetTick) {
         val ri = retargetRow.coerceIn(0, requesters.lastIndex)
-        // 夹到 pkgs.size(**含行尾加号那一格**),与下面的挂点用同一个夹法。
-        // 少了这一致性:目标被设成加号那一格,而挂点只夹到 lastIndex、加号只在空行时接 requester,
-        // 于是焦点只能送到最后一张卡,判据恒不成立、循环跑满 60 帧,每帧把焦点拽回去。
-        val cap = rows.getOrNull(ri)?.apps?.size ?: 0
-        val col = retargetCol.coerceIn(0, cap)
+        val wantCol = retargetCol
         // **目标格若是注定被整格替换的加载占位,先等它换完**(M4b spec §0-16 的根因,2026-09-19 模拟器实测):
         // 数据没到时,旧 map 里查不到的包渲染成加载占位 PendingCard。焦点若先落在占位上,数据一到占位被真卡
         // **整格替换**(不同的 composable = 新节点),焦点随旧节点消失;Android 的 View.clearFocus 当场
@@ -418,13 +438,20 @@ fun EditScreen(
         // (渲染成真卡,重载后原地重组、不换节点)就不等。原来是「等整份数据与 rows 对上」:移出一张卡 /
         // 删一个非空行让 needed 变小、整份重载,落到邻卡 / 上一行「+」要白等一次整轮 Apps.load——这段时间
         // 页面冻结、看门狗让路,焦点停在浮层关掉时 Compose 给的地方(第一张卡),此时按确定就打在别的应用上。
-        // 仍要等的:进页(数据还没有)、刚添加的应用、旧 map 里本来就没有的(未安装)邻卡。
-        // 等待期间 retargeting 为真,冻结着目标;加载失败也会对上(空 map → 未安装卡),不会卡住。
+        // 仍要等的:进页(数据还没有)、刚添加的应用——它们此刻都是还没查过的包,画成占位(editCardShown)。
+        // 等待期间 retargeting 为真,冻结着目标;加载失败也会对上(空 map → 这些包查过没查到、不画),不会卡住。
+        // 列号是看得见的那份(view())里的,R67。
         snapshotFlow {
-            val pkg = rows.getOrNull(ri)?.apps?.getOrNull(col)
+            val apps = view().getOrNull(ri)?.apps.orEmpty()
+            val pkg = apps.getOrNull(wantCol.coerceIn(0, apps.size))
             val need = rows.flatMap { it.apps }.toSet()
             pkg == null || loadedFor?.first == need || loadedFor?.second?.containsKey(pkg) == true
         }.first { it }
+        // **等完再夹**:数据一到,查过没查到的包从 view() 里消失,这一行可能变短。
+        // 夹到 pkgs.size(**含行尾加号那一格**),与下面的挂点用同一个夹法。
+        // 少了这一致性:目标被设成加号那一格,而挂点只夹到 lastIndex、加号只在空行时接 requester,
+        // 于是焦点只能送到最后一张卡,判据恒不成立、循环跑满 60 帧,每帧把焦点拽回去。
+        val col = wantCol.coerceIn(0, view().getOrNull(ri)?.apps?.size ?: 0)
         // 写进**当前**这张表(见 retargetCol 的注释);挂点随之重组到这一格。
         if (ri <= focusTarget.lastIndex) focusTarget[ri] = col
         val want = ri to col
@@ -515,7 +542,7 @@ fun EditScreen(
         } else if (a != null || p != null) {
             val ri = a?.first ?: p ?: 0
             picking = null; acting = null
-            retarget(ri, a?.second ?: rows[ri].apps.size)
+            retarget(ri, a?.second ?: (view().getOrNull(ri)?.apps?.size ?: 0))
         } else if (r != null) {
             rowMenu = null; renamingRow = null; iconRow = null; confirmDeleteRow = null
             toRowEnd(r)
@@ -621,7 +648,7 @@ fun EditScreen(
                     style = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 12.sp),
                 )
             }
-            rows.forEachIndexed { ri, row ->
+            viewRows.forEachIndexed { ri, row ->
                 val name = row.name
                 val pkgs = row.apps
                 Column(
@@ -656,7 +683,7 @@ fun EditScreen(
                     // 整枝审查 B(2026-09-22):判据用**视觉**右缘——加上聚焦缩放 + 贴边描边的溢出
                     // (GtvLayout.appFocusOverflow,与首页 rowShiftX 的 Round 4 §5 同一规则),否则
                     // 「布局右缘刚好没超、缩放后的描边已经超」时不挪行,最右那格的描边被屏缘裁掉。
-                    // AddCard / MissingCard / AppCard 三种格子都走 gtvAppFocusFrame,溢出量相同。
+                    // AddCard / AppCard 两种格子都走 gtvAppFocusFrame,溢出量相同(R67 起没有「未安装」卡)。
                     val right = Theme.SidePadding + metrics.cardWidth * (fi + 1) + metrics.cardSpacing * fi +
                         GtvLayout.appFocusOverflow(metrics.cardWidth.value).dp
                     val over = right + Theme.SidePadding - LocalConfiguration.current.screenWidthDp.dp
@@ -727,18 +754,12 @@ fun EditScreen(
                                     moving = carried,
                                     focusAfterShift = landedWithShift,
                                 )
-                            } else if (!allFresh) {
-                                // 数据还没跟上:中性占位,别说「未安装」
+                            } else {
+                                // 还没查过的包(进页数据没到、刚加进来的):中性占位。查过没查到的根本不在 viewRows 里
+                                // (R67:已卸载的应用不占位、不画「未安装」)
                                 PendingCard(pkg, metrics, fm, onFocusChange = tell,
                                     isRowStart = pi == 0, isLastRow = ri == rows.lastIndex,
                                     isFirstRow = ri == 0)
-                            } else {
-                                MissingCard(
-                                    pkg, metrics, fm, onFocusChange = tell,
-                                    isRowStart = pi == 0, isLastRow = ri == rows.lastIndex, isFirstRow = ri == 0,
-                                    moving = carried,
-                                    focusAfterShift = landedWithShift,
-                                ) { if (carry == null) acting = ri to pi }
                             }
                         }
                         AddCard(
@@ -788,7 +809,7 @@ fun EditScreen(
 
         // acting 指向的卡片可能已经不在了(比如它所在的行被别处改短)。
         // **不在组合期写状态**:清空动作放进 LaunchedEffect,组合期只负责不渲染。
-        val actingPkg = acting?.let { (ri, pi) -> rows.getOrNull(ri)?.apps?.getOrNull(pi) }
+        val actingPkg = acting?.let { (ri, pi) -> viewRows.getOrNull(ri)?.apps?.getOrNull(pi) }
         LaunchedEffect(acting, actingPkg) { if (acting != null && actingPkg == null) acting = null }
         // 行浮层同理(M4b):指向的行不在了就收掉,组合期只负责不渲染——否则 overlayOpen 一直为真、
         // 看门狗永远让路,而屏幕上什么浮层都没有。收掉之后看门狗重启,把焦点接回 focusRow。
@@ -812,9 +833,8 @@ fun EditScreen(
                         acting = null; retarget(ri, pi); onPickIcon(ri, pkg)
                     })
                     add(MenuItem(stringResource(R.string.edit_remove), stringResource(R.string.edit_remove_desc)) {
-                        rows = rows.mapIndexed { i, r ->
-                            if (i == ri) r.copy(apps = r.apps.toMutableList().also { it.removeAt(pi) }) else r
-                        }
+                        // **按包名移出**(R67):pi 是看得见的列号,不是 layout.json 下标;包名在一行里唯一
+                        rows = rows.mapIndexed { i, r -> if (i == ri) r.copy(apps = r.apps - pkg) else r }
                         // 移出之后那一格没了,焦点落到它原来位置的前一格(行空了就是加号)
                         persist(); acting = null; retarget(ri, (pi - 1).coerceAtLeast(0))
                     })
@@ -868,7 +888,8 @@ fun EditScreen(
                     // 空行直接删;非空行先确认(M4b spec §0-4)
                     if (rows.size > MIN_ROWS) add(MenuItem(stringResource(R.string.edit_row_delete), stringResource(R.string.edit_row_delete_desc)) {
                         rowMenu = null
-                        if (rows[ri].apps.isEmpty()) deleteRowAt(ri) else confirmDeleteRow = ri
+                        // 按看得见的算(R67):只剩看不见的包(被停用的)的行,在用户眼里就是空行
+                        if (view().getOrNull(ri)?.apps.isNullOrEmpty()) deleteRowAt(ri) else confirmDeleteRow = ri
                     })
                 },
                 onDismiss = { rowMenu = null; toRowEnd(ri) },
@@ -921,7 +942,7 @@ fun EditScreen(
             val row = rows.getOrNull(ri) ?: return@let
             ConfirmDialog(
                 title = stringResource(R.string.edit_row_delete_confirm_title, row.name),
-                body = stringResource(R.string.edit_row_delete_confirm_body, row.apps.size),
+                body = stringResource(R.string.edit_row_delete_confirm_body, viewRows.getOrNull(ri)?.apps?.size ?: 0),
                 okLabel = stringResource(R.string.edit_row_delete_ok),
                 cancelLabel = stringResource(R.string.dialog_cancel),
                 nonce = focusNonce,
@@ -939,9 +960,9 @@ fun EditScreen(
                     rows = rows.mapIndexed { i, r ->
                         if (i == ri) r.copy(apps = r.apps.toMutableList().also { it.add(pkg) }) else r
                     }
-                    // 刚加进来的那张卡就是新的行尾,焦点落到它身上
+                    // 刚加进来的那张卡就是新的行尾(看得见的那份里也是:它还没查过,画成占位),焦点落到它身上
                     persist(); picking = null
-                    retarget(ri, rows[ri].apps.lastIndex.coerceAtLeast(0))
+                    retarget(ri, (view().getOrNull(ri)?.apps?.lastIndex ?: 0).coerceAtLeast(0))
                 },
                 // 注:AppPicker 自己没有 BackHandler,取消走的是本文件上方那个 —— 目标也在那里设。
 
@@ -1022,55 +1043,6 @@ private fun PendingCard(
         BasicText(
             text = pkg.substringAfterLast('.'),
             style = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 11.sp, textAlign = TextAlign.Center),
-            modifier = Modifier.padding(6.dp),
-        )
-    }
-}
-
-@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
-@Composable
-private fun MissingCard(
-    pkg: String,
-    metrics: CardMetrics,
-    modifier: Modifier = Modifier,
-    onFocusChange: (Boolean) -> Unit = {},
-    isRowStart: Boolean = false,
-    isLastRow: Boolean = false,
-    isFirstRow: Boolean = false,
-    /** 搬运中被搬的就是它(M4b §0-18):与 `AppCard(moving = true)` 同一道固定几何的高亮描边
-     *  (`gtvAppFocusFrame` 的 `moving` 分支,highlight 色),聚焦与否都画,不随聚焦缩放变化。 */
-    moving: Boolean = false,
-    /** ui-pending #10:同 AddCard。 */
-    focusAfterShift: Boolean = false,
-    onClick: () -> Unit,
-) {
-    var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(metrics.cardCorner)
-    val accent = LocalThemeColors.current.accent
-    // Ruling R18(终审 2026-09-20)+ owner 反馈 Round 4:与 AppCard 统一成同一种画法——container
-    // 不随聚焦变色,聚焦用 gtvAppFocusFrame 的缩放 + 贴边描边表示;moving 换成同一支笔的
-    // highlight 版本、固定几何不缩放(与 accent 同时成立时两者仍可辨,理由见 AppCard.kt 上
-    // moving 参数的说明)。
-    val movingColor = LocalThemeColors.current.highlight
-    Box(
-        modifier = modifier
-            .gtvAppFocusFrame(focused, accent, metrics.cardCorner, moving, movingColor, afterShift = focusAfterShift)
-            .size(metrics.cardWidth, metrics.cardHeight)
-            .clip(shape)
-            .background(Theme.MissingCardBackground)
-            // 行首/末行的边界同样要锁,理由见 AppCard:找不到候选时焦点会整棵树消失
-            .focusProperties {
-                if (isRowStart) left = FocusRequester.Cancel
-                if (isLastRow) down = FocusRequester.Cancel
-                if (isFirstRow) up = FocusRequester.Cancel
-            }
-            .onFocusChanged { focused = it.isFocused; onFocusChange(it.isFocused) }
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        BasicText(
-            text = stringResource(R.string.edit_not_installed, pkg),
-            style = TextStyle(fontFamily = Theme.Sans, color = Theme.MissingCardText, fontSize = 10.sp, textAlign = TextAlign.Center),
             modifier = Modifier.padding(6.dp),
         )
     }

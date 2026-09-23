@@ -86,7 +86,6 @@
     <string name="edit_change_image_desc">选一张 16:9 的图替换</string>
     <string name="edit_remove">从这一行移出</string>
     <string name="edit_remove_desc">应用本身不会被卸载</string>
-    <string name="edit_not_installed">未安装\n%1$s</string>
     <string name="edit_add_app_title">添加应用</string>
     <string name="edit_loading_apps">正在读取应用列表…</string>
     <string name="edit_no_more_apps">没有可添加的应用了</string>

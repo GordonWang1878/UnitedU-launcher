@@ -68,3 +68,60 @@ internal fun dropRemovedElsewhere(
     if (gone.isEmpty()) return snapshot
     return snapshot.map { r -> if (r.apps.any { it in gone }) r.copy(apps = r.apps.filter { it !in gone }) else r }
 }
+
+/**
+ * 编辑页的一格要不要画(Ruling R67,2026-09-23:已卸载的应用不占位、不画「未安装」)。与首页 `buildRows` 同一口径:
+ * 只画 `Apps.load` 认得出的(已安装、可启动)包。[checked] = 上一次 `Apps.load` 查过的包(null = 一次都还没查完),
+ * [found] = 其中查到的。三种情况:
+ * - 查过、查到 → 画(真卡片);
+ * - 查过、没查到 → **不画**(没装 / 装了但没有可启动入口,比如被停用);
+ * - 还没查过(进页数据没到、或刚加进来的包)→ 画(中性的加载占位),不能当成没装藏起来——
+ *   刚加的应用若先被藏掉、数据到了再冒出来,焦点与列号会跟着跳一格。
+ */
+internal fun editCardShown(pkg: String, checked: Set<String>?, found: Set<String>): Boolean =
+    checked == null || pkg !in checked || pkg in found
+
+/**
+ * 编辑页**看得见的**那份行(R67):行一一对应(行数、行名、图标、行序都照 [rows]),每行只留 [shown] 的包。
+ * 编辑页里一切「第几行第几格」(焦点目标、搬运位置、卡片菜单)都按这份算——与首页同一个口径,
+ * 所以不再有「编辑页列号 = layout.json 下标、首页列号不是」的两套坐标。改完之后经 [withVisibleEdits] 合回整份。
+ */
+internal fun visibleRows(rows: List<LayoutRow>, shown: (String) -> Boolean): List<LayoutRow> =
+    rows.map { r -> if (r.apps.all(shown)) r else r.copy(apps = r.apps.filter(shown)) }
+
+/**
+ * 把编辑页对**可见那份**([visibleRows])做的改动合回整份 [full](R67)。[edited] 与 [full] 行一一对应
+ * (行级操作——增删、交换、改名、换图标——直接作用在整份上,不经这里;这里只管行内的包)。
+ *
+ * 每一行:[full] 里看不见的包(`!shown`)**留在原来的下标上**(行变短放不下时依次往前挤,彼此顺序不变),
+ * 其余的格子按 [edited] 的顺序填可见的包。所以
+ * - 编辑页看不见的包(装了但被停用、或盘上还没清掉的已卸载包)不会被编辑页弄丢,也不会被挪到行尾;
+ *   已卸载的包由数据层清理(`pruneMissingPackages` / `pruneUninstalled`),编辑页不负责删它们;
+ * - 没有看不见的包时,结果就是 [edited] 本身。
+ * 行数对不上(不该发生:可见那份由整份逐行派生)时原样返回 [edited]——宁可丢看不见的包,也不把包塞进别的行。
+ * 与 [full] 结构相同时返回**同一个** [full]。
+ */
+internal fun withVisibleEdits(
+    full: List<LayoutRow>,
+    edited: List<LayoutRow>,
+    shown: (String) -> Boolean,
+): List<LayoutRow> {
+    if (full.size != edited.size) return edited
+    val merged = edited.mapIndexed { i, e ->
+        val hidden = full[i].apps.withIndex().filter { !shown(it.value) }
+        if (hidden.isEmpty()) return@mapIndexed e
+        val n = hidden.size + e.apps.size
+        val out = arrayOfNulls<String>(n)
+        var minSlot = 0
+        hidden.forEachIndexed { j, (idx, pkg) ->
+            // 夹到「后面还有几个看不见的包就留几格」,再夹到上一个之后:顺序不变、不越界
+            val slot = idx.coerceAtMost(n - (hidden.size - j)).coerceAtLeast(minSlot)
+            out[slot] = pkg
+            minSlot = slot + 1
+        }
+        val vis = e.apps.iterator()
+        for (k in 0 until n) if (out[k] == null) out[k] = vis.next()
+        e.copy(apps = out.map { it!! })
+    }
+    return if (merged == full) full else merged
+}
