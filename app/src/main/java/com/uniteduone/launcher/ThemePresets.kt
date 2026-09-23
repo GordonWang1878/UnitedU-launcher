@@ -6,7 +6,7 @@ import androidx.compose.ui.graphics.lerp
 
 /**
  * 主题色预设。**Ruling R62(2026-09-23 傍晚,Gordon 定)**:只剩 5 个,都是黑底上**很浅、低饱和**的颜色——
- * 白 #F2F2F2、香槟 #E6DAC3、雾蓝 #C8D4E0、淡紫 #D4CCE3(**默认**)、鼠尾草 #CCD9C8。取代此前的 9 个
+ * 白 #F2F2F2、香槟 #E4D1AB、雾蓝 #B2C7DC、淡紫 #C5B6DF(**默认**)、鼠尾草 #BBD5B3。取代此前的 9 个
  * (Material 紫 #D0BCFF 默认 + 白 / 黑 + 金 / 香槟 / 蓝 / 紫 / 石墨 / 绿)。旧 id 读盘时映射到最接近的新预设
  * ([LEGACY_IDS]:material → purple、gold → champagne、graphite → white、black → white),不留死值。
  *
@@ -49,7 +49,7 @@ data class ThemeColors(val accent: Color, val highlight: Color)
  * 的强调色都从这里读:`accent` 接原 `Theme.ChampagneGold` 的位置,`highlight` 接原 `Theme.Champagne` 的位置,
  * `.copy(alpha = …)` 一类的调制原样保留。
  *
- * 默认值 = 默认预设(R62 起淡紫 #D4CCE3 / #EBE8F2),与 [Settings] 的默认 `themePresetId` 同一个 id——
+ * 默认值 = 默认预设(R62 起淡紫 #C5B6DF / #E5DEF1),与 [Settings] 的默认 `themePresetId` 同一个 id——
  * 没被 Provider 包住的预览 / 测试与真实默认观感一致。~~默认 = 金预设,逐位复现接线前的观感~~(金预设 R62 删掉)。
  * 选 static 版:主题色只在换预设 / 换壁纸取色时变,变一次整棵树重组一次可以接受;换来每处读取零订阅开销。
  */
@@ -121,10 +121,10 @@ object ThemePresets {
     val all: List<ThemePreset> = listOf(
         // R62:黑底上很浅、低饱和的五色,从中性到冷再到暖绿;highlight = highlightFrom(accent)(Oklab 混白 55%)。
         ThemePreset("white", R.string.preset_white, Color(0xFFF2F2F2), Color(0xFFF9F9F9)),
-        ThemePreset("champagne", R.string.preset_champagne, Color(0xFFE6DAC3), Color(0xFFF4EEE4)),
-        ThemePreset("blue", R.string.preset_blue, Color(0xFFC8D4E0), Color(0xFFE6EBF1)),
-        ThemePreset("purple", R.string.preset_purple, Color(0xFFD4CCE3), Color(0xFFEBE8F2)),
-        ThemePreset("green", R.string.preset_green, Color(0xFFCCD9C8), Color(0xFFE8EEE6)),
+        ThemePreset("champagne", R.string.preset_champagne, Color(0xFFE4D1AB), Color(0xFFF3EAD9)),
+        ThemePreset("blue", R.string.preset_blue, Color(0xFFB2C7DC), Color(0xFFDCE5EF)),
+        ThemePreset("purple", R.string.preset_purple, Color(0xFFC5B6DF), Color(0xFFE5DEF1)),
+        ThemePreset("green", R.string.preset_green, Color(0xFFBBD5B3), Color(0xFFE0ECDD)),
     )
 
     /** 按 id 取预设,找不到回落到默认(与 [indexOf] 同口径);旧 id 先迁移。 */
