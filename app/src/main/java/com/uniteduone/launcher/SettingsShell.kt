@@ -318,8 +318,16 @@ fun SettingsShell(
     val systemStatus = remember(focusNonce, covered) { readSystemUiStatus(ctx) }
 
     val written by rememberUpdatedState(onWritten)
+    // 最近一次写盘成没成功:选项层据此决定回不回上一层(写失败就留在原地,提示过了也不假装保存了)。
+    val lastWriteOk = remember { booleanArrayOf(true) }
     fun update(transform: (Settings) -> Settings) {
-        if (SettingsStore.update(ctx, transform) == null) Log.w(LOG_TAG, "settings.json 写入失败")
+        val ok = SettingsStore.update(ctx, transform) != null
+        lastWriteOk[0] = ok
+        if (!ok) {
+            Log.w(LOG_TAG, "settings.json 写入失败")
+            // 交互测试 2026-09-23(评审 #2):写失败原先只进日志,人看到的是「按了确定、回了上一层、值没变」。
+            android.widget.Toast.makeText(ctx, R.string.toast_storage_not_ready, android.widget.Toast.LENGTH_SHORT).show()
+        }
         written()
     }
     // 切语言绕过本页直接写盘(MainActivity.applyLanguage);没有重建(同一 Locale 等价类)的那条路也要让 saved 跟上。
@@ -400,10 +408,18 @@ fun SettingsShell(
                         trailing = if (i == row.selected) Trailing.Check else Trailing.None,
                         leadingDot = if (row.kind == CtrlKind.SWATCH) ThemePresets.all.getOrNull(i)?.color else null,
                         onClick = {
-                            // **先回上一层,再落盘**:切语言会当场 recreate(),onSaveInstanceState 要存下的是已经回到
-                            // 父层的栈(重建后落在「语言」那颗胶囊上,而不是又停在选项层)。
-                            onPop()
-                            if (i != row.selected) row.onSelect(i)
+                            when {
+                                i == row.selected -> onPop()
+                                // **语言:先回上一层,再落盘**:切语言会当场 recreate(),onSaveInstanceState 要存下的是
+                                // 已经回到父层的栈(重建后落在「语言」那颗胶囊上,而不是又停在选项层)。
+                                row.id == "language" -> { onPop(); row.onSelect(i) }
+                                // 其余:先写,写成了才回上一层(评审 #2);写失败留在选项层,update 已经弹过提示。
+                                else -> {
+                                    lastWriteOk[0] = true
+                                    row.onSelect(i)
+                                    if (lastWriteOk[0]) onPop()
+                                }
+                            }
                         },
                     )
                 }
