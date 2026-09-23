@@ -12,7 +12,7 @@ import org.junit.Test
  */
 class SettingsModelTest {
 
-    /** 把 [SettingsActions] 的八条动作各记一笔,断言「按下去真的调到了那一条」。 */
+    /** 把 [SettingsActions] 的九条动作各记一笔,断言「按下去真的调到了那一条」。 */
     private class Recorder {
         val fired = mutableListOf<String>()
         val languages = mutableListOf<String>()
@@ -25,6 +25,7 @@ class SettingsModelTest {
             openScreensaverGallery = { fired += "openScreensaverGallery" },
             openSystemScreensaver = { fired += "openSystemScreensaver" },
             restoreHiddenInputs = { fired += "restoreHiddenInputs" },
+            openSystemAnimationSettings = { fired += "openSystemAnimationSettings" },
         )
     }
 
@@ -40,7 +41,7 @@ class SettingsModelTest {
         assertEquals(
             listOf(
                 GroupId.LAYOUT, GroupId.WALLPAPER, GroupId.THEME,
-                GroupId.STANDBY, GroupId.CLOCK, GroupId.LANGUAGE, GroupId.OTHER,
+                GroupId.STANDBY, GroupId.CLOCK, GroupId.LANGUAGE, GroupId.SYSTEM, GroupId.OTHER,
             ),
             g.map { it.id },
         )
@@ -48,8 +49,9 @@ class SettingsModelTest {
 
     @Test fun rowCountsPerGroup() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
-        // 布局 3 / 壁纸 2 动作 + 3 控件 / 主题 3 / 待机与屏保 4 控件 + 2 动作(M5)/ 时钟 1 / 语言 1 / 其他 2 动作
-        assertEquals(listOf(3, 5, 3, 6, 1, 1, 2), g.map { it.rows.size })
+        // 布局 3 / 壁纸 2 动作 + 3 控件 / 主题 3 / 待机与屏保 4 控件 + 1 动作(M5;系统屏保行 #16 搬走)/
+        // 时钟 1 / 语言 1 / 系统 3 + 动画缩放条件行(默认 UNKNOWN = 读不到 → 出「查看」)/ 其他 2 动作
+        assertEquals(listOf(3, 5, 3, 5, 1, 1, 4, 2), g.map { it.rows.size })
     }
 
     @Test fun rowIdsAreUnique() {
@@ -148,13 +150,13 @@ class SettingsModelTest {
 
     // ---- M5「待机与屏保」组(spec §3)----
 
-    @Test fun standbyGroupHasSixRowsInSpecOrder() {
+    @Test fun standbyGroupHasFiveRowsInSpecOrder() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
         val standby = g.first { it.id == GroupId.STANDBY }.rows
         assertEquals(
             listOf(
                 "idleAfter", "idleContent", "screensaverAfter",
-                "screensaverInterval", "screensaverGallery", "systemScreensaver",
+                "screensaverInterval", "screensaverGallery",
             ),
             standby.map { it.id },
         )
@@ -246,8 +248,78 @@ class SettingsModelTest {
         val row = layout.last() as ActionRow
         assertEquals(R.string.settings_restore_hidden_inputs, row.labelRes)
         assertEquals(R.string.settings_hidden_inputs_count, row.hintRes)
-        assertEquals(2, row.hintArg)
+        assertEquals(listOf<Any>(2), row.hintArgs)
         row.onActivate()
         assertEquals(listOf("restoreHiddenInputs"), r.fired)
+    }
+
+    // ---- ui-pending #16「系统」组 ----
+
+    private fun systemGroup(sys: SystemUiStatus, r: Recorder = Recorder()) =
+        settingsGroups(Settings(), {}, r.actions, someImages, system = sys).first { it.id == GroupId.SYSTEM }.rows
+            .map { it as ActionRow }
+
+    private val allNormal = SystemUiStatus(
+        screensaverEnabled = true,
+        screensaverSource = DreamSource.Ours,
+        screensaverStart = TimeoutDisplay.Minutes(5),
+        animatorScale = 1f, transitionScale = 1f, windowScale = 1f,
+    )
+
+    @Test fun systemGroupHidesAnimRowWhenAllScalesAreOne() {
+        assertEquals(
+            listOf("systemScreensaver", "systemScreensaverSource", "systemScreensaverStart"),
+            systemGroup(allNormal).map { it.id },
+        )
+    }
+
+    @Test fun systemGroupShowsCurrentValues() {
+        val rows = systemGroup(allNormal)
+        assertEquals(R.string.settings_on, rows[0].hintRes)
+        assertEquals(R.string.app_name, rows[1].hintRes)
+        assertNull(rows[1].hintText)
+        assertEquals(R.string.settings_sys_minutes, rows[2].hintRes)
+        assertEquals(listOf<Any>(5), rows[2].hintArgs)
+        val off = systemGroup(allNormal.copy(screensaverEnabled = false, screensaverStart = TimeoutDisplay.Never))
+        assertEquals(R.string.settings_off, off[0].hintRes)
+        assertEquals(R.string.settings_sys_never, off[2].hintRes)
+    }
+
+    @Test fun otherDreamShowsItsLabelAsLiteralText() {
+        val rows = systemGroup(allNormal.copy(screensaverSource = DreamSource.Other("Backdrop")))
+        assertEquals("Backdrop", rows[1].hintText)
+    }
+
+    /** 读不到的项只写「查看」,不猜——需求第 3 条。UNKNOWN 下四行全是「查看」(动画那行也在,因为不知道是不是 1×)。 */
+    @Test fun unreadableItemsShowViewOnly() {
+        val rows = systemGroup(SystemUiStatus.UNKNOWN)
+        assertEquals(4, rows.size)
+        rows.forEach {
+            assertEquals(it.id, R.string.settings_sys_view, it.hintRes)
+            assertTrue(it.id, it.hintArgs.isEmpty())
+            assertNull(it.id, it.hintText)
+        }
+    }
+
+    /** 条件行必须排最后:焦点账本只对「行号越界」夹回(见 systemRows 的 KDoc)。 */
+    @Test fun animRowIsLastAndCarriesFormattedScale() {
+        val rows = systemGroup(allNormal.copy(animatorScale = 1.25f))
+        assertEquals("systemAnimationScale", rows.last().id)
+        assertEquals(R.string.settings_sys_anim_slower, rows.last().hintRes)
+        assertEquals(listOf<Any>("1.25"), rows.last().hintArgs)
+        assertEquals(R.string.settings_sys_anim_faster, systemGroup(allNormal.copy(animatorScale = 0.5f)).last().hintRes)
+        assertEquals(R.string.settings_sys_anim_off, systemGroup(allNormal.copy(animatorScale = 0f)).last().hintRes)
+        val win = systemGroup(allNormal.copy(windowScale = 0.5f)).last()
+        assertEquals(R.string.settings_sys_anim_window, win.hintRes)
+        assertEquals(listOf<Any>("0.5", "1"), win.hintArgs)
+    }
+
+    @Test fun systemRowsJumpToTheirPages() {
+        val r = Recorder()
+        systemGroup(allNormal.copy(animatorScale = 1.25f), r).forEach { it.onActivate() }
+        assertEquals(
+            listOf("openSystemScreensaver", "openSystemScreensaver", "openSystemScreensaver", "openSystemAnimationSettings"),
+            r.fired,
+        )
     }
 }

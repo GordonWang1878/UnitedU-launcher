@@ -386,6 +386,10 @@ class MainActivity : ComponentActivity() {
                     openSystemScreensaver = { openSystemScreensaverSettings() },
                     // M4b:布局组「恢复隐藏的输入源」行,只在 hiddenInputs > 0 时存在。
                     restoreHiddenInputs = ::restoreHiddenInputs,
+                    // ui-pending #16:「系统」组动画缩放提示行 → 开发者选项(同一套候选链 + 弹回检测)。
+                    openSystemAnimationSettings = {
+                        openSystemPage(ANIMATION_SETTINGS_PAGES, R.string.toast_system_settings_unavailable)
+                    },
                 )
             }
             // 设置页关闭时 leaveSettings() 会让 revision++,壁纸选图 / 轮播 / 滑块预览走的是
@@ -1485,16 +1489,50 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * 设置页「系统屏保 ▸」(M5 spec §3):系统屏保设置页;解析不到(`ActivityNotFoundException`)退到系统设置首页;
-     * 两个都打不开才 toast。不检测系统当前选的是不是 UnitedU(spec §8:隐藏设置键,读不可靠)。
-     * 回来时 onResume 的 focusNonce++ 让设置页把焦点送回这一行(ON_PAUSE 起冻结)。
+     * 设置页「系统」组的屏保三行(M5 spec §3 的「系统屏保 ▸」,ui-pending #16 起搬进「系统」组):跳系统屏保设置页。
+     * 候选链与每一项为什么在那儿见 [DREAM_SETTINGS_PAGES];全都打不开才 toast。
+     * 回来时 onResume 的 focusNonce++ 让设置页把焦点送回这一行(ON_PAUSE 起冻结),并重读系统设置快照。
      */
     private fun openSystemScreensaverSettings() {
-        for (action in listOf(Settings.ACTION_DREAM_SETTINGS, Settings.ACTION_SETTINGS)) {
-            val ok = runCatching { startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
-            if (ok) return
+        openSystemPage(DREAM_SETTINGS_PAGES, R.string.toast_system_screensaver_unavailable)
+    }
+
+    /**
+     * 本次跳转的编号。弹回检测的延时回调只认发起它的那一次:用户接着又点了别的跳转,旧回调比对不上就什么都不做
+     * (铁律 7:不用「正在跳转」这种布尔闩——那需要有人在每条路上把它清回去)。
+     */
+    private var systemPageJump = 0
+
+    /**
+     * 按 [chain] 顺序跳第一个真能打开的系统页(ui-pending #16)。一个候选算失败:解析不到、显式组件未导出、
+     * `startActivity` 抛异常,或者**启动报成功、[SYSTEM_PAGE_BOUNCE_MS] 后本 Activity 却仍(又)是 RESUMED**——
+     * 那一页当场 finish 或崩了(Google TV 镜像上 DaydreamActivity 就是前者,见 [DREAM_SETTINGS_PAGES])。
+     * 失败就从下一个候选接着试;全部用完才 toast [failRes]。
+     */
+    private fun openSystemPage(chain: List<SystemPage>, failRes: Int, from: Int = 0) {
+        for (i in from until chain.size) {
+            val page = chain[i]
+            val intent = Intent().addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (page.action != null) intent.action = page.action
+            if (page.pkg != null && page.cls != null) intent.component = ComponentName(page.pkg, page.cls)
+            val info = runCatching {
+                packageManager.resolveActivity(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)
+                    ?: if (intent.component != null) packageManager.resolveActivity(intent, 0) else null
+            }.getOrNull() ?: continue
+            if (intent.component != null && !info.activityInfo.exported) continue
+            if (runCatching { startActivity(intent) }.isFailure) continue
+            val jump = ++systemPageJump
+            window.decorView.postDelayed({
+                if (jump == systemPageJump &&
+                    lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
+                ) {
+                    android.util.Log.i("UnitedU", "系统页没打开(弹回):${page.action ?: page.cls},试下一个")
+                    openSystemPage(chain, failRes, i + 1)
+                }
+            }, SYSTEM_PAGE_BOUNCE_MS)
+            return
         }
-        toast(getString(R.string.toast_system_screensaver_unavailable))
+        toast(getString(failRes))
     }
 
     private fun pickWallpaper() {

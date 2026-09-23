@@ -47,7 +47,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-// 两栏的尺寸(spec §2.1)。左栏 7 项、右栏最多 8 行,两栏都**一屏放得下**,
+// 两栏的尺寸(spec §2.1)。左栏 8 项(ui-pending #16 加了「系统」)、右栏最多 8 行,两栏都**一屏放得下**,
 // 所以这里不需要 HomeScreen / 旧设置页那种自算纵向位移 —— 但同样一行滚动容器都不许有(铁律 1)。
 private val PANE_LEFT_W = 260.dp
 private val PANE_RIGHT_W = 640.dp
@@ -76,7 +76,7 @@ data class SettingsPos(val pane: Int, val group: Int, val row: Int)
  * UnitedU 设置页:**左栏分组 + 右栏当前组的行**,整页盖在常驻首页之上做实时预览(spec §2、§3)。
  *
  * 为什么是两栏:全部行加起来约 18 行,一屏放不下,而这份代码里**任何可滚动容器都是禁区**
- * (铁律 1:`LazyColumn`/`verticalScroll` 会让 D-pad 焦点整棵树消失)。两栏之后左 7 项、右 ≤ 8 行,
+ * (铁律 1:`LazyColumn`/`verticalScroll` 会让 D-pad 焦点整棵树消失)。两栏之后左 8 项、右 ≤ 8 行,
  * 各自都在一屏内,连自算位移都省了。
  *
  * 为什么是叠加而不是替换:底下首页透过压暗层仍看得见 —— 改卡片大小 / 标题 / 主题色的效果当场可见
@@ -178,6 +178,8 @@ fun SettingsScreen(
             // M4b:写的是 hidden-inputs.json,不是 settings.json——本页的 `s` 快照不会过期,原样转交
             // (同上面两条 M5 动作同一个理由);计数靠 hiddenInputs 那颗 produceState 跟 revision 重读。
             restoreHiddenInputs = actions.restoreHiddenInputs,
+            // ui-pending #16:跳系统页,不写我们的盘。回来时的重读靠下面 systemStatus 的 key(focusNonce)。
+            openSystemAnimationSettings = actions.openSystemAnimationSettings,
         )
     }
 
@@ -209,8 +211,17 @@ fun SettingsScreen(
         value = withContext(Dispatchers.IO) { HiddenInputs.read(ctx).size }
     }
 
+    // 「系统」组的系统设置快照(ui-pending #16)。**同步读**(理由见 readSystemUiStatus 的 KDoc:不让行先画成
+    // 「查看」再跳真值,不让动画缩放条件行在开页之后才冒出来)。key:
+    // - focusNonce:onResume 必 ++——用户从系统屏保页 / 开发者选项改完回来,这里就重读(需求原话「回到前台要重读」);
+    // - covered:子界面关掉时顺手重读一次(便宜,且与上面两个 produceState 同一组 key 习惯)。
+    // 没有守卫,不涉及铁律 6。行数随它变(动画缩放条件行)时的焦点交接走下面那套「同步夹取 + rows.size 进 key」。
+    val systemStatus = remember(focusNonce, covered) { readSystemUiStatus(ctx) }
+
     // 内容模型(分组 / 行 / 当前档位)全在 SettingsModel.kt 里,这里只画和管焦点。
-    val groups = settingsGroups(s, { transform -> update(transform) }, liveActions, screensaverImages, hiddenInputs)
+    val groups = settingsGroups(
+        s, { transform -> update(transform) }, liveActions, screensaverImages, hiddenInputs, systemStatus,
+    )
 
     // 模糊/亮度改动后 300 ms 防抖通知首页重处理壁纸。用「上次通知过的值」比对,不用一次性布尔闩
     // (铁律 7):首次组合两者相等不发;改回原值也会再发一次,预览不会卡在旧参数上。
@@ -271,7 +282,7 @@ fun SettingsScreen(
      * 收口交给下面的定位效果:它的 key 多了 `rows.size`(铁律 6:会让「目标已经不存在」这件事
      * 发生的量,必须同时进它的 key,才能促它重跑),一旦这里置真 `restoring`、行数又变了,
      * 它就会重新跑、把焦点真的送到这个刚夹好的目标上——**只在那一行自报 `isFocused` 时才收手**,
-     * 不是「随便哪儿有焦点就算数」。只判 `pane == PANE_R`:左栏的 `groupReq` 数量固定(七个分组
+     * 不是「随便哪儿有焦点就算数」。只判 `pane == PANE_R`:左栏的 `groupReq` 数量固定(八个分组
      * 不会变),不会有这个问题;`rowOf[group]` 本来就只在右栏取值时才有意义。
      */
     if (pane == PANE_R && rowOf[group] > rows.lastIndex) {
@@ -425,7 +436,7 @@ fun SettingsScreen(
             // `Modifier.width()` 会被 constrain —— 空间用完之后的条目被量成 0 宽,而 0 宽条目在
             // 焦点搜索里**永远选不中**(right 全部相等)。宁可让它探出屏幕,也不能让它变成 0。
             Row(Modifier.wrapContentWidth(Alignment.Start, unbounded = true)) {
-                // ---- 左栏:七个分组 ----
+                // ---- 左栏:八个分组 ----
                 Column(Modifier.width(PANE_LEFT_W)) {
                     groups.forEachIndexed { i, g ->
                         GroupItem(
@@ -673,9 +684,12 @@ private fun ActionRowItem(
         RowFrame(focused = focused, label = stringResource(action.labelRes)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 BasicText(
-                    // hintArg 非 null = 带格式参数的文案(目前只有「恢复隐藏的输入源」的「%1$d 个」),
-                    // 与 SettingRow 里 optionArgs 的解析方式同一个道理(见 ActionRow.hintArg 的 KDoc)。
-                    text = action.hintArg?.let { stringResource(action.hintRes, it) } ?: stringResource(action.hintRes),
+                    // hintText 非 null = 现成的字(「系统」组的屏保来源 = 别的应用的名字);否则 hintArgs 非空 =
+                    // 带格式参数的文案(「%1$d 个」「%1$s×,…」),与 SettingRow 里 optionArgs 的解析方式同一个道理
+                    // (见 ActionRow.hintArgs / hintText 的 KDoc)。
+                    text = action.hintText
+                        ?: if (action.hintArgs.isEmpty()) stringResource(action.hintRes)
+                        else stringResource(action.hintRes, *action.hintArgs.toTypedArray()),
                     style = TextStyle(
                         fontFamily = Theme.Sans,
                         color = if (focused) Theme.SecondaryText else Theme.FooterHintText,

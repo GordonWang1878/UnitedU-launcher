@@ -17,8 +17,11 @@ package com.uniteduone.launcher
 /** 控件种类。SWATCH = 主题色色板(选项来自 [ThemePresets]),SLIDER = 11 档滑块。 */
 enum class CtrlKind { SEGMENTED, TOGGLE, SWATCH, SLIDER }
 
-/** 左栏的七个分组。顺序即 spec §2.2 表格的顺序,列表下标 = 左栏焦点账本里的 `group`。 */
-enum class GroupId { LAYOUT, WALLPAPER, THEME, STANDBY, CLOCK, LANGUAGE, OTHER }
+/**
+ * 左栏的八个分组。顺序即 spec §2.2 表格的顺序,列表下标 = 左栏焦点账本里的 `group`。
+ * SYSTEM(ui-pending #16,2026-09-23)排在 OTHER 之前:我们自己的偏好在前,系统的只读状态其次,「其他」收尾。
+ */
+enum class GroupId { LAYOUT, WALLPAPER, THEME, STANDBY, CLOCK, LANGUAGE, SYSTEM, OTHER }
 
 /** 右栏的一行。`id` 是稳定标识(测试与日志按它找行,不按下标)。 */
 sealed interface RowSpec {
@@ -53,11 +56,17 @@ data class ActionRow(
     override val labelRes: Int,
     val hintRes: Int,
     /**
-     * 非 null 时 [hintRes] 是带格式参数的文案(如「%1$d 个」),界面按 `stringResource(hintRes, hintArg)`
-     * 解析——与 [ControlRow.optionArgs] 同一个理由:这一层不认识 Context,不能自己把数字拼进字符串。
-     * 目前只有「恢复隐藏的输入源」这一行用它(M4b)。
+     * 非空时 [hintRes] 是带格式参数的文案(如「%1$d 个」「%1$s×,界面动画会变慢」),界面按
+     * `stringResource(hintRes, *hintArgs)` 解析——与 [ControlRow.optionArgs] 同一个理由:这一层不认识
+     * Context,不能自己把数字拼进字符串。用它的:「恢复隐藏的输入源」(M4b,一个 Int)、「系统」组的
+     * 启动时间 / 动画缩放(ui-pending #16,Int 或 String)。
      */
-    val hintArg: Int? = null,
+    val hintArgs: List<Any> = emptyList(),
+    /**
+     * 非 null 时**直接显示这段字**,不查 [hintRes]:只给「系统」组的屏保来源用——别的应用的名字来自
+     * PackageManager,不是我们的资源,没有资源 id 可给。[hintRes] 仍要填(退路:读不到时的「查看」)。
+     */
+    val hintText: String? = null,
     val onActivate: () -> Unit,
 ) : RowSpec
 
@@ -76,7 +85,7 @@ internal val LANGUAGE_OPTION_RES: List<Int> = listOf(
 )
 
 /**
- * 设置页要做、但**只有 Activity 做得了**的七件事(开子界面、切语言、跳系统页)。
+ * 设置页要做、但**只有 Activity 做得了**的几件事(开子界面、切语言、跳系统页)。
  * 模型只管把它们挂到对应的行上,不认识 `Context`;真正的实现在 `MainActivity`。
  */
 class SettingsActions(
@@ -92,6 +101,8 @@ class SettingsActions(
     val openSystemScreensaver: () -> Unit,
     /** M4b:布局组「恢复隐藏的输入源」行——清空 hidden-inputs.json,只在 hiddenInputs > 0 时这一行才存在。 */
     val restoreHiddenInputs: () -> Unit,
+    /** ui-pending #16:「系统」组动画缩放提示行——跳开发者选项;解析不到退到系统设置首页。 */
+    val openSystemAnimationSettings: () -> Unit,
 )
 
 /**
@@ -128,6 +139,11 @@ fun settingsGroups(
      * 那个参数当年是随 M5 一次性改掉了全部调用点;这里改用默认值换一条更小的 diff)。
      */
     hiddenInputs: Int = 0,
+    /**
+     * 系统设置快照(ui-pending #16):「系统」组各行显示的当前值。默认 [SystemUiStatus.UNKNOWN]——
+     * 与 [hiddenInputs] 同一个理由,既有调用点不关心这一组,不必逐一改;UNKNOWN 下该组四行都显示「查看」。
+     */
+    system: SystemUiStatus = SystemUiStatus.UNKNOWN,
 ): List<GroupSpec> {
     val onOff = listOf(R.string.settings_off, R.string.settings_on)
     fun toggle(id: String, labelRes: Int, value: Boolean, write: (Settings, Boolean) -> Settings) =
@@ -168,7 +184,7 @@ fun settingsGroups(
                         id = "restoreHiddenInputs",
                         labelRes = R.string.settings_restore_hidden_inputs,
                         hintRes = R.string.settings_hidden_inputs_count,
-                        hintArg = hiddenInputs,
+                        hintArgs = listOf(hiddenInputs),
                         onActivate = actions.restoreHiddenInputs,
                     )
                 } else null,
@@ -292,17 +308,14 @@ fun settingsGroups(
                     selected = VALID_SCREENSAVER_INTERVAL_MS.indexOf(s.screensaverIntervalMs).coerceAtLeast(0),
                     onSelect = { i -> update { it.copy(screensaverIntervalMs = VALID_SCREENSAVER_INTERVAL_MS[i]) } },
                 ),
-                // 两条动作行(spec §3):图库叠在设置页上;系统屏保跳系统页。都只有 Activity 做得了,走 actions。
+                // 动作行(spec §3):图库叠在设置页上,只有 Activity 做得了,走 actions。
+                // 原来这里还有一条「系统屏保 ▸」,ui-pending #16 起搬进「系统」组并带上开关状态(见 systemRows)——
+                // 两个组各放一条跳同一个系统页的行只会让人以为是两件事。
                 ActionRow(
                     "screensaverGallery",
                     R.string.settings_screensaver_gallery,
                     R.string.settings_screensaver_gallery_desc,
                 ) { actions.openScreensaverGallery() },
-                ActionRow(
-                    "systemScreensaver",
-                    R.string.settings_system_screensaver,
-                    R.string.settings_system_screensaver_desc,
-                ) { actions.openSystemScreensaver() },
             ),
         ),
         GroupSpec(
@@ -329,6 +342,7 @@ fun settingsGroups(
                 ),
             ),
         ),
+        GroupSpec(GroupId.SYSTEM, R.string.settings_group_system, systemRows(system, actions)),
         GroupSpec(
             GroupId.OTHER, R.string.settings_group_other,
             listOf(
@@ -342,5 +356,65 @@ fun settingsGroups(
                 ) { actions.restoreDefaults() },
             ),
         ),
+    )
+}
+
+/**
+ * 「系统」组(ui-pending #16,Gordon 2026-09-23 选定):三项影响 UnitedU 界面的**系统**设置,
+ * **只读 + 确定键跳系统对应页**,我们不写任何系统设置。
+ *
+ * 前三行固定存在(系统屏保开关 / 来源 / 启动时间,确定键都跳系统屏保页);读不到的项值写「查看」,不猜。
+ * 第四行「系统动画缩放」是**条件行**,只在 [animScaleNotice] 非 null 时出现,而且**必须排在最后**:
+ * 设置页的焦点账本对「行数变化」只做一件事——目标行号越界时夹回最后一行(SettingsScreen 里「恢复隐藏的
+ * 输入源」那一套)。条件行放在末尾,它消失时受影响的只可能是「焦点正在它身上」,夹回来正好落在上一行;
+ * 放在中间则它下面的行会整体上移一格,焦点记忆静默指到别的行上。
+ */
+internal fun systemRows(sys: SystemUiStatus, actions: SettingsActions): List<RowSpec> {
+    val view = R.string.settings_sys_view
+    val openDream = { actions.openSystemScreensaver() }
+
+    val enabledHint = when (sys.screensaverEnabled) {
+        true -> R.string.settings_on
+        false -> R.string.settings_off
+        null -> view
+    }
+    val source = sys.screensaverSource
+    val (startHint, startArgs) = when (val t = sys.screensaverStart) {
+        null -> view to emptyList()
+        TimeoutDisplay.Never -> R.string.settings_sys_never to emptyList()
+        is TimeoutDisplay.Seconds -> R.string.settings_seconds to listOf<Any>(t.n)
+        is TimeoutDisplay.Minutes -> R.string.settings_sys_minutes to listOf<Any>(t.n)
+        is TimeoutDisplay.Hours -> R.string.settings_sys_hours to listOf<Any>(t.n)
+    }
+    val anim = animScaleNotice(sys.animatorScale, sys.transitionScale, sys.windowScale)
+
+    return listOfNotNull(
+        ActionRow("systemScreensaver", R.string.settings_system_screensaver, enabledHint, onActivate = openDream),
+        ActionRow(
+            "systemScreensaverSource", R.string.settings_sys_screensaver_source,
+            hintRes = if (source == DreamSource.Ours) R.string.app_name else view,
+            hintText = (source as? DreamSource.Other)?.label,
+            onActivate = openDream,
+        ),
+        ActionRow(
+            "systemScreensaverStart", R.string.settings_sys_screensaver_start,
+            hintRes = startHint, hintArgs = startArgs, onActivate = openDream,
+        ),
+        anim?.let { n ->
+            val (res, args) = when (n) {
+                AnimScaleNotice.Unreadable -> view to emptyList()
+                is AnimScaleNotice.Animator -> when {
+                    n.scale <= 0f -> R.string.settings_sys_anim_off to emptyList()
+                    n.scale > 1f -> R.string.settings_sys_anim_slower to listOf<Any>(formatScale(n.scale))
+                    else -> R.string.settings_sys_anim_faster to listOf<Any>(formatScale(n.scale))
+                }
+                is AnimScaleNotice.WindowOnly -> R.string.settings_sys_anim_window to
+                    listOf<Any>(formatScale(n.window), formatScale(n.transition))
+            }
+            ActionRow(
+                "systemAnimationScale", R.string.settings_sys_anim_scale,
+                hintRes = res, hintArgs = args, onActivate = { actions.openSystemAnimationSettings() },
+            )
+        },
     )
 }

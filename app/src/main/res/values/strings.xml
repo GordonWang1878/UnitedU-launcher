@@ -155,11 +155,23 @@
     <string name="settings_screensaver_gallery">屏保图库</string>
     <string name="settings_screensaver_gallery_desc">看图、长按删图</string>
     <string name="settings_system_screensaver">系统屏保</string>
-    <string name="settings_system_screensaver_desc">在系统设置里选 UnitedU</string>
     <string name="settings_on">开</string>
     <string name="settings_off">关</string>
     <!-- 以下为 M7 两栏设置页新增的分组与行(语言 / 其他) -->
     <string name="settings_group_language">语言</string>
+    <!-- ui-pending #16「系统」组:只读显示三项系统设置,确定键跳系统对应页;读不到的项写「查看」 -->
+    <string name="settings_group_system">系统</string>
+    <string name="settings_sys_view">查看</string>
+    <string name="settings_sys_screensaver_source">屏保来源</string>
+    <string name="settings_sys_screensaver_start">屏保启动时间</string>
+    <string name="settings_sys_never">从不</string>
+    <string name="settings_sys_minutes">%1$d 分钟</string>
+    <string name="settings_sys_hours">%1$d 小时</string>
+    <string name="settings_sys_anim_scale">系统动画缩放</string>
+    <string name="settings_sys_anim_slower">%1$s×,界面动画会变慢</string>
+    <string name="settings_sys_anim_faster">%1$s×,界面动画会变快</string>
+    <string name="settings_sys_anim_off">已关闭,界面没有动画</string>
+    <string name="settings_sys_anim_window">窗口 %1$s×、过渡 %2$s×,只影响打开和切换应用</string>
     <string name="settings_group_other">其他</string>
     <string name="settings_language">语言</string>
     <string name="settings_lang_system">跟随系统</string>
@@ -226,6 +238,7 @@
     <string name="toast_stock_launcher_not_found">找不到原厂桌面</string>
     <string name="toast_restored">已恢复默认设置</string>
     <string name="toast_system_screensaver_unavailable">打不开系统屏保设置</string>
+    <string name="toast_system_settings_unavailable">打不开系统设置</string>
     <string name="toast_pool_delete_failed">「%1$s」没能删掉</string>
     <!-- M4b -->
     <string name="menu_hide_input">隐藏</string>

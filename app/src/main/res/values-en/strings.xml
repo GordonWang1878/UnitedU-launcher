@@ -163,11 +163,23 @@
     <string name="settings_screensaver_gallery">Screensaver Gallery</string>
     <string name="settings_screensaver_gallery_desc">View; hold OK to delete</string>
     <string name="settings_system_screensaver">System Screensaver</string>
-    <string name="settings_system_screensaver_desc">Pick UnitedU in system settings</string>
     <string name="settings_on">On</string>
     <string name="settings_off">Off</string>
     <!-- Added by M7 two-pane settings page (Language / Other groups) -->
     <string name="settings_group_language">Language</string>
+    <!-- ui-pending #16 "System" group: read-only view of three system settings; OK jumps to the system page; unreadable items show "View" -->
+    <string name="settings_group_system">System</string>
+    <string name="settings_sys_view">View</string>
+    <string name="settings_sys_screensaver_source">Screensaver Source</string>
+    <string name="settings_sys_screensaver_start">Screensaver Starts After</string>
+    <string name="settings_sys_never">Never</string>
+    <string name="settings_sys_minutes">%1$d min</string>
+    <string name="settings_sys_hours">%1$d hr</string>
+    <string name="settings_sys_anim_scale">System Animation Scale</string>
+    <string name="settings_sys_anim_slower">%1$s×, UI animations run slower</string>
+    <string name="settings_sys_anim_faster">%1$s×, UI animations run faster</string>
+    <string name="settings_sys_anim_off">Off, UI animations are skipped</string>
+    <string name="settings_sys_anim_window">Window %1$s×, transition %2$s×; only affects opening and switching apps</string>
     <string name="settings_group_other">Other</string>
     <string name="settings_language">Language</string>
     <string name="settings_lang_system">System</string>
@@ -234,6 +246,7 @@
     <string name="toast_stock_launcher_not_found">Stock launcher not found</string>
     <string name="toast_restored">Defaults restored</string>
     <string name="toast_system_screensaver_unavailable">Can\'t open system screensaver settings</string>
+    <string name="toast_system_settings_unavailable">Can\'t open system settings</string>
     <string name="toast_pool_delete_failed">Couldn\'t delete “%1$s”</string>
     <!-- M4b -->
     <string name="menu_hide_input">Hide</string>
