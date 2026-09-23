@@ -52,6 +52,8 @@ object GtvTokens {
      * (仍是 0.96/0),纯灰壁纸的地板亮度因此从 ~5 抬到 ~14–18(两道衰减都没叠满的边缘区域更亮,
      * 都叠满的角落最接近 14——见 `docs/WORKLOG.md` 2026-09-21 Round 4 条目的推导)。
      */
+    /** R82:首页背景衰减(下面这组 HeroGradient*)的总开关。2026-09-24 owner 暂时拿掉,等新策略。 */
+    const val HERO_GRADIENT_ENABLED = false
     val HeroGradientNear: Color = MenuBg.copy(alpha = 0.96f)
     val HeroGradientFar: Color = MenuBg.copy(alpha = 0f)
     /** 横向衰减在这个屏宽分数之前维持 [HeroGradientNear],不提前淡出。 */

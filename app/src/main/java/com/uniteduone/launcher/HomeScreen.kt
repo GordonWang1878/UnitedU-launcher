@@ -511,37 +511,42 @@ fun HomeScreen(
         // 随 contentAlpha 一起淡出——待机 / 自定义屏保时两层暗色一起消失,只剩干净壁纸,
         // 与 HomeScreen 顶部 KDoc「screensaver 为真时行 / 渐变 / 顶栏一律淡出」说的是同一件事;
         // 两层共读同一个 `contentAlpha`,不会互相错拍。
-        Box(
-            Modifier
-                .fillMaxSize()
-                .alpha(contentAlpha)
-                .background(
-                    androidx.compose.ui.graphics.Brush.horizontalGradient(
-                        0f to GtvTokens.HeroGradientNear,
-                        GtvTokens.HeroGradientHPlateau to GtvTokens.HeroGradientNear,
-                        GtvTokens.HeroGradientHFadeEnd to GtvTokens.HeroGradientFar,
+        // R82(2026-09-24 owner):**暂时拿掉**这层「右上亮、往左下压暗」的背景衰减——现在的首页英雄区左侧没有内容,
+        // 照 Google 那样把左侧压黑只会让左半屏显得空着没用。之后 owner 会给新的渐变策略,替换下面这两层即可。
+        // 上下移动时的整体压暗(wallpaperAlpha)不受影响。
+        if (GtvTokens.HERO_GRADIENT_ENABLED) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .alpha(contentAlpha)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.horizontalGradient(
+                            0f to GtvTokens.HeroGradientNear,
+                            GtvTokens.HeroGradientHPlateau to GtvTokens.HeroGradientNear,
+                            GtvTokens.HeroGradientHFadeEnd to GtvTokens.HeroGradientFar,
+                        ),
                     ),
-                ),
-        )
-        // 纵向的一半(R24 新增)。**固定在屏幕坐标上,不读 anchorTop/shift/activeRow 里任何一个**——
-        // 这是与 Round 2 那版 scrimTop 竖直 scrim 的关键区别:Google 的暗色窗口不随内容行的焦点
-        // 滚动而移动,行位移只搬内容,不搬背景;所以这里改用默认(无 startY/endY)的
-        // `Brush.verticalGradient`,两个 stop 的分数直接对应这个 `fillMaxSize()` Box 自身的实际
-        // 高度——完全不需要 Round 2 那套「转 px、算 scrimTop」的机制,那套机制本身正是这次删掉的
-        // 东西(它在 scrimTop 为负时会在屏幕底部露出硬边,详见 `docs/WORKLOG.md` Round 2 条目里
-        // 「measure 先于 offset」的完整推导——那次的教训移到那边存档,不再在这里为一段已删除的
-        // 代码重复解释它当年为什么错)。
-        Box(
-            Modifier
-                .fillMaxSize()
-                .alpha(contentAlpha)
-                .background(
-                    androidx.compose.ui.graphics.Brush.verticalGradient(
-                        GtvTokens.HeroGradientVFadeStart to GtvTokens.HeroGradientFar,
-                        GtvTokens.HeroGradientVPlateau to GtvTokens.HeroGradientNear,
+            )
+            // 纵向的一半(R24 新增)。**固定在屏幕坐标上,不读 anchorTop/shift/activeRow 里任何一个**——
+            // 这是与 Round 2 那版 scrimTop 竖直 scrim 的关键区别:Google 的暗色窗口不随内容行的焦点
+            // 滚动而移动,行位移只搬内容,不搬背景;所以这里改用默认(无 startY/endY)的
+            // `Brush.verticalGradient`,两个 stop 的分数直接对应这个 `fillMaxSize()` Box 自身的实际
+            // 高度——完全不需要 Round 2 那套「转 px、算 scrimTop」的机制,那套机制本身正是这次删掉的
+            // 东西(它在 scrimTop 为负时会在屏幕底部露出硬边,详见 `docs/WORKLOG.md` Round 2 条目里
+            // 「measure 先于 offset」的完整推导——那次的教训移到那边存档,不再在这里为一段已删除的
+            // 代码重复解释它当年为什么错)。
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .alpha(contentAlpha)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                            GtvTokens.HeroGradientVFadeStart to GtvTokens.HeroGradientFar,
+                            GtvTokens.HeroGradientVPlateau to GtvTokens.HeroGradientNear,
+                        ),
                     ),
-                ),
-        )
+            )
+        }
 
         // hero 区(0–192dp,GtvLayout.HERO_HEIGHT)恒是壁纸(spec §3 B3):84 sp 大字时钟已删
         // (spec §2.3 B2),这里什么都不画,壁纸直接透出来——待机时也一样。
