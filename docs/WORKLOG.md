@@ -1487,3 +1487,10 @@ R42(`1c8118e`):行底边(含聚焦溢出)超出屏幕物理底边才上移,上�
 - 数据全在外部文件目录、只用相对文件名(`Paths.kt`),adb 直接复制即可。迁移脚本 `scripts/migrate-gtv-to-main.sh`:备份两边到 `~/unitedu-backup/<时间>/`(带 sha256 清单)→ 覆盖安装正式包 → 复制 → 逐文件 sha256 核对。**不卸载 gtv、不切桌面角色、不改系统屏保**——后两者 Gordon 在系统设置里切(系统屏保当前也指向 gtv 包的 `UnitedUDream`),卸载 gtv 前再单独确认。
 - 合并前补整枝评审(范围 `3378e7f..gtv`,R42–R49 未经整体评审)。
 - 电视 adb 断了:过夜后两个老端口(34949 / 38673)都 `No route to host`,`kill-server` 无效,ping 通——无线调试端口变了,等 Gordon 读新端口。
+
+## 2026-09-23 · 1.0 图标 / banner:方向已定,出图交给 GPT
+
+- 现状问题:图标与 banner 共用一张 320×180「United」金色光效字(TvHome 起步代码遗留),Google TV「Your apps」裁圆后只剩「Unitec」(`docs/screenshots/gtv/23-current-icon-in-google-tv-your-apps.jpg`)。1.0 必须拆成「圆里也成立的图形」+「单独排版的 banner」。
+- Gordon 定的方向:**U,形状像笑脸但一眼是 U;不要黑底/灰底,活泼或高科技;只用 UnitedU,不起中文名。**
+- 我出过两轮草图(`docs/design/icon-concepts/round1-marks.jpg`、`round2-smile-u-matrix.jpg`、`round2-banners.jpg`),Gordon:「你似乎不太擅长做生图相关的工作,我还是找 GPT 做吧」——出图交 GPT。
+- 我这边待办(等图到):切 mdpi–xxxhdpi、自适应图标 XML(前景/背景两层,108dp 画布、66% 安全区)、单独 banner(xhdpi 320×180)、Manifest `icon`/`roundIcon`/`banner` 分开指向;模拟器 Google TV「Your apps」裁圆核对 + 真机核对。
