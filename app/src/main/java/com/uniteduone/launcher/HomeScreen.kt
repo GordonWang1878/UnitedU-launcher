@@ -718,6 +718,9 @@ fun HomeScreen(
                 pillAlpha = contentAlpha,
                 clockAlpha = topBarClockAlpha,
                 showDate = showDate,
+                // ui-pending #8:待机(含设置页待机演示)时两层压暗渐变淡掉、壁纸原样露出,亮壁纸上
+                // accent 小字对比度只有 1.4:1——给时钟字标加系统屏保照片上同款的淡阴影。
+                clockShadow = effectiveIdle,
                 onSettings = { onMenuOpenChange(true) },
                 onScreensaver = onScreensaver,
                 onFocusChange = { col, got ->

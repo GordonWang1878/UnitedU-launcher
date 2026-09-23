@@ -77,6 +77,9 @@ fun GtvTopBar(
     clockAlpha: Float,
     /** 时钟旁是否带日期(design §2,设置页开关透传)。 */
     showDate: Boolean,
+    /** 时钟字标加淡阴影([ClockWordmark] 的 `shadow`)。ui-pending #8:HomeScreen 在待机时传 true——
+     *  待机时两层压暗渐变随 contentAlpha 淡掉,壁纸原样露出,亮壁纸上 accent 小字对比度只有 1.4:1。 */
+    clockShadow: Boolean = false,
     onSettings: () -> Unit,
     onScreensaver: () -> Unit,
     /** (col, got):col 0 = 设置、1 = 屏保。**两个按钮必须报不同的 col**——HomeScreen 用它去重
@@ -111,7 +114,7 @@ fun GtvTopBar(
         )
         // Google 在这条留白里放搜索 / Home / Apps 三个 tab;我们没有对应功能,整组省略(spec §9)。
         Spacer(Modifier.weight(1f))
-        ClockWordmark(showDate = showDate, modifier = Modifier.alpha(clockAlpha))
+        ClockWordmark(showDate = showDate, shadow = clockShadow, strongShadow = clockShadow, modifier = Modifier.alpha(clockAlpha))
     }
 }
 
@@ -239,9 +242,20 @@ private fun TopBarIconButton(
  * 现在三处待机画面(首页待机 / 桌面自定义屏保 / 系统屏保)留下的都是同一行小字,不再各长各的。
  *
  * @param shadow 照片可能很亮时为真(与 `HeroClock` 同一条规则):加一层淡阴影,不做描边、不做底板。
+ * @param strongShadow [shadow] 加深一档(ui-pending #8,首页待机用):紧贴字形的深阴影
+ *   (纯黑、无偏移、模糊 4 px;原来那档是黑 α 0.55、下偏 2 px、模糊 16 px)。原来那档在米白壁纸
+ *   (#F2EAD8)上实测反而更糊:accent 小字(相对亮度 0.57)比米白(0.83)暗,一层铺得很开的淡灰只是把
+ *   字边的背景往字的亮度拉近(字 : 字边 1–3 px 背景 1.42 → 1.11)。紧贴的深阴影在字形外压出一圈比字更暗的边
+ *   (字边 0.40,边 : 米白 1.9:1),靠这圈暗边把字从亮底上剥出来——字 : 字边的 WCAG 数值仍只有 1.36,
+ *   不到 3:1,彻底解决要换字色或待机保留顶部压暗(docs/ui-pending.md #8)。系统屏保照片上仍用原来那档。
  */
 @Composable
-internal fun ClockWordmark(showDate: Boolean, shadow: Boolean = false, modifier: Modifier = Modifier) {
+internal fun ClockWordmark(
+    showDate: Boolean,
+    shadow: Boolean = false,
+    modifier: Modifier = Modifier,
+    strongShadow: Boolean = false,
+) {
     val accent = LocalThemeColors.current.accent
     val state = rememberClockState()
     val locale = AppLocale.current ?: Locale.getDefault()
@@ -264,7 +278,9 @@ internal fun ClockWordmark(showDate: Boolean, shadow: Boolean = false, modifier:
             fontFamily = Theme.Sans,
             fontSize = GtvLayout.TOP_BAR_CLOCK_TEXT.sp,
             color = accent,
-            shadow = if (shadow) {
+            shadow = if (shadow && strongShadow) {
+                Shadow(color = Color.Black, offset = Offset(0f, 0f), blurRadius = 4f)
+            } else if (shadow) {
                 Shadow(color = Color.Black.copy(alpha = 0.55f), offset = Offset(0f, 2f), blurRadius = 16f)
             } else {
                 null
