@@ -53,10 +53,10 @@ const val SHELL_CHANGE_HOME = "changeHome"
 /** 第一层的一颗胶囊:标题 + 说明小字(Gordon 定案:第一层保留两行胶囊)。 */
 data class RootEntry(val id: String, val labelRes: Int, val hintRes: Int)
 
-/** 第一层 6 颗,顺序即显示顺序;缺省焦点「布局」(第一颗)。 */
+/** 第一层 6 颗,顺序即显示顺序;缺省焦点在第一颗。2026-09-24 owner 定「通用」排第一(原「布局」第一)。 */
 val SHELL_ROOT: List<RootEntry> = listOf(
-    RootEntry(ShellPages.group(GroupId.LAYOUT), R.string.settings_group_layout, R.string.shell_root_layout_desc),
     RootEntry(ShellPages.group(GroupId.GENERAL), R.string.settings_group_general, R.string.shell_root_general_desc),
+    RootEntry(ShellPages.group(GroupId.LAYOUT), R.string.settings_group_layout, R.string.shell_root_layout_desc),
     RootEntry(ShellPages.group(GroupId.APPEARANCE), R.string.settings_group_appearance, R.string.shell_root_appearance_desc),
     RootEntry(ShellPages.group(GroupId.SCREENSAVER), R.string.settings_group_screensaver, R.string.shell_root_screensaver_desc),
     RootEntry(ShellPages.SYSTEM_SETTINGS, R.string.menu_system_settings, R.string.menu_system_settings_desc),

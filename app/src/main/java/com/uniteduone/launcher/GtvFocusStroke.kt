@@ -221,7 +221,7 @@ fun Modifier.gtvAppFocusFrame(
     afterShift: Boolean = false,
 ): Modifier = composed {
     // R34:进焦 / 失焦不对称——进焦 FOCUS_SCALE_IN_MS 减速曲线(R34 1200 = focused_frame_animator_duration_ms,R37 起 600),
-    // 失焦 150 ms AccelerateDecelerate(card_unfocus)。缩放、描边、柔光三者共用这一份 spec。
+    // 失焦 R79 起 400 ms AccelerateDecelerate(原 card_unfocus 150)。缩放、描边、柔光三者共用这一份 spec。
     val motionSpec = if (focused) {
         tween<Float>(
             durationMillis = GtvLayout.FOCUS_SCALE_IN_MS,
@@ -230,7 +230,8 @@ fun Modifier.gtvAppFocusFrame(
             easing = Theme.AppFocusScaleInEasing,
         )
     } else {
-        tween(durationMillis = GtvLayout.FOCUS_FADE_OUT_MS, easing = Theme.AppFocusEasing)
+        // R79:失焦也要「淡出」——原 150 ms(card_unfocus)被 owner 实测为突兀的一下缩回
+        tween(durationMillis = GtvLayout.APP_FOCUS_OUT_MS, easing = Theme.AppFocusEasing)
     }
     val scale by animateFloatAsState(
         targetValue = if (focused) GtvLayout.APP_FOCUS_SCALE else 1f,

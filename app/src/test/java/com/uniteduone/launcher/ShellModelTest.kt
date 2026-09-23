@@ -31,18 +31,18 @@ class ShellModelTest {
 
     // ---- 菜单树 ----
 
-    /** Gordon 定案第 2 条:第一层 6 颗,布局 / 通用 / 外观 / 屏保 / 系统设置 / 关于,每颗都带说明小字。 */
+    /** Gordon 定案第 2 条:第一层 6 颗,通用 / 布局 / 外观 / 屏保 / 系统设置 / 关于,每颗都带说明小字(2026-09-24 起通用排第一)。 */
     @Test fun rootHasSixCapsulesInOrder() {
         assertEquals(
-            listOf("g:LAYOUT", "g:GENERAL", "g:APPEARANCE", "g:SCREENSAVER", "systemSettings", "about"),
+            listOf("g:GENERAL", "g:LAYOUT", "g:APPEARANCE", "g:SCREENSAVER", "systemSettings", "about"),
             SHELL_ROOT.map { it.id },
         )
         assertTrue(SHELL_ROOT.all { it.hintRes != 0 })
-        assertEquals(R.string.shell_root_layout_desc, SHELL_ROOT[0].hintRes)
+        assertEquals(R.string.shell_root_general_desc, SHELL_ROOT[0].hintRes)
         assertEquals(R.string.menu_system_settings_desc, SHELL_ROOT[4].hintRes)
         assertEquals(R.string.menu_about_desc, SHELL_ROOT[5].hintRes)
         // 四颗分组胶囊的 id 就是它们要进的页
-        assertEquals(GroupId.entries.map { ShellPages.group(it) }, SHELL_ROOT.take(4).map { it.id })
+        assertEquals(GroupId.entries.map { ShellPages.group(it) }.toSet(), SHELL_ROOT.take(4).map { it.id }.toSet())
     }
 
     /** Gordon 定案第 3 条:四个第二层的内容与顺序(条件行不在时)。 */
@@ -73,7 +73,7 @@ class ShellModelTest {
 
     @Test fun defaultFocusPerPage() {
         val g = groups(Settings(cardsPerRow = 8, themePresetId = "blue"))
-        assertEquals("g:LAYOUT", defaultFocus(ShellPages.ROOT, g))
+        assertEquals("g:GENERAL", defaultFocus(ShellPages.ROOT, g))
         assertEquals("editLayout", defaultFocus(ShellPages.group(GroupId.LAYOUT), g))
         assertEquals("language", defaultFocus(ShellPages.group(GroupId.GENERAL), g))
         // 选项层落在已保存那一档:8 张 = 第 2 档「小」
@@ -113,7 +113,7 @@ class ShellModelTest {
     @Test fun pushKeepsParentFocusAndPopReturnsToIt() {
         val g = groups()
         var st = shellOpened()
-        assertEquals(listOf(ShellFrame("root", "g:LAYOUT")), st)
+        assertEquals(listOf(ShellFrame("root", "g:GENERAL")), st)
         st = shellPush(st, "g:LAYOUT", defaultFocus("g:LAYOUT", g))
         st = shellSetFocus(st, "cardsPerRow")
         st = shellPush(st, "o:cardsPerRow", defaultFocus("o:cardsPerRow", g))
@@ -129,7 +129,7 @@ class ShellModelTest {
 
     @Test fun setFocusIsNoOpWhenUnchangedOrEmpty() {
         val st = shellOpened()
-        assertSame(st, shellSetFocus(st, "g:LAYOUT"))
+        assertSame(st, shellSetFocus(st, "g:GENERAL"))
         assertTrue(shellSetFocus(emptyList(), "x").isEmpty())
     }
 

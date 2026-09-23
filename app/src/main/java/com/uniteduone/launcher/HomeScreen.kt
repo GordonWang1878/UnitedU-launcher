@@ -802,7 +802,7 @@ private fun CategoryRow(
 ) {
     val ctx = LocalContext.current
     // Ruling R48(2026-09-22,owner 看效果图后选 A2):首页取消行标题,行图标留在左边距里当焦点提示。
-    // 焦点行近白、其余行灰(R46 的两色),与整页位移同一根弹簧(R47 的 Theme.rowIconFocusSpec),
+    // 焦点行 accent、其余行 accent 压暗(R80,原 R46 灰 ↔ 近白),与整页位移同一根弹簧(R47 的 Theme.rowIconFocusSpec),
     // **不缩放**。进度量 iconFocus 只在绘制阶段读(RowIcon 的 tint lambda),动画每帧不重组本行、
     // 不改布局;不进焦点账本、不碰任何 FocusRequester / 看门狗(铁律 3–7)。
     val iconFocus by animateFloatAsState(
@@ -810,7 +810,10 @@ private fun CategoryRow(
         animationSpec = Theme.rowIconFocusSpec(),
         label = "rowIconFocus",
     )
-    val iconColor = { androidx.compose.ui.graphics.lerp(GtvTokens.RowIconIdle, GtvTokens.RowIconFocused, iconFocus) }
+    // R80(2026-09-24 owner):行图标跟主题色走——焦点行 = accent,其余行 = accent 的 55% 透明(暗底上压暗),
+    // 取代 R46 的灰 ↔ 近白两色。编辑页的行图标本来就是 accent,两处一致了。
+    val accent = LocalThemeColors.current.accent
+    val iconColor = { androidx.compose.ui.graphics.lerp(accent.copy(alpha = GtvLayout.ROW_ICON_IDLE_ALPHA), accent, iconFocus) }
     // 记住聚焦在第几张,用来算这一行的横向位移(行放得下就不动、放不下才移够用的距离,
     // 见下面 GtvLayout.rowShiftX 的 KDoc——R20)
     var focusedIndex by remember { mutableStateOf(0) }

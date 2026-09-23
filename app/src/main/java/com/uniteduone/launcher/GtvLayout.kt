@@ -314,6 +314,17 @@ object GtvLayout {
     const val FOCUS_FADE_OUT_MS = 150
 
     /**
+     * R79(2026-09-24 owner 手感):**应用卡片**失焦的缩回 + 描边 + 柔光淡出时长。Google 原值是 `card_unfocus` 150 ms
+     * ([FOCUS_FADE_OUT_MS]),owner 实测:新卡慢慢放大、柔光慢慢淡入,离开的那张却「突然、快速地回归原位」,
+     * 一快一慢是不平滑感的来源。改成 400 ms,仍走 [Theme.AppFocusEasing](先加速后减速),进焦 [FOCUS_SCALE_IN_MS] 不动。
+     * [FOCUS_FADE_OUT_MS] 仍给内容卡描边、菜单胶囊用(那些没有放大,150 ms 看不出突兀)。
+     */
+    const val APP_FOCUS_OUT_MS = 400
+
+    /** R80:非焦点行的行图标 = 主题色 accent 乘这个透明度(焦点行 1.0)。 */
+    const val ROW_ICON_IDLE_ALPHA = 0.55f
+
+    /**
      * **Ruling R34(2026-09-22,owner 真机反馈 Round 9)**:app 卡片**进焦**放大(缩放 + 描边 +
      * 柔光一起淡入)的时长——**1200 ms**,出处目标版资源表 `focused_frame_animator_duration_ms
      * = 1200`(`docs/research/launcherx-1.0.976298245-named-resources.md`)。owner 原话「走到停下来

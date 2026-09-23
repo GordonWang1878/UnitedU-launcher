@@ -293,3 +293,9 @@ cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的�
 | R75 | 同上 | HOME 连同从设置打开的选择器一起收;待机演示删除(§6) | 现行 |
 | R76 | 2026-09-23 夜(交互测试) | 从设置外壳进来的编辑页按 MENU 整个收回首页(编辑页 + 外壳一起收),与外壳其他层按 MENU 一致;不是从外壳进来的编辑页行为不变(`MainActivity` MENU 分支,commit 2a70086) | 现行 |
 | R78 | 2026-09-23 深夜(交互测试第二轮,Gordon 定) | 首页长按菜单与编辑页卡片菜单同一动作同一个词:「换卡片图 / 換卡片圖 / Change Card Art」「从这一行移出 / 從這一行移出 / Remove from Row」;不再用「更改图标」「从当前分类移除」,「分类」不作为行的叫法(`card_menu_icon` / `card_menu_remove` / `edit_remove`,README、DESIGN §2 同步) | 现行 |
+
+### 2026-09-24 owner 当面三条(R79–R81)
+
+- **R79 失焦淡出**:应用卡片失焦的缩回 + 描边 + 柔光由 `card_unfocus` 150 ms 改为 `GtvLayout.APP_FOCUS_OUT_MS` 400 ms(仍 AccelerateDecelerate)。owner 实测:新卡慢慢放大、柔光慢慢淡入,离开的卡却一下缩回,一快一慢是不平滑感的来源。owner 手感优先于 Google 原值;内容卡描边 / 菜单胶囊仍 150。
+- **R80 首页行图标跟主题色**:焦点行 = accent,其余行 = accent × `ROW_ICON_IDLE_ALPHA` 0.55,取代 R46 灰 ↔ 近白;与编辑页(本来就是 accent)一致。尺寸 22 dp 暂不动,owner 看过若嫌显眼再改小。
+- **R81 设置第一层顺序**:通用、布局、外观、屏保、系统设置、关于;缺省焦点跟着第一颗落在「通用」。
