@@ -25,7 +25,8 @@ echo "== 1. 备份两边到 $BK"
 mkdir -p "$BK/gtv" "$BK/main"
 adb pull "$SRC/." "$BK/gtv/" >/dev/null
 adb pull "$DST/." "$BK/main/" >/dev/null 2>&1 || echo "   (正式包目录为空或不存在)"
-( cd "$BK" && find . -type f | sort | xargs shasum -a 256 > MANIFEST.sha256 )
+# 文件名可能带空格/中文(屏保与壁纸图库里就有「史诗测试03 冰原烽火.jpg」),一律 -print0 / -exec
+( cd "$BK" && find . -type f -print0 | sort -z | xargs -0 shasum -a 256 > MANIFEST.sha256 )
 echo "   gtv 名下 $(find "$BK/gtv" -type f | wc -l | tr -d ' ') 个文件"
 
 echo "== 2. 装正式包(覆盖安装,签名须与已装的一致)"
@@ -36,8 +37,8 @@ adb shell am force-stop $MAIN; adb shell am force-stop $GTV
 adb shell "mkdir -p $DST && rm -rf $DST/* && cp -r $SRC/. $DST/"
 
 echo "== 4. 核对:逐文件 sha256 两边一致"
-diff <(adb shell "cd $SRC && find . -type f | sort | xargs sha256sum") \
-     <(adb shell "cd $DST && find . -type f | sort | xargs sha256sum") \
+diff <(adb shell "cd $SRC && find . -type f -exec sha256sum {} +" | sort -k2) \
+     <(adb shell "cd $DST && find . -type f -exec sha256sum {} +" | sort -k2) \
   && echo "   一致" || { echo "   不一致,停(备份在 $BK)"; exit 1; }
 
 echo "== 完成。备份:$BK"
