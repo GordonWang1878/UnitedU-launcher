@@ -782,6 +782,14 @@ object GtvLayout {
     fun restVisibleTop(row: Int, size: GtvCardSize, showTitles: Boolean, screenHeightDp: Float): Float =
         restCardTop(row, size, showTitles, screenHeightDp) - appFocusOverflow(cardHeight(size))
 
+    /**
+     * 首页原地移动态提示(「← → 移动 · ↑ ↓ 换行 · 确定 放下 · 返回 取消」)的顶边屏幕 y(dp)= 顶栏底 + 12,
+     * 水平居中。**2026-09-23 从贴底挪到这里**:R52 焦点线让焦点行卡底落在 ≈ 500 dp(放大后 ≈ 508),原来
+     * 贴底 28 dp 的提示(≈ 484–512)正好盖住被搬的卡。这里上方的行按 [topFadeAlpha] 已淡出(卡顶 < 110 起
+     * 变淡),剩下全亮的行卡顶都在提示底边(≈ 115)之下;焦点行恒在焦点线,不会与提示相交。
+     */
+    const val MOVE_HINT_TOP = TOP_BAR_TOP + TOP_BAR_HEIGHT + 12f
+
     /** **Ruling R53(2026-09-23)**:顶栏下淡出带的高度(dp)。见 [topFadeAlpha]。 */
     const val TOP_FADE_BAND = 40f
 

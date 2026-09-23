@@ -118,7 +118,7 @@ fun HomeScreen(
     previewing: Boolean = false,
     /**
      * **首页原地移动态**(M4b spec §3,状态住在 MainActivity)。非空时:行一律画 [MoveState.rows](不读 `loaded`),
-     * 被搬的那张卡描 accent 边,屏幕底部一行提示;焦点的目标格就是 [MoveState.pos]——还原效果以它为 key 与目标,
+     * 被搬的那张卡描 accent 边,顶栏下方一行提示(2026-09-23 前在屏幕底部);焦点的目标格就是 [MoveState.pos]——还原效果以它为 key 与目标,
      * 看门狗以它为目标。它**不并进 `covered`**:移动态没有浮层,焦点始终在被搬的卡上,首页的两个焦点效果照常工作,
      * 只是目标换成了它。期间焦点上报不改 `tgtRow`/`tgtIdx`(首页自己的记忆冻结,结束时由 [moveLanding] 一次写入)。
      */
@@ -743,15 +743,17 @@ fun HomeScreen(
             }
         }
 
-        // 移动态底部提示(M4b spec §0-10:视觉只加描边与这一行)。字样沿用首页提示文字;垫一层与 scrim 底端
-        // 同色同透明度的底:焦点行下面那一行正好露在屏幕底部(R48 前是它的行标题),不垫的话提示字与卡片叠在一起认不出来。
+        // 移动态提示(M4b spec §0-10:视觉只加描边与这一行)。字样沿用首页提示文字;垫一层 surface α0.8 的胶囊底。
+        // **2026-09-23 从屏幕底部挪到顶栏下方**(R52 连带):R52 把焦点行钉在屏幕下部,焦点行卡底 ≈ 500 dp、
+        // 放大后 ≈ 508,原来「贴底 28 dp」的提示(≈ 484–512)正好压在被搬的那张卡上。顶栏下这条带
+        // (GtvLayout.MOVE_HINT_TOP)上方的行已按 R53 淡出,焦点行恒在焦点线,不会与提示相交。
         if (moving != null) {
             BasicText(
                 text = stringResource(R.string.home_move_hint),
                 style = hintStyle,
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = HomeLayout.PILL_TOP.dp)
+                    .align(Alignment.TopCenter)
+                    .padding(top = GtvLayout.MOVE_HINT_TOP.dp)
                     .background(surface.copy(alpha = 0.8f), RoundedCornerShape(percent = 50))
                     .padding(horizontal = 16.dp, vertical = 6.dp),
             )
