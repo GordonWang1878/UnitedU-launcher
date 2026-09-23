@@ -34,7 +34,7 @@ import androidx.compose.ui.unit.dp
  * **绘制顺序上真正的不对称**(整枝审查 F,2026-09-22 更正:此前这里写「要对称得给焦点卡加
  * zIndex」是错的——首页 `AppCard` 的外层 `Column` 早有 `zIndex(if (focused) 1f else 0f)`,
  * 同一行内焦点卡本来就浮在左右邻居之上,左右是对称的):
- * (a) 编辑页的 `AddCard`/`MissingCard` 与 `RowIconPicker` 的格子**没有** zIndex,那里同一行内
+ * (a) 编辑页的 `AddCard` 与 `RowIconPicker` 的格子**没有** zIndex,那里同一行内
  *     左邻先画被柔光盖住、右邻后画盖住柔光,左右不对称;
  * (b) **跨行**:zIndex 只在同一个父容器的兄弟之间生效,首页各行是 `Column` 的兄弟,后面的行
  *     后画——焦点卡 60dp 的柔光向下探到下一行会被下一行的卡切掉,向上探到上一行则盖在上一行
@@ -199,7 +199,7 @@ fun Modifier.gtvFocusStroke(focused: Boolean, color: Color, corner: Dp): Modifie
  * 在目标值变化那一刻读取 spec,所以位移结束后 `afterShift` 翻回 false 不会打断已经在跑的动画。
  *
  * @param afterShift 这次进焦是否伴随行位移(纵向切行或横向滑行)。默认 `false`(`RowIconPicker`
- *   不传,立即放大)。编辑页 2026-09-23 起也传(ui-pending #10):`AppCard`/`AddCard`/`MissingCard`
+ *   不传,立即放大)。编辑页 2026-09-23 起也传(ui-pending #10):`AppCard`/`AddCard`
  *   在编辑页的焦点回调里按「纵向首行会不会变」判定(只算纵向,见 `EditScreen` 的 `landedWithShift`)。
  * @param moving 首页原地移动态(M4b)与编辑页搬运态:被搬的那张卡的高亮描边,它标的是
  *   「正在搬哪张」,Google 没有对应物。**几何跟着缩放后的边缘走**(整枝审查 A,2026-09-22):
@@ -207,7 +207,7 @@ fun Modifier.gtvFocusStroke(focused: Boolean, color: Color, corner: Dp): Modifie
  *   FOCUS_OUTSET(5dp)、落在聚焦描边外缘(4dp)之外。此前写成固定的布局框外 5dp,被缩放后的
  *   卡片(横向外扩 7.65dp)整条盖住——搬运中焦点恒在被搬的卡上,等于这条描边从没露出过。
  *   未聚焦时 `scale` = 1,退化为固定几何。默认 `false`(`AddCard` 没有搬运概念,不传)。
- *   `AppCard` 与 `EditScreen.MissingCard` 都经这里画,两处同修。
+ *   `AppCard` 经这里画(编辑页的「未安装」卡 `MissingCard` 已随 Ruling R67 删除)。
  *   **绘制顺序**:聚焦描边先画、移动描边后画、盖在上面——两者都在缩放之外(同一个
  *   `drawBehind`,不是分成两次 `gtvFocusStroke`/`gtvAppFocusFrame` 调用叠链),不会因为
  *   `graphicsLayer` 在中间插了一刀而让后画的移动描边被意外裹进缩放里。
