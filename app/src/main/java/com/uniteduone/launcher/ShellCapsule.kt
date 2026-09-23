@@ -42,6 +42,8 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -124,6 +126,29 @@ fun MenuPill(
     // clickable() 默认的 indication 会在聚焦时叠一层约 10% 黑的状态层,把 accent 拉暗成另一个颜色——
     // 填色本身已经是完整的聚焦指示,关掉。
     val interactionSource = remember { MutableInteractionSource() }
+    // 值放不进同一行(英文「System Animation Scale」配「1.5×, UI animations run slower」这类整句摘要)时,
+    // 改成两行胶囊:值挪到标签下面当说明,右端只留 ›(交互测试 2026-09-23,评审 #4)。按**聚焦加粗**的宽度判,
+    // 聚焦前后同一个结论,胶囊高度不会随焦点跳。
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val valueWraps = trailing is Trailing.Value && hint.isNullOrBlank() && slider == null &&
+        remember(label, trailing, density) {
+            val style = TextStyle(fontFamily = Theme.Sans, fontSize = GtvLayout.MENU_ITEM_TEXT.sp)
+            val labelW = measurer.measure(label, style.copy(fontWeight = FontWeight.Medium)).size.width
+            val valueW = measurer.measure(trailing.text, style).size.width
+            with(density) {
+                val extras = 12.dp.toPx() + (if (trailing.dot != null) 16.dp.toPx() else 0f) +
+                    (if (trailing.chevron) 20.dp.toPx() else 0f)
+                val inner = (GtvLayout.MENU_ITEM_WIDTH - 2 * GtvLayout.MENU_ITEM_PADDING_H).dp.toPx()
+                labelW + valueW + extras > inner
+            }
+        }
+    @Suppress("NAME_SHADOWING")
+    val hint = if (valueWraps) (trailing as Trailing.Value).text else hint
+    @Suppress("NAME_SHADOWING")
+    val trailing = if (valueWraps) {
+        if ((trailing as Trailing.Value).chevron) Trailing.Chevron else Trailing.None
+    } else trailing
     val hasHint = !hint.isNullOrBlank()
     Box(
         modifier = modifier
@@ -187,11 +212,24 @@ fun MenuPill(
                     TrailingContent(trailing, focused, textColor, accent)
                 }
             } else {
-                MenuPillLabel(label, focused, textColor)
-                if (trailing != Trailing.None) {
-                    // 标签先量(不加权),右端内容拿剩下的宽度、右对齐、放不下就省略号——标签永远完整。
-                    Box(Modifier.weight(1f).padding(start = 12.dp), contentAlignment = Alignment.CenterEnd) {
-                        TrailingContent(trailing, focused, textColor, accent)
+                if (trailing == Trailing.None) {
+                    MenuPillLabel(label, focused, textColor)
+                } else {
+                    // 右端的值先量(上限 VALUE_MAX_WIDTH,再长才省略),标签拿剩下的宽度、放不下就省略号。
+                    // 交互测试 2026-09-23:原先标签先量、值拿剩下的,英文长标签(System Animation Scale、
+                    // Follow Wallpaper Color 聚焦加粗后)把值挤成「O…」或整个挤没——值是这一行要看的信息,优先保它。
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        MenuPillLabel(label, focused, textColor, Modifier.weight(1f, fill = false))
+                        Box(
+                            Modifier.padding(start = 12.dp).widthIn(max = VALUE_MAX_WIDTH.dp),
+                            contentAlignment = Alignment.CenterEnd,
+                        ) {
+                            TrailingContent(trailing, focused, textColor, accent)
+                        }
                     }
                 }
             }
@@ -298,11 +336,15 @@ private fun SliderTrack(look: SliderLook, color: Color, modifier: Modifier) {
     }
 }
 
+/** 单行胶囊右端值的宽度上限(约内宽 220 dp 的一半):值优先量,再长的摘要省略,标签至少留一半。 */
+private const val VALUE_MAX_WIDTH = 110f
+
 /** [MenuPill] 的标题行,单行/两行两种布局共用,避免样式在两处漂移。 */
 @Composable
-private fun MenuPillLabel(label: String, focused: Boolean, textColor: Color) {
+private fun MenuPillLabel(label: String, focused: Boolean, textColor: Color, modifier: Modifier = Modifier) {
     BasicText(
         text = label,
+        modifier = modifier,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         style = TextStyle(
