@@ -28,6 +28,7 @@ object Paths {
 
     fun layoutJson(ctx: Context) = File(base(ctx), "layout.json")
     fun layoutBad(ctx: Context) = File(base(ctx), "layout.json.bad")
+    fun layoutPrev(ctx: Context) = File(base(ctx), "layout.json.prev")
     fun settingsJson(ctx: Context) = File(base(ctx), "settings.json")
     fun settingsBad(ctx: Context) = File(base(ctx), "settings.json.bad")
     fun titlesJson(ctx: Context) = File(base(ctx), "titles.json")

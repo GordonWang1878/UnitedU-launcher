@@ -46,52 +46,99 @@ internal val DEFAULT_LAYOUT: List<LayoutRow> = listOf(
 object Layout {
     private const val TAG = "UnitedU"
 
-    fun read(ctx: Context): List<LayoutRow> {
-        if (Paths.baseOrNull(ctx) == null) {
+    /**
+     * 落盘层:锁 + 独立临时文件 + `.prev` 备份,见 [LockedFile](2026-09-23 A95L 卸载一个应用、整个首页被换成
+     * 默认分类表的事故)。本对象里**每一个**读、写、读改写都在 `store.locked` 里——read 也要锁:它在文件缺失时
+     * 会写默认值,落在别人写盘的间隙里就会把别人的结果抹掉。
+     */
+    private val store = LockedFile("layout.json")
+
+    /** 有没有任何一份已保存的布局(正式文件或 `.prev`)。首次引导的「老用户 / 新装」判定用它,不单看正式文件。 */
+    fun hasSaved(ctx: Context): Boolean = store.locked {
+        Paths.layoutJson(ctx).exists() || Paths.layoutPrev(ctx).exists()
+    }
+
+    fun read(ctx: Context): List<LayoutRow> = store.locked {
+        val base = Paths.baseOrNull(ctx)
+        if (base == null) {
             Log.w(TAG, "外部存储没挂上,这次用内存里的默认布局,不写盘")
-            return DEFAULT_LAYOUT
+            return@locked DEFAULT_LAYOUT
         }
-        val f = Paths.layoutJson(ctx)
-        if (!f.exists()) {
+        val got = store.readText(base)
+        if (got == null) {
+            // 正式文件与 .prev 都不在:真正的首次运行
             write(ctx, DEFAULT_LAYOUT)
-            return DEFAULT_LAYOUT
+            return@locked DEFAULT_LAYOUT
         }
         // catch Throwable:超大文件时 readText 抛的是 OutOfMemoryError,那是 Error 不是 Exception
-        return try {
-            if (f.length() > 1_000_000) error("layout.json 大得离谱: ${f.length()} 字节")
-            val rows = JSONObject(f.readText()).getJSONArray("rows")
-            // "rows":[] 是功能性死胡同:一行都没有 = 一个加号都没有,界面里再也加不回应用,
-            // 只能靠齿轮切回 Projectivy 或 adb。当成损坏处理,回落默认。
-            if (rows.length() == 0) error("layout.json 里一行都没有")
-            (0 until rows.length()).map { i ->
-                val r = rows.getJSONObject(i)
-                val apps = r.getJSONArray("apps")
-                LayoutRow(
-                    name = r.getString("name"),
-                    // 缺失 / 非法 id 一律 null,渲染时按名字回落(老文件原样可读)
-                    icon = r.optString("icon", "").takeIf { isRowIconId(it) },
-                    apps = (0 until apps.length())
-                        .map { apps.getString(it).trim() }
-                        .filter { it.isNotEmpty() }
-                        .distinct(),   // 同一行里重复的包名会让列表 key 撞车,状态和焦点会挂到错卡片上
-                )
+        try {
+            val rows = parse(got.text)
+            if (got.fromPrev) {
+                Log.w(TAG, "layout.json 不见了,从 layout.json.prev 恢复")
+                write(ctx, rows)
             }
+            rows
         } catch (e: Throwable) {
-            // 把坏文件留证但改名,并写回默认值——否则每次开机都静默退回默认,
+            // 把坏文件留证但改名;再试一次 .prev,都不行才写回默认值——否则每次开机都静默退回默认,
             // 用户只看到「我排的顺序又没了」,却不知道文件是坏的。
-            Log.w(TAG, "layout.json 读不了,改名保留并重写默认: ${e.message}")
-            runCatching { f.renameTo(Paths.layoutBad(ctx)) }
-            write(ctx, DEFAULT_LAYOUT)
-            DEFAULT_LAYOUT
+            Log.w(TAG, "layout.json 读不了,改名保留: ${e.message}")
+            if (!got.fromPrev) runCatching { Paths.layoutJson(ctx).renameTo(Paths.layoutBad(ctx)) }
+            val fromPrev = if (got.fromPrev) null else runCatching {
+                Paths.layoutPrev(ctx).takeIf { it.exists() }?.let { parse(it.readText()) }
+            }.getOrNull()
+            if (fromPrev != null) {
+                Log.w(TAG, "改用 layout.json.prev")
+                write(ctx, fromPrev)
+                fromPrev
+            } else {
+                write(ctx, DEFAULT_LAYOUT)
+                DEFAULT_LAYOUT
+            }
         }
     }
 
-    /** 从第 rowIndex 行移除一个包(长按菜单「从当前分类移除」)。行不存在或包不在该行 → false,不写盘。 */
-    fun removeFromRow(ctx: Context, rowIndex: Int, pkg: String): Boolean {
+    private fun parse(text: String): List<LayoutRow> {
+        if (text.length > 1_000_000) error("layout.json 大得离谱: ${text.length} 字符")
+        val rows = JSONObject(text).getJSONArray("rows")
+        // "rows":[] 是功能性死胡同:一行都没有 = 一个加号都没有,界面里再也加不回应用,
+        // 只能靠齿轮切回 Projectivy 或 adb。当成损坏处理,回落默认。
+        if (rows.length() == 0) error("layout.json 里一行都没有")
+        return (0 until rows.length()).map { i ->
+            val r = rows.getJSONObject(i)
+            val apps = r.getJSONArray("apps")
+            LayoutRow(
+                name = r.getString("name"),
+                // 缺失 / 非法 id 一律 null,渲染时按名字回落(老文件原样可读)
+                icon = r.optString("icon", "").takeIf { isRowIconId(it) },
+                apps = (0 until apps.length())
+                    .map { apps.getString(it).trim() }
+                    .filter { it.isNotEmpty() }
+                    .distinct(),   // 同一行里重复的包名会让列表 key 撞车,状态和焦点会挂到错卡片上
+            )
+        }
+    }
+
+    /**
+     * 读 → 改 → 写 一整段在锁内(照 `SettingsStore.update`)。[transform] 返回**同一个** list 表示不用写盘。
+     * @return 是否真的写了盘(没变化也是 false)。凡是「先读盘上最新、再合并写回」的调用方都走这里,
+     *   不要自己 read 再 write——两步之间别的写者插进来,它的结果就被覆盖掉。
+     */
+    fun update(ctx: Context, transform: (List<LayoutRow>) -> List<LayoutRow>): Boolean = store.locked {
         val rows = read(ctx)
-        val row = rows.getOrNull(rowIndex) ?: return false
-        if (pkg !in row.apps) return false
-        return write(ctx, rows.mapIndexed { i, r -> if (i == rowIndex) r.copy(apps = r.apps.filter { it != pkg }) else r })
+        val next = transform(rows)
+        next !== rows && write(ctx, next)
+    }
+
+    /** 同 [update],但无论结果是否与盘上相同都写一次;@return 是否落盘。给「写失败要告诉用户」的调用方(放下移动)。 */
+    fun rewrite(ctx: Context, transform: (List<LayoutRow>) -> List<LayoutRow>): Boolean = store.locked {
+        write(ctx, transform(read(ctx)))
+    }
+
+    /** 从第 rowIndex 行移除一个包(长按菜单「从当前分类移除」)。行不存在或包不在该行 → false,不写盘。 */
+    fun removeFromRow(ctx: Context, rowIndex: Int, pkg: String): Boolean = update(ctx) { rows ->
+        val row = rows.getOrNull(rowIndex)
+        if (row == null || pkg !in row.apps) rows
+        else rows.mapIndexed { i, r -> if (i == rowIndex) r.copy(apps = r.apps.filter { it != pkg }) else r }
     }
 
     /**
@@ -108,22 +155,18 @@ object Layout {
      * 只在卸载事件上调,**绝不在读取时按「未安装」清理**:默认布局里的包可能还没装(装上就该自动出现),
      * 应用更新过程中包也会短暂"不存在"。2026-09-16 A95L 真机:从长按菜单卸载后首页卡片消失,
      * 编辑页原位却留着一张「未安装 com.dangbei.dbmusic.sonyos.tab」的僵尸卡——就是缺这一步。
+     * 同一次卸载会被两个接收器各调一次(见 [pruneUninstalled]),靠 [update] 的锁串行,第二次是无操作。
      */
-    fun removePackage(ctx: Context, pkg: String): Boolean {
-        val rows = read(ctx)
-        val next = withoutPackage(rows, pkg)
-        return next !== rows && write(ctx, next)
-    }
+    fun removePackage(ctx: Context, pkg: String): Boolean = update(ctx) { withoutPackage(it, pkg) }
 
     /**
-     * 先写临时文件再改名:直接 writeText 会先截断,断电或进程被杀就留下半截文件。
+     * 原子替换 layout.json(临时文件 → fsync → rename,旧版本先复制成 `.prev`,见 [LockedFile.write])。
      * @return 是否真的落盘了。**调用方必须告诉用户失败**——只 Log 的话,界面上顺序已经变了,
      *   重启后又变回原样,用户只会觉得「我排的顺序总是丢」。
      */
-    fun write(ctx: Context, rows: List<LayoutRow>): Boolean {
-        val base = Paths.baseOrNull(ctx) ?: return false
-        val tmp = java.io.File(base, "layout.json.tmp")
-        return try {
+    fun write(ctx: Context, rows: List<LayoutRow>): Boolean = store.locked {
+        val base = Paths.baseOrNull(ctx) ?: return@locked false
+        try {
             val arr = JSONArray()
             rows.forEach { row ->
                 arr.put(
@@ -132,19 +175,7 @@ object Layout {
                         .put("apps", JSONArray(row.apps)),
                 )
             }
-            // rename 只保证「要么旧要么新」,不保证内容已经到介质上;不 fsync 的话
-            // 断电可能留下一个长度正确但内容全是 0 的文件。
-            java.io.FileOutputStream(tmp).use { out ->
-                out.write(JSONObject().put("rows", arr).toString(2).toByteArray())
-                out.flush()
-                out.fd.sync()
-            }
-            val dst = Paths.layoutJson(ctx)
-            // 第一次 rename 失败才走 delete + 重试,而那一步是非原子的:失败就两头皆空,
-            // 所以失败时把 tmp 留着(下面不删),至少数据还在盘上。
-            if (tmp.renameTo(dst)) return true
-            dst.delete()
-            tmp.renameTo(dst)
+            store.write(base, JSONObject().put("rows", arr).toString(2))
         } catch (e: Throwable) {
             Log.w(TAG, "layout.json 写不了: ${e.message}")
             false
