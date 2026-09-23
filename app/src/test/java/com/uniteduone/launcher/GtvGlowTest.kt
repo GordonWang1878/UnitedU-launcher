@@ -103,10 +103,10 @@ class GtvGlowTest {
     @Test fun `柔光不改变行高(rowPitch 与 rowVerticalPad 逐字不变)`() {
         // R25 之后的既有值(GtvLayoutTest 里也断言同一组数,这里重复一遍是为了把「柔光没有
         // 撑开行距」这件事钉在 R28 自己的测试里,以后有人改柔光时先撞到这一条)
-        // R48 去掉行标题带(32.5 dp)后的值
-        assertEquals(108.0625f, GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = false), 0.0001f)
-        assertEquals(132.0625f, GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = true), 0.0001f)
-        assertEquals(-216.125f, GtvLayout.rowShiftY(2, GtvCardSize.MEDIUM, showTitles = false), 0.0001f)
+        // R48 去掉行标题带(32.5 dp)后、R51 行距 8 → 40 后的值
+        assertEquals(140.0625f, GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = false), 0.0001f)
+        assertEquals(164.0625f, GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = true), 0.0001f)
+        assertEquals(-280.125f, GtvLayout.rowShiftY(2, GtvCardSize.MEDIUM, showTitles = false), 0.0001f)
         for (size in GtvCardSize.values()) {
             assertEquals(
                 (GtvLayout.FOCUS_OUTSET + GtvLayout.FOCUS_STROKE),

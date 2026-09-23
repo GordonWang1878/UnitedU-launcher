@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
  * 与卡片同心(R31,同一条不变量见 [GtvLayout.focusRingRadius])。
  *
  * **柔光会铺出卡片间距之外**:[GtvLayout.APP_FOCUS_GLOW_DP](60dp)> `GtvLayout.CARD_GAP`(20dp),
- * 也大于上下两行卡片之间的 22dp(本行 `rowVerticalPad` 7 + `ROW_GAP` 8 + 邻行 `rowVerticalPad` 7,
+ * 也大于上下两行卡片之间的 54dp(本行 `rowVerticalPad` 7 + `ROW_GAP` 40 + 邻行 `rowVerticalPad` 7,R51 起;
  * 卡片标题关着时;R48 之前上方还隔着本行的行标题带),所以它必然会淡淡地盖到左右邻居卡与上一行卡片的
  * 底部——Google 那份实测剖面本身就是这样(它的行距比我们还紧),不是 bug,别为此砍短柔光。
  *

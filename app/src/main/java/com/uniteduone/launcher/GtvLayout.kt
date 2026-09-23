@@ -116,8 +116,12 @@ object GtvLayout {
      * 20 dp;`Icons.Filled.Theaters` 墨迹占视口 18/24,26 dp 方框的墨迹 = 19.5 dp,与效果图一致。
      * 焦点行近白、其余行灰(R46 的两色,[GtvTokens.RowIconFocused]/[GtvTokens.RowIconIdle]),
      * 走 `Theme.rowIconFocusSpec()` 那根弹簧过渡,**不缩放**。
+     *
+     * **Ruling R50(2026-09-23)**:26 → **22** dp。owner 原话:「每一行的行图标:位置没问题(每行左侧纵向居中),
+     * 但偏大了,改小一点点。」位置规则(水平中心 = [CONTENT_KEYLINE] / 2、与卡片纵向居中)不变,只改方框边长;
+     * 墨迹随之 19.5 → 16.5 dp。
      */
-    const val ROW_ICON_SIZE = 26f
+    const val ROW_ICON_SIZE = 22f
     /**
      * **Ruling R48**:hero 底到行 0 布局块顶之间保留的空白(dp)。效果图 A2 的说明是「卡片位置不动,
      * 行距收紧 32dp」——行 0 的卡片仍在 R48 之前的位置(静止卡顶 301.5 dp),所以原来行 0 标题带
@@ -138,8 +142,13 @@ object GtvLayout {
      *
      *  **R48 起**首页没有行标题,「行 N+1 标题行盒开始」变成「行 N+1 卡片行(含它上方 7dp 描边留白)
      *  开始」:相邻两行卡片布局框之间 = 7 + 8 + 7 = 22 dp(卡片标题开着时再加标题高),焦点卡的纵向
-     *  溢出(LARGE 9.4 dp)仍小于 7 + 8,不碰下一行的留白带(`GtvLayoutTest`)。数值不变。 */
-    const val ROW_GAP = 8f
+     *  溢出(LARGE 9.4 dp)仍小于 7 + 8,不碰下一行的留白带(`GtvLayoutTest`)。R48 当时数值不变。
+     *
+     *  **Ruling R51(2026-09-23)**:8 → **40** dp。owner 原话:「行与行之间的间隔太短了,不同行的应用都挤在
+     *  一块,上下移动的时候看不出动效。」中档无标题 [rowPitch] 108.0625 → **140.0625**,回到 R48 之前
+     *  (140.5625)的行距量级——R48 收掉的是行标题带,owner 要回来的是行与行之间的空。相邻两行卡片布局框
+     *  之间 = 7 + 40 + 7 = 54 dp(卡片标题开着时再加标题高)。 */
+    const val ROW_GAP = 40f
     const val CARD_CORNER = 8f
     /** **内容卡**(content card,16:9 无边界推荐流那种)专用的焦点描边几何:画在布局框**外**
      *  FOCUS_OUTSET 处,粗 FOCUS_STROKE,不缩放。owner 反馈 Round 4(2026-09-21)裁定「我们的
@@ -508,7 +517,7 @@ object GtvLayout {
      * **这是视觉溢出,不是布局量**:柔光在 `GtvFocusStroke` 的 `drawBehind` 里画,不参与任何
      * 测量;[appFocusOverflow]、`rowPitch`、`Theme.gtvCardMetrics.rowVerticalPad` 都**不加**
      * 这一项(加进去会把行间距撑开 60dp)。代价是柔光会盖到相邻卡片与上一行卡片的底部(R48 前是
-     * 上一行标题区;R48 起卡片标题关着时,上下两行卡片之间只隔 22dp 描边留白带)——
+     * 上一行标题区;卡片标题关着时,上下两行卡片之间隔 22dp(R48)、R51 起 54dp)——
      * 这是 Google 那张剖面本身就有的样子(它的柔光同样铺出数据区的 30dp 之外,行距比这还紧),不是 bug。
      */
     const val APP_FOCUS_GLOW_DP = 60f
