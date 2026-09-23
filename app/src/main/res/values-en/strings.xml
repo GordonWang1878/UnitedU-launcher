@@ -299,5 +299,6 @@
     <string name="shell_slider_wallpaper_brightness">Brightness</string>
     <string name="shell_slider_card_saturation">Saturation</string>
     <string name="shell_slider_card_brightness">Brightness</string>
+    <string name="shell_theme_following_wallpaper">Wallpaper</string>
     <string name="shell_preview_hint">Preview: %1$s · OK to save, Back to cancel</string>
 </resources>

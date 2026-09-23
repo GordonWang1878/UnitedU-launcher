@@ -384,7 +384,7 @@ fun SettingsShell(
 
             groupId != null -> {
                 val spec = groups.first { it.id == groupId }
-                val items = spec.rows.map { row -> groupCapsule(row, onPush) }
+                val items = spec.rows.map { row -> groupCapsule(row, onPush, followingWallpaper = saved.followWallpaperColor) }
                 val title = stringResource(spec.titleRes)
                 ShellScaffold(
                     left = {
@@ -426,7 +426,9 @@ fun SettingsShell(
                     )
                 }
                 val cursor = optionIndex(target)
-                val pending = if (cursor != null && cursor != row.selected) {
+                // 跟随壁纸主色开着时,主题色的光标预览不代表首页会变成那样(壁纸取色压过预设),不显示「预览:…」(评审 #7)。
+                val swatchOverridden = row.kind == CtrlKind.SWATCH && saved.followWallpaperColor
+                val pending = if (cursor != null && cursor != row.selected && !swatchOverridden) {
                     stringResource(R.string.shell_preview_hint, optionLabel(row, cursor))
                 } else null
                 val note = row.noteRes?.let { stringResource(it) }
@@ -507,7 +509,7 @@ private val SLIDER_SHORT_LABEL = mapOf(
 
 /** 分组页的一颗胶囊。 */
 @Composable
-private fun groupCapsule(row: RowSpec, onPush: (String, String?) -> Unit): Capsule {
+private fun groupCapsule(row: RowSpec, onPush: (String, String?) -> Unit, followingWallpaper: Boolean = false): Capsule {
     val label = stringResource(row.labelRes)
     return when (row) {
         is ControlRow -> if (row.kind == CtrlKind.SLIDER) {
@@ -533,7 +535,10 @@ private fun groupCapsule(row: RowSpec, onPush: (String, String?) -> Unit): Capsu
             Capsule(
                 id = row.id,
                 label = label,
-                trailing = Trailing.Value(
+                trailing = if (row.kind == CtrlKind.SWATCH && followingWallpaper) {
+                    // 跟随壁纸主色开着:首页用的不是这个预设,值写「跟随壁纸」、不画预设色点(评审 #7)。
+                    Trailing.Value(text = stringResource(R.string.shell_theme_following_wallpaper))
+                } else Trailing.Value(
                     text = optionLabel(row, row.selected),
                     dot = if (row.kind == CtrlKind.SWATCH) ThemePresets.all.getOrNull(row.selected)?.color else null,
                 ),

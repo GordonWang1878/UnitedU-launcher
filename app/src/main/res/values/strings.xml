@@ -291,5 +291,6 @@
     <string name="shell_slider_wallpaper_brightness">壁纸亮度</string>
     <string name="shell_slider_card_saturation">卡片饱和度</string>
     <string name="shell_slider_card_brightness">卡片亮度</string>
+    <string name="shell_theme_following_wallpaper">跟随壁纸</string>
     <string name="shell_preview_hint">预览:%1$s · 按确定保存,按返回不改</string>
 </resources>
