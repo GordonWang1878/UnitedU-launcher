@@ -757,8 +757,10 @@ fun EditScreen(
         }
 
         // 搬运中的底部提示(M4b spec §0-18:视觉只复用首页移动态那两样——被搬卡的 accent 描边与这一行)。
-        // 字样、位置、垫底与首页那条一致(HomeScreen 的 hintStyle 与移动态提示):onSurface α0.75 / 15sp,
-        // 距底 PILL_TOP,垫一层 surface α0.8 的胶囊底——下面一行的行标题可能正好露在屏幕底部。
+        // 字样、垫底与首页那条一致(HomeScreen 的 hintStyle 与移动态提示):onSurface α0.75 / 15sp,
+        // 垫一层 surface α0.8 的胶囊底——下面一行的行标题可能正好露在屏幕底部。**位置不同**:编辑页仍距底
+        // PILL_TOP;首页那条 2026-09-23 起挪到顶栏下方(GtvLayout.MOVE_HINT_TOP,R52 焦点线让焦点行卡底压到了
+        // 原来的贴底位置),编辑页不走 R52 焦点线,这里没跟着挪。
         if (carry != null) {
             val scheme = androidx.tv.material3.MaterialTheme.colorScheme
             BasicText(

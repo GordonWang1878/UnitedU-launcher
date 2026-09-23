@@ -663,14 +663,14 @@ fun HomeScreen(
                         GtvLayout.rowShiftY(rowIndex, cardSize, showTitles) != shiftTarget,
                     // R48:行图标近白 ⇔ 本行是焦点行。只读焦点账本、不写(见 iconFocusRow)。
                     isFocusRow = rowIndex == iconFocusRow,
-                    // R53:顶栏下淡出。本行当前卡顶 = 焦点线 + rowIndex × pitch + 动画中的 shift;
-                    // lambda 在 graphicsLayer 里(绘制阶段)才读 shift,位移每帧只重放图层,不为此重组本行。
-                    rowAlpha = {
-                        GtvLayout.topFadeAlpha(
-                            anchorTop.value + GtvLayout.ROW_CARD_TOP +
-                                rowIndex * GtvLayout.rowPitch(cardSize, showTitles) + shift.value,
-                            clearOfNewAppsHint = newAppsShown,
-                        )
+                    // R53:顶栏下淡出。本行当前卡顶 = 静止卡顶(GtvLayout.restCardTop,焦点线 + rowIndex × pitch)
+                    // + 动画中的 shift;lambda 在 graphicsLayer 里(绘制阶段)才读 shift,位移每帧只重放图层,
+                    // 不为此重组本行。**焦点行(rowIndex == activeRowSafe)恒 1**(GtvLayout.homeRowAlpha):按住上键
+                    // 连发时位移追不上焦点,刚拿到焦点的行卡顶还在顶栏下,曾淡到 0 达 130–190 ms(柔光也被离屏层裁掉)。
+                    rowAlpha = run {
+                        val isActiveRow = rowIndex == activeRowSafe
+                        val restTop = GtvLayout.restCardTop(rowIndex, cardSize, showTitles, screenHeightDp)
+                        ({ GtvLayout.homeRowAlpha(isActiveRow, restTop + shift.value, clearOfNewAppsHint = newAppsShown) })
                     },
                     onFocusChange = { idx, got ->
                         report(rowIndex, idx, got)
@@ -718,9 +718,11 @@ fun HomeScreen(
                 pillAlpha = contentAlpha,
                 clockAlpha = topBarClockAlpha,
                 showDate = showDate,
-                // ui-pending #8:待机(含设置页待机演示)时两层压暗渐变淡掉、壁纸原样露出,亮壁纸上
-                // accent 小字对比度只有 1.4:1——给时钟字标加系统屏保照片上同款的淡阴影。
-                clockShadow = effectiveIdle,
+                // ui-pending #8:待机(含设置页待机演示)时两层压暗渐变随 contentAlpha 淡掉、壁纸原样露出,
+                // 亮壁纸上 accent 小字对比度只有 1.4:1——给时钟字标加紧贴字形的深阴影(ClockWordmark 的
+                // strongShadow,不是系统屏保照片上那档淡阴影)。阴影 alpha 跟着 1 − contentAlpha 走:压暗渐变
+                // 淡掉多少、阴影就补上多少,进出待机随同一个 tween 渐变,不瞬切;NO_FADE 档渐变不淡,阴影也不出。
+                clockShadowAlpha = 1f - contentAlpha,
                 onSettings = { onMenuOpenChange(true) },
                 onScreensaver = onScreensaver,
                 onFocusChange = { col, got ->
@@ -866,7 +868,7 @@ private fun CategoryRow(
     // R48:没有标题行了,本行 = 行图标(左边距)+ 卡片行。Box 里先画图标、再画卡片行:行放不下、
     // 整行左移(rowShiftX)时卡片从图标上面滑过、把它盖住,而不是图标压在卡片内容上。
     // R53:整行(图标 + 卡片)一起按卡顶位置在顶栏下淡出;graphicsLayer 的 block 在绘制阶段读 rowAlpha,
-    // 不改布局、不碰焦点(淡出的行不可能是焦点行,焦点行卡顶恒在焦点线上)。
+    // 不改布局、不碰焦点(焦点行的 rowAlpha 恒 1,见 HomeScreen / GtvLayout.homeRowAlpha)。
     Box(Modifier.graphicsLayer { alpha = rowAlpha() }) {
         // 水平中心 x = CONTENT_KEYLINE / 2(29 dp),纵向中心 = 卡片中心(上侧描边留白 + 半个卡高;
         // 卡片标题开着时标题在卡下方,不参与居中——效果图 A2 对齐的是卡片本身)。

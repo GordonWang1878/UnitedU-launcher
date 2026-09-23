@@ -183,9 +183,9 @@ object GtvLayout {
      *  现改为 20 dp,`AppCard` 的卡片标题 `TextStyle` 也显式把 `lineHeight` 设成
      *  `metrics.titleLine`(不是这个常量本身——`AppCard.kt` 对 main 线 / gtv 线都通用,只读
      *  `CardMetrics`,不直接读 `GtvLayout`,详见该文件),消除「容器高度」与「文字行高」分别改动
-     *  导致再次漂移的可能。`titleHeight(true)` 与依赖它的 `rowPitch(size, true)` 会跟着变
-     *  4dp——这是显示标题时行间距该有的样子,不是需要另外吸收的偏差(`GtvLayoutTest` 新增的
-     *  `showTitles = true` 断言直接编码这条不变量)。装机复核见
+     *  导致再次漂移的可能。当时 `titleHeight(showTitles = true)` 与依赖它的 `rowPitch(size, true)` 跟着
+     *  这次 16 → 20 变了 4dp——这是显示标题时行间距该有的样子,不是需要另外吸收的偏差(现签名是
+     *  `titleHeight(size, showTitles)`,ui-pending #9 起标题间距改读 [cardTitleGap](size),见 `GtvLayoutTest`)。装机复核见
      *  `.superpowers/sdd/2026-09-20-gtv-line/owner-feedback-fix-report.md`「Round 2 · Fix 1」与
      *  `docs/screenshots/gtv-owner-fix1-card-title-{clipped,fixed}-*.png` 的裁切前后对照。 */
     const val CARD_TITLE_LINE = 20f
@@ -812,8 +812,11 @@ object GtvLayout {
      * 升到 70 dp(顶栏底)淡到 0。
      *
      * 为什么需要:R52 的焦点线在屏幕下部,焦点行上面的行会一路升到顶栏下面(540 屏中档无标题、焦点在行 2 时
-     * 行 0 卡顶 ≈ 133,焦点在行 3 时行 0 ≈ −7),不淡就与药丸 / 时钟叠在一起。焦点行卡顶恒在焦点线(≥ 300 dp),
-     * 永远全亮;淡出的行不可能持有焦点,所以这是纯绘制,不碰焦点。
+     * 行 0 卡顶 ≈ 133,焦点在行 3 时行 0 ≈ −7),不淡就与药丸 / 时钟叠在一起。纯绘制,不碰焦点。
+     *
+     * **静止时淡出的行不持焦点;焦点行恒全亮**——后一半不靠本函数的几何保证,由 [homeRowAlpha] 对焦点行短路成 1:
+     * 按住上键连发时整页位移追不上焦点,刚拿到焦点的那行卡顶可能还在淡出带里(曾淡到 0 达 130–190 ms,
+     * 柔光也被离屏图层裁掉)。
      *
      * [clearOfNewAppsHint] 为真(首页正显示「有 N 个新应用」)时零点下移到 [NEW_APPS_HINT_BOTTOM](92),
      * 全亮点不变(110),见那个常量。
@@ -823,6 +826,11 @@ object GtvLayout {
         val zero = if (clearOfNewAppsHint) NEW_APPS_HINT_BOTTOM else TOP_BAR_TOP + TOP_BAR_HEIGHT
         return ((cardTopDp - zero) / (full - zero)).coerceIn(0f, 1f)
     }
+
+    /** 首页一行的 alpha:焦点行([isFocusRow],即 `HomeScreen` 的 `rowIndex == activeRowSafe`)恒 1,
+     *  其余行按当前动画中的卡顶 [cardTopDp] 取 [topFadeAlpha]。 */
+    fun homeRowAlpha(isFocusRow: Boolean, cardTopDp: Float, clearOfNewAppsHint: Boolean = false): Float =
+        if (isFocusRow) 1f else topFadeAlpha(cardTopDp, clearOfNewAppsHint)
 
     /** 首页「有 N 个新应用」提示与顶栏底的间距(dp),提示左对齐 [CONTENT_KEYLINE]。 */
     const val NEW_APPS_HINT_GAP = 6f
@@ -890,7 +898,8 @@ object GtvLayout {
      *
      * **Ruling R35(2026-09-22,owner 真机反馈 Round 10)**:壁纸随整页位移淡到黑所用的距离(dp)。
      * 页面上滑(R32 的 `pageShiftY`,R52 起是 [rowShiftY])这么多时壁纸的 alpha 由 1 线性降到 0;取 [HERO_HEIGHT],即页面滑过
-     * 一个 hero 高度(行 1 落到 [BROWSE_ROW_ANCHOR] 之前就已走完)壁纸恰好完全淡出。
+     * 一个 hero 高度壁纸恰好完全淡出(R35 当时:行 1 落到 R32 锚点 120 dp 之前就已走完)。R52 起每换一行走一整个
+     * [rowPitch](中档无标题 140.06),192 dp 要到焦点在行 2 时才走完——行 1 时壁纸在 ≈ 0.42(R45 起终值 0.2)。
      *
      * 依据:B3 裁定 hero 区留给壁纸,在我们这里「英雄区」**就是壁纸本身**——R32 让 hero 的空位随整页
      * 走了,但壁纸层 `Wallpaper()` 住在 `MainActivity` 的 setContent 顶层(刻意的,进出编辑页不重解

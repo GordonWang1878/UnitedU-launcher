@@ -214,6 +214,29 @@ class GtvLayoutTest {
         assertEquals(0f, GtvLayout.topFadeAlpha(line - 3 * pitch), 0f)
     }
 
+    // R55 审查:上键的落点(焦点行正上方那行)静止时必须全亮——三档 × 标题开关 × 三种屏高,新应用提示在不在都算。
+    @Test fun `R53 焦点行上一行(上键落点)静止全亮`() {
+        for ((size, titles) in SIZES_TITLES) for (h in HEIGHTS) {
+            val top = GtvLayout.focusLineCardTop(size, titles, h) - GtvLayout.rowPitch(size, titles)
+            assertEquals("$size titles=$titles h=$h 上一行卡顶 $top", 1f, GtvLayout.topFadeAlpha(top), 0f)
+            assertEquals("$size titles=$titles h=$h 上一行卡顶 $top(新应用提示)", 1f,
+                GtvLayout.topFadeAlpha(top, clearOfNewAppsHint = true), 0f)
+        }
+    }
+
+    // R55 审查:按住上键连发时位移追不上焦点,焦点行卡顶可能还在淡出带里甚至顶栏之上——焦点行 alpha 恒 1;
+    // 非焦点行照旧走 topFadeAlpha。
+    @Test fun `homeRowAlpha——焦点行恒 1,其余行等于 topFadeAlpha`() {
+        val tops = (-60..60).map { it * 10f }
+        for (top in tops) for (hint in listOf(false, true)) {
+            assertEquals("焦点行 卡顶 $top hint=$hint", 1f, GtvLayout.homeRowAlpha(true, top, hint), 0f)
+            assertEquals("非焦点行 卡顶 $top hint=$hint", GtvLayout.topFadeAlpha(top, hint),
+                GtvLayout.homeRowAlpha(false, top, hint), 0f)
+        }
+        assertEquals(0f, GtvLayout.homeRowAlpha(false, 70f), 0f)
+        assertEquals(1f, GtvLayout.homeRowAlpha(true, 70f), 0f)
+    }
+
     // 2026-09-23 R53 连带:「有 N 个新应用」提示(70 + 6 + 16 = 92 底)在淡出带里。提示显示时零点下移到 92、
     // 全亮点仍 110:卡顶到提示底边时已完全透明;540 屏上三档 × 标题开关的静止态 alpha 与不显示时相同——
     // 唯一例外是小档开标题的上两行(卡顶 104.4,ui-pending #9 加高标题间距之后):0.86 → 0.69。
