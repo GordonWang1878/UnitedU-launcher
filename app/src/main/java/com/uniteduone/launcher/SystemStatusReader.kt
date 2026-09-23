@@ -8,11 +8,11 @@ import android.util.Log
 /**
  * 读系统设置 → [SystemUiStatus]。**每一项单独 try**:Android 12 起 targetSdk ≥ 31 的应用读没有
  * `@Readable` 的隐藏键会抛 SecurityException,厂商 ROM 也可能再收紧——一项读不到只让那一项变 null
- * (界面显示「查看」),不连累别的项,更不崩。解析 / 格式化全在 `SystemStatus.kt` 的纯函数里。
+ * (「系统屏保」摘要里省略那一段;动画缩放那一项读不到则显示「查看」),不连累别的项,更不崩。解析 / 格式化全在 `SystemStatus.kt` 的纯函数里。
  *
  * 在主线程同步调:四次 `Settings.*.getString` 走 SettingsProvider 的进程内缓存(generation tracker),
- * 一次 PackageManager 查应用名,合计亚毫秒到几毫秒。同步读是为了**不让行先画成「查看」再跳成真值**,
- * 也不让「动画缩放」那条条件行在打开页面之后才冒出来(行数变化会走一遍焦点夹取,没必要)。
+ * 一次 PackageManager 查应用名,合计亚毫秒到几毫秒。同步读是为了**不让「系统屏保」行先画成空值再跳成真值**,
+ * 也不让「其他」组顶上那条动画缩放条件行在打开页面之后才冒出来(行数变化会走一遍焦点夹取,没必要)。
  */
 fun readSystemUiStatus(ctx: Context): SystemUiStatus {
     val cr = ctx.contentResolver

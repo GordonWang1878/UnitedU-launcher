@@ -38,20 +38,18 @@ class SettingsModelTest {
 
     @Test fun groupOrderFollowsSpec() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
+        // R57:左栏只剩四组,通用在最上。
         assertEquals(
-            listOf(
-                GroupId.LAYOUT, GroupId.WALLPAPER, GroupId.THEME,
-                GroupId.STANDBY, GroupId.CLOCK, GroupId.LANGUAGE, GroupId.SYSTEM, GroupId.OTHER,
-            ),
+            listOf(GroupId.GENERAL, GroupId.LAYOUT, GroupId.APPEARANCE, GroupId.SCREENSAVER),
             g.map { it.id },
         )
     }
 
     @Test fun rowCountsPerGroup() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
-        // 布局 3 / 壁纸 2 动作 + 3 控件 / 主题 3 / 待机与屏保 4 控件 + 1 动作(M5;系统屏保行 #16 搬走)/
-        // 时钟 1 / 语言 1 / 系统 3 + 动画缩放条件行(默认 UNKNOWN = 读不到 → 出「查看」)/ 其他 2 动作
-        assertEquals(listOf(3, 5, 3, 5, 1, 1, 4, 2), g.map { it.rows.size })
+        // 通用 6 + 动画缩放条件行(默认 UNKNOWN = 读不到 → 出「查看」)/ 布局 3 /
+        // 外观 2 动作 + 3 壁纸控件 + 3 主题 / 屏保 2 控件 + 2 动作
+        assertEquals(listOf(7, 3, 8, 4), g.map { it.rows.size })
     }
 
     @Test fun rowIdsAreUnique() {
@@ -65,17 +63,49 @@ class SettingsModelTest {
         assertTrue(g.all { it.rows.size <= 8 })
     }
 
-    @Test fun wallpaperGroupStartsWithTwoActionRows() {
+    @Test fun appearanceGroupStartsWithTwoActionRows() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
-        val wallpaper = g.first { it.id == GroupId.WALLPAPER }.rows
-        assertTrue(wallpaper[0] is ActionRow)
-        assertTrue(wallpaper[1] is ActionRow)
-        assertTrue(wallpaper.drop(2).all { it is ControlRow })
+        val appearance = g.first { it.id == GroupId.APPEARANCE }.rows
+        assertTrue(appearance[0] is ActionRow)
+        assertTrue(appearance[1] is ActionRow)
+        assertTrue(appearance.drop(2).all { it is ControlRow })
     }
 
-    @Test fun otherGroupIsTwoActionRows() {
+    /** R57:通用组的行序——语言、默认桌面、待机两行、时钟显示紧跟待机显示、恢复默认收尾。 */
+    @Test fun generalGroupRowOrder() {
+        val g = settingsGroups(Settings(), {}, Recorder().actions, someImages, system = allNormal)
+        assertEquals(
+            listOf("language", "setDefaultHome", "idleAfter", "idleContent", "clockDisplay", "restoreDefaults"),
+            g.first { it.id == GroupId.GENERAL }.rows.map { it.id },
+        )
+    }
+
+    /** R57:外观组 = 原壁纸组 + 原主题组。 */
+    @Test fun appearanceGroupRowOrder() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
-        assertTrue(g.first { it.id == GroupId.OTHER }.rows.all { it is ActionRow })
+        assertEquals(
+            listOf(
+                "pickWallpaper", "openImport", "wallpaperRotate", "wallpaperBlur", "wallpaperBrightness",
+                "themeColor", "followWallpaper", "themedCards",
+            ),
+            g.first { it.id == GroupId.APPEARANCE }.rows.map { it.id },
+        )
+    }
+
+    /** R57:「时钟显示」二选一映射 showDate(0 = 仅时间,1 = 时间与日期),存盘键不变。 */
+    @Test fun clockDisplayMapsShowDate() {
+        var written: Settings? = null
+        val base = Settings(showDate = true)
+        val g = settingsGroups(base, { t -> written = t(base) }, Recorder().actions, someImages)
+        val row = ctrl(g, "clockDisplay")
+        assertEquals(CtrlKind.SEGMENTED, row.kind)
+        assertEquals(listOf(R.string.settings_clock_time_only, R.string.settings_clock_time_date), row.optionRes)
+        assertEquals(1, row.selected)
+        assertEquals(0, ctrl(settingsGroups(Settings(showDate = false), {}, Recorder().actions, someImages), "clockDisplay").selected)
+        row.onSelect(0)
+        assertEquals(false, written?.showDate)
+        row.onSelect(1)
+        assertEquals(true, written?.showDate)
     }
 
     @Test fun selectedMirrorsSettings() {
@@ -148,20 +178,17 @@ class SettingsModelTest {
             .forEach { assertEquals(it.id, it.count, it.optionRes.size) }
     }
 
-    // ---- M5「待机与屏保」组(spec §3)----
+    // ---- M5 屏保各行(spec §3;R57 起待机两行在「通用」组,屏保独立成「屏保」组)----
 
-    @Test fun standbyGroupHasFiveRowsInSpecOrder() {
+    @Test fun screensaverGroupRowOrder() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
-        val standby = g.first { it.id == GroupId.STANDBY }.rows
+        val ss = g.first { it.id == GroupId.SCREENSAVER }.rows
         assertEquals(
-            listOf(
-                "idleAfter", "idleContent", "screensaverAfter",
-                "screensaverInterval", "screensaverGallery",
-            ),
-            standby.map { it.id },
+            listOf("screensaverAfter", "screensaverInterval", "screensaverGallery", "systemScreensaver"),
+            ss.map { it.id },
         )
-        assertTrue(standby.take(4).all { it is ControlRow })
-        assertTrue(standby.drop(4).all { it is ActionRow })
+        assertTrue(ss.take(2).all { it is ControlRow })
+        assertTrue(ss.drop(2).all { it is ActionRow })
     }
 
     @Test fun screensaverRowsMirrorSettings() {
@@ -253,11 +280,10 @@ class SettingsModelTest {
         assertEquals(listOf("restoreHiddenInputs"), r.fired)
     }
 
-    // ---- ui-pending #16「系统」组 ----
+    // ---- ui-pending #16:系统屏保摘要(R56)与动画缩放提示行(R57 在通用组)----
 
-    private fun systemGroup(sys: SystemUiStatus, r: Recorder = Recorder()) =
-        settingsGroups(Settings(), {}, r.actions, someImages, system = sys).first { it.id == GroupId.SYSTEM }.rows
-            .map { it as ActionRow }
+    private fun rowsWith(sys: SystemUiStatus, r: Recorder = Recorder()) =
+        settingsGroups(Settings(), {}, r.actions, someImages, system = sys)
 
     private val allNormal = SystemUiStatus(
         screensaverEnabled = true,
@@ -266,60 +292,43 @@ class SettingsModelTest {
         animatorScale = 1f, transitionScale = 1f, windowScale = 1f,
     )
 
-    @Test fun systemGroupHidesAnimRowWhenAllScalesAreOne() {
-        assertEquals(
-            listOf("systemScreensaver", "systemScreensaverSource", "systemScreensaverStart"),
-            systemGroup(allNormal).map { it.id },
-        )
+    /** 「系统屏保 ▸」一行带摘要;不再有 R55 的来源 / 启动时间两行。 */
+    @Test fun systemScreensaverIsOneRowWithSummary() {
+        val g = rowsWith(allNormal)
+        val row = row(g, "systemScreensaver") as ActionRow
+        assertNull(row.hintRes)
+        assertEquals(screensaverSummary(allNormal), row.hintParts)
+        val ids = rowsOf(g).map { it.id }
+        assertTrue(ids.none { it == "systemScreensaverSource" || it == "systemScreensaverStart" })
     }
 
-    @Test fun systemGroupShowsCurrentValues() {
-        val rows = systemGroup(allNormal)
-        assertEquals(R.string.settings_on, rows[0].hintRes)
-        assertEquals(R.string.app_name, rows[1].hintRes)
-        assertNull(rows[1].hintText)
-        assertEquals(R.string.settings_sys_minutes, rows[2].hintRes)
-        assertEquals(listOf<Any>(5), rows[2].hintArgs)
-        val off = systemGroup(allNormal.copy(screensaverEnabled = false, screensaverStart = TimeoutDisplay.Never))
-        assertEquals(R.string.settings_off, off[0].hintRes)
-        assertEquals(R.string.settings_sys_never, off[2].hintRes)
+    @Test fun animRowOnlyWhenScaleIsNotOne() {
+        val general = { sys: SystemUiStatus -> rowsWith(sys).first { it.id == GroupId.GENERAL }.rows.map { it.id } }
+        assertTrue("systemAnimationScale" !in general(allNormal))
+        // 出现时排在「恢复默认」之前(R57)
+        val with = general(allNormal.copy(animatorScale = 1.25f))
+        assertEquals(listOf("systemAnimationScale", "restoreDefaults"), with.takeLast(2))
     }
 
-    @Test fun otherDreamShowsItsLabelAsLiteralText() {
-        val rows = systemGroup(allNormal.copy(screensaverSource = DreamSource.Other("Backdrop")))
-        assertEquals("Backdrop", rows[1].hintText)
-    }
-
-    /** 读不到的项只写「查看」,不猜——需求第 3 条。UNKNOWN 下四行全是「查看」(动画那行也在,因为不知道是不是 1×)。 */
-    @Test fun unreadableItemsShowViewOnly() {
-        val rows = systemGroup(SystemUiStatus.UNKNOWN)
-        assertEquals(4, rows.size)
-        rows.forEach {
-            assertEquals(it.id, R.string.settings_sys_view, it.hintRes)
-            assertTrue(it.id, it.hintArgs.isEmpty())
-            assertNull(it.id, it.hintText)
-        }
-    }
-
-    /** 条件行必须排最后:焦点账本只对「行号越界」夹回(见 systemRows 的 KDoc)。 */
-    @Test fun animRowIsLastAndCarriesFormattedScale() {
-        val rows = systemGroup(allNormal.copy(animatorScale = 1.25f))
-        assertEquals("systemAnimationScale", rows.last().id)
-        assertEquals(R.string.settings_sys_anim_slower, rows.last().hintRes)
-        assertEquals(listOf<Any>("1.25"), rows.last().hintArgs)
-        assertEquals(R.string.settings_sys_anim_faster, systemGroup(allNormal.copy(animatorScale = 0.5f)).last().hintRes)
-        assertEquals(R.string.settings_sys_anim_off, systemGroup(allNormal.copy(animatorScale = 0f)).last().hintRes)
-        val win = systemGroup(allNormal.copy(windowScale = 0.5f)).last()
+    @Test fun animRowCarriesFormattedScale() {
+        fun anim(sys: SystemUiStatus) = row(rowsWith(sys), "systemAnimationScale") as ActionRow
+        val slow = anim(allNormal.copy(animatorScale = 1.25f))
+        assertEquals(R.string.settings_sys_anim_slower, slow.hintRes)
+        assertEquals(listOf<Any>("1.25"), slow.hintArgs)
+        assertEquals(R.string.settings_sys_anim_faster, anim(allNormal.copy(animatorScale = 0.5f)).hintRes)
+        assertEquals(R.string.settings_sys_anim_off, anim(allNormal.copy(animatorScale = 0f)).hintRes)
+        val win = anim(allNormal.copy(windowScale = 0.5f))
         assertEquals(R.string.settings_sys_anim_window, win.hintRes)
         assertEquals(listOf<Any>("0.5", "1"), win.hintArgs)
+        // 动画程序那一项读不到:出「查看」,不猜是不是 1×
+        assertEquals(R.string.settings_sys_view, anim(SystemUiStatus.UNKNOWN).hintRes)
     }
 
     @Test fun systemRowsJumpToTheirPages() {
         val r = Recorder()
-        systemGroup(allNormal.copy(animatorScale = 1.25f), r).forEach { it.onActivate() }
-        assertEquals(
-            listOf("openSystemScreensaver", "openSystemScreensaver", "openSystemScreensaver", "openSystemAnimationSettings"),
-            r.fired,
-        )
+        val g = rowsWith(allNormal.copy(animatorScale = 1.25f), r)
+        (row(g, "systemScreensaver") as ActionRow).onActivate()
+        (row(g, "systemAnimationScale") as ActionRow).onActivate()
+        assertEquals(listOf("openSystemScreensaver", "openSystemAnimationSettings"), r.fired)
     }
 }

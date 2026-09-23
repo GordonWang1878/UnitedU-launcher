@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** ui-pending #16:「系统」组的解析 / 格式化纯函数(`SystemStatus.kt`)。 */
+/** ui-pending #16:系统设置的解析 / 格式化纯函数(`SystemStatus.kt`);R56 起屏保三项合成一行摘要。 */
 class SystemStatusTest {
 
     @Test fun enabledFlagOnlyAcceptsZeroAndOne() {
@@ -76,6 +76,47 @@ class SystemStatusTest {
         assertEquals("10", formatScale(10f))
         assertEquals("0", formatScale(0f))
         assertEquals("1.5", formatScale("1.5".toFloat()))
+    }
+
+    // ---- R56:「系统屏保 ▸」行的摘要 ----
+
+    private val on5 = SystemUiStatus(
+        screensaverEnabled = true, screensaverSource = DreamSource.Ours, screensaverStart = TimeoutDisplay.Minutes(5),
+    )
+
+    @Test fun summaryWhenOnListsSourceAndStart() {
+        assertEquals(
+            listOf(
+                HintPart.Res(R.string.settings_on),
+                HintPart.Res(R.string.app_name),
+                HintPart.Res(R.string.settings_sys_minutes, listOf(5)),
+            ),
+            screensaverSummary(on5),
+        )
+        // 别的应用的 Dream:名字原样当字
+        assertEquals(HintPart.Text("Backdrop"), screensaverSummary(on5.copy(screensaverSource = DreamSource.Other("Backdrop")))[1])
+        assertEquals(HintPart.Res(R.string.settings_sys_never), screensaverSummary(on5.copy(screensaverStart = TimeoutDisplay.Never))[2])
+        assertEquals(HintPart.Res(R.string.settings_sys_hours, listOf(1)), screensaverSummary(on5.copy(screensaverStart = TimeoutDisplay.Hours(1)))[2])
+        assertEquals(HintPart.Res(R.string.settings_seconds, listOf(15)), screensaverSummary(on5.copy(screensaverStart = TimeoutDisplay.Seconds(15)))[2])
+    }
+
+    @Test fun summaryWhenOffIsJustOff() {
+        assertEquals(listOf(HintPart.Res(R.string.settings_off)), screensaverSummary(on5.copy(screensaverEnabled = false)))
+    }
+
+    /** 读不到的部分省略,不猜;全读不到 = 空 = 不显示值。 */
+    @Test fun summaryOmitsUnreadableParts() {
+        assertEquals(
+            listOf(HintPart.Res(R.string.settings_on), HintPart.Res(R.string.settings_sys_minutes, listOf(5))),
+            screensaverSummary(on5.copy(screensaverSource = null)),
+        )
+        assertEquals(listOf(HintPart.Res(R.string.settings_on)), screensaverSummary(SystemUiStatus(screensaverEnabled = true)))
+        // 开关读不到,来源 / 时间读得到:照样给出
+        assertEquals(
+            listOf(HintPart.Res(R.string.app_name), HintPart.Res(R.string.settings_sys_minutes, listOf(5))),
+            screensaverSummary(on5.copy(screensaverEnabled = null)),
+        )
+        assertTrue(screensaverSummary(SystemUiStatus.UNKNOWN).isEmpty())
     }
 
     /** 候选链的顺序与退路(理由见 DREAM_SETTINGS_PAGES 的 KDoc)。 */

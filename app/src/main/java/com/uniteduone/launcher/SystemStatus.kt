@@ -3,17 +3,22 @@ package com.uniteduone.launcher
 import java.math.BigDecimal
 
 /**
- * 设置页「系统」组(ui-pending #16)要显示的**系统**设置快照:系统屏保开关 / 来源 / 启动时间、三项动画缩放。
+ * 设置页要显示的**系统**设置快照:系统屏保开关 / 来源 / 启动时间、三项动画缩放。
  *
  * 只读。我们不申请 WRITE_SECURE_SETTINGS / WRITE_SETTINGS(Gordon 2026-09-23 定:直接改写要 adb 授权,
  * 而且会覆盖用户有意调的无障碍动画设置),每一项只显示当前值 + 一键跳系统对应页。
  *
+ * **Ruling R56(2026-09-23 傍晚,推翻 R55 的「系统」组)**:三行跳同一个系统页、拆成一组很蠢(Gordon 原话
+ * 「三行跳同一个系统页,拆出来很蠢」)。现在屏保三项合成「待机与屏保」组里**一行**「系统屏保 ▸」的摘要
+ * ([screensaverSummary]),动画缩放提示行挪到「其他」组最上面。
+ *
  * **每个字段 null = 读不到**(键没设过、新系统不让第三方读非公开键而抛 SecurityException、值格式不认识)。
- * 读不到就在界面上只写「查看」,**不猜默认值**——`screensaver_enabled` 没设过时系统到底开没开,
+ * 读不到的部分在摘要里**省略**,**不猜默认值**——`screensaver_enabled` 没设过时系统到底开没开,
  * 取决于厂商 overlay 的 `config_dreamsEnabledByDefault`,我们读不到就不说。
  *
  * 这个文件一行 Android 都不碰:解析与格式化全是纯函数,在 JVM 单测里钉死([SystemStatusTest]);
  * 真正去 ContentResolver 读的那一小段在 [readSystemUiStatus](`SystemStatusReader.kt`)里。
+ * (`R.string.*` 只是 Int 常量,JVM 单测里照样能用——[SettingsModel] 早就这么做。)
  */
 data class SystemUiStatus(
     /** `Settings.Secure.screensaver_enabled`:true = 开。 */
@@ -59,6 +64,38 @@ sealed interface AnimScaleNotice {
     data class Animator(val scale: Float) : AnimScaleNotice
     data class WindowOnly(val window: Float, val transition: Float) : AnimScaleNotice
     data object Unreadable : AnimScaleNotice
+}
+
+/**
+ * 动作行值文字里的一段(R56):资源文案(可带格式参数)或现成的字(别的应用的名字——来自 PackageManager,
+ * 不是我们的资源)。界面逐段解析后用「 · 」连起来;模型层不认识 Context,拼不了字符串,只能交出这份清单。
+ */
+sealed interface HintPart {
+    data class Res(val id: Int, val args: List<Any> = emptyList()) : HintPart
+    data class Text(val text: String) : HintPart
+}
+
+/**
+ * 「系统屏保 ▸」行的值摘要(R56):开着时「开 · UnitedU · 5 分钟」(来源名 + 启动时间,读不到的部分省略);
+ * 关着时只写「关」——来源与启动时间此时与用户无关;开关读不到时照样给出读得到的来源 / 时间
+ * (「读不到的部分省略」,不因为开关读不到就把整行清空)。**全读不到返回空清单 = 不显示值**。
+ */
+internal fun screensaverSummary(sys: SystemUiStatus): List<HintPart> {
+    if (sys.screensaverEnabled == false) return listOf(HintPart.Res(R.string.settings_off))
+    val source: HintPart? = when (val src = sys.screensaverSource) {
+        null -> null
+        DreamSource.Ours -> HintPart.Res(R.string.app_name)
+        is DreamSource.Other -> HintPart.Text(src.label)
+    }
+    val start: HintPart? = when (val t = sys.screensaverStart) {
+        null -> null
+        TimeoutDisplay.Never -> HintPart.Res(R.string.settings_sys_never)
+        is TimeoutDisplay.Seconds -> HintPart.Res(R.string.settings_seconds, listOf(t.n))
+        is TimeoutDisplay.Minutes -> HintPart.Res(R.string.settings_sys_minutes, listOf(t.n))
+        is TimeoutDisplay.Hours -> HintPart.Res(R.string.settings_sys_hours, listOf(t.n))
+    }
+    val enabled = if (sys.screensaverEnabled == true) HintPart.Res(R.string.settings_on) else null
+    return listOfNotNull(enabled, source, start)
 }
 
 /** `screensaver_enabled` 的原始字符串 → 开关。只认 "0" / "1"(系统就写这两个),别的一律算读不到。 */

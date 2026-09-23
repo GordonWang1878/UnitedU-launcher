@@ -16,7 +16,7 @@
          Compose choose the break point at the current width/size (12sp, roughly a 220dp column) fits
          this on two lines with no truncation; the forced break no longer did, once Task 8 narrowed
          the column. -->
-    <string name="menu_settings_desc">Layout, wallpaper, theme, standby &amp; screensaver, clock and language</string>
+    <string name="menu_settings_desc">General, layout, appearance and screensaver</string>
     <string name="menu_wallpaper">Change Wallpaper</string>
     <string name="menu_wallpaper_desc">Pick an image to replace the background</string>
     <string name="menu_system_settings">System Settings</string>
@@ -127,11 +127,15 @@
 
     <!-- settings_* : UnitedU settings page (grouped) -->
     <string name="settings_title">UnitedU Settings</string>
+    <!-- R57(2026-09-23):设置页左栏四组 通用 / 布局 / 外观 / 屏保 -->
+    <string name="settings_group_general">General</string>
     <string name="settings_group_layout">Layout</string>
-    <string name="settings_group_theme">Theme</string>
-    <string name="settings_group_clock">Clock</string>
-    <string name="settings_group_standby">Standby &amp; Screensaver</string>
-    <string name="settings_group_wallpaper">Wallpaper</string>
+    <string name="settings_group_appearance">Appearance</string>
+    <string name="settings_group_screensaver">Screensaver</string>
+    <!-- R57:「时钟显示」二选一,映射既有 showDate(0 = 仅时间,1 = 时间与日期) -->
+    <string name="settings_clock_display">Clock Display</string>
+    <string name="settings_clock_time_only">Time Only</string>
+    <string name="settings_clock_time_date">Time &amp; Date</string>
     <string name="settings_wallpaper_rotate">Auto-Change Wallpaper</string>
     <string name="settings_rotate_daily">Daily</string>
     <string name="settings_wallpaper_blur">Blur</string>
@@ -145,7 +149,6 @@
     <string name="settings_theme_color">Theme Color</string>
     <string name="settings_follow_wallpaper">Follow Wallpaper Color</string>
     <string name="settings_themed_cards">Themed Cards</string>
-    <string name="settings_show_date">Show Date</string>
     <string name="settings_idle_after">Standby Timeout</string>
     <string name="settings_idle_off">Off</string>
     <string name="settings_idle_minutes">%1$d min</string>
@@ -166,12 +169,8 @@
     <string name="settings_on">On</string>
     <string name="settings_off">Off</string>
     <!-- Added by M7 two-pane settings page (Language / Other groups) -->
-    <string name="settings_group_language">Language</string>
-    <!-- ui-pending #16 "System" group: read-only view of three system settings; OK jumps to the system page; unreadable items show "View" -->
-    <string name="settings_group_system">System</string>
+    <!-- ui-pending #16: value text of the system-screensaver summary (R56) and the animation-scale notice row (R57, General group); read-only, OK jumps to the system page -->
     <string name="settings_sys_view">View</string>
-    <string name="settings_sys_screensaver_source">Screensaver Source</string>
-    <string name="settings_sys_screensaver_start">Screensaver Starts After</string>
     <string name="settings_sys_never">Never</string>
     <string name="settings_sys_minutes">%1$d min</string>
     <string name="settings_sys_hours">%1$d hr</string>
@@ -180,7 +179,6 @@
     <string name="settings_sys_anim_faster">%1$s×, UI animations run faster</string>
     <string name="settings_sys_anim_off">Off, UI animations are skipped</string>
     <string name="settings_sys_anim_window">Window %1$s×, transition %2$s×; only affects opening and switching apps</string>
-    <string name="settings_group_other">Other</string>
     <string name="settings_language">Language</string>
     <string name="settings_lang_system">System</string>
     <string name="settings_lang_zh_cn">简体</string>

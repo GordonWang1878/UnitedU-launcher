@@ -8,7 +8,7 @@
     <string name="menu_edit">编辑分栏</string>
     <string name="menu_edit_desc">增删应用、调整顺序、换卡片图</string>
     <string name="menu_settings">UnitedU 设置</string>
-    <string name="menu_settings_desc">布局、壁纸、主题、待机与屏保、时钟、语言</string>
+    <string name="menu_settings_desc">通用、布局、外观、屏保</string>
     <string name="menu_wallpaper">换壁纸</string>
     <string name="menu_wallpaper_desc">选一张图片替换背景</string>
     <string name="menu_system_settings">系统设置</string>
@@ -119,11 +119,15 @@
 
     <!-- settings_* : UnitedU 设置页(分组带标题) -->
     <string name="settings_title">UnitedU 设置</string>
+    <!-- R57(2026-09-23):设置页左栏四组 通用 / 布局 / 外观 / 屏保 -->
+    <string name="settings_group_general">通用</string>
     <string name="settings_group_layout">布局</string>
-    <string name="settings_group_theme">主题</string>
-    <string name="settings_group_clock">时钟</string>
-    <string name="settings_group_standby">待机与屏保</string>
-    <string name="settings_group_wallpaper">壁纸</string>
+    <string name="settings_group_appearance">外观</string>
+    <string name="settings_group_screensaver">屏保</string>
+    <!-- R57:「时钟显示」二选一,映射既有 showDate(0 = 仅时间,1 = 时间与日期) -->
+    <string name="settings_clock_display">时钟显示</string>
+    <string name="settings_clock_time_only">仅时间</string>
+    <string name="settings_clock_time_date">时间与日期</string>
     <string name="settings_wallpaper_rotate">壁纸自动切换</string>
     <string name="settings_rotate_daily">每天</string>
     <string name="settings_wallpaper_blur">模糊</string>
@@ -137,7 +141,6 @@
     <string name="settings_theme_color">主题色</string>
     <string name="settings_follow_wallpaper">跟随壁纸主色</string>
     <string name="settings_themed_cards">主题化卡片</string>
-    <string name="settings_show_date">显示日期</string>
     <string name="settings_idle_after">待机时长</string>
     <string name="settings_idle_off">关</string>
     <string name="settings_idle_minutes">%1$d 分</string>
@@ -158,12 +161,8 @@
     <string name="settings_on">开</string>
     <string name="settings_off">关</string>
     <!-- 以下为 M7 两栏设置页新增的分组与行(语言 / 其他) -->
-    <string name="settings_group_language">语言</string>
-    <!-- ui-pending #16「系统」组:只读显示三项系统设置,确定键跳系统对应页;读不到的项写「查看」 -->
-    <string name="settings_group_system">系统</string>
+    <!-- ui-pending #16:系统屏保摘要(R56,屏保组「系统屏保 ▸」行)与动画缩放提示行(R57,通用组)的值文字;只读,确定键跳系统对应页 -->
     <string name="settings_sys_view">查看</string>
-    <string name="settings_sys_screensaver_source">屏保来源</string>
-    <string name="settings_sys_screensaver_start">屏保启动时间</string>
     <string name="settings_sys_never">从不</string>
     <string name="settings_sys_minutes">%1$d 分钟</string>
     <string name="settings_sys_hours">%1$d 小时</string>
@@ -172,7 +171,6 @@
     <string name="settings_sys_anim_faster">%1$s×,界面动画会变快</string>
     <string name="settings_sys_anim_off">已关闭,界面没有动画</string>
     <string name="settings_sys_anim_window">窗口 %1$s×、过渡 %2$s×,只影响打开和切换应用</string>
-    <string name="settings_group_other">其他</string>
     <string name="settings_language">语言</string>
     <string name="settings_lang_system">跟随系统</string>
     <string name="settings_lang_zh_cn">简体</string>

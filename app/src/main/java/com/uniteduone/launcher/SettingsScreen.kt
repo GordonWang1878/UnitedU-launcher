@@ -76,7 +76,7 @@ data class SettingsPos(val pane: Int, val group: Int, val row: Int)
  * UnitedU 设置页:**左栏分组 + 右栏当前组的行**,整页盖在常驻首页之上做实时预览(spec §2、§3)。
  *
  * 为什么是两栏:全部行加起来约 18 行,一屏放不下,而这份代码里**任何可滚动容器都是禁区**
- * (铁律 1:`LazyColumn`/`verticalScroll` 会让 D-pad 焦点整棵树消失)。两栏之后左 8 项、右 ≤ 8 行,
+ * (铁律 1:`LazyColumn`/`verticalScroll` 会让 D-pad 焦点整棵树消失)。两栏之后左 4 组(R57)、右 ≤ 8 行,
  * 各自都在一屏内,连自算位移都省了。
  *
  * 为什么是叠加而不是替换:底下首页透过压暗层仍看得见 —— 改卡片大小 / 标题 / 主题色的效果当场可见
@@ -211,11 +211,11 @@ fun SettingsScreen(
         value = withContext(Dispatchers.IO) { HiddenInputs.read(ctx).size }
     }
 
-    // 「系统」组的系统设置快照(ui-pending #16)。**同步读**(理由见 readSystemUiStatus 的 KDoc:不让行先画成
-    // 「查看」再跳真值,不让动画缩放条件行在开页之后才冒出来)。key:
+    // 系统设置快照(ui-pending #16;R56/R57 起喂「屏保」组「系统屏保 ▸」行的摘要与「通用」组的动画缩放提示行)。
+    // **同步读**(理由见 readSystemUiStatus 的 KDoc:不让摘要先画成空再跳真值,不让动画缩放条件行在开页之后才冒出来)。key:
     // - focusNonce:onResume 必 ++——用户从系统屏保页 / 开发者选项改完回来,这里就重读(需求原话「回到前台要重读」);
     // - covered:子界面关掉时顺手重读一次(便宜,且与上面两个 produceState 同一组 key 习惯)。
-    // 没有守卫,不涉及铁律 6。行数随它变(动画缩放条件行)时的焦点交接走下面那套「同步夹取 + rows.size 进 key」。
+    // 没有守卫,不涉及铁律 6。行数随它变(动画缩放条件行)时的焦点交接走下面那套「按行 id 同步重映射 + rows.size 进 key」。
     val systemStatus = remember(focusNonce, covered) { readSystemUiStatus(ctx) }
 
     // 内容模型(分组 / 行 / 当前档位)全在 SettingsModel.kt 里,这里只画和管焦点。
@@ -255,6 +255,8 @@ fun SettingsScreen(
      * 派生自 `covered` 而不是一次性布尔闩(铁律 7):子界面一关它自然放开。
      */
     var restoring by remember { mutableStateOf(false) }
+    /** 每组上一次组合时的行 id 清单(见下面「按行 id 重映射」);null = 这一组还没组合过。 */
+    val lastRowIds = remember { arrayOfNulls<List<String>>(groups.size) }
     // **从 ON_PAUSE 就冻结目标**(铁律 5 的后半句,M7 终审 I1;与 HomeScreen / EditScreen 同一手法)。
     // 灭屏再亮、或别的应用到前台再回来:Compose 会抢在定位效果重启之前,把焦点塞给整棵树第一个
     // 可聚焦节点 = 左栏第一组;那次上报若看到 restoring 还是 false,就把 pane/group 改写成「左栏·布局」,
@@ -282,9 +284,30 @@ fun SettingsScreen(
      * 收口交给下面的定位效果:它的 key 多了 `rows.size`(铁律 6:会让「目标已经不存在」这件事
      * 发生的量,必须同时进它的 key,才能促它重跑),一旦这里置真 `restoring`、行数又变了,
      * 它就会重新跑、把焦点真的送到这个刚夹好的目标上——**只在那一行自报 `isFocused` 时才收手**,
-     * 不是「随便哪儿有焦点就算数」。只判 `pane == PANE_R`:左栏的 `groupReq` 数量固定(八个分组
+     * 不是「随便哪儿有焦点就算数」。只判 `pane == PANE_R`:左栏的 `groupReq` 数量固定(四个分组
      * 不会变),不会有这个问题;`rowOf[group]` 本来就只在右栏取值时才有意义。
+     *
+     * **按行 id 重映射(R57,在上面那条「越界夹回」之前做)**:「通用」组的动画缩放提示行是条件行、却**不在组末**
+     * (在「恢复默认」之前)。只夹越界行号不够:它出现 / 消失时它下面的行整体挪一格,`rowOf` 记的下标会静默指到
+     * 另一行上(焦点在「恢复默认」时提示行消失 → 下标 6 越界夹回 5 碰巧对;提示行出现 → 下标 5 指向提示行、
+     * 不再是「恢复默认」)——正是铁律 5 说的「记忆被改写」。所以每次组合先比对每组的行 id 清单:变了就把
+     * `rowOf[g]` 换成「原来那一行的 id」在新清单里的下标;那一行本身消失了才退回原下标、再由下面的越界夹取兜底。
+     * 与越界夹取同一个做法:组合阶段同步改目标、当前组在右栏时置真 [restoring] 挡住意外上报,收口交给定位效果
+     * (key 里有 `rows.size`:条件行的出现 / 消失必然改变行数)。`lastRowIds` 只在组合阶段读写、不是 State,
+     * 不引起重组;它只是「上一次组合看到的清单」,每次都整份覆盖,没有要清回去的状态(铁律 7)。
      */
+    groups.forEachIndexed { g, spec ->
+        val ids = spec.rows.map { it.id }
+        val old = lastRowIds[g]
+        if (old != null && old != ids) {
+            val kept = old.getOrNull(rowOf[g])?.let { ids.indexOf(it) } ?: -1
+            if (kept >= 0 && kept != rowOf[g]) {
+                rowOf[g] = kept
+                if (pane == PANE_R && g == group) restoring = true
+            }
+        }
+        lastRowIds[g] = ids
+    }
     if (pane == PANE_R && rowOf[group] > rows.lastIndex) {
         rowOf[group] = rows.lastIndex.coerceAtLeast(0)
         restoring = true
@@ -382,9 +405,10 @@ fun SettingsScreen(
     // 或整页被子界面盖住(此时 `focusedCell` 已经因失焦变 null),这个判据自己就变回 false,
     // 没有专门的「清空」路径要另外维护。上报值取 `s.idleContent` 而不是控件自己另存一份——
     // 它与 `ControlRow.selected` 同源,左右键改完档位那一刻这里跟着变,预览与实际选中永远一致。
-    val standbyGroupIndex = groups.indexOfFirst { it.id == GroupId.STANDBY }
-    val idleContentRowIndex = groups.getOrNull(standbyGroupIndex)?.rows?.indexOfFirst { it.id == "idleContent" } ?: -1
-    val onIdleContentRow = pane == PANE_R && group == standbyGroupIndex &&
+    // R57 起「待机显示」在「通用」组(原「待机与屏保」组);按 GroupId + 行 id 查,不写死下标。
+    val idleGroupIndex = groups.indexOfFirst { it.id == GroupId.GENERAL }
+    val idleContentRowIndex = groups.getOrNull(idleGroupIndex)?.rows?.indexOfFirst { it.id == "idleContent" } ?: -1
+    val onIdleContentRow = pane == PANE_R && group == idleGroupIndex &&
         idleContentRowIndex >= 0 && focusedCell == (PANE_R to idleContentRowIndex)
     val demoIdle = if (onIdleContentRow) s.idleContent else null
     LaunchedEffect(demoIdle) { onDemoIdle(demoIdle) }
@@ -436,7 +460,7 @@ fun SettingsScreen(
             // `Modifier.width()` 会被 constrain —— 空间用完之后的条目被量成 0 宽,而 0 宽条目在
             // 焦点搜索里**永远选不中**(right 全部相等)。宁可让它探出屏幕,也不能让它变成 0。
             Row(Modifier.wrapContentWidth(Alignment.Start, unbounded = true)) {
-                // ---- 左栏:八个分组 ----
+                // ---- 左栏:四个分组(R57) ----
                 Column(Modifier.width(PANE_LEFT_W)) {
                     groups.forEachIndexed { i, g ->
                         GroupItem(
@@ -682,21 +706,34 @@ private fun ActionRowItem(
             .clickable(onClick = action.onActivate),
     ) {
         RowFrame(focused = focused, label = stringResource(action.labelRes)) {
+            // hintParts 非空 = 逐段解析后「 · 」连接(「系统屏保」摘要,R56;别的应用的名字是现成的字);否则 hintArgs
+            // 非空 = 带格式参数的文案(「%1$d 个」「%1$s×,…」),与 SettingRow 里 optionArgs 的解析方式同一个道理;
+            // hintRes 为 null 且没有 parts = 不显示值,只画 ▸(见 ActionRow 的 KDoc)。
+            val hint: String? = when {
+                action.hintParts.isNotEmpty() -> action.hintParts.map { part ->
+                    when (part) {
+                        is HintPart.Text -> part.text
+                        is HintPart.Res ->
+                            if (part.args.isEmpty()) stringResource(part.id)
+                            else stringResource(part.id, *part.args.toTypedArray())
+                    }
+                }.joinToString(" · ")
+                action.hintRes == null -> null
+                action.hintArgs.isEmpty() -> stringResource(action.hintRes)
+                else -> stringResource(action.hintRes, *action.hintArgs.toTypedArray())
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                BasicText(
-                    // hintText 非 null = 现成的字(「系统」组的屏保来源 = 别的应用的名字);否则 hintArgs 非空 =
-                    // 带格式参数的文案(「%1$d 个」「%1$s×,…」),与 SettingRow 里 optionArgs 的解析方式同一个道理
-                    // (见 ActionRow.hintArgs / hintText 的 KDoc)。
-                    text = action.hintText
-                        ?: if (action.hintArgs.isEmpty()) stringResource(action.hintRes)
-                        else stringResource(action.hintRes, *action.hintArgs.toTypedArray()),
-                    style = TextStyle(
-                        fontFamily = Theme.Sans,
-                        color = if (focused) Theme.SecondaryText else Theme.FooterHintText,
-                        fontSize = 12.sp,
-                    ),
-                )
-                Spacer(Modifier.width(8.dp))
+                if (hint != null) {
+                    BasicText(
+                        text = hint,
+                        style = TextStyle(
+                            fontFamily = Theme.Sans,
+                            color = if (focused) Theme.SecondaryText else Theme.FooterHintText,
+                            fontSize = 12.sp,
+                        ),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
                 BasicText(
                     text = "▸",
                     style = TextStyle(
