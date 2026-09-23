@@ -284,4 +284,10 @@ class SettingsTest {
         assertEquals(300_000L, r.screensaverAfterMs)
         assertEquals(30_000L, r.screensaverIntervalMs)
     }
+
+    @Test fun strictParseThrowsOnBrokenSyntaxButAcceptsPartialObjects() {
+        assertTrue(runCatching { parseSettingsStrict("{\"rowCount\":5}{\"cardsPerRow\":8}") }.isFailure)
+        assertTrue(runCatching { parseSettingsStrict("{半截") }.isFailure)
+        assertEquals(parseSettings("{}"), parseSettingsStrict("{}"))
+    }
 }

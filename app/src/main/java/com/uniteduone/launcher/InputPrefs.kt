@@ -2,8 +2,6 @@ package com.uniteduone.launcher
 
 import android.content.Context
 import android.util.Log
-import java.io.File
-import java.io.FileOutputStream
 
 /**
  * HDMI-CEC 父子去重(M4b spec §1.3 / Ruling M):某个输入若是任何其它输入的 parentId,就不列它,
@@ -43,51 +41,50 @@ internal fun applyInputPrefs(
 /** hidden-inputs.json = {"<输入 id>":"hidden", …}:复用 titles.json 的纯函数解析 / 序列化(JVM 可测)。 */
 internal fun parseHiddenInputs(text: String): Set<String> = parseTitles(text).keys
 
+/** 语法坏了就抛(交给 [LockedFile.load] 当损坏处理)。 */
+internal fun parseHiddenInputsStrict(text: String): Set<String> = parseTitlesStrict(text).keys
+
 internal fun hiddenInputsToJson(ids: Set<String>): String = titlesToJson(ids.associateWith { "hidden" })
 
-/** 读写照 [Titles]:外置没挂 = 空集;缺文件 = 空集;坏文件改名 .bad + 写空 + Log.w;写走 tmp → fsync → rename。 */
+/**
+ * 读写照 [Titles]:外置没挂 = 空集;缺文件 = 空集;坏文件改名 .bad、先试 `.prev`,都不行才写空(口径见 [LockedFile.load])。
+ * 落盘走 [LockedFile](锁 + 独立临时文件 + `.prev`):隐藏 / 一键恢复各在一条 IO 协程上跑,原来的「读 → 改 → 写」不加锁、
+ * 共用 `hidden-inputs.json.tmp`,两次交叠会丢掉一次隐藏,rename 兜底的 `dst.delete()` 还能把整个文件删掉
+ * (所有被隐藏的输入源一起冒回来)——与 2026-09-23 layout.json 事故同一个形状。
+ */
 object HiddenInputs {
     private const val TAG = "UnitedU"
+    private val store = LockedFile("hidden-inputs.json")
 
-    fun read(ctx: Context): Set<String> {
-        if (Paths.baseOrNull(ctx) == null) return emptySet()
-        val f = Paths.hiddenInputsJson(ctx)
-        if (!f.exists()) return emptySet()
-        return try {
-            if (f.length() > 1_000_000) error("hidden-inputs.json 大得离谱: ${f.length()} 字节")
-            val text = f.readText()
-            if (!isWellFormedJsonObject(text)) error("hidden-inputs.json 不是合法的 JSON 对象")
-            parseHiddenInputs(text)
-        } catch (e: Throwable) {
-            Log.w(TAG, "hidden-inputs.json 读不了,改名保留并重写空表: ${e.message}")
-            runCatching { f.renameTo(Paths.hiddenInputsBad(ctx)) }
-            write(ctx, emptySet())
-            emptySet()
+    fun read(ctx: Context): Set<String> = store.locked {
+        val base = Paths.baseOrNull(ctx) ?: return@locked emptySet()
+        when (val got = store.load(base, log = { Log.w(TAG, it) }, parse = ::parseHiddenInputsStrict)) {
+            is LockedFile.Load.Ok -> {
+                if (got.restored) write(ctx, got.value)
+                got.value
+            }
+            LockedFile.Load.Missing -> emptySet()
+            LockedFile.Load.Corrupt -> { write(ctx, emptySet()); emptySet() }
         }
     }
 
-    fun write(ctx: Context, ids: Set<String>): Boolean {
-        val base = Paths.baseOrNull(ctx) ?: return false
-        val tmp = File(base, "hidden-inputs.json.tmp")
-        return try {
-            FileOutputStream(tmp).use { out -> out.write(hiddenInputsToJson(ids).toByteArray()); out.flush(); out.fd.sync() }
-            val dst = Paths.hiddenInputsJson(ctx)
-            if (tmp.renameTo(dst)) return true
-            dst.delete()
-            tmp.renameTo(dst)
+    fun write(ctx: Context, ids: Set<String>): Boolean = store.locked {
+        val base = Paths.baseOrNull(ctx) ?: return@locked false
+        try {
+            store.write(base, hiddenInputsToJson(ids))
         } catch (e: Throwable) {
             Log.w(TAG, "hidden-inputs.json 写不了: ${e.message}")
             false
         }
     }
 
-    /** 隐藏 / 取消隐藏一个输入。IO 线程调用。 */
-    fun set(ctx: Context, id: String, hidden: Boolean): Boolean {
+    /** 隐藏 / 取消隐藏一个输入。IO 线程调用。读 → 改 → 写 在锁内。 */
+    fun set(ctx: Context, id: String, hidden: Boolean): Boolean = store.locked {
         val now = read(ctx)
         val next = if (hidden) now + id else now - id
-        return next == now || write(ctx, next)
+        next == now || write(ctx, next)
     }
 
     /** 一键恢复全部(设置页「恢复隐藏的输入源」)。IO 线程调用。 */
-    fun clear(ctx: Context): Boolean = read(ctx).isEmpty() || write(ctx, emptySet())
+    fun clear(ctx: Context): Boolean = store.locked { read(ctx).isEmpty() || write(ctx, emptySet()) }
 }

@@ -2,6 +2,9 @@ package com.uniteduone.launcher
 
 import android.content.Context
 import android.util.Log
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -35,6 +38,16 @@ internal val DEFAULT_LAYOUT: List<LayoutRow> = listOf(
 )
 
 /**
+ * **整份快照写盘**(首次引导第 2 步、编辑页每一步的 `persist`)专用的串行 IO 调度器。
+ * [Layout.write] 有锁,文件不会丢;但两次整份写各自在 `Dispatchers.IO` 上跑时**谁先拿到锁不确定**,
+ * 较早的快照可能最后落盘、把较新的那份盖掉(编辑页连按两次「上移」,盘上只剩第一次)。
+ * `limitedParallelism(1)` 内部是 FIFO 队列:按提交顺序执行,最后落盘的一定是最后一次提交的快照。
+ * 读改写型的调用([Layout.update] / [Layout.removePackage] 等)不需要它——它们本来就在锁内合并盘上最新。
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+internal val layoutWrites: CoroutineDispatcher = Dispatchers.IO.limitedParallelism(1)
+
+/**
  * layout.json 形如:
  *   {"rows":[{"name":"VIDEO","icon":"movie","apps":["com.a","com.b"]}, ...]}
  * `icon` 是可选字段(M4b 起,见 RowIcons.kt):缺失或不认识的 id 一律按名字回落,不影响读取。
@@ -64,33 +77,15 @@ object Layout {
             Log.w(TAG, "外部存储没挂上,这次用内存里的默认布局,不写盘")
             return@locked DEFAULT_LAYOUT
         }
-        val got = store.readText(base)
-        if (got == null) {
-            // 正式文件与 .prev 都不在:真正的首次运行
-            write(ctx, DEFAULT_LAYOUT)
-            return@locked DEFAULT_LAYOUT
-        }
-        // catch Throwable:超大文件时 readText 抛的是 OutOfMemoryError,那是 Error 不是 Exception
-        try {
-            val rows = parse(got.text)
-            if (got.fromPrev) {
-                Log.w(TAG, "layout.json 不见了,从 layout.json.prev 恢复")
-                write(ctx, rows)
+        // 回落口径见 LockedFile.load:正式文件 → (坏的改名 .bad 留证)→ .prev → 都不行才写回默认值。
+        // 不先试 .prev 就写默认的话,每次开机都静默退回默认,用户只看到「我排的顺序又没了」。
+        when (val got = store.load(base, log = { Log.w(TAG, it) }, parse = ::parse)) {
+            is LockedFile.Load.Ok -> {
+                if (got.restored) write(ctx, got.value)
+                got.value
             }
-            rows
-        } catch (e: Throwable) {
-            // 把坏文件留证但改名;再试一次 .prev,都不行才写回默认值——否则每次开机都静默退回默认,
-            // 用户只看到「我排的顺序又没了」,却不知道文件是坏的。
-            Log.w(TAG, "layout.json 读不了,改名保留: ${e.message}")
-            if (!got.fromPrev) runCatching { Paths.layoutJson(ctx).renameTo(Paths.layoutBad(ctx)) }
-            val fromPrev = if (got.fromPrev) null else runCatching {
-                Paths.layoutPrev(ctx).takeIf { it.exists() }?.let { parse(it.readText()) }
-            }.getOrNull()
-            if (fromPrev != null) {
-                Log.w(TAG, "改用 layout.json.prev")
-                write(ctx, fromPrev)
-                fromPrev
-            } else {
+            // Missing = 正式文件与 .prev 都不在:真正的首次运行;Corrupt = 一份都解析不了
+            else -> {
                 write(ctx, DEFAULT_LAYOUT)
                 DEFAULT_LAYOUT
             }

@@ -63,4 +63,9 @@ class InputPrefsTest {
         val none = listOf(e("HW2", "HDMI 1"), e("HW3", "HDMI 2"))
         assertSame(none, mergeTuners(none))
     }
+
+    @Test fun strictHiddenInputsParseThrowsOnBrokenSyntax() {
+        assertEquals(true, runCatching { parseHiddenInputsStrict("{\"x\"") }.isFailure)
+        assertEquals(setOf("hdmi1"), parseHiddenInputsStrict(hiddenInputsToJson(setOf("hdmi1"))))
+    }
 }

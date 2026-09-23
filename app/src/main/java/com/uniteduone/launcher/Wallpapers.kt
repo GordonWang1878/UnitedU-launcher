@@ -144,16 +144,12 @@ object Wallpapers {
         for (name in todo) {
             val dst = File(dir, "$BUILTIN_PREFIX$name.jpg")
             if (!dst.exists()) {
-                // tmp → 校验可解码 → rename:复制到一半被杀不能留下半截文件(与 M1 ensureDefaultWallpaper 同理)
-                val tmp = File(dir, "$BUILTIN_PREFIX$name.tmp")
+                // 独立临时文件 → 校验可解码 → rename:复制到一半被杀不能留下半截文件(与 M1 ensureDefaultWallpaper 同理)
                 runCatching {
-                    ctx.assets.open("wallpapers/$name.jpg").use { input ->
-                        tmp.outputStream().use { out -> input.copyTo(out); out.flush(); out.fd.sync() }
-                    }
-                    check(Apps.isDecodableImage(tmp.absolutePath))
-                    if (!tmp.renameTo(dst)) { dst.delete(); check(tmp.renameTo(dst)) }
+                    check(writeFileAtomically(dst, verify = { Apps.isDecodableImage(it.absolutePath) }) { out ->
+                        ctx.assets.open("wallpapers/$name.jpg").use { it.copyTo(out) }
+                    })
                 }.onFailure { Log.w(TAG, "内置壁纸铺入失败 $name: ${it.message}") }
-                tmp.delete()
             }
             // 只记真正落地的:被杀 / 失败的那几张不进标记,下次 prepare 还会补铺。
             if (dst.isFile) landed += name
@@ -328,20 +324,15 @@ object Wallpapers {
     }
 
     /**
-     * tmp → rename 写缓存,然后只留最新(按 mtime)[CACHE_KEEP] 个——缓存命中会顺带刷新 mtime
+     * 独立临时文件 → rename 写缓存,然后只留最新(按 mtime)[CACHE_KEEP] 个——缓存命中会顺带刷新 mtime
      * ([processed]),所以这是真 LRU,不是写入顺序的 FIFO。顺带扫掉遗留超过 60s 的 .tmp
      * (compress 中途被杀留下的半成品;60s 内的可能是另一个还在写的调用,不能碰)。
      * 失败只记日志:这次仍用内存里的位图显示。
      */
     private fun writeCache(dir: File, dst: File, bmp: Bitmap) {
         runCatching {
-            dir.mkdirs()
-            val tmp = File(dir, "${dst.nameWithoutExtension}.tmp")
-            tmp.outputStream().use { out ->
-                bmp.compress(Bitmap.CompressFormat.JPEG, 90, out)
-                out.flush(); out.fd.sync()
-            }
-            if (!tmp.renameTo(dst)) { dst.delete(); check(tmp.renameTo(dst)) }
+            // 独立临时文件(writeFileAtomically):两次同 key 的渲染不会往同一个 .tmp 里交错写出半张 JPEG
+            check(writeFileAtomically(dst) { out -> bmp.compress(Bitmap.CompressFormat.JPEG, 90, out) })
             dir.listFiles { f -> f.isFile && f.extension == "jpg" }
                 ?.sortedByDescending { it.lastModified() }
                 ?.drop(CACHE_KEEP)

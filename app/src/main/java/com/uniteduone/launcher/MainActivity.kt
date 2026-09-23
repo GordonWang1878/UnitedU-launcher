@@ -1270,13 +1270,13 @@ class MainActivity : ComponentActivity() {
 
     /**
      * 引导第 2 步的「继续」(fill)/「跳过」。界面立刻进第 3 步,写盘在串行 IO 上做
-     * (见 `onboardingLayoutWrites`:「继续 → 返回 → 跳过」两次写盘不会交叠,最后落盘的是最后一次选择);
+     * (见 `layoutWrites`:「继续 → 返回 → 跳过」两次写盘不会交叠,最后落盘的是最后一次选择);
      * 写完 `revision++`,底下常驻的首页按新 layout.json 重读。
      */
     private fun fillFromOnboarding(fill: Boolean) {
         onbStep = 3
         lifecycleScope.launch {
-            val ok = withContext(onboardingLayoutWrites) { writeOnboardingLayout(this@MainActivity, fill) }
+            val ok = withContext(layoutWrites) { writeOnboardingLayout(this@MainActivity, fill) }
             if (ok) revision++ else toast(getString(R.string.toast_storage_not_ready))
         }
     }
@@ -1668,15 +1668,12 @@ class MainActivity : ComponentActivity() {
             if (ok) settingsRevision++
         } else {
             val dest = Paths.iconFor(this, target)
-            val tmp = java.io.File(dest.parentFile, "$target.tmp")
+            // 独立临时文件 → 校验可解码 → rename;rename 失败不删现有的自定义图(见 writeFileAtomically)
             val ok = runCatching {
-                file.inputStream().use { input ->
-                    tmp.outputStream().use { out -> input.copyTo(out); out.flush(); out.fd.sync() }
+                writeFileAtomically(dest, verify = { Apps.isDecodableImage(it.absolutePath) }) { out ->
+                    file.inputStream().use { it.copyTo(out) }
                 }
-                check(Apps.isDecodableImage(tmp.absolutePath))
-                if (!tmp.renameTo(dest)) { dest.delete(); check(tmp.renameTo(dest)) }
-            }.isSuccess
-            tmp.delete()
+            }.getOrDefault(false)
             toast(getString(if (ok) R.string.toast_card_image_changed else R.string.toast_invalid_image))
             if (ok) revision++
         }

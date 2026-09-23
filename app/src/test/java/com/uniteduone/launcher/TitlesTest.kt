@@ -54,4 +54,9 @@ class TitlesTest {
         assertEquals(bmp, truncateTitle(bmp))
         assertEquals(bmp, sanitizeTitle(bmp))
     }
+
+    @Test fun strictParseThrowsOnBrokenSyntax() {
+        assertTrue(runCatching { parseTitlesStrict("{\"a\":") }.isFailure)
+        assertEquals(mapOf("a" to "A"), parseTitlesStrict("{\"a\": \"A\"}"))
+    }
 }

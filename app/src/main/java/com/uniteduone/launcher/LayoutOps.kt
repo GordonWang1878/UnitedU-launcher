@@ -45,3 +45,26 @@ internal fun swapRows(rows: List<LayoutRow>, a: Int, b: Int): List<LayoutRow> {
     if (a !in rows.indices || b !in rows.indices || a == b) return rows
     return rows.toMutableList().apply { val t = this[a]; this[a] = this[b]; this[b] = t }
 }
+
+/**
+ * 编辑页整份写盘前的合并(2026-09-23 落盘排查):编辑页开着时 `rows` 只在进页时读一次,而清单里的
+ * `PackageRemovedReceiver` / MainActivity 的动态接收器随时会把**真正卸载**的包从盘上清掉([Layout.removePackage])。
+ * 编辑页下一次整份写回,会把那个包原样写回去——编辑页从此多一张「未安装」的僵尸卡(2026-09-16 修过的同一个症状)。
+ *
+ * 规则:快照里的包,**上次已知在盘上**([knownOnDisk])、此刻**不在盘上**、且**没装**——三条同时成立才去掉
+ * (= 被别人清理掉的卸载)。刚在本页加进来、还没落过盘的包不在 [knownOnDisk] 里,一律保留;
+ * 卸载后又重装、用户又加回来的包 [installed] 为 true,也保留。一个都没去掉时返回**同一个** list。
+ * 行名、行序、其余包的顺序都不动。
+ */
+internal fun dropRemovedElsewhere(
+    snapshot: List<LayoutRow>,
+    disk: List<LayoutRow>,
+    knownOnDisk: Set<String>,
+    installed: (String) -> Boolean,
+): List<LayoutRow> {
+    val onDisk = disk.flatMapTo(HashSet()) { it.apps }
+    val gone = snapshot.flatMapTo(HashSet()) { it.apps }
+        .filterTo(HashSet()) { it in knownOnDisk && it !in onDisk && !installed(it) }
+    if (gone.isEmpty()) return snapshot
+    return snapshot.map { r -> if (r.apps.any { it in gone }) r.copy(apps = r.apps.filter { it !in gone }) else r }
+}

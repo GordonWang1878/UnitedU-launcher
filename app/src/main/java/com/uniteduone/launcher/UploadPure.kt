@@ -4,6 +4,7 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.common.BitMatrix
 import com.google.zxing.qrcode.QRCodeWriter
+import java.io.File
 
 /**
  * 上传页里**不碰 Android 类**的部分:类型表、文件名清洗、重名、选址、JSON 拼装、二维码矩阵。
@@ -87,6 +88,33 @@ fun uniqueName(existing: Set<String>, name: String): String {
     while ("$stem-$i$ext" in existing) i++
     return "$stem-$i$ext"
 }
+
+/** 图库落盘的进程内锁:「挑不重名的名字 → 移入」必须一口气做完,见 [saveIntoLibrary]。 */
+private val libraryLock = Any()
+
+/**
+ * 把一个已校验过的上传临时文件移进图库目录 [dir],落盘名按 [uniqueName] 避开已有文件;@return 落盘名,失败 null。
+ *
+ * **挑名字与移入在同一把锁里**:NanoHTTPD 每个请求一个线程,两批同名上传(手机上连选两次、两台手机)各自
+ * `dir.list()` 看到同一个空位,都挑中 `a.jpg`,后 rename 的那个**静默覆盖**先到的那张(POSIX rename 覆盖已有文件)。
+ * 移入优先同卷 [rename](原子);跨卷(外置 cache 没挂时)回落到 [writeFileAtomically]:复制进同目录的独立临时文件
+ * (扩展名 `.tmp`,图库扫描看不见)→ fsync → rename,网格重扫 / 屏保播放器 / 缩略图**读不到半截文件**。
+ * 旧写法直接往正式文件名里流式复制,复制途中被扫描到就是半张图,复制失败还会把半截文件留在图库里。
+ * [rename] 只为单测注入(模拟跨卷 rename 失败)。
+ */
+fun saveIntoLibrary(src: File, dir: File, name: String, rename: (File, File) -> Boolean = { a, b -> a.renameTo(b) }): String? =
+    synchronized(libraryLock) {
+        val finalName = uniqueName(dir.list()?.toSet() ?: emptySet(), name)
+        val dst = File(dir, finalName)
+        if (rename(src, dst)) return@synchronized finalName
+        val ok = runCatching {
+            writeFileAtomically(dst) { out -> src.inputStream().use { it.copyTo(out) } }
+        }.getOrDefault(false)
+        if (ok) { src.delete(); finalName } else null
+    }
+
+/** 图库里遗留的落盘临时文件(进程在复制途中被杀):`writeFileAtomically` 的 `.<名>.<随机>.tmp`。 */
+fun isStaleLibraryTemp(name: String): Boolean = name.startsWith(".") && name.endsWith(".tmp")
 
 /** (接口名, IPv4) 候选里挑一个给用户看:wlan/eth/en 开头的优先,其次任意;空 → null。 */
 fun pickAddress(candidates: List<Pair<String, String>>): String? {

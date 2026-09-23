@@ -158,3 +158,9 @@ adb emu kill                                     # 关闭
    比对自然不成立,不需要任何人去清;而且守卫读的量本身就是 key,天然满足第 6 条。
    **判据:凡是写了 `x = true`,数一数有几条路把它写回 `false`;只有一条就换写法。**
 
+
+## 落盘铁律(2026-09-23 卸载一个应用、整个首页被换成默认布局的事故)
+
+- 有多个写者的状态文件(layout / titles / hidden-inputs / settings)一律走 `LockedFile`,新文件也一样;读取统一用 `store.load`。排查表见 `docs/design/persistence-audit.md`。
+- 读 → 改 → 写要整段放在 `store.locked` 里(`update`);文件缺失时「写默认值」也在同一把锁里。整份快照写盘还要走串行调度器 `layoutWrites`,否则旧快照可能后落盘。
+- 禁止用「rename 失败就删正式文件」这种兜底,除非先有备份(`.prev`);禁止两个写者共用一个固定的 `.tmp`。二进制文件用 `writeFileAtomically`。

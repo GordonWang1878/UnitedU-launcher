@@ -56,6 +56,12 @@ class UploadServer(
         File(File(ctx.cacheDir, "apk"), "upload.apk").delete()
         val cutoff = System.currentTimeMillis() - 60_000
         tmpDir.listFiles()?.forEach { if (it.isFile && it.lastModified() < cutoff) it.delete() }
+        // 跨卷回落复制途中被杀、留在图库里的临时文件(见 saveIntoLibrary);60 s 内的可能正在写,不碰
+        if (Paths.baseOrNull(ctx) != null) for (type in LIBRARY_TYPES) {
+            libraryFor(type)?.listFiles()?.forEach {
+                if (it.isFile && isStaleLibraryTemp(it.name) && it.lastModified() < cutoff) it.delete()
+            }
+        }
     }
 
     private fun libraryFor(type: String?): File? = when (type) {
@@ -174,8 +180,8 @@ class UploadServer(
                 tmp.length() > MAX_UPLOAD_BYTES -> rejected += original to "size"
                 !Apps.isDecodableImage(tmp.absolutePath) -> rejected += original to "decode"
                 else -> {
-                    val finalName = uniqueName(dir.list()?.toSet() ?: emptySet(), clean)
-                    if (moveInto(tmp, File(dir, finalName))) {
+                    val finalName = saveIntoLibrary(tmp, dir, clean)
+                    if (finalName != null) {
                         saved += finalName
                         main.post { onSaved(type!!, finalName) }
                     } else rejected += original to "write"

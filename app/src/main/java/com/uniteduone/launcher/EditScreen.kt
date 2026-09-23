@@ -242,10 +242,22 @@ fun EditScreen(
 
     // 写盘与搬运的四个动作放在一起,排在下面的生命周期观察者之前(它要调 cancelCarry)。
     val scope = rememberCoroutineScope()
+    // 上次确知在盘上的包(进页时读到的 / 上次写下的),只在 layoutWrites 这条串行 IO 上读写。见 dropRemovedElsewhere。
+    val knownOnDisk = remember { java.util.concurrent.atomic.AtomicReference(rows.flatMapTo(HashSet()) { it.apps }.toSet()) }
     fun persist() {
         val snapshot = rows
         scope.launch {
-            val ok = withContext(Dispatchers.IO) { Layout.write(ctx, snapshot) }
+            // layoutWrites:两次 persist 按提交顺序落盘(各自上 Dispatchers.IO 的话,较早的快照可能最后落盘、盖掉较新的)。
+            // rewrite:读盘上最新 → 滤掉这期间被卸载清理掉的包 → 写回,整段在 Layout 的锁里。
+            val ok = withContext(layoutWrites) {
+                var written: List<LayoutRow>? = null
+                val landed = Layout.rewrite(ctx) { disk ->
+                    dropRemovedElsewhere(snapshot, disk, knownOnDisk.get()) { Apps.isInstalled(ctx, it) }
+                        .also { written = it }
+                }
+                if (landed) written?.let { w -> knownOnDisk.set(w.flatMapTo(HashSet()) { it.apps }) }
+                landed
+            }
             if (!ok) android.widget.Toast.makeText(
                 ctx, ctx.getString(R.string.edit_toast_order_not_saved), android.widget.Toast.LENGTH_LONG,
             ).show()

@@ -2,8 +2,6 @@ package com.uniteduone.launcher
 
 import android.content.Context
 import android.util.Log
-import java.io.File
-import java.io.FileOutputStream
 
 /**
  * 待机时进入无操作状态后屏幕上显示什么。
@@ -269,71 +267,44 @@ internal fun isWellFormedJsonObject(text: String): Boolean {
 }
 
 /**
- * settings.json 的读写——完全照抄 [Layout] 的健壮性套路:
- * 外部存储没挂就用内存默认值不写盘;文件不存在就写默认值再返回;
- * 解析包在 `try/catch (e: Throwable)`(超大文件 OOM 是 Error 不是 Exception);
- * 语法损坏就把坏文件改名成 `.bad`、写回默认值、`Log.w` 留痕。
+ * settings.json 的读写——与 [Layout] / [Titles] 同一套落盘层 [LockedFile]:
+ * 外部存储没挂就用内存默认值不写盘;正式文件与 `.prev` 都不在就写默认值再返回;
+ * 正式文件坏了(语法损坏、超大)改名 `.bad` 留证,先试 `.prev`,都不行才写回默认值(口径见 [LockedFile.load])。
  *
  * **M3 起这是个多写者的store**:主线程的设置页 / 选图,IO 线程 prepare 的迁移/铺入/清理
- * (壁纸轮播 R61 删掉之前也在 IO 线程写),都会写同一个文件。所以写必须串行化——见 [lock] 与 [update]。
+ * (壁纸轮播 R61 删掉之前也在 IO 线程写),都会写同一个文件。所以读、写、读改写全部在 `store.locked` 里——
+ * **不加锁会真的丢掉全部设置**:两个写者交叠时,输的那个在 rename 兜底里删掉赢家刚放好的 settings.json,
+ * 下次 [read] 读不到文件就重写一份默认值。read 也要锁:它在文件缺失时会写默认值,落在别人写盘的间隙里就会抹掉别人的结果。
+ * 2026-09-23 起改走 [LockedFile](原来是自己的锁 + 固定 `settings.json.tmp`),多了 `.prev` 这道防线。
  */
 object SettingsStore {
     private const val TAG = "UnitedU"
+    private val store = LockedFile("settings.json")
 
-    /**
-     * 所有写盘串行化。**不加它会真的丢掉全部设置**:[write] 用同一个 `settings.json.tmp`,
-     * 且 rename 失败时的兜底是 `dst.delete()` 再 rename——两个写者交叠时,输的那个可能
-     * 正好删掉赢的那个刚放好的 settings.json,下次 [read] 读不到文件就重写一份默认值,
-     * 用户的全部设置归零。JVM 的 monitor 是可重入的,所以 [update] 里套 [read]、
-     * [read] 里再套 [write] 都不会自锁。
-     */
-    private val lock = Any()
-
-    // 与 write/update 同一把锁:否则读者可能落在「删旧文件 → 改名」的间隙里看到「没文件」而写回默认值,把写者的结果抹掉
-    fun read(ctx: Context): Settings = synchronized(lock) {
-        if (Paths.baseOrNull(ctx) == null) {
+    fun read(ctx: Context): Settings = store.locked {
+        val base = Paths.baseOrNull(ctx)
+        if (base == null) {
             Log.w(TAG, "外部存储没挂上,这次用内存里的默认设置,不写盘")
-            return Settings()
+            return@locked Settings()
         }
-        val f = Paths.settingsJson(ctx)
-        if (!f.exists()) {
-            val defaults = Settings()
-            write(ctx, defaults)
-            return defaults
-        }
-        return try {
-            if (f.length() > 1_000_000) error("settings.json 大得离谱: ${f.length()} 字节")
-            val text = f.readText()
-            if (!isWellFormedJsonObject(text)) error("settings.json 不是合法的 JSON 对象")
-            parseSettings(text)
-        } catch (e: Throwable) {
-            Log.w(TAG, "settings.json 读不了,改名保留并重写默认: ${e.message}")
-            runCatching { f.renameTo(Paths.settingsBad(ctx)) }
-            val defaults = Settings()
-            write(ctx, defaults)
-            defaults
+        when (val got = store.load(base, log = { Log.w(TAG, it) }, parse = ::parseSettingsStrict)) {
+            is LockedFile.Load.Ok -> {
+                if (got.restored) write(ctx, got.value)
+                got.value
+            }
+            else -> Settings().also { write(ctx, it) }
         }
     }
 
     /**
-     * 先写临时文件再改名,理由与 [Layout.write] 相同:直接覆盖写会先截断,
-     * 断电或进程被杀就留下半截文件。
-     * @return 是否真的落盘了;调用方(后续任务里的设置页)需要知道失败,
+     * 原子替换(独立临时文件 → fsync → rename,旧版本先复制成 `.prev`,见 [LockedFile.write])。
+     * @return 是否真的落盘了;调用方(设置页)需要知道失败,
      *   否则界面上改的值下次开机又变回去,用户只会觉得"设置没保存"。
      */
-    private fun write(ctx: Context, s: Settings): Boolean = synchronized(lock) {
-        val base = Paths.baseOrNull(ctx) ?: return false
-        val tmp = File(base, "settings.json.tmp")
-        return try {
-            FileOutputStream(tmp).use { out ->
-                out.write(s.toJson().toByteArray())
-                out.flush()
-                out.fd.sync()
-            }
-            val dst = Paths.settingsJson(ctx)
-            if (tmp.renameTo(dst)) return true
-            dst.delete()
-            tmp.renameTo(dst)
+    private fun write(ctx: Context, s: Settings): Boolean = store.locked {
+        val base = Paths.baseOrNull(ctx) ?: return@locked false
+        try {
+            store.write(base, s.toJson())
         } catch (e: Throwable) {
             Log.w(TAG, "settings.json 写不了: ${e.message}")
             false
@@ -342,13 +313,19 @@ object SettingsStore {
 
     /**
      * 读-改-写一次完成、持锁:设置页、迁移/铺入/清理、选图这些写者全部走这里,
-     * 既不会互相踩 tmp,也没有「读到旧值再整对象回写」的丢更新窗口。
+     * 既不会互相踩临时文件,也没有「读到旧值再整对象回写」的丢更新窗口。
      * @return 写成功时返回写下的 Settings;写失败(外置没挂等)返回 null。
      */
-    fun update(ctx: Context, transform: (Settings) -> Settings): Settings? = synchronized(lock) {
+    fun update(ctx: Context, transform: (Settings) -> Settings): Settings? = store.locked {
         val next = transform(read(ctx))
         if (write(ctx, next)) next else null
     }
+}
+
+/** 语法损坏就抛(交给 [LockedFile.load] 改名 `.bad`);语法没问题、只是缺字段的走 [parseSettings] 的按字段默认。 */
+internal fun parseSettingsStrict(text: String): Settings {
+    if (!isWellFormedJsonObject(text)) error("settings.json 不是合法的 JSON 对象")
+    return parseSettings(text)
 }
 
 /**

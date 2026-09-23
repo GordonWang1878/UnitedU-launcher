@@ -211,6 +211,10 @@ object Apps {
     }.getOrNull()
 
     /** 只读尺寸判断是不是能解的图片,不真的解码——用于校验用户选的文件。 */
+    /** 包是否已安装(有 QUERY_ALL_PACKAGES,看得见所有包)。IO 线程调用。 */
+    fun isInstalled(ctx: Context, pkg: String): Boolean =
+        runCatching { ctx.packageManager.getPackageInfo(pkg, 0) }.isSuccess
+
     fun isDecodableImage(path: String): Boolean {
         val b = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(path, b)

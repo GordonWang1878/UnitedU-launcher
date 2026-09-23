@@ -72,8 +72,14 @@ fun parseTitles(json: String): Map<String, String> {
     }
 }
 
+/** 语法坏了就抛(交给 [LockedFile.load] 当损坏处理),不像 [parseTitles] 那样静默返回空表。 */
+internal fun parseTitlesStrict(text: String): Map<String, String> {
+    if (!isWellFormedJsonObject(text)) error("不是合法的 JSON 对象")
+    return parseTitles(text)
+}
+
 /**
- * 读写照 SettingsStore:外置没挂用内存空表;缺文件 = 空表;坏文件改名 .bad + 写空表 + Log.w。
+ * 读写照 SettingsStore:外置没挂用内存空表;缺文件 = 空表;坏文件改名 .bad、先试 `.prev`,都不行才写空表(口径见 [LockedFile.load])。
  * 落盘走 [LockedFile](锁 + 独立临时文件 + `.prev`):同一次卸载两个接收器会各调一次 [set]
  * (见 [pruneUninstalled]),不串行的话会互删文件——2026-09-23 layout.json 就是这样丢的。
  */
@@ -83,21 +89,13 @@ object Titles {
 
     fun read(ctx: Context): Map<String, String> = store.locked {
         val base = Paths.baseOrNull(ctx) ?: return@locked emptyMap()
-        val got = store.readText(base) ?: return@locked emptyMap()
-        try {
-            if (got.text.length > 1_000_000) error("titles.json 大得离谱: ${got.text.length} 字符")
-            if (!isWellFormedJsonObject(got.text)) error("titles.json 不是合法的 JSON 对象")
-            val m = parseTitles(got.text)
-            if (got.fromPrev) {
-                Log.w(TAG, "titles.json 不见了,从 titles.json.prev 恢复")
-                write(ctx, m)
+        when (val got = store.load(base, log = { Log.w(TAG, it) }, parse = ::parseTitlesStrict)) {
+            is LockedFile.Load.Ok -> {
+                if (got.restored) write(ctx, got.value)
+                got.value
             }
-            m
-        } catch (e: Throwable) {
-            Log.w(TAG, "titles.json 读不了,改名保留并重写空表: ${e.message}")
-            if (!got.fromPrev) runCatching { Paths.titlesJson(ctx).renameTo(Paths.titlesBad(ctx)) }
-            write(ctx, emptyMap())
-            emptyMap()
+            LockedFile.Load.Missing -> emptyMap()   // 缺文件 = 空表,不写盘
+            LockedFile.Load.Corrupt -> { write(ctx, emptyMap()); emptyMap() }
         }
     }
 

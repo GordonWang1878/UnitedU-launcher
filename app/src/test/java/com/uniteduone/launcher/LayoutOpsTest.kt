@@ -68,4 +68,29 @@ class LayoutOpsTest {
         assertSame(three, swapRows(three, 0, 3))
         assertSame(three, swapRows(three, 1, 1))
     }
+
+    // ---- dropRemovedElsewhere(编辑页整份写回前的合并)----
+
+    private val snap = listOf(
+        LayoutRow("VIDEO", apps = listOf("a", "gone", "b")),
+        LayoutRow("MUSIC", apps = listOf("new", "c")),
+    )
+
+    @Test fun dropsOnlyPackagesThatWereOnDiskAndGotUninstalled() {
+        val disk = listOf(LayoutRow("VIDEO", apps = listOf("a", "b")), LayoutRow("MUSIC", apps = listOf("c")))
+        val got = dropRemovedElsewhere(snap, disk, knownOnDisk = setOf("a", "gone", "b", "c")) { false }
+        assertEquals(
+            listOf(LayoutRow("VIDEO", apps = listOf("a", "b")), LayoutRow("MUSIC", apps = listOf("new", "c"))),
+            got,
+        )
+    }
+
+    @Test fun keepsAReinstalledPackageTheUserAddedBack() {
+        val disk = listOf(LayoutRow("VIDEO", apps = listOf("a", "b")), LayoutRow("MUSIC", apps = listOf("c")))
+        assertSame(snap, dropRemovedElsewhere(snap, disk, setOf("a", "gone", "b", "c")) { it == "gone" })
+    }
+
+    @Test fun nothingRemovedElsewhereReturnsTheSameList() {
+        assertSame(snap, dropRemovedElsewhere(snap, snap, setOf("a", "gone", "b", "c")) { false })
+    }
 }

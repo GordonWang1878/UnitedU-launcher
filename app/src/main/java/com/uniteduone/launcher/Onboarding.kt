@@ -50,9 +50,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.withContext
 
 /** 页面内容列宽。960dp 宽的电视屏上居中,四个语言按钮与「继续 / 跳过」都在这一列里。 */
@@ -543,15 +541,7 @@ internal fun onboardingPlan(ctx: Context): List<Pair<String, List<Pair<String, S
 }
 
 /**
- * 第 2 步落盘专用的**串行** IO 调度器。`Layout.write` 不加锁、固定用同一个 `layout.json.tmp`:
- * 「继续 → 返回 → 跳过」若两次写盘交叠,输的一方可能在兜底的 delete + rename 里把赢家刚放好的文件删掉。
- * 串行且按提交顺序执行(`limitedParallelism(1)` 内部是 FIFO 队列),最后落盘的一定是最后一次按下的选择。
- */
-@OptIn(ExperimentalCoroutinesApi::class)
-internal val onboardingLayoutWrites: CoroutineDispatcher = Dispatchers.IO.limitedParallelism(1)
-
-/**
- * 第 2 步的写盘(在 [onboardingLayoutWrites] 上调用)。[fill] = 「继续」:按**此刻**的已装集合过滤分类表;
+ * 第 2 步的写盘(在 [layoutWrites] 上调用:「继续 → 返回 → 跳过」两次整份写按提交顺序落盘,最后落盘的一定是最后一次按下的选择)。[fill] = 「继续」:按**此刻**的已装集合过滤分类表;
  * false = 「跳过」:三行空。@return 是否真的落盘了。
  */
 @WorkerThread

@@ -149,4 +149,45 @@ class UploadPureTest {
         assertEquals("null", defaultTabJs("apk"))
         assertEquals("null", defaultTabJs("\"</script><script>alert(1)"))
     }
+
+    // ---- saveIntoLibrary(2026-09-23 落盘排查)----
+
+    private fun tmpDir(): java.io.File = java.nio.file.Files.createTempDirectory("lib").toFile()
+
+    /** 两批同名上传并发落盘:旧写法各自看到同一个空位、后到的 rename 静默覆盖先到的。现在一张都不丢。 */
+    @Test fun concurrentSameNameUploadsNeverOverwriteEachOther() {
+        val src = tmpDir()
+        val lib = tmpDir()
+        val n = 24
+        val files = (0 until n).map { i -> java.io.File(src, "up$i").apply { writeText("img$i") } }
+        val start = java.util.concurrent.CountDownLatch(1)
+        val names = java.util.Collections.synchronizedList(ArrayList<String?>())
+        val workers = files.map { f ->
+            Thread { start.await(); names += saveIntoLibrary(f, lib, "a.jpg") }.apply { start() }
+        }
+        start.countDown()
+        workers.forEach { it.join() }
+        assertEquals(n, names.filterNotNull().toSet().size)
+        assertEquals((0 until n).map { "img$it" }.toSet(), lib.listFiles()!!.map { it.readText() }.toSet())
+    }
+
+    /** 跨卷 rename 失败 → 复制回落:落盘名里是完整内容,源删掉,图库里不留临时文件。 */
+    @Test fun crossVolumeFallbackCopiesCompletelyAndCleansUp() {
+        val src = java.io.File(tmpDir(), "upload").apply { writeText("pixels") }
+        val lib = tmpDir()
+        java.io.File(lib, "a.jpg").writeText("existing")
+        val name = saveIntoLibrary(src, lib, "a.jpg", rename = { _, _ -> false })
+        assertEquals("a-1.jpg", name)
+        assertEquals("pixels", java.io.File(lib, "a-1.jpg").readText())
+        assertEquals("existing", java.io.File(lib, "a.jpg").readText())
+        assertFalse(src.exists())
+        assertEquals(setOf("a.jpg", "a-1.jpg"), lib.list()!!.toSet())
+    }
+
+    @Test fun staleLibraryTempNamesAreRecognisedButImagesAreNot() {
+        assertTrue(isStaleLibraryTemp(".a.jpg.123456.tmp"))
+        assertFalse(isStaleLibraryTemp("a.jpg"))
+        assertFalse(isStaleLibraryTemp(".seeded"))
+        assertFalse(extensionOf(".a.jpg.123456.tmp") in UPLOAD_IMAGE_EXTS)
+    }
 }
