@@ -40,10 +40,11 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import kotlinx.coroutines.delay
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
-import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -302,7 +303,9 @@ private fun PickerGrid(
     val density = LocalDensity.current
     // 一份 val 两处用(fix round 1):下面 verticalArrangement 的行距与这里的位移算术必须是
     // 同一个数,分写两处迟早改一处漏一处、量出来的间距和实际渲染的间距对不上。
-    val rowGap = 8.dp
+    // P2(交互测试第二轮):聚焦格照首页卡片放大 + 描边,纵向溢出 = appFocusOverflow(缩略图高)≈ 8.8dp;
+    // 行距要大于它,聚焦描边才碰不到上一行的标签,视窗下面的纵向裁剪留白(= rowGap)也才盖得住描边。
+    val rowGap = 16.dp
     val rowGapPx = with(density) { rowGap.roundToPx() }
     /** 一行缩略图的实测高度(首行量出来,各行等高);0 = 还没量到,此时不位移。 */
     var rowHeightPx by remember { mutableStateOf(0) }
@@ -433,7 +436,19 @@ private fun PickerGrid(
                 // 标题和底注先拿到自己的高度,视窗只分剩下的。
                 .weight(1f, fill = false)
                 .heightIn(max = 600.dp)
-                .clipToBounds()
+                // P2:原来是 clipToBounds()。聚焦格放大后描边 + 柔光伸出格子外(描边横向 ≈ 12.5dp、纵向 ≈ 8.8dp),
+                // 贴着视窗边的那一格会被裁掉。视窗裁剪的唯一用途是翻页时藏住视窗外的行,所以:横向放开
+                // (左右由外层面板 16dp 内边距 + 圆角裁剪兜底,描边溢出 < 16dp);纵向只在那一侧**确实有行被藏**
+                // 时才裁,且外扩 rowGap——视窗外相邻那一行离视窗边正好 rowGap 远,外扩不超过它就不会露出来;
+                // 那一侧没有被藏的行时不裁(柔光一直铺到面板边,不在视窗边上留一道硬边)。
+                .drawWithContent {
+                    val m = rowGapPx.toFloat()
+                    val top = if (firstRow > 0) -m else -size.height
+                    val bottom = if (firstRow + visibleRows < rows.size) size.height + m else size.height * 2
+                    clipRect(left = -size.width, top = top, right = size.width * 2, bottom = bottom) {
+                        this@drawWithContent.drawContent()
+                    }
+                }
                 .onSizeChanged { viewportPx = it.height },
         ) {
         Column(
@@ -446,7 +461,8 @@ private fun PickerGrid(
         ) {
         rows.forEachIndexed { rowIdx, rowItems ->
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                // P2:格距照首页 CARD_GAP(20dp)——大于放大后的横向溢出(≤ 12.5dp),聚焦描边不压到邻格。
+                horizontalArrangement = Arrangement.spacedBy(GtvLayout.CARD_GAP.dp),
                 modifier = if (rowIdx == 0) Modifier.onSizeChanged { rowHeightPx = it.height } else Modifier,
             ) {
                 rowItems.forEachIndexed { colIdx, item ->
@@ -476,9 +492,14 @@ private fun PickerGrid(
                                 // 新格先报 got、旧格后报 lost 时不会把新格抹掉。
                                 if (it.isFocused) holderIdx = idx else if (holderIdx == idx) holderIdx = null
                             }
+                            // P2:indication 不再用 LocalIndication——默认的那份在「聚焦」时给整格盖一层 10% 黑,
+                            // 盖在格子布局框上、不跟着缩略图放大,放大出来的那一圈边和标签底下各出现一块明暗
+                            // 不一的矩形(模拟器截图实测)。聚焦由 gtvAppFocusFrame 表达,同首页卡片;按压
+                            // 不再有暗色(首页卡片也没有)。interactionSource 与遗留 #8 的补发 Cancel 照旧保留:
+                            // 它还管着 ClickableNode 内部「这键还按着」的记录。
                             .clickable(
                                 interactionSource = interactionSources[idx],
-                                indication = LocalIndication.current,
+                                indication = null,
                             ) {
                                 when (item) {
                                     is PickerItem.Original -> onRestoreOriginal?.invoke()
@@ -544,15 +565,12 @@ private fun ThumbCard(
         is PickerItem.Library -> item.file.nameWithoutExtension
     }
     val highlight = LocalThemeColors.current.highlight
+    val accent = LocalThemeColors.current.accent
 
     Column(
-        modifier = modifier
-            .width(thumbWidth)
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (focused) highlight.copy(alpha = 0.16f) else Theme.UnfocusedSurface)
-            .padding(6.dp),
+        modifier = thumbCellModifier(modifier, focused, thumbWidth),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(thumbLabelGap(thumbHeight)),
     ) {
         // PickerItem.Library 是 data class,按 file 判等:只认还没被换下去的那一份。
         val bmp = thumb?.takeIf { it.first == item }?.second
@@ -562,14 +580,15 @@ private fun ThumbCard(
                 contentDescription = label,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
+                    .gtvAppFocusFrame(focused, accent, THUMB_CORNER)
                     .fillMaxWidth()
                     .height(thumbHeight)
-                    .clip(RoundedCornerShape(4.dp)),
+                    .clip(RoundedCornerShape(THUMB_CORNER)),
             )
         } else {
             Box(
-                modifier = Modifier.fillMaxWidth().height(thumbHeight)
-                    .clip(RoundedCornerShape(4.dp)).background(Theme.ThumbPlaceholderBackground),
+                modifier = Modifier.gtvAppFocusFrame(focused, accent, THUMB_CORNER).fillMaxWidth().height(thumbHeight)
+                    .clip(RoundedCornerShape(THUMB_CORNER)).background(Theme.ThumbPlaceholderBackground),
                 contentAlignment = Alignment.Center,
             ) {
                 BasicText("...", style = TextStyle(color = Theme.ThumbLoadingText, fontSize = 12.sp))
@@ -593,25 +612,38 @@ private fun ThumbCard(
 
 
 /**
- * 「＋ 从手机添加」格(Ruling R63):与图片格同尺寸、同聚焦样式(聚焦底色 highlight 16%、标签变 highlight),
+ * P2(交互测试 2026-09-23 第二轮):图片网格的聚焦格与首页卡片同一套表现——缩略图本身走
+ * [gtvAppFocusFrame](放大 [GtvLayout.APP_FOCUS_SCALE] + 贴着放大后边缘的 accent 描边 + 柔光),不再是
+ * 「整格底色亮 16%」。所以格子不再有自己的底板,也**不能 clip**:放大与描边都画在缩略图布局框之外。
+ * 聚焦格 zIndex 抬高,同一行里柔光盖在左右邻格之上(同首页 AppCard)。焦点逻辑(requester / 上报)全在
+ * 调用方传进来的 [cell] 里,这里一行没动。
+ */
+private fun thumbCellModifier(cell: Modifier, focused: Boolean, thumbWidth: Dp): Modifier =
+    cell.zIndex(if (focused) 1f else 0f).width(thumbWidth)
+
+/** 缩略图与下方标签的间距 = 放大后纵向溢出(缩放增量一半 + 描边间隙 + 描边),聚焦描边不压标签。 */
+private fun thumbLabelGap(thumbHeight: Dp): Dp = GtvLayout.appFocusOverflow(thumbHeight.value).dp
+
+/** 缩略图圆角 = 首页卡片圆角(P2:同一套聚焦几何,描边与缩略图同心)。 */
+private val THUMB_CORNER = GtvLayout.CARD_CORNER.dp
+
+/**
+ * 「＋ 从手机添加」格(Ruling R63):与图片格同尺寸、同聚焦样式(P2 起:缩略图放大 + 描边,标签变 highlight),
  * 缩略图位置画一个「＋」(同编辑页行尾 AddCard 的字形)。
  */
 @Composable
 private fun AddFromPhoneCard(focused: Boolean, thumbWidth: Dp, thumbHeight: Dp, modifier: Modifier) {
     val highlight = LocalThemeColors.current.highlight
+    val accent = LocalThemeColors.current.accent
     val label = stringResource(R.string.picker_add_from_phone)
     Column(
-        modifier = modifier
-            .width(thumbWidth)
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (focused) highlight.copy(alpha = 0.16f) else Theme.UnfocusedSurface)
-            .padding(6.dp),
+        modifier = thumbCellModifier(modifier, focused, thumbWidth),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(thumbLabelGap(thumbHeight)),
     ) {
         Box(
-            modifier = Modifier.fillMaxWidth().height(thumbHeight)
-                .clip(RoundedCornerShape(4.dp)).background(Theme.ThumbPlaceholderBackground)
+            modifier = Modifier.gtvAppFocusFrame(focused, accent, THUMB_CORNER).fillMaxWidth().height(thumbHeight)
+                .clip(RoundedCornerShape(THUMB_CORNER)).background(Theme.ThumbPlaceholderBackground)
                 .clearAndSetSemantics { },
             contentAlignment = Alignment.Center,
         ) {
