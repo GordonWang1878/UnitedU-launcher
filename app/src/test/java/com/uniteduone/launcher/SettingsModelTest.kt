@@ -17,6 +17,7 @@ class SettingsModelTest {
         val fired = mutableListOf<String>()
         val languages = mutableListOf<String>()
         val actions = SettingsActions(
+            openEdit = { fired += "openEdit" },
             pickWallpaper = { fired += "pickWallpaper" },
             openImport = { fired += "openImport" },
             setDefaultHome = { fired += "setDefaultHome" },
@@ -38,18 +39,18 @@ class SettingsModelTest {
 
     @Test fun groupOrderFollowsSpec() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
-        // R57:左栏只剩四组,通用在最上。
+        // R67:四组顺序 = 外壳第一层的分组胶囊顺序,布局在最上。
         assertEquals(
-            listOf(GroupId.GENERAL, GroupId.LAYOUT, GroupId.APPEARANCE, GroupId.SCREENSAVER),
+            listOf(GroupId.LAYOUT, GroupId.GENERAL, GroupId.APPEARANCE, GroupId.SCREENSAVER),
             g.map { it.id },
         )
     }
 
     @Test fun rowCountsPerGroup() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
-        // 通用 7(R60 手机传输挪进来)+ 动画缩放条件行(默认 UNKNOWN = 读不到 → 出「查看」)/ 布局 3 /
-        // 外观 1 动作 + 2 壁纸滑块(自动切换 R61 删掉)+ 2 主题(主题化卡片 R58 删掉)/ 屏保 2 控件 + 2 动作
-        assertEquals(listOf(8, 3, 5, 4), g.map { it.rows.size })
+        // 布局 1 动作(R67 编辑分栏)+ 3 / 通用 7(R60 手机传输挪进来)+ 动画缩放条件行(默认 UNKNOWN = 读不到 → 出「查看」)/
+        // 外观 1 动作 + 2 壁纸滑块(自动切换 R61 删掉)+ 2 主题(主题化卡片 R58 删掉)+ 2 卡片淡化滑块(R68)/ 屏保 2 控件 + 2 动作
+        assertEquals(listOf(4, 8, 7, 4), g.map { it.rows.size })
     }
 
     @Test fun rowIdsAreUnique() {
@@ -57,7 +58,7 @@ class SettingsModelTest {
         assertEquals(ids.size, ids.distinct().size)
     }
 
-    /** 右栏一屏放得下的不变量(spec §2.1:≤ 8 行、永不滚动)。 */
+    /** 胶囊列一屏放得下的不变量(≤ 8 颗、永不滚动;8 颗时间距缩到 8 dp,见 capsuleGap)。 */
     @Test fun noGroupExceedsEightRows() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
         assertTrue(g.all { it.rows.size <= 8 })
@@ -96,7 +97,7 @@ class SettingsModelTest {
         assertEquals(
             listOf(
                 "pickWallpaper", "wallpaperBlur", "wallpaperBrightness",
-                "themeColor", "followWallpaper",
+                "themeColor", "followWallpaper", "cardSaturation", "cardBrightness",
             ),
             g.first { it.id == GroupId.APPEARANCE }.rows.map { it.id },
         )
@@ -165,6 +166,7 @@ class SettingsModelTest {
     @Test fun actionRowsFireTheirAction() {
         val r = Recorder()
         val g = settingsGroups(Settings(), {}, r.actions, someImages)
+        (row(g, "editLayout") as ActionRow).onActivate()
         (row(g, "pickWallpaper") as ActionRow).onActivate()
         (row(g, "openImport") as ActionRow).onActivate()
         (row(g, "setDefaultHome") as ActionRow).onActivate()
@@ -173,7 +175,7 @@ class SettingsModelTest {
         (row(g, "systemScreensaver") as ActionRow).onActivate()
         assertEquals(
             listOf(
-                "pickWallpaper", "openImport", "setDefaultHome", "restoreDefaults",
+                "openEdit", "pickWallpaper", "openImport", "setDefaultHome", "restoreDefaults",
                 "openScreensaverGallery", "openSystemScreensaver",
             ),
             r.fired,
@@ -268,7 +270,7 @@ class SettingsModelTest {
                 settingsGroups(Settings(), {}, Recorder().actions, someImages, hiddenInputs = hiddenInputs)
             }
             ).first { it.id == GroupId.LAYOUT }.rows.map { it.id }
-        val expected = listOf("cardsPerRow", "showTitles", "showInputRow")
+        val expected = listOf("editLayout", "cardsPerRow", "showTitles", "showInputRow")
         assertEquals(expected, layoutRowIds(0))
         // 不传第五个参数(19 处既有调用全是这样)必须等价于显式传 0。
         assertEquals(expected, layoutRowIds(null))
@@ -279,7 +281,7 @@ class SettingsModelTest {
         val g = settingsGroups(Settings(), {}, r.actions, someImages, hiddenInputs = 2)
         val layout = g.first { it.id == GroupId.LAYOUT }.rows
         assertEquals(
-            listOf("cardsPerRow", "showTitles", "showInputRow", "restoreHiddenInputs"),
+            listOf("editLayout", "cardsPerRow", "showTitles", "showInputRow", "restoreHiddenInputs"),
             layout.map { it.id },
         )
         val row = layout.last() as ActionRow
@@ -340,5 +342,65 @@ class SettingsModelTest {
         (row(g, "systemScreensaver") as ActionRow).onActivate()
         (row(g, "systemAnimationScale") as ActionRow).onActivate()
         assertEquals(listOf("openSystemScreensaver", "openSystemAnimationSettings"), r.fired)
+    }
+
+    // ---- R67 / R68 / R69:设置页外壳用到的模型部分 ----
+
+    /** R67:「编辑分栏」是布局组第一行,打开现有编辑页。 */
+    @Test fun editLayoutIsFirstLayoutRow() {
+        val r = Recorder()
+        val g = settingsGroups(Settings(), {}, r.actions, someImages)
+        val first = g.first { it.id == GroupId.LAYOUT }.rows.first() as ActionRow
+        assertEquals("editLayout", first.id)
+        assertEquals(R.string.menu_edit, first.labelRes)
+        first.onActivate()
+        assertEquals(listOf("openEdit"), r.fired)
+    }
+
+    /** R68:两条卡片淡化滑块——饱和度 0–100 步 10、亮度 50–100 步 5,都是 11 档;缺省 30 / 75。 */
+    @Test fun cardFadeSlidersMirrorAndWrite() {
+        var written: Settings? = null
+        val base = Settings()
+        val g = settingsGroups(base, { t -> written = t(base) }, Recorder().actions, someImages)
+        val sat = ctrl(g, "cardSaturation")
+        val bri = ctrl(g, "cardBrightness")
+        assertEquals(CtrlKind.SLIDER, sat.kind)
+        assertEquals(CtrlKind.SLIDER, bri.kind)
+        assertEquals(11, sat.count)
+        assertEquals(11, bri.count)
+        assertEquals(3, sat.selected)          // 30%
+        assertEquals(5, bri.selected)          // (75 − 50) / 5
+        sat.onSelect(10)
+        assertEquals(100, written?.cardSaturation)
+        bri.onSelect(0)
+        assertEquals(50, written?.cardBrightness)
+        bri.onSelect(10)
+        assertEquals(100, written?.cardBrightness)
+    }
+
+    /**
+     * R69:每个可改值行的 onSelect 就是 `update { write(it, i) }`——确定键落盘的值与光标停留时的预览逐字段相同。
+     * 语言行例外(write = null,走 applyLanguage)。
+     */
+    @Test fun onSelectAndWriteAgreeForEveryRow() {
+        val base = Settings()
+        rowsOf(settingsGroups(base, {}, Recorder().actions, someImages)).filterIsInstance<ControlRow>().forEach { row ->
+            if (row.id == "language") { assertNull(row.write); return@forEach }
+            for (i in 0 until row.count) {
+                var written: Settings? = null
+                val g = settingsGroups(base, { t -> written = t(base) }, Recorder().actions, someImages)
+                ctrl(g, row.id).onSelect(i)
+                assertEquals("${row.id}#$i", row.write!!(base, i), written)
+            }
+        }
+    }
+
+    /** 选项文案条数与档数一致(外壳选项层每档一颗胶囊);主题色的文案是预设名。 */
+    @Test fun optionLabelsCoverEveryChoice() {
+        val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
+        val theme = ctrl(g, "themeColor")
+        assertEquals(ThemePresets.all.map { it.nameRes }, theme.optionRes)
+        rowsOf(g).filterIsInstance<ControlRow>().filter { it.kind != CtrlKind.SLIDER }
+            .forEach { assertEquals(it.id, it.count, it.optionRes.size) }
     }
 }

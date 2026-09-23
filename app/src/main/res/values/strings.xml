@@ -131,8 +131,8 @@
     <string name="settings_clock_display">时钟显示</string>
     <string name="settings_clock_time_only">仅时间</string>
     <string name="settings_clock_time_date">时间与日期</string>
-    <string name="settings_wallpaper_blur">模糊</string>
-    <string name="settings_wallpaper_brightness">亮度</string>
+    <string name="settings_wallpaper_blur">壁纸模糊</string>
+    <string name="settings_wallpaper_brightness">壁纸亮度</string>
     <string name="settings_card_size">卡片大小</string>
     <string name="settings_card_large">大</string>
     <string name="settings_card_medium">中</string>
@@ -285,4 +285,12 @@
     <string name="toast_move_failed">没能保存新位置,请稍后再试</string>
     <!-- edit_move_desc : 编辑页搬运模式(M4b 真机验收补丁 Task 2) -->
     <string name="edit_move_desc">在编辑页里用方向键挪这张卡,空行也能去</string>
+    <!-- settings shell:设置页胶囊外壳(R67–R72,2026-09-23) -->
+    <string name="shell_root_layout_desc">编辑分栏、卡片大小与标题、输入源</string>
+    <string name="shell_root_general_desc">语言、默认桌面、手机传输、待机、时钟</string>
+    <string name="shell_root_appearance_desc">壁纸、主题色、卡片色彩</string>
+    <string name="shell_root_screensaver_desc">屏保时间、图库、系统屏保</string>
+    <string name="settings_card_saturation">卡片饱和度</string>
+    <string name="settings_card_brightness">卡片亮度</string>
+    <string name="shell_preview_hint">预览:%1$s · 按确定保存,按返回不改</string>
 </resources>

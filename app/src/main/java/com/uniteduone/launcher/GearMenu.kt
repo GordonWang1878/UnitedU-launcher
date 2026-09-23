@@ -175,7 +175,7 @@ private fun MenuBanner(app: AppEntry?, name: String) {
                     .clip(RoundedCornerShape(GtvLayout.CARD_CORNER.dp))
                     // R49:banner 与首页卡片同一档淡化(B4),同一张卡在首页与长按菜单里因此颜色一致
                     // (「主题化卡片」2026-09-23 删掉之后没有例外了,gtv spec R58)。
-                    .gtvCardFade()
+                    .gtvCardFade(LocalCardFade.current)
                     .background(container),
                 contentAlignment = Alignment.Center,
             ) {

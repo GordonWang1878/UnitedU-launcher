@@ -1,5 +1,6 @@
 package com.uniteduone.launcher
 
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -289,5 +290,50 @@ class SettingsTest {
         assertTrue(runCatching { parseSettingsStrict("{\"rowCount\":5}{\"cardsPerRow\":8}") }.isFailure)
         assertTrue(runCatching { parseSettingsStrict("{半截") }.isFailure)
         assertEquals(parseSettings("{}"), parseSettingsStrict("{}"))
+    }
+
+    // ---- R68:卡片淡化两项 ----
+
+    /** 旧文件没有这两个键 → 30 / 75 = R49 原来写死的常量,观感零变化。 */
+    @Test fun cardFadeDefaultsMatchR49Constants() {
+        val s = parseSettings("{\"cardsPerRow\": 6}")
+        assertEquals(30, s.cardSaturation)
+        assertEquals(75, s.cardBrightness)
+        assertEquals(Math.round(GtvLayout.CARD_FADE_SATURATION * 100), s.cardSaturation)
+        assertEquals(Math.round(GtvLayout.CARD_FADE_BRIGHTNESS * 100), s.cardBrightness)
+        assertEquals(CardFade.DEFAULT, s.cardFade())
+    }
+
+    @Test fun cardFadeClampsAndSnaps() {
+        val a = parseSettings("{\"cardSaturation\": 44, \"cardBrightness\": 83}")
+        assertEquals(40, a.cardSaturation)
+        assertEquals(85, a.cardBrightness)
+        val b = parseSettings("{\"cardSaturation\": -5, \"cardBrightness\": 12}")
+        assertEquals(0, b.cardSaturation)
+        assertEquals(50, b.cardBrightness)
+        val c = parseSettings("{\"cardSaturation\": 250, \"cardBrightness\": 400}")
+        assertEquals(100, c.cardSaturation)
+        assertEquals(100, c.cardBrightness)
+        val d = parseSettings("{\"cardSaturation\": \"x\", \"cardBrightness\": true}")
+        assertEquals(30, d.cardSaturation)
+        assertEquals(75, d.cardBrightness)
+    }
+
+    @Test fun cardFadeRoundTripsAndRestores() {
+        val s = Settings(cardSaturation = 70, cardBrightness = 95)
+        assertEquals(s, parseSettings(s.toJson()))
+        val r = restoredDefaults(s, 1L)
+        assertEquals(30, r.cardSaturation)
+        assertEquals(75, r.cardBrightness)
+    }
+
+    /** 缺省参数下的矩阵与 R49 原矩阵逐项相同;100 / 100 是恒等(淡化层整个跳过)。 */
+    @Test fun cardFadeMatrixFollowsSettings() {
+        assertArrayEquals(GtvLayout.cardFadeMatrix(), CardFade.DEFAULT.matrix(), 1e-6f)
+        val id = CardFade(100, 100)
+        assertTrue(id.isIdentity)
+        val m = id.matrix()
+        assertEquals(1f, m[0], 1e-6f); assertEquals(0f, m[1], 1e-6f); assertEquals(1f, m[6], 1e-6f)
+        assertFalse(CardFade.DEFAULT.isIdentity)
     }
 }

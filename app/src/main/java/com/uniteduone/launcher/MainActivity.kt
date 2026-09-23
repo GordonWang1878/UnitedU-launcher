@@ -393,6 +393,7 @@ class MainActivity : ComponentActivity() {
             // 于是选择器叠在设置页之上(`covered = pickerTarget != null`),关掉后焦点由设置页接回同一行。
             val settingsActions = remember {
                 SettingsActions(
+                    openEdit = { leaveSettings(); editing = true },
                     pickWallpaper = { pickWallpaper() },
                     openImport = { openImport() },
                     setDefaultHome = { openHomeSettings() },
@@ -541,7 +542,7 @@ class MainActivity : ComponentActivity() {
             // 壁纸不会被重建,也就不会每次退出编辑都重新解码 + 黑闪一下。
             // 主题色只此一条线:这里提供一次,下面每个界面都读 LocalThemeColors.current(见 ThemePresets.kt)。
             UnitedUTheme(themeColors) {
-            CompositionLocalProvider(LocalThemeColors provides themeColors) {
+            CompositionLocalProvider(LocalThemeColors provides themeColors, LocalCardFade provides homeSettings.cardFade()) {
             Box(
                 Modifier
                     .fillMaxSize()

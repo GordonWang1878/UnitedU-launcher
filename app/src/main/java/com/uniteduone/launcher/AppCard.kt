@@ -16,10 +16,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+import androidx.compose.ui.node.DrawModifierNode
+import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.focus.focusProperties
@@ -99,6 +103,8 @@ fun AppCard(
 ) {
     var focused by remember { mutableStateOf(false) }
     val accent = LocalThemeColors.current.accent
+    // R68:淡化参数来自设置(外观组两条滑块),含设置页的实时预览。
+    val fade = LocalCardFade.current
     // 移动态的描边色:必须与下面 focused 用的 accent 不同,两者才能同时可辨(见 moving 参数上的说明)。
     val movingColor = LocalThemeColors.current.highlight
     val scheme = MaterialTheme.colorScheme
@@ -135,7 +141,7 @@ fun AppCard(
                 // 聚焦缩放 + 描边(贴缩放后边缘)+ 移动态高亮描边(固定几何,不缩放),三者都在
                 // gtvAppFocusFrame 里(见其 KDoc 里的绘制顺序说明);R49 的淡化只包卡片内容(容器底色 +
                 // banner / 图标 / 文字回落),挂在它**之内**——顺序由 gtvFocusFrameOverFade 一处固定。
-                .gtvFocusFrameOverFade(focused, accent, metrics.cardCorner, moving, movingColor, afterShift = focusAfterShift)
+                .gtvFocusFrameOverFade(focused, accent, metrics.cardCorner, moving, movingColor, afterShift = focusAfterShift, fade = fade)
                 .size(metrics.cardWidth, metrics.cardHeight)
                 .focusProperties {
                     if (isRowStart) left = FocusRequester.Cancel
@@ -204,7 +210,7 @@ fun AppCard(
                     lineHeight = metrics.titleLine.value.sp,
                 ),
                 modifier = Modifier.padding(top = metrics.titleGap).width(metrics.cardWidth).height(metrics.titleLine)
-                    .gtvCardFade(),   // R49:卡片标题同样淡化
+                    .gtvCardFade(fade),   // R49:卡片标题同样淡化
             )
         } else if (reserveTitleSpace) {
             // 与上面标题那一行等高(padding titleGap + 行高 titleLine),只占位不画
@@ -213,24 +219,71 @@ fun AppCard(
     }
 }
 
-private val CardFadePaint by lazy {
-    androidx.compose.ui.graphics.Paint().apply {
-        colorFilter = ColorFilter.colorMatrix(ColorMatrix(GtvLayout.cardFadeMatrix()))
+/**
+ * **Ruling R68(2026-09-23 设置页改版)**:卡片淡化的两个参数(百分比)从常量改成设置
+ * (`Settings.cardSaturation` / `cardBrightness`,外观组两条滑块)。缺省值 = R49 原来写死的
+ * [GtvLayout.CARD_FADE_SATURATION] / [GtvLayout.CARD_FADE_BRIGHTNESS],旧 settings.json 没有这两个键时观感零变化。
+ * 两项都 100 时是恒等变换,[gtvCardFade] 直接跳过离屏层。
+ */
+data class CardFade(val saturation: Int = DEFAULT_CARD_SATURATION, val brightness: Int = DEFAULT_CARD_BRIGHTNESS) {
+    val isIdentity: Boolean get() = saturation >= 100 && brightness >= 100
+    fun matrix(): FloatArray = GtvLayout.cardFadeMatrix(saturation / 100f, brightness / 100f)
+
+    companion object {
+        val DEFAULT = CardFade()
     }
 }
 
+/** 设置里的两项 → 淡化参数。 */
+fun Settings.cardFade(): CardFade = CardFade(cardSaturation, cardBrightness)
+
 /**
- * **Ruling R49**:卡片淡化(效果图 B4,算法与常量见 [GtvLayout.CARD_FADE_SATURATION])。把本节点及其
+ * 当前生效的卡片淡化。MainActivity 在 setContent 顶层按**有效设置**(含设置页的实时预览,见
+ * `effectiveSettings`)提供一次;首页 / 编辑页的 [AppCard] 与长按菜单左侧 banner 读它。
+ * 系统屏保等没有提供者的地方读到缺省值 = R49 原样。
+ */
+val LocalCardFade = staticCompositionLocalOf { CardFade.DEFAULT }
+
+/**
+ * **Ruling R49**:卡片淡化(效果图 B4,算法见 [GtvLayout.cardFadeMatrix];R68 起参数来自 [fade])。把本节点及其
  * 内层画的全部内容放进一个带颜色矩阵的离屏层(`saveLayer` + paint 的 colorFilter,效果同
  * `graphicsLayer { compositingStrategy = Offscreen }` 再上滤镜)。**只挂在卡片内容那一层**:
  * 外层的聚焦描边 / 柔光 / 搬运态描边(`gtvAppFocusFrame` 的 drawBehind)不在这层里,颜色不变。
  * 用在首页 / 编辑页的 [AppCard] 与长按菜单左侧 banner;「添加应用」列表与图片选择器不用。
  * 与聚焦框同用时走 [gtvFocusFrameOverFade],不要自己拼链(顺序是硬约束,见那里)。
+ *
+ * 实现是一个 `ModifierNodeElement` **数据类**:参数相等的两次调用得到相等的元素(GtvGlowTest 靠这一点认
+ * 「哪个元素是淡化层」);参数变了只 `update` 已有节点、换一支 paint、重画,不重建节点。
  */
-fun Modifier.gtvCardFade(): Modifier = drawWithContent {
-    drawIntoCanvas { it.saveLayer(androidx.compose.ui.geometry.Rect(androidx.compose.ui.geometry.Offset.Zero, size), CardFadePaint) }
-    drawContent()
-    drawIntoCanvas { it.restore() }
+fun Modifier.gtvCardFade(fade: CardFade = CardFade.DEFAULT): Modifier = this then CardFadeElement(fade)
+
+private data class CardFadeElement(val fade: CardFade) : ModifierNodeElement<CardFadeNode>() {
+    override fun create() = CardFadeNode(fade)
+    override fun update(node: CardFadeNode) = node.set(fade)
+}
+
+private class CardFadeNode(private var fade: CardFade) : Modifier.Node(), DrawModifierNode {
+    private var paint = paintFor(fade)
+
+    fun set(f: CardFade) {
+        if (f == fade) return
+        fade = f
+        paint = paintFor(f)
+        invalidateDraw()
+    }
+
+    override fun ContentDrawScope.draw() {
+        if (fade.isIdentity) { drawContent(); return }
+        drawIntoCanvas { it.saveLayer(androidx.compose.ui.geometry.Rect(androidx.compose.ui.geometry.Offset.Zero, size), paint) }
+        drawContent()
+        drawIntoCanvas { it.restore() }
+    }
+
+    private companion object {
+        fun paintFor(f: CardFade) = androidx.compose.ui.graphics.Paint().apply {
+            colorFilter = ColorFilter.colorMatrix(ColorMatrix(f.matrix()))
+        }
+    }
 }
 
 /**
@@ -246,4 +299,5 @@ internal fun Modifier.gtvFocusFrameOverFade(
     moving: Boolean = false,
     movingColor: Color = Color.Unspecified,
     afterShift: Boolean = false,
-): Modifier = gtvAppFocusFrame(focused, accentColor, corner, moving, movingColor, afterShift).gtvCardFade()
+    fade: CardFade = CardFade.DEFAULT,
+): Modifier = gtvAppFocusFrame(focused, accentColor, corner, moving, movingColor, afterShift).gtvCardFade(fade)
