@@ -492,6 +492,17 @@ private fun optionLabel(row: ControlRow, i: Int): String {
  */
 private val JUMP_ROWS = setOf("systemScreensaver", "systemAnimationScale", "restoreHiddenInputs")
 
+/**
+ * 滑块展开时的短标签(交互测试 2026-09-23):聚焦的滑块胶囊里标签只剩约 104 dp,英文
+ * 「Wallpaper Blur / Wallpaper Brightness」都截成「Wallpaper B…」分不清;没聚焦的胶囊仍显示全称。
+ */
+private val SLIDER_SHORT_LABEL = mapOf(
+    "wallpaperBlur" to R.string.shell_slider_wallpaper_blur,
+    "wallpaperBrightness" to R.string.shell_slider_wallpaper_brightness,
+    "cardSaturation" to R.string.shell_slider_card_saturation,
+    "cardBrightness" to R.string.shell_slider_card_brightness,
+)
+
 /** 分组页的一颗胶囊。 */
 @Composable
 private fun groupCapsule(row: RowSpec, onPush: (String, String?) -> Unit): Capsule {
@@ -512,6 +523,7 @@ private fun groupCapsule(row: RowSpec, onPush: (String, String?) -> Unit): Capsu
                     text = text,
                     canDecrease = row.selected > 0,
                     canIncrease = row.selected < row.count - 1,
+                    label = SLIDER_SHORT_LABEL[row.id]?.let { stringResource(it) },
                 ),
                 onStep = { d -> val n = sliderStep(row, d); if (n != row.selected) row.onSelect(n) },
             )

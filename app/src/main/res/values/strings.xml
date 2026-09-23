@@ -286,5 +286,10 @@
     <string name="shell_root_screensaver_desc">屏保时间、图库、系统屏保</string>
     <string name="settings_card_saturation">卡片饱和度</string>
     <string name="settings_card_brightness">卡片亮度</string>
+    <!-- 滑块聚焦时标签旁要让出轨道和数值,只剩约 104 dp;中文全称放得下,短标签 = 全称 -->
+    <string name="shell_slider_wallpaper_blur">壁纸模糊</string>
+    <string name="shell_slider_wallpaper_brightness">壁纸亮度</string>
+    <string name="shell_slider_card_saturation">卡片饱和度</string>
+    <string name="shell_slider_card_brightness">卡片亮度</string>
     <string name="shell_preview_hint">预览:%1$s · 按确定保存,按返回不改</string>
 </resources>

@@ -286,5 +286,9 @@
     <string name="shell_root_screensaver_desc">螢幕保護時間、圖庫、系統螢幕保護</string>
     <string name="settings_card_saturation">卡片飽和度</string>
     <string name="settings_card_brightness">卡片亮度</string>
+    <string name="shell_slider_wallpaper_blur">桌布模糊</string>
+    <string name="shell_slider_wallpaper_brightness">桌布亮度</string>
+    <string name="shell_slider_card_saturation">卡片飽和度</string>
+    <string name="shell_slider_card_brightness">卡片亮度</string>
     <string name="shell_preview_hint">預覽:%1$s · 按確定儲存,按返回不變</string>
 </resources>

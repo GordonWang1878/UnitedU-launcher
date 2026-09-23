@@ -75,6 +75,8 @@ data class SliderLook(
     val text: String,
     val canDecrease: Boolean,
     val canIncrease: Boolean,
+    /** 滑块展开时标签位的文字;null = 用胶囊标签。英文全称放不进让出轨道后剩下的约 104 dp,换短名。 */
+    val label: String? = null,
 )
 
 /**
@@ -150,7 +152,7 @@ fun MenuPill(
         contentAlignment = Alignment.CenterStart,
     ) {
         if (focused && slider != null) {
-            SliderContent(label, slider, textColor)
+            SliderContent(slider.label ?: label, slider, textColor)
         } else Row(verticalAlignment = Alignment.CenterVertically) {
             if (leadingDot != null) {
                 // 细描边:聚焦时胶囊填的就是主题色,光标停在某个预设上时它的色点与底色同色,没有这圈描边就看不见了。
