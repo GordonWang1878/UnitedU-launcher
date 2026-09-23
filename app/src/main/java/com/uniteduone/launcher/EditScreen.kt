@@ -460,6 +460,17 @@ fun EditScreen(
         animationSpec = Theme.browseShiftSpec(),
         label = "editYShift",
     )
+    /**
+     * **ui-pending #10(2026-09-23,首页 R30/R47 的编辑页版)**:最近一次落焦有没有让纵向位移的目标变。
+     * 在焦点回调里与 AppCard 自己的 focused 同一个事件写入,放大据此等 [GtvLayout.FOCUS_AFTER_SHIFT_DELAY_MS]。
+     * 判定只读位移的现有输入:落到第 landingRow 行后 [editFirstRow] 算出的首行,和现在画的首行比——与上面
+     * `LaunchedEffect(focusRow, …)` 推进 `firstVisibleRow` 用同一个纯函数、同一组量,所以两者一致。
+     * 旁路信号:不进任何效果的 key 或守卫、不改 focusRow / focusTarget,也不参与重定位。
+     * 显式重定位(retarget:菜单动作、搬运每一步)先写 focusRow、位移先走,落焦时这里判出「不变」,不延迟。
+     */
+    var landedWithShift by remember { mutableStateOf(false) }
+    fun shiftsOnLanding(landingRow: Int): Boolean =
+        editFirstRow(landingRow, firstVisibleRow, rows.size, visibleWithHeader, visibleBelow) != firstRow
 
     /** 行交换时,两行各自的「当前格 / 目标格」跟着行走(不交换的话横向位移会套到别的行上)。 */
     fun swapRowState(a: Int, b: Int) {
@@ -681,7 +692,10 @@ fun EditScreen(
                                 // 那次上报若改了目标,看门狗与视窗都会跟着跑到第 1 行去。
                                 if (!retargeting && carry == null) { focusRow = ri; focusTarget[ri] = pi }
                             }
-                            val tell = { got: Boolean -> report(ri, pi, got); if (got) mark() }
+                            val tell = { got: Boolean ->
+                                if (got) landedWithShift = shiftsOnLanding(ri)   // ui-pending #10,放大等位移
+                                report(ri, pi, got); if (got) mark()
+                            }
                             if (app != null) {
                                 AppCard(
                                     app = app,
@@ -699,6 +713,7 @@ fun EditScreen(
                                     isLastRow = ri == rows.lastIndex,
                                     isFirstRow = ri == 0,
                                     moving = carried,
+                                    focusAfterShift = landedWithShift,
                                 )
                             } else if (!allFresh) {
                                 // 数据还没跟上:中性占位,别说「未安装」
@@ -710,6 +725,7 @@ fun EditScreen(
                                     pkg, metrics, fm, onFocusChange = tell,
                                     isRowStart = pi == 0, isLastRow = ri == rows.lastIndex, isFirstRow = ri == 0,
                                     moving = carried,
+                                    focusAfterShift = landedWithShift,
                                 ) { if (carry == null) acting = ri to pi }
                             }
                         }
@@ -720,7 +736,9 @@ fun EditScreen(
                             modifier = if (pkgs.isEmpty() ||
                                 focusTarget.getOrElse(ri) { 0 } >= pkgs.size
                             ) Modifier.focusRequester(rowFocus[ri]) else Modifier,
+                            focusAfterShift = landedWithShift,
                             onFocusChange = { got ->
+                                if (got) landedWithShift = shiftsOnLanding(ri)   // ui-pending #10
                                 report(ri, pkgs.size, got)
                                 if (got) {
                                     rowFocused[ri] = pkgs.size
@@ -923,6 +941,8 @@ fun EditScreen(
 private fun AddCard(
     metrics: CardMetrics,
     modifier: Modifier = Modifier,
+    /** ui-pending #10:这次落焦带着纵向位移 → 放大等 [GtvLayout.FOCUS_AFTER_SHIFT_DELAY_MS](同 AppCard)。 */
+    focusAfterShift: Boolean = false,
     onFocusChange: (Boolean) -> Unit = {},
     isRowStart: Boolean = false,
     isLastRow: Boolean = false,
@@ -940,7 +960,7 @@ private fun AddCard(
     // GtvLayout.APP_FOCUS_SCALE 倍 + 描边贴缩放后边缘),底色仍然不随聚焦变化。
     Box(
         modifier = modifier
-            .gtvAppFocusFrame(focused, accent, metrics.cardCorner)
+            .gtvAppFocusFrame(focused, accent, metrics.cardCorner, afterShift = focusAfterShift)
             .size(metrics.cardWidth, metrics.cardHeight)
             .clip(RoundedCornerShape(metrics.cardCorner))
             .background(Theme.AddCardBackground)
@@ -1006,6 +1026,8 @@ private fun MissingCard(
     /** 搬运中被搬的就是它(M4b §0-18):与 `AppCard(moving = true)` 同一道固定几何的高亮描边
      *  (`gtvAppFocusFrame` 的 `moving` 分支,highlight 色),聚焦与否都画,不随聚焦缩放变化。 */
     moving: Boolean = false,
+    /** ui-pending #10:同 AddCard。 */
+    focusAfterShift: Boolean = false,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -1018,7 +1040,7 @@ private fun MissingCard(
     val movingColor = LocalThemeColors.current.highlight
     Box(
         modifier = modifier
-            .gtvAppFocusFrame(focused, accent, metrics.cardCorner, moving, movingColor)
+            .gtvAppFocusFrame(focused, accent, metrics.cardCorner, moving, movingColor, afterShift = focusAfterShift)
             .size(metrics.cardWidth, metrics.cardHeight)
             .clip(shape)
             .background(Theme.MissingCardBackground)

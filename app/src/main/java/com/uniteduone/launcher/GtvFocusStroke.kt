@@ -198,9 +198,9 @@ fun Modifier.gtvFocusStroke(focused: Boolean, color: Color, corner: Dp): Modifie
  * (首页在 `CategoryRow` 的焦点回调里判,见那里),这里只认这个布尔。`animateFloatAsState`
  * 在目标值变化那一刻读取 spec,所以位移结束后 `afterShift` 翻回 false 不会打断已经在跑的动画。
  *
- * @param afterShift 这次进焦是否伴随行位移(纵向切行或横向滑行)。默认 `false`(编辑页、
- *   `AddCard`/`MissingCard`、`RowIconPicker` 都不传,立即放大——编辑页的位移判定与首页不同
- *   (`firstVisibleRow` 经 `LaunchedEffect` 异步推进),Round 8 只做首页)。
+ * @param afterShift 这次进焦是否伴随行位移(纵向切行或横向滑行)。默认 `false`(`RowIconPicker`
+ *   不传,立即放大)。编辑页 2026-09-23 起也传(ui-pending #10):`AppCard`/`AddCard`/`MissingCard`
+ *   在编辑页的焦点回调里按「纵向首行会不会变」判定(只算纵向,见 `EditScreen` 的 `landedWithShift`)。
  * @param moving 首页原地移动态(M4b)与编辑页搬运态:被搬的那张卡的高亮描边,它标的是
  *   「正在搬哪张」,Google 没有对应物。**几何跟着缩放后的边缘走**(整枝审查 A,2026-09-22):
  *   外扩 = 当前 `scale` 的溢出 + [GtvLayout.FOCUS_OUTSET],与聚焦描边同一算法,只是外扩量换成
