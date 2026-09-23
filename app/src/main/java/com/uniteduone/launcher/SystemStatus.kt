@@ -155,8 +155,8 @@ internal val ANIMATION_SETTINGS_PAGES = listOf(
 )
 
 /**
- * 启动系统页之后,过这么久本 Activity 仍(或又)在前台 = 那一页没真正打开(当场 finish / 崩溃),换下一个候选。
- * 2 s:模拟器上 DaydreamActivity 从启动到自己关掉约 0.3 s,AmbientActivity 崩掉约 1.2 s;
- * 代价是用户真打开了页面、又在 2 s 内按返回,会被带到下一个候选页——人看完一页再返回远超 2 s,可以接受。
+ * 启动系统页之后,本 Activity 在这么短的时间内就回到前台(或根本没离开)= 那一页没真正打开(当场 finish / 崩溃),
+ * 换下一个候选。判的是「回到前台距启动多久」,不是「这么久之后是否在前台」——后者会把用户很快按返回也当成弹回。
+ * 1.5 s:模拟器上 DaydreamActivity 从启动到自己关掉约 0.3 s,AmbientActivity 崩掉约 1.2 s;人打开一页再按返回远超 1.5 s。
  */
-internal const val SYSTEM_PAGE_BOUNCE_MS = 2_000L
+internal const val SYSTEM_PAGE_BOUNCE_MS = 1_500L

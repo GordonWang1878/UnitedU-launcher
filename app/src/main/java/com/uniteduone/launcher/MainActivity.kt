@@ -1325,6 +1325,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         lastInput = System.currentTimeMillis()
+        lastResumeAt = android.os.SystemClock.uptimeMillis()
         // 从别的应用回来时焦点是空的(实测停了 7 秒仍然没有任何节点持有,
         // 第一下按键才建立、而且落在第一张卡)。所以这里必须补一次请求;
         // 界面那边现在会把它送回**离开前那张卡**,不再是第一行第一张。
@@ -1503,9 +1504,12 @@ class MainActivity : ComponentActivity() {
      */
     private var systemPageJump = 0
 
+    /** 最近一次 onResume 的时刻(uptime)。弹回检测用它区分「页面当场关掉」与「用户看完按了返回」。 */
+    private var lastResumeAt = 0L
+
     /**
      * 按 [chain] 顺序跳第一个真能打开的系统页(ui-pending #16)。一个候选算失败:解析不到、显式组件未导出、
-     * `startActivity` 抛异常,或者**启动报成功、[SYSTEM_PAGE_BOUNCE_MS] 后本 Activity 却仍(又)是 RESUMED**——
+     * `startActivity` 抛异常,或者**启动报成功、本 Activity 却在 [SYSTEM_PAGE_BOUNCE_MS] 内就回到前台(或根本没离开)**——
      * 那一页当场 finish 或崩了(Google TV 镜像上 DaydreamActivity 就是前者,见 [DREAM_SETTINGS_PAGES])。
      * 失败就从下一个候选接着试;全部用完才 toast [failRes]。
      */
@@ -1522,9 +1526,13 @@ class MainActivity : ComponentActivity() {
             if (intent.component != null && !info.activityInfo.exported) continue
             if (runCatching { startActivity(intent) }.isFailure) continue
             val jump = ++systemPageJump
+            val launchedAt = android.os.SystemClock.uptimeMillis()
             window.decorView.postDelayed({
+                // 回到前台距启动不足 SYSTEM_PAGE_BOUNCE_MS 才算弹回(含根本没离开前台:lastResumeAt < launchedAt)。
+                // 只看「现在是否在前台」会把「页面真的开了、用户很快按返回」也当成弹回,把人送去下一个候选页。
                 if (jump == systemPageJump &&
-                    lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
+                    lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) &&
+                    lastResumeAt - launchedAt < SYSTEM_PAGE_BOUNCE_MS
                 ) {
                     android.util.Log.i("UnitedU", "系统页没打开(弹回):${page.action ?: page.cls},试下一个")
                     openSystemPage(chain, failRes, i + 1)
