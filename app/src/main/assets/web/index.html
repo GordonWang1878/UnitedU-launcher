@@ -51,7 +51,9 @@ const S = __STRINGS__;
 // CORS 简单请求,手机上随便哪个网页都能往这台电视 POST;自定义头会把跨源请求顶成要预检,发不出来。
 const H = { "X-Requested-With": "UnitedU" };
 const TABS = [["wallpapers", S.tab_wallpapers], ["cards", S.tab_cards], ["screensavers", S.tab_screensavers], ["apk", S.tab_apk]];
-let type = "wallpapers";
+// 默认分页由电视注入(R63):从某个图片网格的「＋ 从手机添加」进来时是那个分类,总入口是 null。
+const DEFAULT_TAB = __DEFAULT_TAB__;
+let type = DEFAULT_TAB || "wallpapers";
 const $ = id => document.getElementById(id);
 const q = s => encodeURIComponent(s);
 function msg(t) { const m = $("msg"); m.textContent = t; m.style.display = "block"; clearTimeout(msg.t); msg.t = setTimeout(() => m.style.display = "none", 5000); }

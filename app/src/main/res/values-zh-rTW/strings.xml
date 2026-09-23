@@ -42,6 +42,9 @@
     <string name="settings_phone_transfer_desc">手機掃碼上傳桌布、卡片圖、螢幕保護程式圖片,或安裝 APK</string>
     <!-- import_* : 「匯入圖片」頁(電視端) -->
     <string name="import_title">用手機匯入圖片</string>
+    <string name="import_title_wallpapers">用手機新增桌布</string>
+    <string name="import_title_cards">用手機新增卡片圖</string>
+    <string name="import_title_screensavers">用手機新增螢幕保護程式圖片</string>
     <string name="import_received">已收到 %1$d 個檔案</string>
     <string name="import_last">最近:%1$s</string>
     <string name="import_hint_back">按返回鍵關閉並停止服務</string>
@@ -105,14 +108,13 @@
     <string name="picker_wallpaper_title">選一張桌布</string>
     <string name="picker_card_image_title">選一張卡片圖</string>
     <string name="picker_no_images">還沒有圖片可選</string>
-    <string name="picker_adb_hint">請先用 adb push 把圖片放到\nfiles/library/ 目錄</string>
     <string name="picker_back_to_close">按返回鍵關閉</string>
     <string name="picker_back_to_cancel">按返回鍵取消</string>
     <string name="picker_restore_original">恢復原圖</string>
+    <string name="picker_add_from_phone">從手機新增</string>
     <string name="picker_screensaver_pool_title">螢幕保護程式圖庫 · %1$d 張 · 按確定鍵預覽</string>
     <string name="picker_screensaver_title">螢幕保護程式圖庫</string>
     <string name="picker_no_screensavers">還沒有螢幕保護程式圖片</string>
-    <string name="picker_adb_hint_screensaver">用 adb push 新增圖片到\nfiles/library/screensavers/ 目錄</string>
     <!-- pool_delete_* : 螢幕保護圖庫長按刪圖的確認框(M5 spec §5);取消複用 dialog_cancel -->
     <string name="pool_delete_title">刪除這張圖片?</string>
     <string name="pool_delete_body">「%1$s」會從螢幕保護圖庫刪除,無法復原</string>

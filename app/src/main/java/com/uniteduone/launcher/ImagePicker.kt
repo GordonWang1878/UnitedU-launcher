@@ -47,12 +47,58 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
 
 private sealed class PickerItem {
     data class Original(val bitmap: Bitmap) : PickerItem()
     data class Library(val file: File) : PickerItem()
+    /**
+     * 首格「＋ 从手机添加」(Ruling R63)。**不是图片**:不预览、不删(长按那一支只认 [Library],
+     * 见 PickerGrid 的 onFocusedFile 上报)、不选定,确定键只打开扫码页。
+     */
+    object AddFromPhone : PickerItem()
 }
 
+/*
+ * ---- 格子下标换算(Ruling R63,纯函数,单测在 PickerCellsTest)----
+ * 网格 = [ADD_CELL]「＋」+ 图片。「格子下标」(cell)是 PickerGrid 的 focusedIdx / holderIdx / focusRequesters
+ * 用的那一套;「图片下标」(image)是调用方的 items 列表。两者差 1,只在这几个函数里换算,别处不手写 ±1。
+ */
+internal const val ADD_CELL = 0
+/**
+ * 缩略图下标签的固定高度(R63 顺手修)。网格的翻页位移按**首行**量出的行高算(见 PickerGrid 的 rowHeightPx),
+ * 各行必须等高;而 10 sp 的中文标签比英文 / 数字文件名高 2 dp(模拟器实测 14.5 vs 12.5 dp)。首格「从手机添加」
+ * 在中文界面下恒是中文,首行因此恒比别的行高,翻到第 3 行时累计差出几个像素、把顶上那行的卡片边裁掉。
+ */
+private val THUMB_LABEL_HEIGHT = 16.dp
+internal fun cellOfImage(image: Int): Int = image + 1
+internal fun imageOfCell(cell: Int): Int? = (cell - 1).takeIf { it >= 0 }
+internal fun <T> pickerCells(images: List<T>, add: T): List<T> = listOf(add) + images
+/** 焦点目标夹回合法格子(删图后末格消失、删空只剩「＋」都靠它)。 */
+internal fun clampCell(cell: Int, cellCount: Int): Int = cell.coerceIn(0, (cellCount - 1).coerceAtLeast(0))
+/**
+ * 从扫码页回来时焦点落哪一格:本次新传的文件([uploaded],按上传先后)里第一张**还在网格里**的那张;
+ * 一张都没有(没传、传的是别的分类、在手机上又删了、被卡片图上限挤掉)→ 「＋」。
+ * [imageNames] 与图片下标一一对应,不是文件的项(换卡片图的「恢复原图」)给 null。
+ */
+internal fun landingCell(imageNames: List<String?>, uploaded: List<String>): Int {
+    for (name in uploaded) {
+        val i = imageNames.indexOf(name)
+        if (i >= 0) return cellOfImage(i)
+    }
+    return ADD_CELL
+}
+
+private fun listImages(directory: File): List<File> =
+    directory.listFiles()
+        ?.filter { it.isFile && it.extension.lowercase() in IMAGE_EXTS }
+        ?.sortedBy { it.name }
+        ?: emptyList()
+
+/**
+ * [onAddFromPhone] / [landing] 见 [PickerGrid]。没有图片时不再是单独的空态(原来那句「用 adb push 复制图片」
+ * 已删,R63):网格只剩「＋」一格,标题下一行写「还没有图片可选」。
+ */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun WallpaperPicker(
@@ -61,34 +107,31 @@ fun WallpaperPicker(
     nonce: Int = 0,
     onSelect: (File) -> Unit,
     onDismiss: () -> Unit,
+    onAddFromPhone: (() -> Unit)? = null,
+    landing: List<String>? = null,
 ) {
-    val files = remember(directory) {
-        directory.listFiles()
-            ?.filter { it.isFile && it.extension.lowercase() in IMAGE_EXTS }
-            ?.sortedBy { it.name }
-            ?: emptyList()
-    }
+    // 从扫码页回来时本组合是新挂上的(扫码页替换了它),这里自然按盘上实况重读。
+    val files = remember(directory) { listImages(directory) }
     androidx.activity.compose.BackHandler { onDismiss() }
     Box(
         modifier = Modifier.fillMaxSize().focusGroup()
             .background(Color.Black.copy(alpha = 0.85f)),
         contentAlignment = Alignment.Center,
     ) {
-        if (files.isEmpty()) {
-            EmptyState(title, nonce, onDismiss)
-        } else {
-            PickerGrid(
-                items = files.map { PickerItem.Library(it) },
-                title = title,
-                columns = 3,
-                thumbWidth = 170.dp,
-                thumbHeight = 96.dp,
-                nonce = nonce,
-                onSelectFile = onSelect,
-                onRestoreOriginal = null,
-                onDismiss = onDismiss,
-            )
-        }
+        PickerGrid(
+            items = files.map { PickerItem.Library(it) },
+            title = title,
+            columns = 3,
+            thumbWidth = 170.dp,
+            thumbHeight = 96.dp,
+            nonce = nonce,
+            onSelectFile = onSelect,
+            onRestoreOriginal = null,
+            onDismiss = onDismiss,
+            emptyHint = stringResource(R.string.picker_no_images),
+            onAddFromPhone = onAddFromPhone,
+            landing = landing,
+        )
     }
 }
 
@@ -101,18 +144,17 @@ fun IconPicker(
     onSelect: (File) -> Unit,
     onRestoreOriginal: () -> Unit,
     onDismiss: () -> Unit,
+    onAddFromPhone: (() -> Unit)? = null,
+    landing: List<String>? = null,
 ) {
-    val files = remember(directory) {
-        directory.listFiles()
-            ?.filter { it.isFile && it.extension.lowercase() in IMAGE_EXTS }
-            ?.sortedBy { it.name }
-            ?: emptyList()
-    }
+    val files = remember(directory) { listImages(directory) }
+    // R63 起不再截到 16 项(TvHome 时期网格不能滚的遗留;现在是自算位移的视窗,换壁纸 / 屏保图库本来就不截):
+    // 有了「从手机添加」,卡片图库超过 16 张是常态,截掉的话刚传的那张在网格里根本不存在、焦点也落不上去。
     val items = remember(originalIcon, files) {
         buildList {
             if (originalIcon != null) add(PickerItem.Original(originalIcon))
             addAll(files.map { PickerItem.Library(it) })
-        }.take(MAX_ICON_ITEMS)
+        }
     }
     androidx.activity.compose.BackHandler { onDismiss() }
     Box(
@@ -120,74 +162,20 @@ fun IconPicker(
             .background(Color.Black.copy(alpha = 0.85f)),
         contentAlignment = Alignment.Center,
     ) {
-        if (items.isEmpty()) {
-            EmptyState(stringResource(R.string.picker_card_image_title), nonce, onDismiss)
-        } else {
-            PickerGrid(
-                items = items,
-                title = stringResource(R.string.picker_card_image_title),
-                columns = 4,
-                thumbWidth = 130.dp,
-                thumbHeight = 73.dp,
-                nonce = nonce,
-                onSelectFile = onSelect,
-                onRestoreOriginal = onRestoreOriginal,
-                onDismiss = onDismiss,
-            )
-        }
-    }
-}
-
-@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
-@Composable
-private fun EmptyState(title: String, nonce: Int, onDismiss: () -> Unit) {
-    val fr = remember { FocusRequester() }
-    var landed by remember { mutableStateOf(false) }
-
-    Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(Theme.DialogSurface)
-            .padding(24.dp)
-            .width(400.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        BasicText(
-            text = title,
-            style = TextStyle(fontFamily = Theme.Sans, color = LocalThemeColors.current.highlight, fontSize = 16.sp),
+        PickerGrid(
+            items = items,
+            title = stringResource(R.string.picker_card_image_title),
+            columns = 4,
+            thumbWidth = 130.dp,
+            thumbHeight = 73.dp,
+            nonce = nonce,
+            onSelectFile = onSelect,
+            onRestoreOriginal = onRestoreOriginal,
+            onDismiss = onDismiss,
+            emptyHint = stringResource(R.string.picker_no_images),
+            onAddFromPhone = onAddFromPhone,
+            landing = landing,
         )
-        BasicText(
-            text = stringResource(R.string.picker_no_images),
-            style = TextStyle(fontFamily = Theme.Sans, color = Theme.DialogBodyText, fontSize = 14.sp, textAlign = TextAlign.Center),
-        )
-        BasicText(
-            text = stringResource(R.string.picker_adb_hint),
-            style = TextStyle(fontFamily = Theme.Sans, color = Theme.HintText, fontSize = 12.sp, textAlign = TextAlign.Center),
-        )
-        Spacer(Modifier.height(4.dp))
-        BasicText(
-            text = stringResource(R.string.picker_back_to_close),
-            style = TextStyle(fontFamily = Theme.Sans, color = Theme.PickerFooterText, fontSize = 11.sp),
-            modifier = Modifier
-                .focusRequester(fr)
-                .onFocusChanged { if (it.isFocused) landed = true }
-                .focusProperties {
-                    up = FocusRequester.Cancel; down = FocusRequester.Cancel
-                    left = FocusRequester.Cancel; right = FocusRequester.Cancel
-                }
-                .clickable { onDismiss() },
-        )
-    }
-
-    LaunchedEffect(nonce) {
-        landed = false
-        var frames = 0
-        while (!landed && frames < 60) {
-            withFrameNanos { }
-            runCatching { fr.requestFocus() }
-            frames++
-        }
     }
 }
 
@@ -227,19 +215,52 @@ private fun PickerGrid(
      * 全屏预览 / 确认框盖上来时网格失焦 → 报 null → 长按不生效。
      */
     onFocusedFile: ((File?) -> Unit)? = null,
+    /** 没有任何图片(网格只剩「＋」)时标题下的一行说明;null = 不写。 */
+    emptyHint: String? = null,
+    /**
+     * 首格「＋ 从手机添加」的确定键(Ruling R63);null = 不画这一格。打开扫码页时 MainActivity 把本网格**替换**掉
+     * (pickerTarget 换成扫码页),关掉扫码页再重新挂上本网格——所以回来时文件列表是重扫过的。
+     */
+    onAddFromPhone: (() -> Unit)? = null,
+    /**
+     * 从扫码页回来时的落点种子(R63):本次新上传的文件名(按上传先后),挂载时经 [landingCell] 算成格子下标,
+     * **只在挂载那一刻读一次**(同编辑页的 editTarget 种子)。null = 普通打开,落第 0 格。
+     */
+    landing: List<String>? = null,
 ) {
-    val rows = items.chunked(columns)
-    val focusRequesters = remember(items.size) {
-        List(items.size.coerceAtLeast(1)) { FocusRequester() }
+    // 格子 = 「＋」(有的话)+ 图片。下面 focusedIdx / holderIdx / focusRequesters / interactionSources 全用格子下标,
+    // 只有 onFocusedFile 上报、落点种子这两处要认「是不是图片」,换算见 cellOfImage / imageOfCell。
+    val hasAdd = onAddFromPhone != null
+    val cells = remember(items, hasAdd) { if (hasAdd) pickerCells(items, PickerItem.AddFromPhone) else items }
+    val rows = cells.chunked(columns)
+    val focusRequesters = remember(cells.size) {
+        List(cells.size.coerceAtLeast(1)) { FocusRequester() }
     }
     // 效果里读的必须是**当前**这一份 requester(同 GearMenu 的写法):items.size 一变 remember 就换新表;
     // 定位效果的 key 里带着 focusRequesters,换表会重跑没问题,但看门狗的 key 里没有它——如果直接捕获
     // 看门狗启动那一刻的表,新表在它循环跑到一半时才到,它还在挂空的旧表上重试。
     val requesters by rememberUpdatedState(focusRequesters)
-    var focusedIdx by remember { mutableStateOf(0) }
+    // R63 落点种子:挂载时算一次(items 此刻已是重扫过的列表——屏保图库等 produceState 扫完才挂网格)。
+    val seedCell = remember {
+        if (landing == null || !hasAdd) null
+        else landingCell(items.map { (it as? PickerItem.Library)?.file?.name }, landing)
+    }
+    var focusedIdx by remember { mutableStateOf(seedCell ?: 0) }
+    /**
+     * **目标冻结**(铁律 5:目标与当前位置分开)。非 null 时,只有「夹紧后等于它」的那一格得到焦点才改写
+     * [focusedIdx];别的格得到焦点(系统 / Compose 自己派的)一律不算数。两种来源:
+     * - **落点种子**(R63):扫码页一拆,Compose 可能抢在定位效果之前把焦点先给左上角的「＋」,那次焦点事件
+     *   若照常写 focusedIdx,种子在被用到之前就没了。种子是「＋」时不冻(抢焦点的正是它)。
+     * - **浮层盖上**(预览 / 删图确认框 / 删后重扫,即 [covered]):盖上那一刻冻住当时的目标。R63 实测复现
+     *   (6 次删图 2 次落错格):确认框节点被拆、或删掉末张时那一格的节点被拆,持有焦点的节点一没,系统当场
+     *   把焦点派给网格里另一格(实测落到过视窗左上角那张、或上一行某张),这一下原来会直接改写 focusedIdx,
+     *   随后重跑的定位效果就「忠实地」把焦点送到了错的那格。
+     * 定位效果那一轮跑完(落没落下都算——不能让一次落空把焦点记忆永久冻住)就解冻。
+     */
+    var frozenTarget by remember { mutableStateOf(seedCell?.takeIf { it != ADD_CELL }) }
     // fix round 1:删图后 focusedIdx 可能落在新列表的界外(删的正是末张)——统一在这里夹一次,
-    // 定位效果、看门狗、渲染时的 focused 判据都读这一个,不再各处各夹各的。
-    val clampedFocusedIdx = focusedIdx.coerceIn(0, focusRequesters.lastIndex)
+    // 定位效果、看门狗、渲染时的 focused 判据都读这一个,不再各处各夹各的。删空时夹到「＋」(R63)。
+    val clampedFocusedIdx = clampCell(focusedIdx, focusRequesters.size)
     /**
      * **现在**持有焦点的那一格(只信控件自报,铁律 4);null = 网格里没有。与 [focusedIdx] 分开(铁律 5):
      * 后者是「回来时落哪」的目标,失焦时不清;这一个失焦就清,长按判据、定位效果的退出条件、
@@ -259,11 +280,11 @@ private fun PickerGrid(
     // (只丢那一下,不是从此往后每次都哑掉:ClickableNode 处理完那次被吞的按键,内部记录就翻篇了)。
     // 换成可写的 list,发完 Cancel 顺手把那一格的元素替换成新对象,下面的收集效果会跟着 source
     // 这个 key 自动重订阅,ClickableNode 也会因为 interactionSource 参数变了而丢掉旧记录。
-    val interactionSources = remember(items.size) {
-        List(items.size.coerceAtLeast(1)) { MutableInteractionSource() }.toMutableStateList()
+    val interactionSources = remember(cells.size) {
+        List(cells.size.coerceAtLeast(1)) { MutableInteractionSource() }.toMutableStateList()
     }
-    val pendingPress = remember(items.size) {
-        arrayOfNulls<PressInteraction.Press?>(items.size.coerceAtLeast(1))
+    val pendingPress = remember(cells.size) {
+        arrayOfNulls<PressInteraction.Press?>(cells.size.coerceAtLeast(1))
     }
     interactionSources.forEachIndexed { i, source ->
         LaunchedEffect(source) {
@@ -290,8 +311,16 @@ private fun PickerGrid(
     /** 视窗顶上是第几行:只在某格报「得到焦点」时由 [keepInView] 推进。 */
     var firstVisibleRow by remember { mutableStateOf(0) }
     val pitchPx = rowHeightPx + rowGapPx
-    val visibleRows =
-        if (rowHeightPx > 0 && viewportPx > 0) ((viewportPx + rowGapPx) / pitchPx).coerceAtLeast(1) else rows.size
+    // 调用时现读两个量出来的状态(R63):onFocusChanged 的 lambda 是上一次组合时捕获的,首帧还没量到行高时
+    // 它手里的 visibleRows 是 rows.size,种子若在那一刻落到视窗外的行上就不会翻页。现读就没有这个时差。
+    fun visibleRowsNow(): Int =
+        if (rowHeightPx > 0 && viewportPx > 0) ((viewportPx + rowGapPx) / (rowHeightPx + rowGapPx)).coerceAtLeast(1)
+        else rows.size
+    val visibleRows = visibleRowsNow()
+    // 兜底:焦点在量到行高之前就落下了(上面的现读也救不了「那一刻真的还没量到」),量到之后补一次翻页。
+    LaunchedEffect(visibleRows) {
+        holderIdx?.let { firstVisibleRow = keepInView(it / columns, firstVisibleRow, visibleRows) }
+    }
     // 删图后行数变少:首行夹回合法范围,末页不会留一截空白
     val firstRow = firstVisibleRow.coerceIn(0, (rows.size - visibleRows).coerceAtLeast(0))
     val yShift by animateDpAsState(
@@ -311,6 +340,11 @@ private fun PickerGrid(
     // focusRequesters 上;新列表一到,`remember(items.size)` 把 focusRequesters 整表换新,而这个
     // 效果的 key 都没变、不会重跑,从此没有人再请求焦点。**把 focusRequesters 也编进 key**:
     // 它一变(items.size 变,亦即任何一次删除)这里就跟着重跑,用的是换新之后那一批。
+    // 浮层盖上 → 冻住当时的目标(见 frozenTarget)。盖上时网格里的格子只会失焦、不会得焦,此刻的 focusedIdx 就是对的。
+    LaunchedEffect(covered) {
+        if (covered && frozenTarget == null) frozenTarget = focusedIdx
+    }
+
     LaunchedEffect(nonce, covered, focusRequesters) {
         if (covered) return@LaunchedEffect
         // 遗留 #8:浮层刚让路,可能留了一个卡住的 Press(不一定是当前聚焦格——长按发生时聚焦的是
@@ -335,6 +369,9 @@ private fun PickerGrid(
             runCatching { requesters[i].requestFocus() }
             frames++
         }
+        // 这一轮跑完就解冻(见 frozenTarget 的 KDoc)。冻结期间落地那一下的翻页被闸住了,这里按实际持有者补一次。
+        frozenTarget = null
+        holderIdx?.let { firstVisibleRow = keepInView(it / columns, firstVisibleRow, visibleRowsNow()) }
     }
 
     // **焦点看门狗**:上面那条管「我想去哪」,这条管「焦点莫名其妙没了」——旧格随删除被销毁、
@@ -360,9 +397,10 @@ private fun PickerGrid(
 
     // 上报只派生、不缓存(同 HomeScreen 的 onFocusedCard):删图后同一格换了文件、没有焦点事件,
     // items 变 → 这里按新列表再报一次。离开组合(关图库 / 删空换成空态)报 null,不留过期文件。
+    // 「＋」格报 null(R63):长按删图那一支(MainActivity.dispatchKeyEvent 的 poolBare)因此不成立。
     if (onFocusedFile != null) {
-        LaunchedEffect(holderIdx, items) {
-            onFocusedFile((holderIdx?.let { items.getOrNull(it) } as? PickerItem.Library)?.file)
+        LaunchedEffect(holderIdx, cells) {
+            onFocusedFile((holderIdx?.let { cells.getOrNull(it) } as? PickerItem.Library)?.file)
         }
         DisposableEffect(Unit) { onDispose { onFocusedFile(null) } }
     }
@@ -380,9 +418,20 @@ private fun PickerGrid(
             style = TextStyle(fontFamily = Theme.Sans, color = LocalThemeColors.current.highlight, fontSize = 16.sp),
             modifier = Modifier.padding(bottom = 4.dp),
         )
+        if (emptyHint != null && items.isEmpty()) {
+            BasicText(
+                text = emptyHint,
+                style = TextStyle(fontFamily = Theme.Sans, color = Theme.DialogBodyText, fontSize = 14.sp),
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
+        }
 
         Box(
             modifier = Modifier
+                // weight(fill = false)(R63 顺手修):600dp 上限比 540dp 高的屏还高,行数一多视窗把整块撑满屏,
+                // 底下的「按返回键取消」被挤成 0 高、看不见,可见行数也按屏外的高度算。带权重的子项最后量,
+                // 标题和底注先拿到自己的高度,视窗只分剩下的。
+                .weight(1f, fill = false)
                 .heightIn(max = 600.dp)
                 .clipToBounds()
                 .onSizeChanged { viewportPx = it.height },
@@ -408,7 +457,7 @@ private fun PickerGrid(
                         focused = focused,
                         thumbWidth = thumbWidth,
                         thumbHeight = thumbHeight,
-                        modifier = Modifier
+                        cellModifier = Modifier
                             .focusRequester(focusRequesters[idx])
                             .focusProperties {
                                 if (colIdx == 0) left = FocusRequester.Cancel
@@ -417,9 +466,11 @@ private fun PickerGrid(
                                 if (rowIdx == rows.lastIndex) down = FocusRequester.Cancel
                             }
                             .onFocusChanged {
-                                if (it.isFocused) {
+                                // 冻结期间只认目标那一格(铁律 5,见 frozenTarget)。
+                                if (it.isFocused && frozenTarget.let { t -> t == null || clampCell(t, cells.size) == idx }) {
+                                    frozenTarget = null
                                     focusedIdx = idx
-                                    firstVisibleRow = keepInView(rowIdx, firstVisibleRow, visibleRows)
+                                    firstVisibleRow = keepInView(rowIdx, firstVisibleRow, visibleRowsNow())
                                 }
                                 // 得失顺序保护(同 HomeScreen.report):只有「本格仍是持有者」时 lost 才作废,
                                 // 新格先报 got、旧格后报 lost 时不会把新格抹掉。
@@ -432,6 +483,7 @@ private fun PickerGrid(
                                 when (item) {
                                     is PickerItem.Original -> onRestoreOriginal?.invoke()
                                     is PickerItem.Library -> onSelectFile(item.file)
+                                    PickerItem.AddFromPhone -> onAddFromPhone?.invoke()
                                 }
                             },
                     )
@@ -455,8 +507,13 @@ private fun ThumbCard(
     focused: Boolean,
     thumbWidth: Dp,
     thumbHeight: Dp,
-    modifier: Modifier = Modifier,
+    cellModifier: Modifier = Modifier,
 ) {
+    if (item is PickerItem.AddFromPhone) {
+        AddFromPhoneCard(focused, thumbWidth, thumbHeight, cellModifier)
+        return
+    }
+    val modifier = cellModifier
     // R5(实测复现):produceState 换 key 时只重启协程,value 不会先跳回 null——删图导致列表整体
     // 前移一格时,这一格的 item 已经指向新文件,但旧协程解出来的旧 Bitmap 还挂在 value 上,新协程
     // 解码完成前的这几帧会显示上一个占用者的缩略图(标题与 onFocusedFile 那时已经是新文件了)。
@@ -464,6 +521,7 @@ private fun ThumbCard(
     // 不需要手动清零——效果与「换 key 就重置」等价,但不用在协程开头多写一次 value = null。
     val thumb by produceState<Pair<PickerItem, Bitmap?>?>(null, item) {
         val bmp = when (item) {
+            PickerItem.AddFromPhone -> null
             is PickerItem.Original -> item.bitmap
             is PickerItem.Library -> withContext(Dispatchers.IO) {
                 runCatching {
@@ -481,6 +539,7 @@ private fun ThumbCard(
     }
 
     val label = when (item) {
+        PickerItem.AddFromPhone -> ""   // 不会走到(上面已分流),只为 when 穷尽
         is PickerItem.Original -> stringResource(R.string.picker_restore_original)
         is PickerItem.Library -> item.file.nameWithoutExtension
     }
@@ -527,12 +586,54 @@ private fun ThumbCard(
             ),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().height(THUMB_LABEL_HEIGHT).wrapContentHeight(),
         )
     }
 }
 
-private const val MAX_ICON_ITEMS = 16
+
+/**
+ * 「＋ 从手机添加」格(Ruling R63):与图片格同尺寸、同聚焦样式(聚焦底色 highlight 16%、标签变 highlight),
+ * 缩略图位置画一个「＋」(同编辑页行尾 AddCard 的字形)。
+ */
+@Composable
+private fun AddFromPhoneCard(focused: Boolean, thumbWidth: Dp, thumbHeight: Dp, modifier: Modifier) {
+    val highlight = LocalThemeColors.current.highlight
+    val label = stringResource(R.string.picker_add_from_phone)
+    Column(
+        modifier = modifier
+            .width(thumbWidth)
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (focused) highlight.copy(alpha = 0.16f) else Theme.UnfocusedSurface)
+            .padding(6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Box(
+            modifier = Modifier.fillMaxWidth().height(thumbHeight)
+                .clip(RoundedCornerShape(4.dp)).background(Theme.ThumbPlaceholderBackground)
+                .clearAndSetSemantics { },
+            contentAlignment = Alignment.Center,
+        ) {
+            BasicText(
+                "＋",
+                style = TextStyle(fontFamily = Theme.Sans, color = if (focused) highlight else Theme.ThumbLabelText, fontSize = 30.sp),
+            )
+        }
+        BasicText(
+            text = label,
+            style = TextStyle(
+                fontFamily = Theme.Sans,
+                color = if (focused) highlight else Theme.ThumbLabelText,
+                fontSize = 10.sp,
+                textAlign = TextAlign.Center,
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth().height(THUMB_LABEL_HEIGHT).wrapContentHeight(),
+        )
+    }
+}
 
 /**
  * 屏保图库:显示 library/screensavers/ 里的全部图片,确定键全屏预览;长按缩略图 → 删除确认框
@@ -545,7 +646,7 @@ private const val MAX_ICON_ITEMS = 16
  * 因 items.size 变而整表换新——PickerGrid 的定位效果把 focusRequesters 也编进 key 应对这一步,
  * 另配一个只认「有没有人持有焦点」的看门狗兜底(fix round 1,镜像 SettingsScreen 那一份的写法;
  * 这一段实测复现过焦点漏给背后盖住的设置页,删最后一张 / 小图库删任意一张都会中招)。
- * 删空换成空态,空态自己的循环接住焦点。
+ * 删空后网格只剩「＋ 从手机添加」一格(R63 起不再换成单独的空态),焦点由同一套定位效果 / 看门狗夹到「＋」上。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
@@ -557,15 +658,21 @@ fun ScreensaverPoolViewer(
     onConfirmDelete: (File) -> Unit = {},
     onCancelDelete: () -> Unit = {},
     onDismiss: () -> Unit,
+    onAddFromPhone: (() -> Unit)? = null,
+    landing: List<String>? = null,
 ) {
     val ctx = LocalContext.current
     // IO 线程扫,走 safeScan(与播放器同一条「失败记日志、退回 null」的规则,内部调的还是
     // scanScreensaverLibrary)——这里原来是 runCatching{...}.getOrDefault(emptyList()),失败
     // 被默默吞掉、不留日志,和主线程按自己一套扩展名表列目录的老口径一样,都统一掉了。
     // produceState 的值跨 key 保留:删图后 refresh+1 重扫期间仍显示旧列表,不会闪一下空态。null = 首次还没扫完。
-    val scanned by produceState<List<File>?>(null, refresh) {
-        value = withContext(Dispatchers.IO) { safeScan(ctx) ?: emptyList() }
+    // 值里带上「这是按哪一版 refresh 扫的」(R63):删图后到新列表到达之前 [rescanning] 为真,网格按 covered 让路
+    // ——不然定位效果会先落在旧列表那一格,新列表一到那格的节点(删的是末张时)被拆,焦点又被系统派走。
+    val scannedFor by produceState<Pair<Int, List<File>>?>(null, refresh) {
+        value = refresh to withContext(Dispatchers.IO) { safeScan(ctx) ?: emptyList() }
     }
+    val scanned = scannedFor?.second
+    val rescanning = scannedFor != null && scannedFor?.first != refresh
     val files = scanned ?: emptyList()
     var previewIndex by remember { mutableStateOf(-1) }
 
@@ -576,11 +683,13 @@ fun ScreensaverPoolViewer(
         contentAlignment = Alignment.Center,
     ) {
         when {
-            scanned == null -> Unit   // 首次扫描中(几十毫秒):只有半透明底
-            files.isEmpty() -> PoolEmptyState(nonce, onDismiss)
+            // 首次扫描中(几十毫秒):只有半透明底。**网格要等扫完才挂**——R63 的落点种子只在挂载那一刻读一次,
+            // 挂早了拿到的是空列表,新传的图永远找不到。
+            scanned == null -> Unit
             else -> PickerGrid(
                 items = files.map { PickerItem.Library(it) },
-                title = stringResource(R.string.picker_screensaver_pool_title, files.size),
+                title = if (files.isEmpty()) stringResource(R.string.picker_screensaver_title)
+                else stringResource(R.string.picker_screensaver_pool_title, files.size),
                 columns = 3,
                 thumbWidth = 170.dp,
                 thumbHeight = 96.dp,
@@ -591,8 +700,11 @@ fun ScreensaverPoolViewer(
                 },
                 onRestoreOriginal = null,
                 onDismiss = onDismiss,
-                covered = previewIndex >= 0 || deleteTarget != null,
+                covered = previewIndex >= 0 || deleteTarget != null || rescanning,
                 onFocusedFile = onFocusedFile,
+                emptyHint = stringResource(R.string.picker_no_screensavers),
+                onAddFromPhone = onAddFromPhone,
+                landing = landing,
             )
         }
     }
@@ -618,57 +730,6 @@ fun ScreensaverPoolViewer(
             onOk = { onConfirmDelete(target) },
             onCancel = onCancelDelete,
         )
-    }
-}
-
-@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
-@Composable
-private fun PoolEmptyState(nonce: Int, onDismiss: () -> Unit) {
-    val fr = remember { FocusRequester() }
-    var landed by remember { mutableStateOf(false) }
-    Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(Theme.DialogSurface)
-            .padding(24.dp)
-            .width(400.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        BasicText(
-            text = stringResource(R.string.picker_screensaver_title),
-            style = TextStyle(fontFamily = Theme.Sans, color = LocalThemeColors.current.highlight, fontSize = 16.sp),
-        )
-        BasicText(
-            text = stringResource(R.string.picker_no_screensavers),
-            style = TextStyle(fontFamily = Theme.Sans, color = Theme.DialogBodyText, fontSize = 14.sp, textAlign = TextAlign.Center),
-        )
-        BasicText(
-            text = stringResource(R.string.picker_adb_hint_screensaver),
-            style = TextStyle(fontFamily = Theme.Sans, color = Theme.HintText, fontSize = 12.sp, textAlign = TextAlign.Center),
-        )
-        Spacer(Modifier.height(4.dp))
-        BasicText(
-            text = stringResource(R.string.picker_back_to_close),
-            style = TextStyle(fontFamily = Theme.Sans, color = Theme.PickerFooterText, fontSize = 11.sp),
-            modifier = Modifier
-                .focusRequester(fr)
-                .onFocusChanged { if (it.isFocused) landed = true }
-                .focusProperties {
-                    up = FocusRequester.Cancel; down = FocusRequester.Cancel
-                    left = FocusRequester.Cancel; right = FocusRequester.Cancel
-                }
-                .clickable { onDismiss() },
-        )
-    }
-    LaunchedEffect(nonce) {
-        landed = false
-        var frames = 0
-        while (!landed && frames < 60) {
-            withFrameNanos { }
-            runCatching { fr.requestFocus() }
-            frames++
-        }
     }
 }
 

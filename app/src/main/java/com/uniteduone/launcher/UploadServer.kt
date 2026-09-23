@@ -22,12 +22,14 @@ private const val TAG = "UnitedU"
 class UploadServer(
     private val ctx: Context,
     port: Int,
-    /** 每存下一个文件回调一次(**主线程**),给电视端页面计数。 */
-    private val onSaved: (String) -> Unit,
+    /** 每存下一个文件回调一次(**主线程**),参数是(分类, 落盘文件名),给电视端页面计数、给图片网格定落点(R63)。 */
+    private val onSaved: (type: String, name: String) -> Unit,
     /** 有提示要给电视端页面显示时回调一次(**主线程**),参数是 R.string id(spec §4)。 */
     private val onNotice: (Int) -> Unit = {},
     /** 导入页是否还在前台(**只在主线程问**)。false 时不许弹系统安装器,见 [serveApk]。 */
     private val isForeground: () -> Boolean = { true },
+    /** 手机网页默认打开的分页(R63,见 [defaultTabJs]);null = 网页自己的默认。 */
+    private val defaultTab: String? = null,
 ) : NanoHTTPD(port) {
 
     private val main = Handler(Looper.getMainLooper())
@@ -121,12 +123,12 @@ class UploadServer(
         return closing(json(Response.Status.PAYLOAD_TOO_LARGE, jsonFail("size")))
     }
 
-    /** 网页。把 index.html 里的 __STRINGS__ 占位替换成按电视当前语言取的三语 JSON。 */
+    /** 网页。把 index.html 里的 __STRINGS__ 占位替换成按电视当前语言取的三语 JSON,__DEFAULT_TAB__ 换成默认分页(R63)。 */
     private fun serveIndex(): Response {
         val html = runCatching {
             ctx.assets.open("web/index.html").use { it.readBytes().toString(Charsets.UTF_8) }
         }.getOrNull() ?: return text(Response.Status.NOT_FOUND, "index missing")
-        return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html.replace("__STRINGS__", webStringsJson(ctx)))
+        return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html.replace("__STRINGS__", webStringsJson(ctx)).replace("__DEFAULT_TAB__", defaultTabJs(defaultTab)))
     }
 
     private fun listImages(dir: File): List<File> =
@@ -175,7 +177,7 @@ class UploadServer(
                     val finalName = uniqueName(dir.list()?.toSet() ?: emptySet(), clean)
                     if (moveInto(tmp, File(dir, finalName))) {
                         saved += finalName
-                        main.post { onSaved(finalName) }
+                        main.post { onSaved(type!!, finalName) }
                     } else rejected += original to "write"
                 }
             }
@@ -312,12 +314,13 @@ class UploadServer(
          */
         fun startOnFreePort(
             ctx: Context,
-            onSaved: (String) -> Unit,
+            onSaved: (type: String, name: String) -> Unit,
             onNotice: (Int) -> Unit = {},
             isForeground: () -> Boolean = { true },
+            defaultTab: String? = null,
         ): UploadServer? {
             for (port in UPLOAD_PORT_FIRST..UPLOAD_PORT_LAST) {
-                val s = UploadServer(ctx, port, onSaved, onNotice, isForeground)
+                val s = UploadServer(ctx, port, onSaved, onNotice, isForeground, defaultTab)
                 val ok = runCatching { s.start(SOCKET_READ_TIMEOUT, false); true }
                     .onFailure { runCatching { s.stop() } }
                     .getOrDefault(false)

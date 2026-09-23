@@ -35,6 +35,9 @@ private const val VIEW_SCREENSAVER_POOL = "__screensaver_pool__"
 private const val VIEW_HOME_SETTINGS = "__home_settings__"
 private const val VIEW_IMPORT = "__import__"
 
+/** 扫码页从哪个图片网格打开(R63):关掉后回到 [returnTo](pickerTarget 的取值),[type] 是上传分类。 */
+private data class ImportOrigin(val returnTo: String, val type: String)
+
 /**
  * `onSaveInstanceState` 里设置页那几个键(T8,spec §5)。切语言 `recreate()` 会把整个
  * Activity —— 连同 `settings`/`settingsPos` 这两个普通字段 —— 一起销毁重建,唯一能跨过
@@ -121,6 +124,24 @@ class MainActivity : ComponentActivity() {
      *  X-plore 的 GET_CONTENT 不响应 D-pad(2026-09-11 真机确认),所以换壁纸/换图标
      *  改为用内置选择器,图片通过 adb push 到 files/library/ 预先放好。 */
     private var pickerTarget by mutableStateOf<String?>(null)
+    /**
+     * 扫码页是从哪个图片网格的「＋ 从手机添加」打开的(Ruling R63):关掉扫码页回到它(`pickerTarget` 换回
+     * [ImportOrigin.returnTo]),而不是一路关回设置页 / 首页。null = 设置页「手机传输」总入口,关掉就是关掉。
+     * **每一条打开扫码页的路都会写它**([openImport] 写 null、[openImportFrom] 写来源),不靠某条关闭路径去清(铁律 7)。
+     * 只在 `pickerTarget == VIEW_IMPORT` 期间有意义。
+     */
+    private var importOrigin by mutableStateOf<ImportOrigin?>(null)
+    /**
+     * 本次扫码会话里传进 [importOrigin] 那个分类的文件名,按上传先后(UploadServer 在主线程回调)。只在关扫码页那一刻
+     * 读一次、变成 [pickerLanding],所以不是 `mutableStateOf`。[openImportFrom] 每次打开时清空。
+     */
+    private val importUploads = mutableListOf<String>()
+    /**
+     * 图片网格挂载时的落点种子(R63):从扫码页回来那一次 = 本次新传的文件名;普通打开 = null(落第 0 格)。
+     * 网格只在**挂载那一刻**读它(同编辑页的 [editTarget] 种子);每一条挂载网格的路都写它——[pickWallpaper] /
+     * [openScreensaverPool] / [pickIcon] 写 null,[closeImport] 写上传列表——不存在「上次的种子漏到下次」的路。
+     */
+    private var pickerLanding by mutableStateOf<List<String>?>(null)
     /**
      * 待机与自定义屏保(M5 spec §1)。**一个值装两个布尔量**,只取 [StandbyFlags] 的三个常量:
      * 不变量「屏保 ⇒ 待机」由它的构造函数钉死,两个量一次写完、没有「只写了一半」的中间态。
@@ -772,6 +793,8 @@ class MainActivity : ComponentActivity() {
                 nonce = focusNonce,
                 onSelect = { file -> handlePick(file) },
                 onDismiss = { pickerTarget = null; focusNonce++ },
+                onAddFromPhone = { openImportFrom(PICK_WALLPAPER) },
+                landing = pickerLanding,
             )
             // M5 spec §5:长按缩略图删图。长按识别在 dispatchKeyEvent(「图库光着」那一支),这里只接线:
             // 网格上报聚焦的文件、确认框的目标与两个按钮。确认框自己负责焦点;关掉后(删除 / 取消都 focusNonce++)
@@ -785,10 +808,16 @@ class MainActivity : ComponentActivity() {
                 onConfirmDelete = ::deletePoolImage,
                 onCancelDelete = { poolDeleteTarget = null; focusNonce++ },
                 onDismiss = { pickerTarget = null; focusNonce++ },
+                onAddFromPhone = { openImportFrom(VIEW_SCREENSAVER_POOL) },
+                landing = pickerLanding,
             )
+            // R63:从网格的「＋」打开时,扫码页**替换**那个网格(pickerTarget 换成 VIEW_IMPORT),关掉后 closeImport
+            // 把 pickerTarget 换回去、网格重新挂载(重扫文件)并按 pickerLanding 落到新传的第一张。
             VIEW_IMPORT -> ImportScreen(
-                onExit = { pickerTarget = null; focusNonce++ },
+                onExit = ::closeImport,
                 focusNonce = focusNonce,
+                category = importOrigin?.type,
+                onUploaded = { type, name -> if (type == importOrigin?.type) importUploads += name },
             )
             // 「当前默认桌面」的解析与首次引导第 3 步共用(rememberCurrentHome,T10 抽出)。
             VIEW_HOME_SETTINGS -> HomeSettingsCard(
@@ -805,6 +834,8 @@ class MainActivity : ComponentActivity() {
                 onSelect = { file -> handlePick(file) },
                 onRestoreOriginal = { restoreOriginalIcon(target) },
                 onDismiss = { pickerTarget = null; focusNonce++ },
+                onAddFromPhone = { openImportFrom(target) },
+                landing = pickerLanding,
             )
         }
     }
@@ -1120,7 +1151,8 @@ class MainActivity : ComponentActivity() {
         closeCardMenu()
         closeAbout()
         renameTarget = null
-        if (pickerTarget == VIEW_IMPORT) { pickerTarget = null; focusNonce++ }
+        // HOME 从扫码页一路关到底,不回到来源网格(R63):HOME 的语义是回桌面初始状态。
+        if (pickerTarget == VIEW_IMPORT) { pickerTarget = null; importOrigin = null; focusNonce++ }
     }
 
     /**
@@ -1466,6 +1498,7 @@ class MainActivity : ComponentActivity() {
     /** @return 选择器是否真的打开了;false = 存储没就绪(已 toast),调用方不要留任何「回来时用」的状态。 */
     private fun pickIcon(pkg: String): Boolean {
         if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return false }
+        pickerLanding = null
         pickerTarget = pkg
         return true
     }
@@ -1532,13 +1565,50 @@ class MainActivity : ComponentActivity() {
     private fun pickWallpaper() {
         if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
         closeMenu()
+        pickerLanding = null
         pickerTarget = PICK_WALLPAPER
     }
 
+    /** 设置页「手机传输」总入口:不带分类,关掉就是关掉(回到设置页)。 */
     private fun openImport() {
         if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
         closeMenu()
+        importOrigin = null
         pickerTarget = VIEW_IMPORT
+    }
+
+    /**
+     * 图片网格首格「＋ 从手机添加」(Ruling R63)。[returnTo] 是当前的 pickerTarget(换壁纸 / 屏保图库 / 某张卡的包名),
+     * 分类由它推出。扫码页替换网格;网格离开组合时自己报 null(屏保图库的 poolFocusedFile),不用这里清。
+     */
+    private fun openImportFrom(returnTo: String) {
+        if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
+        importOrigin = ImportOrigin(returnTo, libraryTypeOf(returnTo))
+        importUploads.clear()
+        pickerTarget = VIEW_IMPORT
+    }
+
+    /**
+     * 扫码页的出口(返回键 / 离开应用的 ON_STOP;HOME 走 onNewIntent 另一条)。从网格来的回到网格,种子 = 本次
+     * 新传的文件名;总入口来的照旧关掉。`focusNonce++`:回到的网格 / 设置页据此落焦点。
+     */
+    private fun closeImport() {
+        val origin = importOrigin
+        importOrigin = null
+        if (origin != null) {
+            pickerLanding = importUploads.toList()
+            pickerTarget = origin.returnTo
+        } else {
+            pickerTarget = null
+        }
+        focusNonce++
+    }
+
+    /** 网格来源 → 上传分类(`LIBRARY_TYPES` 之一)。只会被三种网格调用:换壁纸、屏保图库、其余都是包名 = 换卡片图。 */
+    private fun libraryTypeOf(target: String): String = when (target) {
+        PICK_WALLPAPER -> "wallpapers"
+        VIEW_SCREENSAVER_POOL -> "screensavers"
+        else -> "cards"
     }
 
     /**
@@ -1551,6 +1621,7 @@ class MainActivity : ComponentActivity() {
         closeMenu()
         poolDeleteTarget = null
         poolFocusedFile = null
+        pickerLanding = null
         pickerTarget = VIEW_SCREENSAVER_POOL
     }
 

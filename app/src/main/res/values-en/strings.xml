@@ -50,6 +50,9 @@
     <string name="settings_phone_transfer_desc">Upload wallpapers, card &amp; screensaver images, or an APK by phone</string>
     <!-- import_* : Import Images page (TV side) -->
     <string name="import_title">Import images from your phone</string>
+    <string name="import_title_wallpapers">Add wallpapers from your phone</string>
+    <string name="import_title_cards">Add card images from your phone</string>
+    <string name="import_title_screensavers">Add screensaver images from your phone</string>
     <string name="import_received">%1$d file(s) received</string>
     <string name="import_last">Latest: %1$s</string>
     <string name="import_hint_back">Press Back to close and stop the service</string>
@@ -113,14 +116,13 @@
     <string name="picker_wallpaper_title">Choose a Wallpaper</string>
     <string name="picker_card_image_title">Choose a Card Image</string>
     <string name="picker_no_images">No images available yet</string>
-    <string name="picker_adb_hint">Use adb push to copy images to\nfiles/library/ first</string>
     <string name="picker_back_to_close">Press Back to close</string>
     <string name="picker_back_to_cancel">Press Back to cancel</string>
     <string name="picker_restore_original">Restore Original</string>
+    <string name="picker_add_from_phone">Add from Phone</string>
     <string name="picker_screensaver_pool_title">Screensaver Gallery · %1$d images · Press OK to preview</string>
     <string name="picker_screensaver_title">Screensaver Gallery</string>
     <string name="picker_no_screensavers">No screensaver images yet</string>
-    <string name="picker_adb_hint_screensaver">Use adb push to add images to\nfiles/library/screensavers/</string>
     <!-- pool_delete_* : long-press delete confirm in the screensaver gallery (M5 spec §5); cancel reuses dialog_cancel -->
     <string name="pool_delete_title">Delete this picture?</string>
     <string name="pool_delete_body">\"%1$s\" will be removed from the gallery for good</string>

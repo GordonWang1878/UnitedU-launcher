@@ -53,15 +53,34 @@ private fun BitMatrix.toBitmap(): Bitmap {
 private fun windowFor(noticeId: Int): Long =
     if (noticeId == R.string.import_apk_needs_permission) 120_000L else 30_000L
 
+/** 扫码页标题(R63):从哪个图片网格的「＋」进来就写哪一类;总入口「手机传输」(category = null)照旧。 */
+private fun importTitleFor(category: String?): Int = when (category) {
+    "wallpapers" -> R.string.import_title_wallpapers
+    "cards" -> R.string.import_title_cards
+    "screensavers" -> R.string.import_title_screensavers
+    else -> R.string.import_title
+}
+
 /**
  * 「导入图片」页(spec §3):进入即起 HTTP 服务,显示地址 + 二维码 + 已收到计数;返回键关闭并停止服务。
  * 焦点账本最简:根节点是唯一可聚焦项;守卫 `focused` 同时是 key(铁律 2、3、6);
  * 焦点是否落下只信自报 isFocused,不信 requestFocus 的返回。
+ *
+ * [category](Ruling R63):从某个图片网格的「＋ 从手机添加」打开时是那个网格的分类(`LIBRARY_TYPES` 之一)——
+ * 标题按分类写、手机网页默认打开那个分页;null = 设置页「手机传输」总入口。[onUploaded] 每存下一个文件报一次
+ * (分类, 文件名),MainActivity 据此在回到网格时把焦点落到本次新传的第一张上。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
-fun ImportScreen(onExit: () -> Unit, focusNonce: Int = 0) {
+fun ImportScreen(
+    onExit: () -> Unit,
+    focusNonce: Int = 0,
+    category: String? = null,
+    onUploaded: (type: String, name: String) -> Unit = { _, _ -> },
+) {
     val ctx = LocalContext.current
+    // 服务只在挂载时起一次(下面那个 DisposableEffect(Unit)),回调读最新的一份。
+    val uploaded by androidx.compose.runtime.rememberUpdatedState(onUploaded)
     var received by remember { mutableStateOf(0) }
     var lastName by remember { mutableStateOf<String?>(null) }
     var url by remember { mutableStateOf<String?>(null) }
@@ -87,7 +106,7 @@ fun ImportScreen(onExit: () -> Unit, focusNonce: Int = 0) {
         } else {
             server = UploadServer.startOnFreePort(
                 ctx,
-                onSaved = { name -> received++; lastName = name; notice = null },
+                onSaved = { type, name -> received++; lastName = name; notice = null; uploaded(type, name) },
                 // **只有前台才撑窗**(spec §4):窗的用途是「别把正在进行的安装流程关掉」,
                 // 页面本就不在前台时没有这样的流程可护——照撑的话,局域网上任何人每 30 s 传一次
                 // APK 就能让这个无密码服务在用户已经切去看视频之后无限期活着。
@@ -98,6 +117,7 @@ fun ImportScreen(onExit: () -> Unit, focusNonce: Int = 0) {
                     }
                 },
                 isForeground = { lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) },
+                defaultTab = category,
             )
             if (server == null) error = R.string.import_error_port
             else url = "http://$ip:${server.listeningPort}/"
@@ -171,7 +191,7 @@ fun ImportScreen(onExit: () -> Unit, focusNonce: Int = 0) {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp)) {
             BasicText(
-                text = stringResource(R.string.import_title),
+                text = stringResource(importTitleFor(category)),
                 style = TextStyle(fontFamily = Theme.Sans, fontWeight = FontWeight.Medium, color = Theme.EmphasisText, fontSize = 24.sp),
             )
             val err = error

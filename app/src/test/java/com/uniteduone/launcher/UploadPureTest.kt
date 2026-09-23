@@ -135,4 +135,18 @@ class UploadPureTest {
         val bitmap = BinaryBitmap(HybridBinarizer(RGBLuminanceSource(m.width, m.height, px)))
         assertEquals(url, QRCodeReader().decode(bitmap).text)
     }
+
+    // ---- R63:手机网页默认分页 ----
+
+    @Test fun defaultTabIsInjectedAsAJsStringForLibraryTypes() {
+        assertEquals("\"screensavers\"", defaultTabJs("screensavers"))
+        assertEquals("\"wallpapers\"", defaultTabJs("wallpapers"))
+        assertEquals("\"cards\"", defaultTabJs("cards"))
+    }
+
+    @Test fun defaultTabIsNullForTheGeneralEntryOrJunk() {
+        assertEquals("null", defaultTabJs(null))
+        assertEquals("null", defaultTabJs("apk"))
+        assertEquals("null", defaultTabJs("\"</script><script>alert(1)"))
+    }
 }

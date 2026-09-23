@@ -42,6 +42,9 @@
     <string name="settings_phone_transfer_desc">手机扫码上传壁纸、卡片图、屏保图片,或安装 APK</string>
     <!-- import_* : 「导入图片」页(电视端) -->
     <string name="import_title">用手机导入图片</string>
+    <string name="import_title_wallpapers">用手机添加壁纸</string>
+    <string name="import_title_cards">用手机添加卡片图</string>
+    <string name="import_title_screensavers">用手机添加屏保图片</string>
     <string name="import_received">已收到 %1$d 个文件</string>
     <string name="import_last">最近:%1$s</string>
     <string name="import_hint_back">按返回键关闭并停止服务</string>
@@ -105,14 +108,13 @@
     <string name="picker_wallpaper_title">选一张壁纸</string>
     <string name="picker_card_image_title">选一张卡片图</string>
     <string name="picker_no_images">还没有图片可选</string>
-    <string name="picker_adb_hint">请先用 adb push 把图片放到\nfiles/library/ 目录</string>
     <string name="picker_back_to_close">按返回键关闭</string>
     <string name="picker_back_to_cancel">按返回键取消</string>
     <string name="picker_restore_original">恢复原图</string>
+    <string name="picker_add_from_phone">从手机添加</string>
     <string name="picker_screensaver_pool_title">屏保图库 · %1$d 张 · 按确定键预览</string>
     <string name="picker_screensaver_title">屏保图库</string>
     <string name="picker_no_screensavers">还没有屏保图片</string>
-    <string name="picker_adb_hint_screensaver">用 adb push 添加图片到\nfiles/library/screensavers/ 目录</string>
     <!-- pool_delete_* : 屏保图库长按删图的确认框(M5 spec §5);取消复用 dialog_cancel -->
     <string name="pool_delete_title">删除这张图片?</string>
     <string name="pool_delete_body">「%1$s」会从屏保图库删除,无法恢复</string>

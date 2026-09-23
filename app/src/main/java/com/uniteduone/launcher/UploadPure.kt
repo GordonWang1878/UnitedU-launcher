@@ -20,6 +20,13 @@ const val UPLOAD_PORT_LAST = 8099
 fun isValidType(type: String?): Boolean = type != null && type in LIBRARY_TYPES
 
 /**
+ * 手机网页默认打开哪个分页(Ruling R63):注入 index.html 的 `__DEFAULT_TAB__` 占位,是一段 JS 字面量。
+ * 从某个图片网格的「＋ 从手机添加」进来时是那个网格的分类;总入口「手机传输」不带分类 → `null`,
+ * 网页按原来的默认(壁纸)打开。只认 [LIBRARY_TYPES],别的值一律当没带。
+ */
+fun defaultTabJs(tab: String?): String = if (isValidType(tab)) jsonStr(tab!!) else "null"
+
+/**
  * multipart 请求头缺 charset 时返回补上 `; charset=UTF-8` 的新值,否则 null(不用改)。
  * NanoHTTPD 2.3.1 用这个 charset 解 part 头(文件名在里面),缺省是 US-ASCII——中文名会全变 U+FFFD。
  */
