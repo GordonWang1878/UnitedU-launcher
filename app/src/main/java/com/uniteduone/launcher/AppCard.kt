@@ -103,7 +103,7 @@ fun AppCard(
 ) {
     var focused by remember { mutableStateOf(false) }
     val accent = LocalThemeColors.current.accent
-    // R68:淡化参数来自设置(外观组两条滑块),含设置页的实时预览。
+    // R70:淡化参数来自设置(外观组两条滑块),含设置页的实时预览。
     val fade = LocalCardFade.current
     // 移动态的描边色:必须与下面 focused 用的 accent 不同,两者才能同时可辨(见 moving 参数上的说明)。
     val movingColor = LocalThemeColors.current.highlight
@@ -220,7 +220,7 @@ fun AppCard(
 }
 
 /**
- * **Ruling R68(2026-09-23 设置页改版)**:卡片淡化的两个参数(百分比)从常量改成设置
+ * **Ruling R70(2026-09-23 设置页改版)**:卡片淡化的两个参数(百分比)从常量改成设置
  * (`Settings.cardSaturation` / `cardBrightness`,外观组两条滑块)。缺省值 = R49 原来写死的
  * [GtvLayout.CARD_FADE_SATURATION] / [GtvLayout.CARD_FADE_BRIGHTNESS],旧 settings.json 没有这两个键时观感零变化。
  * 两项都 100 时是恒等变换,[gtvCardFade] 直接跳过离屏层。
@@ -245,7 +245,7 @@ fun Settings.cardFade(): CardFade = CardFade(cardSaturation, cardBrightness)
 val LocalCardFade = staticCompositionLocalOf { CardFade.DEFAULT }
 
 /**
- * **Ruling R49**:卡片淡化(效果图 B4,算法见 [GtvLayout.cardFadeMatrix];R68 起参数来自 [fade])。把本节点及其
+ * **Ruling R49**:卡片淡化(效果图 B4,算法见 [GtvLayout.cardFadeMatrix];R70 起参数来自 [fade])。把本节点及其
  * 内层画的全部内容放进一个带颜色矩阵的离屏层(`saveLayer` + paint 的 colorFilter,效果同
  * `graphicsLayer { compositingStrategy = Offscreen }` 再上滤镜)。**只挂在卡片内容那一层**:
  * 外层的聚焦描边 / 柔光 / 搬运态描边(`gtvAppFocusFrame` 的 drawBehind)不在这层里,颜色不变。

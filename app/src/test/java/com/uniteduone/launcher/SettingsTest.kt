@@ -292,7 +292,7 @@ class SettingsTest {
         assertEquals(parseSettings("{}"), parseSettingsStrict("{}"))
     }
 
-    // ---- R68:卡片淡化两项 ----
+    // ---- R70:卡片淡化两项 ----
 
     /** 旧文件没有这两个键 → 30 / 75 = R49 原来写死的常量,观感零变化。 */
     @Test fun cardFadeDefaultsMatchR49Constants() {

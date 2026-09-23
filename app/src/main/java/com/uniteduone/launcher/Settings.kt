@@ -46,11 +46,11 @@ data class Settings(
     /** 亮度 −50…+50,步 10:0 = 原片,负 = 压暗,正 = 提亮(2026-09-16 Gordon 定,取代原 0–100「压暗」)。 */
     val wallpaperBrightness: Int = 0,
     /**
-     * 卡片饱和度 0–100(%),步 10(R68,2026-09-23 设置页改版新增)。R49 卡片淡化原来写死在
+     * 卡片饱和度 0–100(%),步 10(R70,2026-09-23 设置页改版新增)。R49 卡片淡化原来写死在
      * `GtvLayout.CARD_FADE_SATURATION`(30%),缺省值照抄——旧文件没有这个键时观感零变化。
      */
     val cardSaturation: Int = DEFAULT_CARD_SATURATION,
-    /** 卡片亮度 50–100(%),步 5(R68)。缺省 75 = 原 `GtvLayout.CARD_FADE_BRIGHTNESS`。 */
+    /** 卡片亮度 50–100(%),步 5(R70)。缺省 75 = 原 `GtvLayout.CARD_FADE_BRIGHTNESS`。 */
     val cardBrightness: Int = DEFAULT_CARD_BRIGHTNESS,
     /** 上次打开「添加应用」列表的时刻(epoch ms);firstInstallTime 晚于它的应用算「新」。0 = 未初始化(首启时写成当时)。 */
     val newAppsSeenAt: Long = 0L,
@@ -75,7 +75,7 @@ internal val VALID_LANGUAGES = listOf("system", "zh-CN", "zh-TW", "en")
 internal val VALID_SCREENSAVER_AFTER_MS = longArrayOf(0L, 60_000L, 300_000L, 600_000L, 1_800_000L)
 internal val VALID_SCREENSAVER_INTERVAL_MS = longArrayOf(30_000L, 60_000L, 300_000L)
 
-// R68:卡片淡化两条滑块的取值范围。缺省值 = R49 原来写死的常量(×100 取整),旧文件缺键时观感零变化。
+// R70:卡片淡化两条滑块的取值范围。缺省值 = R49 原来写死的常量(×100 取整),旧文件缺键时观感零变化。
 internal const val DEFAULT_CARD_SATURATION = 30
 internal const val DEFAULT_CARD_BRIGHTNESS = 75
 internal const val CARD_SATURATION_MIN = 0
@@ -87,11 +87,11 @@ internal const val CARD_BRIGHTNESS_STEP = 5
 private fun clampPercentStep10(v: Int?, default: Int): Int =
     if (v == null) default else ((v.coerceIn(0, 100) + 5) / 10) * 10
 
-/** 卡片饱和度:0..100 夹取后四舍五入到 10 的倍数;解析不出 → 30(R68)。 */
+/** 卡片饱和度:0..100 夹取后四舍五入到 10 的倍数;解析不出 → 30(R70)。 */
 private fun clampCardSaturation(v: Int?): Int =
     if (v == null) DEFAULT_CARD_SATURATION else ((v.coerceIn(0, 100) + 5) / 10) * 10
 
-/** 卡片亮度:50..100 夹取后四舍五入到 5 的倍数;解析不出 → 75(R68)。 */
+/** 卡片亮度:50..100 夹取后四舍五入到 5 的倍数;解析不出 → 75(R70)。 */
 private fun clampCardBrightness(v: Int?): Int =
     if (v == null) DEFAULT_CARD_BRIGHTNESS else Math.round(v.coerceIn(CARD_BRIGHTNESS_MIN, 100) / 5f) * 5
 

@@ -46,10 +46,11 @@ data class CurrentHome(val label: String, val pkg: String?)
  * [revision] 当 key:装卸应用(`PACKAGE_*` → `revision++`)之后默认桌面可能换人,跟着重算。
  */
 @Composable
-fun rememberCurrentHome(revision: Int): CurrentHome {
+fun rememberCurrentHome(revision: Int, refresh: Int = 0): CurrentHome {
     val ctx = LocalContext.current
     val unknown = stringResource(R.string.home_settings_unknown)
-    return remember(revision, unknown) {
+    // refresh:设置页外壳「设置默认桌面」页传 focusNonce——从系统「默认主屏幕应用」页改完回来(onResume 必 ++)要重算。
+    return remember(revision, refresh, unknown) {
         val pm = ctx.packageManager
         val info = pm.resolveActivity(
             Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),
@@ -64,7 +65,7 @@ fun rememberCurrentHome(revision: Int): CurrentHome {
 
 /**
  * 「当前默认桌面」信息行:图标 + 「当前」+ 名字。不可聚焦,纯展示。
- * [HomeSettingsCard] 与首次引导第 3 步(spec §8「复用 HomeSettingsCard 内容」)共用,
+ * 设置外壳「设置默认桌面」页(R74,取代原 HomeSettingsCard 浮层)与首次引导第 3 步共用,
  * 两处长得一模一样,不各画一份。图标在 IO 线程取,取不到只留占位底。
  */
 @Composable
@@ -117,123 +118,6 @@ fun CurrentHomeRow(home: CurrentHome, modifier: Modifier = Modifier) {
                     fontSize = 15.sp,
                 ),
             )
-        }
-    }
-}
-
-/**
- * 「默认桌面」引导卡。Android 不允许普通应用直接改 HOME 角色,真正的切换只能在系统的
- * 「默认主屏幕应用」页完成(见 switchHome)。这张卡把那个粗糙的系统页包在一次明确点击之后:
- * 先显示当前默认桌面是谁,再给一个「在系统设置中更改」的按钮。风格与齿轮菜单一致。
- */
-@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
-@Composable
-fun HomeSettingsCard(
-    home: CurrentHome,
-    onOpenSystem: () -> Unit,
-    onDismiss: () -> Unit,
-    nonce: Int = 0,
-) {
-    val fr = remember { FocusRequester() }
-    var landed by remember { mutableStateOf(false) }
-    var btnFocused by remember { mutableStateOf(false) }
-    val highlight = LocalThemeColors.current.highlight
-
-    androidx.activity.compose.BackHandler { onDismiss() }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .focusGroup()
-            .background(Color.Black.copy(alpha = 0.72f)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            modifier = Modifier
-                .clip(RoundedCornerShape(14.dp))
-                .background(Theme.DialogSurface)
-                .width(360.dp)
-                .padding(24.dp),
-        ) {
-            BasicText(
-                text = stringResource(R.string.home_settings_title),
-                style = TextStyle(
-                    fontFamily = Theme.Sans,
-                    fontWeight = FontWeight.Medium,
-                    color = highlight,
-                    fontSize = 16.sp,
-                    letterSpacing = 1.sp,
-                ),
-            )
-
-            Spacer(Modifier.height(18.dp))
-
-            // 当前默认桌面
-            CurrentHomeRow(home)
-
-            Spacer(Modifier.height(20.dp))
-
-            // 主按钮:跳系统设置
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (btnFocused) highlight.copy(alpha = 0.16f) else Theme.UnfocusedSurface)
-                    .then(
-                        if (btnFocused) Modifier.border(
-                            BorderStroke(1.dp, highlight.copy(alpha = 0.7f)),
-                            RoundedCornerShape(10.dp),
-                        ) else Modifier
-                    )
-                    .focusRequester(fr)
-                    .focusProperties {
-                        up = FocusRequester.Cancel; down = FocusRequester.Cancel
-                        left = FocusRequester.Cancel; right = FocusRequester.Cancel
-                    }
-                    .onFocusChanged { btnFocused = it.isFocused; if (it.isFocused) landed = true }
-                    .clickable { onOpenSystem() }
-                    .padding(vertical = 14.dp, horizontal = 16.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                BasicText(
-                    text = stringResource(R.string.home_settings_change_button),
-                    style = TextStyle(
-                        fontFamily = Theme.Sans,
-                        fontWeight = FontWeight.Medium,
-                        color = if (btnFocused) highlight else Theme.ButtonText,
-                        fontSize = 14.sp,
-                    ),
-                )
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            BasicText(
-                text = stringResource(R.string.home_settings_note),
-                style = TextStyle(
-                    fontFamily = Theme.Sans,
-                    color = Theme.FootnoteText,
-                    fontSize = 11.sp,
-                    lineHeight = 16.sp,
-                ),
-            )
-
-            Spacer(Modifier.height(10.dp))
-
-            BasicText(
-                text = stringResource(R.string.home_back_to_close),
-                style = TextStyle(fontFamily = Theme.Sans, color = Theme.FooterHintText, fontSize = 10.sp),
-            )
-        }
-    }
-
-    LaunchedEffect(nonce) {
-        landed = false
-        var frames = 0
-        while (!landed && frames < 60) {
-            withFrameNanos { }
-            runCatching { fr.requestFocus() }
-            frames++
         }
     }
 }

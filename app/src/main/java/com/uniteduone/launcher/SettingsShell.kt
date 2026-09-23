@@ -1,0 +1,538 @@
+package com.uniteduone.launcher
+
+import android.util.Log
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+private const val LOG_TAG = "UnitedU"
+
+/** 右边一列里的一颗胶囊(界面层)。[id] 稳定,是焦点目标的记号(见 [ShellFrame.focus])。 */
+data class Capsule(
+    val id: String,
+    val label: String,
+    val onClick: () -> Unit,
+    val hint: String? = null,
+    val trailing: Trailing = Trailing.None,
+    val slider: SliderLook? = null,
+    val onStep: ((Int) -> Unit)? = null,
+    val leadingDot: Color? = null,
+)
+
+/**
+ * **一列胶囊的焦点账本**(R69)。设置页外壳的每一层、关于页都用它;每一层 `key(页)` 重建一份。
+ * 七条铁律逐条落在:
+ * - 铁律 2 / 4:焦点落没落下只信胶囊自报([holder]),`requestFocus()` 的返回值什么都不说明;
+ * - 铁律 3:逐项挂 `FocusRequester`;本列自己负责初始焦点(定位效果)与丢焦点(看门狗),外层谁都不替它管;
+ *   有东西盖在上面([covered]:选择器 / 扫码页 / 关于页 / 引导)时让路,盖着的那一层自己负责自己;
+ * - 铁律 5:**目标**([target],住在 MainActivity 的栈帧里)与**当前**([holder])分开;目标只在「不在还原中」
+ *   时跟着焦点走([onTarget]),还原期间(定位效果跑着、被盖着、`ON_PAUSE` 之后)冻结——Compose 抢先把焦点塞给
+ *   第一颗的那次上报改写不了它;
+ * - 铁律 6:定位效果的守卫 `covered` 在 key 里;看门狗三条守卫 `covered` / `restoring` / `holder == null` 全在 key 里;
+ * - 铁律 7:没有一次性布尔闩——`restoring` 由 ON_PAUSE / 定位效果写真、由定位效果在前台落地后写假;看门狗每次再丢焦点
+ *   key 翻转自动重新武装。
+ *
+ * **条件行**(「恢复隐藏的输入源」「动画缩放」)出现 / 消失:目标记的是 id,那一行还在就跟着它走;那一行自己没了,
+ * 退回它原来的下标、夹到新长度。组合阶段发现 id 清单变了**同步**置 `restoring`(M4b fix round 1 同一手法:节点被摘
+ * 那一帧 Compose 的焦点重定向会落到任意邻居,那次上报不能改写目标),收口交给以 `ids` 为 key 的定位效果——它只在
+ * 目标**自报**落下时才收手。
+ */
+@Composable
+fun CapsuleColumn(
+    items: List<Capsule>,
+    target: String?,
+    onTarget: (String) -> Unit,
+    nonce: Int,
+    covered: Boolean,
+) {
+    if (items.isEmpty()) return
+    val ids = items.map { it.id }
+    // 逐项一个 requester;id 清单一变整表换新。两个效果都在协程里跑,读的必须是当前这一份(rememberUpdatedState)。
+    val reqs = remember(ids) { ids.map { FocusRequester() } }
+    val requesters by rememberUpdatedState(reqs)
+    var holder by remember { mutableStateOf<Int?>(null) }
+    // 初值 true:第一帧 Compose 若自己把焦点给了某一颗,那次上报不能改写目标;定位效果落地后放开。
+    var restoring by remember { mutableStateOf(true) }
+    // 上一次解析出的目标下标:目标 id 不在了(条件行消失)就退回它、夹到新长度。普通数组,只在组合阶段读写,不引起重组。
+    val lastIdx = remember { intArrayOf(0) }
+    val found = ids.indexOf(target)
+    val targetIdx = (if (found >= 0) found else lastIdx[0]).coerceIn(0, ids.lastIndex)
+    lastIdx[0] = targetIdx
+    val targetNow by rememberUpdatedState(targetIdx)
+    val lastIds = remember { arrayOfNulls<List<String>>(1) }
+    if (lastIds[0] != null && lastIds[0] != ids) restoring = true
+    lastIds[0] = ids
+
+    // **从 ON_PAUSE 就冻结目标**(铁律 5 后半句):跳系统设置 / 系统屏保页、灭屏再亮回来时,Compose 会抢在定位效果之前
+    // 把焦点给第一颗;那次上报若看到 restoring 为假,目标就被改写成第一颗。放开交给定位效果(onResume 的 nonce++ 让它重跑)。
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val obs = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_PAUSE) restoring = true }
+        lifecycle.addObserver(obs)
+        onDispose { lifecycle.removeObserver(obs) }
+    }
+
+    // **定位效果**:进页 / 盖着的东西关掉(covered 落下)/ 回到前台(nonce)/ 条件行出现消失(ids)时,把焦点送到目标。
+    LaunchedEffect(nonce, covered, ids) {
+        if (covered) { restoring = true; return@LaunchedEffect }
+        restoring = true
+        var frames = 0
+        // 退出判据:目标**自报**落下(铁律 2);只判「有没有焦点」的话,Compose 抢先给了第一颗就会提前退出。
+        while (frames < 60 && holder != targetNow) {
+            withFrameNanos { }
+            runCatching { requesters[targetNow].requestFocus() }
+            frames++
+        }
+        // 目标 id 已不在(条件行消失)时,把落下的那一颗写回成新目标,账本与画面一致。
+        if (holder == targetNow) onTarget(ids[targetNow])
+        // 只在前台时放开(同 SettingsScreen 终审 I1):不在前台就继续冻着,回到前台必经 nonce++,本效果必然重跑。
+        restoring = !lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+    }
+
+    // **看门狗**(铁律 3):焦点莫名其妙没了(节点被重组销毁等)时送回目标。守卫三条全在 key 里(铁律 6)。
+    LaunchedEffect(holder == null, covered, restoring, nonce) {
+        if (covered || restoring || holder != null) return@LaunchedEffect
+        // 上下换项时 lost / got 可能分属相邻两帧,中间那一帧的 null 不算丢。
+        repeat(3) { withFrameNanos { } }
+        var frames = 0
+        while (holder == null && frames < 60) {
+            runCatching { requesters[targetNow].requestFocus() }
+            withFrameNanos { }
+            frames++
+        }
+    }
+
+    // 纵向排一列,间距按**量出来的**胶囊高度算(capsuleGap):优先 16 dp,整列放不进 500 dp 才等比缩小——
+    // 「通用」组 8 颗、英文第一层说明文字折成两行时会缩。不滚动(铁律 1)。
+    Layout(
+        content = {
+            items.forEachIndexed { i, c ->
+                MenuPill(
+                    label = c.label,
+                    onClick = c.onClick,
+                    modifier = Modifier.focusRequester(reqs[i]),
+                    onFocusChange = { got ->
+                        // 得失顺序保护:只有「本项仍是持有者」时 lost 才作废。
+                        if (got) {
+                            holder = i
+                            if (!restoring) onTarget(c.id)
+                        } else if (holder == i) holder = null
+                    },
+                    isFirst = i == 0,
+                    isLast = i == items.lastIndex,
+                    hint = c.hint,
+                    trailing = c.trailing,
+                    slider = c.slider,
+                    onStep = c.onStep,
+                    leadingDot = c.leadingDot,
+                )
+            }
+        },
+    ) { measurables, constraints ->
+        val placeables = measurables.map { it.measure(constraints.copy(minWidth = 0, minHeight = 0)) }
+        val gapPx = capsuleGap(placeables.map { it.height.toDp().value }).dp.roundToPx()
+        val w = placeables.maxOf { it.width }
+        val h = placeables.sumOf { it.height } + gapPx * (placeables.size - 1).coerceAtLeast(0)
+        layout(w, h) {
+            var y = 0
+            placeables.forEach { p -> p.place(0, y); y += p.height + gapPx }
+        }
+    }
+}
+
+/**
+ * 外壳的骨架:**左右 1:1**(与 `GearMenu` 的 `Row { weight(1f) / weight(1f) }` 一样,右边胶囊列中心在 x = 屏宽 3/4,
+ * 与长按菜单完全重合——每一层切换时胶囊列的位置一动不动,变的只有内容)。**透明底**:外壳的 `MenuBg` 由
+ * MainActivity 铺在首页那一层之下,预览框里露出的就是缩小的真首页(R73)。
+ */
+@Composable
+fun ShellScaffold(left: @Composable BoxScope.() -> Unit, right: @Composable () -> Unit) {
+    Row(Modifier.fillMaxSize().focusGroup()) {
+        Box(Modifier.weight(1f).fillMaxHeight(), content = left)
+        Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) { right() }
+    }
+}
+
+private val pathStyle = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 16.sp)
+private val titleStyle = TextStyle(
+    fontFamily = Theme.Sans,
+    fontWeight = FontWeight.Medium,
+    color = Theme.EmphasisText,
+    fontSize = GtvLayout.SETTINGS_TITLE_TEXT.sp,
+    lineHeight = (GtvLayout.SETTINGS_TITLE_TEXT * 1.2f).sp,
+)
+internal val shellBodyStyle = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 14.sp, lineHeight = 20.sp)
+
+/**
+ * 没有预览的页:路径(小字灰)+ 页名(32 sp)放在左半屏正中(效果图 README 第 4 条「照 M1 的做法」);
+ * [extra] 是页名下方的说明 / 信息块(默认桌面、恢复默认、关于、屏保启动的提示)。
+ */
+@Composable
+fun BoxScope.ShellTitle(path: String?, title: String, extra: (@Composable () -> Unit)? = null) {
+    Column(
+        modifier = Modifier.align(Alignment.Center).widthIn(max = PREVIEW_WIDTH_DP.dp).padding(horizontal = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        if (path != null) {
+            BasicText(path, style = pathStyle.copy(textAlign = TextAlign.Center))
+            Spacer(Modifier.height(4.dp))
+        }
+        BasicText(title, style = titleStyle.copy(textAlign = TextAlign.Center))
+        if (extra != null) {
+            Spacer(Modifier.height(20.dp))
+            extra()
+        }
+    }
+}
+
+/**
+ * 有预览的页(R73):路径 + 页名压在预览框上方;预览框本身是 MainActivity 缩小进来的真首页,这里只画 1 dp 14% 白
+ * 描边(产品默认无壁纸时首页底色与 `MenuBg` 几乎一样,没有描边预览会融进背景,README 第 3 条);框下方一行
+ * 「● 预览:大 · 按确定保存,按返回不改」只在有未保存预览时出现([pending])。几何全读 [previewRect],与
+ * MainActivity 缩放首页那一层同一个函数,第一帧就对齐。
+ */
+@Composable
+fun BoxScope.ShellPreviewFrame(path: String, title: String, pending: String?) {
+    val cfg = LocalConfiguration.current
+    val r = previewRect(cfg.screenWidthDp.toFloat(), cfg.screenHeightDp.toFloat())
+    Box(
+        modifier = Modifier.padding(start = r.x.dp).width(r.width.dp).height((r.y - 16f).coerceAtLeast(0f).dp),
+        contentAlignment = Alignment.BottomStart,
+    ) {
+        Column {
+            BasicText(path, style = pathStyle)
+            Spacer(Modifier.height(4.dp))
+            BasicText(title, style = titleStyle)
+        }
+    }
+    Box(
+        Modifier
+            .offset(r.x.dp, r.y.dp)
+            .size(r.width.dp, r.height.dp)
+            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(GtvLayout.CARD_CORNER.dp)),
+    )
+    if (pending != null) {
+        Row(
+            modifier = Modifier.offset(r.x.dp, (r.y + r.height + 12f).dp).width(r.width.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.size(8.dp).clip(CircleShape).background(LocalThemeColors.current.accent))
+            Spacer(Modifier.width(8.dp))
+            BasicText(pending, maxLines = 1, style = shellBodyStyle)
+        }
+    }
+}
+
+/**
+ * **设置页胶囊外壳**(R69,Gordon 2026-09-23 定案;取代 M7 起的「UnitedU 设置」两栏浮层与齿轮菜单第一层)。
+ * 画栈顶那一层:第一层(6 颗两行胶囊)/ 四个分组页 / 选项层 / 默认桌面页 / 恢复默认确认页。
+ * 导航栈住在 MainActivity([stack],理由见 [ShellFrame]),这里只经 [onPush] / [onPop] / [onFocus] 改它。
+ *
+ * - 分组页:可改值的行显示当前值(同一行右对齐、更淡);选项行进选项层;滑块行聚焦时变成滑块、左右键即时调值并落盘(R72);
+ *   动作行打开各自的整屏界面(编辑页、换壁纸、屏保图库、手机传输)或跳系统页。
+ * - 选项层:每一档一颗胶囊,已保存档 ✓;光标移到哪,MainActivity 的 `effectiveSettings` 就把首页预览成哪(R71);
+ *   **确定 = 落盘 + 回上一层,返回 = 什么都不写回上一层**。
+ * - 写盘一律 `SettingsStore.update`(有锁;每行只改自己那个字段),写完 [onWritten](MainActivity `settingsRevision++`,
+ *   首页与本页都按新值重读)。
+ */
+@Composable
+fun SettingsShell(
+    stack: List<ShellFrame>,
+    /** 盘上已保存的设置(不含预览)——✓ 与值都读它。 */
+    saved: Settings,
+    actions: SettingsActions,
+    onPush: (page: String, focus: String?) -> Unit,
+    onPop: () -> Unit,
+    onFocus: (String) -> Unit,
+    onOpenSystemSettings: () -> Unit,
+    onOpenAbout: () -> Unit,
+    onConfirmRestore: () -> Unit,
+    onChangeHome: () -> Unit,
+    onWritten: () -> Unit,
+    focusNonce: Int,
+    /** 有东西盖在外壳之上(选择器 / 扫码页 / 关于页 / 引导):让路,焦点归那一层(铁律 3)。 */
+    covered: Boolean,
+    galleryVersion: Int,
+    revision: Int,
+) {
+    val ctx = LocalContext.current
+    val top = stack.lastOrNull() ?: return
+
+    // 屏保图库张数(「屏保启动」选项层的提示要分「图库为空」)、隐藏的输入源数(「恢复隐藏的输入源」条件行)、
+    // 系统设置快照(「系统屏保」摘要与「动画缩放」条件行)——与旧设置页同一组 key 习惯:盖着的东西关掉时重数,
+    // 回到前台(focusNonce)重读系统快照。−1 = 还没数完,模型按「非空 / 不露出」处理。
+    val screensaverImages by produceState(-1, galleryVersion, covered) {
+        value = withContext(Dispatchers.IO) { safeScan(ctx)?.size ?: 0 }
+    }
+    val hiddenInputs by produceState(-1, revision, covered) {
+        value = withContext(Dispatchers.IO) { HiddenInputs.read(ctx).size }
+    }
+    val systemStatus = remember(focusNonce, covered) { readSystemUiStatus(ctx) }
+
+    val written by rememberUpdatedState(onWritten)
+    fun update(transform: (Settings) -> Settings) {
+        if (SettingsStore.update(ctx, transform) == null) Log.w(LOG_TAG, "settings.json 写入失败")
+        written()
+    }
+    // 切语言绕过本页直接写盘(MainActivity.applyLanguage);没有重建(同一 Locale 等价类)的那条路也要让 saved 跟上。
+    val liveActions = remember(actions) {
+        SettingsActions(
+            openEdit = actions.openEdit,
+            pickWallpaper = actions.pickWallpaper,
+            openImport = actions.openImport,
+            setDefaultHome = actions.setDefaultHome,
+            restoreDefaults = actions.restoreDefaults,
+            applyLanguage = { lang -> actions.applyLanguage(lang); written() },
+            openScreensaverGallery = actions.openScreensaverGallery,
+            openSystemScreensaver = actions.openSystemScreensaver,
+            restoreHiddenInputs = actions.restoreHiddenInputs,
+            openSystemAnimationSettings = actions.openSystemAnimationSettings,
+        )
+    }
+    val groups = settingsGroups(saved, ::update, liveActions, screensaverImages, hiddenInputs, systemStatus)
+
+    // 返回键 = 回上一层(第一层再按 = 关掉设置)。叠在外壳之上的选择器 / 关于页各自的 BackHandler 注册得更晚,先接管。
+    androidx.activity.compose.BackHandler { onPop() }
+
+    val settingsTitle = stringResource(R.string.menu_settings_title)
+    val target = top.focus ?: defaultFocus(top.page, groups)
+
+    key(stack.size, top.page) {
+        val groupId = ShellPages.groupOf(top.page)
+        val optionsRow = ShellPages.optionsRow(top.page)
+        when {
+            top.page == ShellPages.ROOT -> {
+                val items = SHELL_ROOT.map { e ->
+                    Capsule(
+                        id = e.id,
+                        label = stringResource(e.labelRes),
+                        hint = stringResource(e.hintRes),
+                        // 右端 › = 进下一层;「系统设置」直接跳安卓原生设置,不进外壳的下一层,不画 ›。
+                        trailing = if (e.id == ShellPages.SYSTEM_SETTINGS) Trailing.None else Trailing.Chevron,
+                        onClick = {
+                            when (e.id) {
+                                ShellPages.SYSTEM_SETTINGS -> onOpenSystemSettings()
+                                ShellPages.ABOUT -> onOpenAbout()
+                                else -> onPush(e.id, defaultFocus(e.id, groups))
+                            }
+                        },
+                    )
+                }
+                ShellScaffold(
+                    left = { ShellTitle(path = null, title = settingsTitle) },
+                    right = { CapsuleColumn(items, target, onFocus, focusNonce, covered) },
+                )
+            }
+
+            groupId != null -> {
+                val spec = groups.first { it.id == groupId }
+                val items = spec.rows.map { row -> groupCapsule(row, onPush) }
+                val title = stringResource(spec.titleRes)
+                ShellScaffold(
+                    left = {
+                        if (pageHasPreview(top.page)) ShellPreviewFrame(settingsTitle, title, pending = null)
+                        else ShellTitle(settingsTitle, title)
+                    },
+                    right = { CapsuleColumn(items, target, onFocus, focusNonce, covered) },
+                )
+            }
+
+            // 理论上不会(选项层只能从现存的行进来);万一那一行没了,退回上一层,绝不留一个空列。
+            optionsRow != null && controlRow(groups, optionsRow) == null -> LaunchedEffect(Unit) { onPop() }
+
+            optionsRow != null -> {
+                val row = controlRow(groups, optionsRow)!!
+                val owner = groups.first { g -> g.rows.any { it.id == optionsRow } }
+                val path = settingsTitle + " · " + stringResource(owner.titleRes)
+                val title = stringResource(row.labelRes)
+                val items = optionOrder(row).map { i ->
+                    Capsule(
+                        id = optionId(i),
+                        label = optionLabel(row, i),
+                        trailing = if (i == row.selected) Trailing.Check else Trailing.None,
+                        leadingDot = if (row.kind == CtrlKind.SWATCH) ThemePresets.all.getOrNull(i)?.color else null,
+                        onClick = {
+                            // **先回上一层,再落盘**:切语言会当场 recreate(),onSaveInstanceState 要存下的是已经回到
+                            // 父层的栈(重建后落在「语言」那颗胶囊上,而不是又停在选项层)。
+                            onPop()
+                            if (i != row.selected) row.onSelect(i)
+                        },
+                    )
+                }
+                val cursor = optionIndex(target)
+                val pending = if (cursor != null && cursor != row.selected) {
+                    stringResource(R.string.shell_preview_hint, optionLabel(row, cursor))
+                } else null
+                val note = row.noteRes?.let { stringResource(it) }
+                ShellScaffold(
+                    left = {
+                        if (pageHasPreview(top.page)) ShellPreviewFrame(path, title, pending)
+                        else ShellTitle(path, title, extra = note?.let { { BasicText(it, style = shellBodyStyle.copy(textAlign = TextAlign.Center)) } })
+                    },
+                    right = { CapsuleColumn(items, target, onFocus, focusNonce, covered) },
+                )
+            }
+
+            top.page == ShellPages.HOME -> {
+                // 取代 M7 的 HomeSettingsCard 浮层(R74):左边当前默认桌面 + 说明,右边一颗「在系统设置中更改」。
+                val home = rememberCurrentHome(revision, focusNonce)
+                val items = listOf(
+                    Capsule(SHELL_CHANGE_HOME, stringResource(R.string.home_settings_change_button), onClick = onChangeHome),
+                )
+                ShellScaffold(
+                    left = {
+                        ShellTitle(settingsTitle + " · " + stringResource(R.string.settings_group_general), stringResource(R.string.home_settings_title)) {
+                            Column(Modifier.width(360.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                CurrentHomeRow(home)
+                                Spacer(Modifier.height(14.dp))
+                                BasicText(stringResource(R.string.home_settings_note), style = shellBodyStyle.copy(textAlign = TextAlign.Center))
+                            }
+                        }
+                    },
+                    right = { CapsuleColumn(items, target, onFocus, focusNonce, covered) },
+                )
+            }
+
+            top.page == ShellPages.RESTORE -> {
+                // 取代「恢复默认」ConfirmDialog(R74):默认焦点「取消」、破坏性动作在下面那颗(spec §4 终审)。
+                val items = listOf(
+                    Capsule(SHELL_CANCEL, stringResource(R.string.dialog_cancel), onClick = onPop),
+                    Capsule(SHELL_CONFIRM, stringResource(R.string.restore_ok), onClick = { onPop(); onConfirmRestore() }),
+                )
+                ShellScaffold(
+                    left = {
+                        ShellTitle(settingsTitle + " · " + stringResource(R.string.settings_group_general), stringResource(R.string.restore_title)) {
+                            BasicText(stringResource(R.string.restore_body), style = shellBodyStyle.copy(textAlign = TextAlign.Center))
+                        }
+                    },
+                    right = { CapsuleColumn(items, target, onFocus, focusNonce, covered) },
+                )
+            }
+
+            else -> LaunchedEffect(Unit) { onPop() }
+        }
+    }
+}
+
+/** 选项第 i 档的文案(带参数的「%1$d 分」之类按 [ControlRow.optionArgs] 解析)。 */
+@Composable
+private fun optionLabel(row: ControlRow, i: Int): String {
+    val res = row.optionRes.getOrNull(i) ?: return ""
+    val arg = row.optionArgs.getOrNull(i)
+    return if (arg != null) stringResource(res, arg) else stringResource(res)
+}
+
+/** 跳安卓原生设置页的动作行:不进外壳的下一层,右端不画 ›(Gordon 定案第 1 条的例外)。 */
+private val JUMP_ROWS = setOf("systemScreensaver", "systemAnimationScale")
+
+/** 分组页的一颗胶囊。 */
+@Composable
+private fun groupCapsule(row: RowSpec, onPush: (String, String?) -> Unit): Capsule {
+    val label = stringResource(row.labelRes)
+    return when (row) {
+        is ControlRow -> if (row.kind == CtrlKind.SLIDER) {
+            val last = (row.count - 1).coerceAtLeast(1)
+            val text = sliderText(row)
+            Capsule(
+                id = row.id,
+                label = label,
+                // 滑块上确定键不做事(R72):调值即落盘,没有「确认」这一步。
+                onClick = {},
+                trailing = Trailing.Value(text),
+                slider = SliderLook(
+                    fraction = row.selected / last.toFloat(),
+                    zero = row.zeroAt / last.toFloat(),
+                    text = text,
+                    canDecrease = row.selected > 0,
+                    canIncrease = row.selected < row.count - 1,
+                ),
+                onStep = { d -> val n = sliderStep(row, d); if (n != row.selected) row.onSelect(n) },
+            )
+        } else {
+            Capsule(
+                id = row.id,
+                label = label,
+                trailing = Trailing.Value(
+                    text = optionLabel(row, row.selected),
+                    dot = if (row.kind == CtrlKind.SWATCH) ThemePresets.all.getOrNull(row.selected)?.color else null,
+                ),
+                onClick = { onPush(ShellPages.options(row.id), optionId(row.selected)) },
+            )
+        }
+        is ActionRow -> {
+            // 带参数 / 分段的值(「2 个」「开 · UnitedU · 5 分钟」「1.25×,界面动画会变慢」)显示在右端;
+            // 只有一句说明的动作行(换壁纸、手机传输……)不显示——一整句塞不进 268 dp 的胶囊,› 已经说明「会打开东西」。
+            val value: String? = when {
+                row.hintParts.isNotEmpty() -> row.hintParts.map { part ->
+                    when (part) {
+                        is HintPart.Text -> part.text
+                        is HintPart.Res ->
+                            if (part.args.isEmpty()) stringResource(part.id)
+                            else stringResource(part.id, *part.args.toTypedArray())
+                    }
+                }.joinToString(" · ")
+                row.hintRes != null && row.hintArgs.isNotEmpty() -> stringResource(row.hintRes, *row.hintArgs.toTypedArray())
+                else -> null
+            }
+            val jump = row.id in JUMP_ROWS
+            Capsule(
+                id = row.id,
+                label = label,
+                trailing = when {
+                    value != null -> Trailing.Value(value, chevron = !jump)
+                    jump -> Trailing.None
+                    else -> Trailing.Chevron
+                },
+                onClick = row.onActivate,
+            )
+        }
+    }
+}

@@ -39,7 +39,7 @@ class SettingsModelTest {
 
     @Test fun groupOrderFollowsSpec() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
-        // R67:四组顺序 = 外壳第一层的分组胶囊顺序,布局在最上。
+        // R69:四组顺序 = 外壳第一层的分组胶囊顺序,布局在最上。
         assertEquals(
             listOf(GroupId.LAYOUT, GroupId.GENERAL, GroupId.APPEARANCE, GroupId.SCREENSAVER),
             g.map { it.id },
@@ -48,8 +48,8 @@ class SettingsModelTest {
 
     @Test fun rowCountsPerGroup() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
-        // 布局 1 动作(R67 编辑分栏)+ 3 / 通用 7(R60 手机传输挪进来)+ 动画缩放条件行(默认 UNKNOWN = 读不到 → 出「查看」)/
-        // 外观 1 动作 + 2 壁纸滑块(自动切换 R61 删掉)+ 2 主题(主题化卡片 R58 删掉)+ 2 卡片淡化滑块(R68)/ 屏保 2 控件 + 2 动作
+        // 布局 1 动作(R69 编辑分栏)+ 3 / 通用 7(R60 手机传输挪进来)+ 动画缩放条件行(默认 UNKNOWN = 读不到 → 出「查看」)/
+        // 外观 1 动作 + 2 壁纸滑块(自动切换 R61 删掉)+ 2 主题(主题化卡片 R58 删掉)+ 2 卡片淡化滑块(R70)/ 屏保 2 控件 + 2 动作
         assertEquals(listOf(4, 8, 7, 4), g.map { it.rows.size })
     }
 
@@ -344,9 +344,9 @@ class SettingsModelTest {
         assertEquals(listOf("openSystemScreensaver", "openSystemAnimationSettings"), r.fired)
     }
 
-    // ---- R67 / R68 / R69:设置页外壳用到的模型部分 ----
+    // ---- R69 / R70 / R71:设置页外壳用到的模型部分 ----
 
-    /** R67:「编辑分栏」是布局组第一行,打开现有编辑页。 */
+    /** R69:「编辑分栏」是布局组第一行,打开现有编辑页。 */
     @Test fun editLayoutIsFirstLayoutRow() {
         val r = Recorder()
         val g = settingsGroups(Settings(), {}, r.actions, someImages)
@@ -357,7 +357,7 @@ class SettingsModelTest {
         assertEquals(listOf("openEdit"), r.fired)
     }
 
-    /** R68:两条卡片淡化滑块——饱和度 0–100 步 10、亮度 50–100 步 5,都是 11 档;缺省 30 / 75。 */
+    /** R70:两条卡片淡化滑块——饱和度 0–100 步 10、亮度 50–100 步 5,都是 11 档;缺省 30 / 75。 */
     @Test fun cardFadeSlidersMirrorAndWrite() {
         var written: Settings? = null
         val base = Settings()
@@ -379,7 +379,7 @@ class SettingsModelTest {
     }
 
     /**
-     * R69:每个可改值行的 onSelect 就是 `update { write(it, i) }`——确定键落盘的值与光标停留时的预览逐字段相同。
+     * R71:每个可改值行的 onSelect 就是 `update { write(it, i) }`——确定键落盘的值与光标停留时的预览逐字段相同。
      * 语言行例外(write = null,走 applyLanguage)。
      */
     @Test fun onSelectAndWriteAgreeForEveryRow() {

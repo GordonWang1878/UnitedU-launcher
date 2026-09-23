@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 设置页胶囊外壳(R67–R71)的纯模型:菜单树、栈、预览—保存—放弃、滑块、间距、预览框几何。
+ * 设置页胶囊外壳(R69–R71)的纯模型:菜单树、栈、预览—保存—放弃、滑块、间距、预览框几何。
  * 界面(SettingsShell.kt)只画与管焦点,读的全是这里。
  */
 class ShellModelTest {
@@ -149,7 +149,7 @@ class ShellModelTest {
         assertTrue(decodeShellStack("root@x|weird").isEmpty())
     }
 
-    // ---- 预览—保存—放弃(R69)----
+    // ---- 预览—保存—放弃(R71)----
 
     @Test fun cursorOnOptionPreviewsWithoutSaving() {
         val saved = Settings()   // 中档

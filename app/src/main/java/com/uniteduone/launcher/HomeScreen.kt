@@ -69,13 +69,14 @@ fun HomeScreen(
     idleContent: IdleContent = IdleContent.CLOCK_ONLY,
     /** 待机演示(M7 T6,spec §3.2):非 null 时覆盖 [idle]/[idleContent] 驱动的两个淡出动画。 */
     demoIdle: IdleContent? = null,
-    menuItems: List<MenuItem>,
-    menuOpen: Boolean,
-    onMenuOpenChange: (Boolean) -> Unit,
+    /**
+     * 顶栏「设置」药丸按下(R69:打开设置页外壳的第一层,取代原来嵌在首页里的齿轮菜单)。设置外壳住在 MainActivity、
+     * 叠在首页之上,首页由 [previewing] 让路、冻结目标;关掉后按冻结的 `tgtGear` 回到药丸(或 MENU 键打开时回到那张卡)。
+     */
+    onSettings: () -> Unit = {},
     onScreensaver: () -> Unit = {},
     focusNonce: Int,
     revision: Int = 0,
-    menuFromGear: Boolean = true,
     showDate: Boolean = true,
     cardsPerRow: Int = 6,
     /** 卡片标题全局开关(design §2)。开着时卡片下方多一行标题,行高随之增加
@@ -139,14 +140,14 @@ fun HomeScreen(
     val cardSize = cardsPerRowToGtvSize(cardsPerRow)
     val metrics = Theme.gtvCardMetrics(cardSize)
     // **首页内嵌的浮层**:齿轮菜单、长按卡片菜单、修改标题对话框 —— 它们住在首页这棵树里面。
-    val anyOverlay = menuOpen || cardMenu != null || renameTarget != null
+    val anyOverlay = cardMenu != null || renameTarget != null
     // **「首页被盖住了没有」只此一个判据。**内嵌的那三层(`anyOverlay`)之外,M7 T4 起还有
     // 叠在首页之上的整屏浮层([previewing]:选择器 / 导入页,T5 起加设置页)。四者对下面**四处**的
     // 要求完全相同:卡片不可聚焦、齿轮不可聚焦、还原效果让路、看门狗让路。
-    // 分开写四遍 `menuOpen ||` 迟早漏掉一处,而漏掉的那一处就是「菜单开着时看门狗每帧抢焦点,
+    // 分开写四遍 `cardMenu != null ||` 迟早漏掉一处,而漏掉的那一处就是「菜单开着时看门狗每帧抢焦点,
     // 菜单里一项都不高亮」(铁律 4 的推论)。合成一个量之后,它同时是那两个效果的 key 与守卫(铁律 6)。
-    // **例外:`gearNonce` 那个 LaunchedEffect 仍然只看 menuOpen** —— 它专管「齿轮菜单关了回齿轮」,
-    // 长按菜单关掉后焦点应该回到那张卡,不是齿轮。
+    // (R69 起齿轮菜单不再嵌在首页里:设置页外壳是 MainActivity 那一层的整屏浮层,算在 [previewing] 里;
+    //  原来专管「齿轮菜单关了回齿轮」的 gearNonce 随之删掉,回齿轮只靠冻结的 tgtGear,见它的 KDoc。)
     val covered = anyOverlay || previewing
     // 枚举应用 + 解码全部横幅是重活,放到 IO 线程,别拖慢首帧
     // (冷启动实测 2.0–2.3s,Projectivy 是 1.45s)。
@@ -248,13 +249,6 @@ fun HomeScreen(
      */
     var tgtGear by remember { mutableStateOf(false) }
     var restoring by remember { mutableStateOf(false) }
-    // 关菜单后焦点该还给齿轮。**用 nonce 比对而不是布尔闩**:布尔闩只有「看门狗跑完整个循环」
-    // 这一条窄路能清掉,任何一次早退(菜单又开了、restoring 被 ON_PAUSE 置位、
-    // 或 Compose 自己把焦点还给了第一张卡)都会把它留在 true —— 一旦闩住,
-    // 「从应用返回还原到离开前那张卡」就永久失效,此后任何一次丢焦点都被送到齿轮。
-    // nonce 比对天然自愈:来了新的 focusNonce,比对自然不成立。
-    // 而且守卫读的量(focusNonce)本身就是 key,满足铁律 6。
-    var gearNonce by remember { mutableStateOf(-1) }
     // **谁持有焦点,只信控件自己的上报。**根节点的 onFocusChanged 在「退到后台再回来」
     // 这条路上不会重发,`hasFocus` 会停在过期的 true —— 实测日志说有焦点,截图里
     // 卡片却没有放大也没有光晕(上边缘 777→812、光晕峰值 142→66)。
@@ -294,11 +288,6 @@ fun HomeScreen(
         return CardRef(row, idx, r.layoutRow, r.kind, app.packageName, app.label)
     }
     fun report(row: Int, idx: Int, got: Boolean) {
-        // 齿轮真的拿到焦点 = 这次「关菜单回齿轮」的意图已经兑现,比对立刻作废。
-        // 不作废的话它会一直成立到下一次 nonce 递增,**窗口里每一次丢焦点都被送到齿轮**
-        // (比如后台某个应用自动更新让某行短一格、焦点所在节点被销毁),
-        // 人正站在第三行却突然瞬移到左上角。
-        if (got && row == -1) gearNonce = -1
         // 目标跟着「焦点真的落在哪」走,**还原过程中不更新**——理由与下面卡片那两个目标完全相同:
         // 浮层关掉那一帧 Compose 会抢先把焦点塞给 (0,0),那次上报若不挡住就会把目标从齿轮改成卡片。
         // **数据还没到也不更新**(`loaded != null`):冷启动时卡片一张都还没建出来,整棵树里
@@ -368,13 +357,6 @@ fun HomeScreen(
     // 这比原来「在菜单关闭/退出编辑/onResume 这几个时刻盲目补请求」可靠得多:
     // 卡片节点被销毁(某个应用后台更新触发 PACKAGE_* → 那一行短一格)时焦点也会没,
     // 而那一刻不在任何一张「猜得到的时刻」清单里,遥控器就此全死、按 HOME 也回不来。
-    // 菜单可以从齿轮或遥控器三条杠键打开,关掉后焦点应该回到打开前的位置:
-    // 齿轮打开 → 回齿轮;三条杠打开(焦点在卡片上)→ 回那张卡。
-    var menuWasOpen by remember { mutableStateOf(false) }
-    LaunchedEffect(menuOpen) {
-        if (!menuOpen && menuWasOpen && menuFromGear) gearNonce = focusNonce
-        menuWasOpen = menuOpen
-    }
     /**
      * 最近一次已经写进目标格的落点(按对象身份比对)。初值取**本页创建那一刻**已有的落点:那是上一个首页实例的,
      * 这一个不该再应用它(首页只在冷启动 / 进出编辑页时重建,那两条路本来就该落在第一张卡)。
@@ -422,12 +404,11 @@ fun HomeScreen(
         // 浮层关掉后 Compose 的默认恢复就在这几帧里把焦点塞给了 (0,0),看门狗看到 `focusedCell != null`
         // 当场让路,于是「换壁纸回来焦点回齿轮」变成了「落在第一张卡」。卡片那条路一直是对的,
         // 正因为它是这里主动请求的;齿轮只是缺了对称的一半。
-        // 目标读 [tgtGear](冻结过的),`gearNonce` 仍然并进来:它管的是「菜单刚关掉」那一拍。
-        // 两者都是「读的量」不是守卫,与 tgtRow/tgtIdx 同例,不进 key(进了会在每次导航时重跑还原)。
+        // 目标读 [tgtGear](冻结过的);它是「读的量」不是守卫,与 tgtRow/tgtIdx 同例,不进 key(进了会在每次导航时重跑还原)。
         restoring = true
         var frames = 0
         // 移动态下焦点只去被搬的那张卡,不回齿轮
-        if (moveTarget == null && (tgtGear || focusNonce == gearNonce)) {
+        if (moveTarget == null && tgtGear) {
             // 退出条件同样只信控件自报(铁律 2):设置 / 屏保两个 pill 都会 report(-1, col, true),
             // 两者都算「回到顶栏」——按 focusedCell?.first 判,不钉死某一列(col 0/1 都算数)。
             while (frames < 60 && focusedCell?.first != -1) {
@@ -455,7 +436,7 @@ fun HomeScreen(
         }
         restoring = false
     }
-    LaunchedEffect(rows.isEmpty(), loaded != null, focusNonce, focusedCell, covered, restoring, gearNonce) {
+    LaunchedEffect(rows.isEmpty(), loaded != null, focusNonce, focusedCell, covered, restoring) {
         // **任何浮层开着时让路。**focusedCell 只记录卡片与齿轮,不认识菜单项 ——
         // 浮层一开它就变成 null,看门狗会误判「树里没焦点」并每帧抢着请求,
         // 把浮层自己刚拿到的焦点搅掉,症状是「打开菜单后一项都没高亮、按什么都没反应」。
@@ -472,12 +453,12 @@ fun HomeScreen(
         // 症状是「按上到齿轮时焦点闪一下弹回卡片」(2026-09-11 真机复现)。
         repeat(3) { withFrameNanos {} }
         if (focusedCell != null) return@LaunchedEffect
-        // 与还原效果同一判据:冻结过的目标优先,`gearNonce` 管「菜单刚关掉」那一拍。
+        // 与还原效果同一判据:冻结过的目标优先。
         // `tgtGear` 不进 key 也不违反铁律 6:它只在焦点真的落下时才变,而那一下必定同时改写
         // `focusedCell`(已经是 key),本效果照样会以新值重启;而且它不是守卫,只决定送去哪儿。
         // 移动态:目标是被搬的那张卡(moveTarget 只决定送去哪儿、不是守卫;它一变还原效果就重启、
         // restoring 随之置真,本效果以 restoring 这个 key 重启让路,不会拿着旧目标跟还原效果抢)。
-        val useGear = moveTarget == null && (tgtGear || focusNonce == gearNonce)
+        val useGear = moveTarget == null && tgtGear
         val target = when {
             useGear && loaded != null -> gearFocus
             // 落点用「那一行记住的那一格」而不是第一行第一张 —— rowFocus 正好挂在那里
@@ -720,7 +701,7 @@ fun HomeScreen(
                 // strongShadow,不是系统屏保照片上那档淡阴影)。阴影 alpha 跟着 1 − contentAlpha 走:压暗渐变
                 // 淡掉多少、阴影就补上多少,进出待机随同一个 tween 渐变,不瞬切;NO_FADE 档渐变不淡,阴影也不出。
                 clockShadowAlpha = 1f - contentAlpha,
-                onSettings = { onMenuOpenChange(true) },
+                onSettings = onSettings,
                 onScreensaver = onScreensaver,
                 onFocusChange = { col, got ->
                     report(-1, col, got)
@@ -762,21 +743,6 @@ fun HomeScreen(
                     .padding(top = GtvLayout.MOVE_HINT_TOP.dp)
                     .background(surface.copy(alpha = 0.8f), RoundedCornerShape(percent = 50))
                     .padding(horizontal = 16.dp, vertical = 6.dp),
-            )
-        }
-
-        if (menuOpen) {
-            GearMenu(
-                items = menuItems.map { item ->
-                    // 点任何一项都先收菜单,免得回来时还盖在上面
-                    item.copy(action = { onMenuOpenChange(false); item.action() })
-                },
-                onDismiss = { onMenuOpenChange(false) },
-                nonce = focusNonce,
-                // Ruling R17(终审 2026-09-20):这是「齿轮菜单」本尊——四项都不是自解释的动词,
-                // 「UnitedU 设置」与「系统设置」不看第二行根本分不清是两个不同的设置入口。
-                // 长按卡片菜单(下面那个 GearMenu)刻意不传,理由见 GearMenu 顶部 KDoc。
-                showHints = true,
             )
         }
 

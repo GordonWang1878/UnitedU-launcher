@@ -18,7 +18,7 @@ package com.uniteduone.launcher
 enum class CtrlKind { SEGMENTED, TOGGLE, SWATCH, SLIDER }
 
 /**
- * 设置的四个分组 = 设置页外壳第一层的四颗分组胶囊(R67,2026-09-23:顺序改成 布局 / 通用 / 外观 / 屏保,
+ * 设置的四个分组 = 设置页外壳第一层的四颗分组胶囊(R69,2026-09-23:顺序改成 布局 / 通用 / 外观 / 屏保,
  * 与第一层一致)。
  * **R57(2026-09-23 傍晚,Gordon 定)**:只剩四组(当时顺序 通用 / 布局 / 外观 / 屏保)。取代此前的
  * 布局 / 壁纸 / 主题 / 待机与屏保 / 时钟 / 语言 /(R55 的系统)/ 其他:语言、默认桌面、待机、时钟、恢复默认并入「通用」,
@@ -52,7 +52,7 @@ data class ControlRow(
     val optionArgs: List<Int?> = emptyList(),
     val noteRes: Int? = null,
     /**
-     * 第 i 档写成什么设置(纯函数,R69)。设置页外壳拿它做两件事:确定键落盘([onSelect] 就是
+     * 第 i 档写成什么设置(纯函数,R71)。设置页外壳拿它做两件事:确定键落盘([onSelect] 就是
      * `update { write(it, i) }`),以及**光标停在某一档时的实时预览**(`effectiveSettings` 不落盘、只把它套在
      * 已保存的设置上)。两处读同一个函数,预览看到的就一定是按确定之后会存下的样子。
      * 只有语言行是 null:切语言要 `recreate()`,不是改一个字段(见 [SettingsActions.applyLanguage])。
@@ -104,7 +104,7 @@ internal val LANGUAGE_OPTION_RES: List<Int> = listOf(
  * 模型只管把它们挂到对应的行上,不认识 `Context`;真正的实现在 `MainActivity`。
  */
 class SettingsActions(
-    /** R67:「布局」组第一行「编辑分栏」——打开现有的整屏编辑页(编辑页本身不改)。 */
+    /** R69:「布局」组第一行「编辑分栏」——打开现有的整屏编辑页(编辑页本身不改)。 */
     val openEdit: () -> Unit = {},
     val pickWallpaper: () -> Unit,
     val openImport: () -> Unit,
@@ -183,13 +183,13 @@ fun settingsGroups(
     val minutes = R.string.settings_idle_minutes
 
     return listOf(
-        // R67(2026-09-23 设置页胶囊外壳,Gordon 定):四组的顺序 = 外壳第一层胶囊的顺序——布局 / 通用 / 外观 / 屏保
+        // R69(2026-09-23 设置页胶囊外壳,Gordon 定):四组的顺序 = 外壳第一层胶囊的顺序——布局 / 通用 / 外观 / 屏保
         // (R57 的两栏时代是 通用 / 布局 / 外观 / 屏保)。布局放最上:改版后「编辑分栏」住在这一组第一行,
         // 它是最常用的入口。
         GroupSpec(
             GroupId.LAYOUT, R.string.settings_group_layout,
             listOfNotNull(
-                // R67:原齿轮菜单第一项「编辑分栏」挪进来,打开的仍是同一个整屏编辑页。
+                // R69:原齿轮菜单第一项「编辑分栏」挪进来,打开的仍是同一个整屏编辑页。
                 ActionRow("editLayout", R.string.menu_edit, R.string.menu_edit_desc) { actions.openEdit() },
                 ctl(
                     id = "cardsPerRow", labelRes = R.string.settings_card_size,
@@ -280,7 +280,7 @@ fun settingsGroups(
                 ) { actions.restoreDefaults() },
             ),
         ),
-        // R57:原「壁纸」「主题」两组合成「外观」:先壁纸(换 / 调),再主题色;R68 末尾加卡片淡化两条滑块。
+        // R57:原「壁纸」「主题」两组合成「外观」:先壁纸(换 / 调),再主题色;R70 末尾加卡片淡化两条滑块。
         GroupSpec(
             GroupId.APPEARANCE, R.string.settings_group_appearance,
             listOf(
@@ -306,7 +306,7 @@ fun settingsGroups(
                     count = ThemePresets.all.size, selected = ThemePresets.indexOf(s.themePresetId),
                 ),
                 toggle("followWallpaper", R.string.settings_follow_wallpaper, s.followWallpaperColor),
-                // R68:卡片淡化(R49)的两个参数做成滑块。饱和度 0–100% 步 10,亮度 50–100% 步 5——
+                // R70:卡片淡化(R49)的两个参数做成滑块。饱和度 0–100% 步 10,亮度 50–100% 步 5——
                 // 亮度下限 50:再暗卡片就与深色底糊成一片,认不出是哪个应用。
                 ctl(
                     id = "cardSaturation", labelRes = R.string.settings_card_saturation,
@@ -365,7 +365,7 @@ fun settingsGroups(
 }
 
 /**
- * 每个可改值行的「第 i 档 → 设置」纯函数(R69)。[settingsGroups] 的确定键与设置页外壳的实时预览
+ * 每个可改值行的「第 i 档 → 设置」纯函数(R71)。[settingsGroups] 的确定键与设置页外壳的实时预览
  * (`effectiveSettings`)读的是同一张表。语言不在表里(见 [ControlRow.write]);返回 null = 没有这一行。
  * 档位顺序一律取自 `Settings.kt` 的合法值表,与 [settingsGroups] 的 `selected` 同源。
  */

@@ -1,7 +1,7 @@
 package com.uniteduone.launcher
 
 /**
- * **设置页胶囊外壳的纯模型**(R67,2026-09-23):导航栈、页 id、每页缺省焦点、实时预览的
+ * **设置页胶囊外壳的纯模型**(R69,2026-09-23):导航栈、页 id、每页缺省焦点、实时预览的
  * 「预览—保存—放弃」状态机、滑块步进、胶囊间距、预览框几何。一行 Compose / Android 都不碰,
  * 全部在 JVM 上钉死([ShellModelTest]);界面(`SettingsShell.kt`)只负责画与焦点账本。
  *
@@ -95,7 +95,7 @@ fun shellOpened(): List<ShellFrame> = listOf(ShellFrame(ShellPages.ROOT, SHELL_R
  */
 fun shellPush(stack: List<ShellFrame>, page: String, focus: String?): List<ShellFrame> = stack + ShellFrame(page, focus)
 
-/** 回上一层;栈空 = 设置关了。**什么都不写**:选项层的未保存预览随栈顶一起消失(R69「返回 = 放弃」)。 */
+/** 回上一层;栈空 = 设置关了。**什么都不写**:选项层的未保存预览随栈顶一起消失(R71「返回 = 放弃」)。 */
 fun shellPop(stack: List<ShellFrame>): List<ShellFrame> = stack.dropLast(1)
 
 /** 用户在当前层导航到了 [id](目标跟着焦点走)。 */
@@ -117,7 +117,7 @@ fun pageHasPreview(page: String): Boolean {
 val PREVIEW_ROW_IDS = setOf("cardsPerRow", "showTitles", "showInputRow", "themeColor", "followWallpaper")
 
 /**
- * **预览—保存—放弃状态机的「预览」一半**(R69):栈顶是带预览的选项层、光标停在第 i 档 →
+ * **预览—保存—放弃状态机的「预览」一半**(R71):栈顶是带预览的选项层、光标停在第 i 档 →
  * 把那一档的写入函数套在已保存的设置上(不落盘);其它任何情况 → 原样返回 [saved]。
  * - 进选项层时光标 = 已保存档,结果等于 [saved](没有未保存的预览);
  * - 返回键 = [shellPop],栈顶不再是这一层,结果自然回到 [saved]——「返回 = 放弃」不需要任何撤销逻辑;
