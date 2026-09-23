@@ -173,9 +173,8 @@ private fun MenuBanner(app: AppEntry?, name: String) {
                 modifier = Modifier
                     .size(bannerWidth, bannerHeight)
                     .clip(RoundedCornerShape(GtvLayout.CARD_CORNER.dp))
-                    // R49:banner 与首页卡片同一档淡化(B4)。没开「主题化卡片」时,同一张卡在首页与长按菜单里
-                    // 因此颜色一致;开着时首页卡片另有 accent 染色(cardTint)与 accent 容器底,这里的 banner
-                    // 不做主题化,两处本来就不同色——淡化只保证饱和度 / 亮度与首页同一档,不保证同色。
+                    // R49:banner 与首页卡片同一档淡化(B4),同一张卡在首页与长按菜单里因此颜色一致
+                    // (「主题化卡片」2026-09-23 删掉之后没有例外了,gtv spec R58)。
                     .gtvCardFade()
                     .background(container),
                 contentAlignment = Alignment.Center,

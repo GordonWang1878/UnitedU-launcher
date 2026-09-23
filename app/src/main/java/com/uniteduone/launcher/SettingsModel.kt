@@ -309,9 +309,6 @@ fun settingsGroups(
                 toggle("followWallpaper", R.string.settings_follow_wallpaper, s.followWallpaperColor) { st, v ->
                     st.copy(followWallpaperColor = v)
                 },
-                toggle("themedCards", R.string.settings_themed_cards, s.themedCards) { st, v ->
-                    st.copy(themedCards = v)
-                },
             ),
         ),
         GroupSpec(

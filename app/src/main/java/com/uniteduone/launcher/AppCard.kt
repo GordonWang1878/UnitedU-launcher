@@ -28,7 +28,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -83,8 +82,6 @@ fun AppCard(
     reserveTitleSpace: Boolean = false,
     /** 无横幅回落卡的底色(图标边缘色);null 或有横幅时不铺。 */
     fallbackColor: Color? = null,
-    /** 主题化卡片:去色→染 accent。 */
-    themed: Boolean = false,
     /**
      * 首页原地移动态里被搬的那张卡(M4b spec §0-10,gtv 线 Task 5 改画法):描边跟普通聚焦一样画在
      * 布局框外(不再是库默认贴边的 3dp),但换成主题 highlight(accent 混 55% 白的近白色)——
@@ -114,11 +111,10 @@ fun AppCard(
     // 库默认的 1.1x 缩放 / 3dp 描边都不要了,scale 显式钉 1f,border 显式钉 None——我们自己的缩放
     // 走 graphicsLayer(在 gtvAppFocusFrame 内部),不经过库的 CardDefaults.scale。
     val border = CardDefaults.border(focusedBorder = Border.None, border = Border.None)
-    val cardTint = if (themed) ColorFilter.colorMatrix(ColorMatrix(cardTintMatrix(accent.toArgb() and 0xFFFFFF))) else null
-    // 容器色:有图的卡透明(横幅铺满,库的 clip 裁圆角);主题化统一铺深 accent 底;图标回落卡铺边缘色;
-    // 连图都没有(文字回落)用库的 surfaceVariant #49454F。accent 不进卡片中间(M7 §10.5)——只有主题化开关是用户主动要的例外。
+    // 容器色:有图的卡透明(横幅铺满,库的 clip 裁圆角);图标回落卡铺边缘色;
+    // 连图都没有(文字回落)用库的 surfaceVariant #49454F。accent 不进卡片中间(M7 §10.5)。
+    // (「主题化卡片」开关 2026-09-23 删掉,gtv spec R58:卡片的亮度 / 饱和度已由 R49 淡化统一压下来。)
     val container = when {
-        themed && app.card != null -> accent.copy(alpha = 0.20f)
         fallbackColor != null && app.card != null && !app.isWide -> fallbackColor
         app.card != null -> Color.Transparent
         else -> scheme.surfaceVariant
@@ -167,14 +163,12 @@ fun AppCard(
                         bitmap = bmp.asImageBitmap(),
                         contentDescription = app.label,
                         contentScale = ContentScale.Fit,
-                        colorFilter = cardTint,
                         modifier = Modifier.size(metrics.cardWidth, metrics.cardHeight),
                     )
                 } else if (bmp != null) {
                     Image(
                         bitmap = bmp.asImageBitmap(),
                         contentDescription = app.label,
-                        colorFilter = cardTint,
                         contentScale = ContentScale.Fit,
                         modifier = Modifier.size(metrics.cardHeight),
                     )

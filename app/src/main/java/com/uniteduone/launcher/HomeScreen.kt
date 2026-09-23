@@ -85,8 +85,6 @@ fun HomeScreen(
     /** 输入源行开关(design §2,默认关)。开着且真机枚举到硬件输入时,在应用行**上方**
      *  多渲染一行输入源;它以普通行的身份加进纵向焦点账本,种类差异只影响点击行为与行图标。 */
     showInputRow: Boolean = false,
-    /** 主题化卡片开关(design 2026-09-16):开着时所有卡片去色→染主题 accent。 */
-    themedCards: Boolean = false,
     /** 上次打开「添加应用」列表的时刻(design §4);默认「什么都不算新」,未接线的调用点零回归。 */
     newAppsSeenAt: Long = Long.MAX_VALUE,
     /** 当前聚焦的卡(得到时上报,失去时报 null)——MainActivity 长按时据此弹菜单。 */
@@ -637,7 +635,6 @@ fun HomeScreen(
                     metrics = metrics,
                     cardSize = cardSize,
                     showTitles = showTitles,
-                    themedCards = themedCards,
                     titles = titles,
                     firstCard = if (rowIndex == 0) firstCard else null,
                     rowRequester = rowFocus.getOrNull(rowIndex),
@@ -827,7 +824,6 @@ private fun CategoryRow(
     cardSize: GtvCardSize,
     /** 卡片标题全局开关 + 自定义标题表(design §2);输入源行不受它影响,见下方 AppCard 调用。 */
     showTitles: Boolean,
-    themedCards: Boolean,
     titles: Map<String, String>,
     firstCard: FocusRequester?,
     rowRequester: FocusRequester?,
@@ -928,7 +924,6 @@ private fun CategoryRow(
                     // 输入源行不画标题但照样占住那一行,行距与应用行一致(应用行 title 非空,走不到这一支)
                     reserveTitleSpace = showTitles,
                     fallbackColor = app.fallbackColor?.let { Color(it) },
-                    themed = themedCards,
                     moving = index == carried,
                     focusAfterShift = landedWithShift,
                     onClick = {

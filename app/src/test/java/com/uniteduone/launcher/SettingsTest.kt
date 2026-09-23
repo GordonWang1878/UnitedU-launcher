@@ -123,11 +123,13 @@ class SettingsTest {
         assertFalse(isWellFormedJsonObject("""{"a": "unterminated"""))
     }
 
-    @Test fun themedCardsDefaultsFalseAndRoundTrips() {
-        assertFalse(parseSettings("{}").themedCards)
-        assertTrue(parseSettings("""{"themedCards": true}""").themedCards)
-        assertTrue(Settings(themedCards = true).toJson().contains("\"themedCards\": true"))
-        assertEquals(Settings(themedCards = true), parseSettings(Settings(themedCards = true).toJson()))
+    @Test fun legacyThemedCardsKeyIsIgnored() {
+        // 2026-09-23 删掉「主题化卡片」(gtv spec R58):升级前的 settings.json 里还带着 themedCards 键。
+        // 与 wallpaperThemed 同一写法:按未知键忽略,其余字段照常解析,写盘也不再带它。
+        val s = parseSettings("""{"themedCards": true, "showTitles": true, "themePresetId": "blue"}""")
+        assertEquals(Settings(showTitles = true, themePresetId = "blue"), s)
+        assertFalse(s.toJson().contains("themedCards"))
+        assertEquals(Settings(), parseSettings("""{"themedCards": false}"""))
     }
 
     @Test fun wallpaperFieldsDefaultWhenAbsent() {

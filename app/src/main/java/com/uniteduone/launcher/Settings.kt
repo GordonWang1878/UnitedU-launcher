@@ -24,8 +24,8 @@ data class Settings(
     val showInputRow: Boolean = false,
     val themePresetId: String = "material",
     val followWallpaperColor: Boolean = false,
-    /** 主题化卡片:开启后所有应用卡片去色→染当前主题色(design 2026-09-16 追加)。默认关。 */
-    val themedCards: Boolean = false,
+    // (「主题化卡片」开关 themedCards 2026-09-23 删掉,gtv spec R58:卡片的亮度 / 饱和度已由 R49 淡化统一压下来;
+    //  旧文件里的键按未知键忽略,同 wallpaperThemed。)
     val clock24hFollowSystem: Boolean = true,
     val showDate: Boolean = true,
     val idleAfterMs: Long = 180_000L,
@@ -158,7 +158,6 @@ fun parseSettings(json: String): Settings {
                 ?.takeIf { it.isNotBlank() } ?: d.themePresetId,
             followWallpaperColor = extractBoolean(json, "followWallpaperColor")
                 ?: d.followWallpaperColor,
-            themedCards = extractBoolean(json, "themedCards") ?: d.themedCards,
             clock24hFollowSystem = extractBoolean(json, "clock24hFollowSystem")
                 ?: d.clock24hFollowSystem,
             showDate = extractBoolean(json, "showDate") ?: d.showDate,
@@ -204,7 +203,6 @@ fun Settings.toJson(): String {
         append("  \"showInputRow\": $showInputRow,\n")
         append("  \"themePresetId\": \"${esc(themePresetId)}\",\n")
         append("  \"followWallpaperColor\": $followWallpaperColor,\n")
-        append("  \"themedCards\": $themedCards,\n")
         append("  \"clock24hFollowSystem\": $clock24hFollowSystem,\n")
         append("  \"showDate\": $showDate,\n")
         append("  \"idleAfterMs\": $idleAfterMs,\n")
