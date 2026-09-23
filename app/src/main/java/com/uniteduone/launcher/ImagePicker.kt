@@ -307,6 +307,7 @@ private fun PickerGrid(
     // 行距要大于它,聚焦描边才碰不到上一行的标签,视窗下面的纵向裁剪留白(= rowGap)也才盖得住描边。
     val rowGap = 16.dp
     val rowGapPx = with(density) { rowGap.roundToPx() }
+    val focusOverflowPx = with(density) { GtvLayout.appFocusOverflow(thumbHeight.value).dp.toPx() }
     /** 一行缩略图的实测高度(首行量出来,各行等高);0 = 还没量到,此时不位移。 */
     var rowHeightPx by remember { mutableStateOf(0) }
     /** 视窗实测高度(≤ 600dp)。 */
@@ -437,15 +438,15 @@ private fun PickerGrid(
                 .weight(1f, fill = false)
                 .heightIn(max = 600.dp)
                 // P2:原来是 clipToBounds()。聚焦格放大后描边 + 柔光伸出格子外(描边横向 ≈ 12.5dp、纵向 ≈ 8.8dp),
-                // 贴着视窗边的那一格会被裁掉。视窗裁剪的唯一用途是翻页时藏住视窗外的行,所以:横向放开
-                // (左右由外层面板 16dp 内边距 + 圆角裁剪兜底,描边溢出 < 16dp);纵向只在那一侧**确实有行被藏**
-                // 时才裁,且外扩 rowGap——视窗外相邻那一行离视窗边正好 rowGap 远,外扩不超过它就不会露出来;
-                // 那一侧没有被藏的行时不裁(柔光一直铺到面板边,不在视窗边上留一道硬边)。
+                // 贴着视窗边的那一格会被裁掉。横向放开(左右由外层面板 16dp 内边距 + 圆角裁剪兜底,描边溢出 < 16dp);
+                // 纵向**固定**外扩一个聚焦溢出量 appFocusOverflow(缩略图高),与页码无关。
+                // 不能按 firstRow 决定「这一侧要不要裁」(第二轮初版这么做过,夜间评审 Important):firstRow 在得焦那一刻
+                // 就跳到新页,yShift 却要 300ms 才走到——翻回首页 / 翻到末页的途中,整行缩略图从视窗外滑过、
+                // 压在标题或「按返回键取消」上。外扩量 ≈ 8.8dp < 标题下方与底注上方各 12dp 的间隙,描边完整、碰不到文字;
+                // 代价是柔光在视窗上下边被硬切。
                 .drawWithContent {
-                    val m = rowGapPx.toFloat()
-                    val top = if (firstRow > 0) -m else -size.height
-                    val bottom = if (firstRow + visibleRows < rows.size) size.height + m else size.height * 2
-                    clipRect(left = -size.width, top = top, right = size.width * 2, bottom = bottom) {
+                    val m = focusOverflowPx
+                    clipRect(left = -size.width, top = -m, right = size.width * 2, bottom = size.height + m) {
                         this@drawWithContent.drawContent()
                     }
                 }
