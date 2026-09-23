@@ -1506,3 +1506,9 @@ R42(`1c8118e`):行底边(含聚焦溢出)超出屏幕物理底边才上移,上�
 **同日续 · 真机迁移完成**:早上我把 adb「No route to host」误判成「电视端口变了」并让 Gordon 去查——他回「端口没变,你先从自己身上找原因」。确实是我这边:CLAUDE.md 早写明 No route to host 是本机 adb 的问题、只有 Connection refused 才要新端口,我既没照这条、也没用 `nc -vz` 测端口本身;`nc` 一测 34949 就是通的,adb 随后也连上了,电视侧从头到尾没变。**判据:要对方动手之前,先把自己能测的那一层测完。**
 第一次跑迁移脚本在第 1 步退出:真机图库有带空格的文件名(「史诗测试03 冰原烽火.jpg」),`find | xargs` 拆错,`set -e` 生效——电视未被改动(正式包更新时间仍 9-20)。改成 `-print0` / `-exec`(`8ce1eeb`),模拟器加带空格文件重演通过后再上真机:57 个文件逐一 sha256 一致,正式包 `com.uniteduone.launcher` 已是 1.0(gtv 界面),备份 `~/unitedu-backup/20260923-115800/`。没有拉起正式包、没按键、没卸载。待 Gordon 在系统设置切默认桌面与屏幕保护程序到「UnitedU」(旧 gtv 包在列表里叫「UnitedU GTV」)。
 **电视上的我们的桌面(11:58 迁移后)**:TvHome `com.gordonwang.tvhome` 0.1(9-13 原型)/ UnitedU `com.uniteduone.launcher`(已覆盖为 1.0 = gtv 界面,数据已迁入)/ UnitedU GTV `com.uniteduone.launcher.gtv`(仍是默认桌面)。原线旧界面在电视上已不存在,代码里 main 即 gtv 线。**Gordon 批准:他切完默认桌面到「UnitedU」并确认无误后,卸载 UnitedU GTV 与 TvHome**(卸前各备份一次外部数据目录)。
+
+## 2026-09-23 · 1.0 图标接入 + 装电视;推送暂缓
+
+- GPT 出的三张图(`docs/design/icon-masters/`)对照 `docs/design/icon-needs.md` 全部合规:banner 1280×720 不透明;背景 1024 不透明;前景 1024 透明底、U 离中心最远 300 px < 安全圆半径 313 px。接入为自适应图标(`mipmap-anydpi-v26` + mdpi–xxxhdpi 两层,minSdk 28 故不做老式单张)+ 独立 banner(xhdpi 320×180),Manifest 的 icon/roundIcon/banner 分开(`3c0b6ec`)。模拟器 Google TV「Your apps」核对:圆形裁切下 U 完整(`docs/screenshots` 未归档,截图在会话 scratchpad)。已装电视(12:04,仅 install)。
+- Gordon 说「把更新发上去」。推前清点:126 个从未推过的提交、17.6 MB,含 Google TV 截图(左上角有他的 Google 账号卡通头像,另有电影海报/他人 YouTube 缩略图/一条赞助广告)与从 Google APK 提取的资源对照表。说明后 Gordon 选**先不推**。另:剔除这些内容要改写本地未推历史,会让 WORKLOG 等处几十个提交号失效——下次讨论推送时带上这条代价。
+- GitHub Release(已装用户会在「检查更新」里收到)未提,与推送一并待定。
