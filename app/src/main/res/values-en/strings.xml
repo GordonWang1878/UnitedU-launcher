@@ -29,11 +29,11 @@
     <string name="card_menu_uninstall_desc">System confirmation; the card disappears afterwards</string>
     <string name="card_menu_rename">Rename Card</string>
     <string name="card_menu_rename_desc">Changes only the card title, not the app</string>
-    <string name="card_menu_icon">Change Image</string>
+    <string name="card_menu_icon">Change Card Art</string>
     <string name="card_menu_icon_desc">Pick a 16:9 image from the library</string>
     <string name="card_menu_move">Move</string>
     <string name="card_menu_move_desc">Move this card right here on the home screen</string>
-    <string name="card_menu_remove">Remove from This Row</string>
+    <string name="card_menu_remove">Remove from Row</string>
     <string name="card_menu_remove_desc">The app itself is not uninstalled</string>
     <!-- title_dialog_* : the "Rename Card" dialog -->
     <string name="title_dialog_title">Rename Card</string>
@@ -95,7 +95,7 @@
     <string name="edit_toast_order_not_saved">The order couldn\'t be saved and will reset after restart</string>
     <string name="edit_change_image">Change Card Art</string>
     <string name="edit_change_image_desc">Pick a 16:9 image to replace it</string>
-    <string name="edit_remove">Remove From Row</string>
+    <string name="edit_remove">Remove from Row</string>
     <string name="edit_remove_desc">The app itself won\'t be uninstalled</string>
     <string name="edit_add_app_title">Add App</string>
     <string name="edit_loading_apps">Loading app list…</string>

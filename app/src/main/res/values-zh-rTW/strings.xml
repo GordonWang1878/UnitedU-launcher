@@ -21,11 +21,11 @@
     <string name="card_menu_uninstall_desc">透過系統確認解除安裝;之後卡片會自動消失</string>
     <string name="card_menu_rename">修改標題</string>
     <string name="card_menu_rename_desc">只改卡片上的名字,不改應用程式</string>
-    <string name="card_menu_icon">更改圖片</string>
+    <string name="card_menu_icon">換卡片圖</string>
     <string name="card_menu_icon_desc">從圖庫選一張 16:9 的圖</string>
     <string name="card_menu_move">移動位置</string>
     <string name="card_menu_move_desc">在桌面上直接挪動這張卡</string>
-    <string name="card_menu_remove">從目前分類移除</string>
+    <string name="card_menu_remove">從這一行移出</string>
     <string name="card_menu_remove_desc">應用程式本身不會被解除安裝</string>
     <!-- title_dialog_* : 「修改標題」對話框 -->
     <string name="title_dialog_title">修改標題</string>

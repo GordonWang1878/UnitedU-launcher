@@ -12,7 +12,7 @@
 | 「移动位置」 | **M4 只做兜底**:长按 →「移动位置」跳编辑页并定位到这张卡;原地移动态(卡片抬起、左右换位、上下换行)后置到 M4b 之后,等长按菜单真机验过再做 |
 | 卡片标题位置 | **卡片下方一行小字**(Projectivy 同款,不遮横幅);标题开关打开时行高增加,纵向位移沿用自算逻辑 |
 
-**做**:首页长按卡片菜单六项(打开 / 卸载 / 修改标题 / 更改图标 / 移动位置(兜底)/ 从当前分类移除)、卡片标题(全局开关 + 自定义标题 + 无横幅回落自动标题)、新应用标记(首页角落计数 + 添加列表「新」标)、设置页补回「卡片标题」开关。
+**做**:首页长按卡片菜单六项(打开 / 卸载 / 修改标题 / 换卡片图 / 移动位置(兜底)/ 从这一行移出)、卡片标题(全局开关 + 自定义标题 + 无横幅回落自动标题)、新应用标记(首页角落计数 + 添加列表「新」标)、设置页补回「卡片标题」开关。
 **不做**(带去向):原地移动(M4b 之后)、行管理(M4b)、输入源卡片的长按菜单(M4b)、编辑页条目菜单加「修改标题」(polish,按需)。
 
 ## 1. 长按检测与卡片菜单
@@ -27,15 +27,15 @@
 | 打开应用 | `Apps.launch(ctx, pkg)` |
 | 卸载应用 | `startActivity(Intent(ACTION_DELETE, "package:$pkg"))` 走系统确认页;卸载完成靠现有 `PACKAGE_REMOVED → revision++`,`buildRows` 的 `mapNotNull` 让卡片消失;`layout.json` 里的包名留着(重装即复现,与今日行为一致) |
 | 修改标题 | 打开 `TitleDialog`(§3) |
-| 更改图标 | 现有 `pickIcon(pkg)`(`IconPicker`) |
+| 换卡片图 | 现有 `pickIcon(pkg)`(`IconPicker`) |
 | 移动位置 | `editTarget = (layoutRow, pkg)`、`editing = true`;`EditScreen` 新参数 `initialTarget: Pair<Int, String>?`(= `(layout.json 行号, 包名)`,见下方「坐标口径」),数据加载完成后用 `indexOf(pkg)` 解出列号、调用它自己的 `retarget(ri, col)` 一次(该函数已是「所有重定位的唯一入口」);`MainActivity` 在 `leaveEdit()` 时清 `editTarget` |
-| 从当前分类移除 | `Layout` 里该行去掉 pkg → `Layout.write` → `revision++`;焦点落到同行相邻卡(现有「行变短时索引夹取」逻辑) |
+| 从这一行移出 | `Layout` 里该行去掉 pkg → `Layout.write` → `revision++`;焦点落到同行相邻卡(现有「行变短时索引夹取」逻辑) |
 
 - 输入源行(`RowKind.INPUTS`)的卡片长按**不出菜单**(隐藏/改名归 M4b),按压照常吞掉、不启动:`dispatchKeyEvent` 只要有聚焦卡就记 `longPressDownTime` 并吞掉本次按压的后续事件,只在 `cardMenuActions` 非空时才开菜单。
 - **坐标口径(T4 评审纠正)**:`buildRows` 会丢掉未安装的包和整行为空的行,所以渲染下标 ≠ `layout.json` 下标。`Row.layoutRow` 在过滤**之前**赋值(输入源行 −1),`CardRef.layoutRow` 用它;「移除」「移动位置」一律按 **(layoutRow, pkg)** 寻址(`EditScreen.initialTarget: Pair<Int, String>` 用 `indexOf(pkg)` 解列号),绝不用渲染列号——否则任一配置包未安装时,移除会打错行(铁律 5 的另一扇门)。
 - **卸载需要 `REQUEST_DELETE_PACKAGES`**(API 26+ 起 `ACTION_DELETE` 必需;缺了系统卸载器静默退出、`startActivity` 仍返回成功)。清单已加。
 - **三条杠键(MENU)在卡片菜单开着时先关卡片菜单**,不能叠出齿轮菜单(两个 320dp 面板重叠、焦点在看不见的那层)。
-- **选择器回来的焦点**:「更改图标」走 `pickerTarget` 浮层,它会把 `HomeScreen` 整棵拆掉;`HomeScreen(initialTarget)` 用 (行, 列) 作 `tgtRow/tgtIdx` 的**初值**(只在组合实例创建时生效,不是闩),`MainActivity.homeInitialTarget` 在 CHANGE_ICON 时设、进编辑/设置/其它选择器时清。同一机制顺带修了 M3 备案的「换壁纸后焦点回到第一张」——从齿轮进的选择器不设种子,回到齿轮/第一张仍是既有行为。
+- **选择器回来的焦点**:「换卡片图」走 `pickerTarget` 浮层,它会把 `HomeScreen` 整棵拆掉;`HomeScreen(initialTarget)` 用 (行, 列) 作 `tgtRow/tgtIdx` 的**初值**(只在组合实例创建时生效,不是闩),`MainActivity.homeInitialTarget` 在 CHANGE_ICON 时设、进编辑/设置/其它选择器时清。同一机制顺带修了 M3 备案的「换壁纸后焦点回到第一张」——从齿轮进的选择器不设种子,回到齿轮/第一张仍是既有行为。
   - **已由 M7 T4 退役(`93f00aa`)**:选择器改为叠在常驻 `HomeScreen` 之上、首页不再被拆,`covered` 期间冻结 `tgtRow/tgtIdx/tgtGear`、关掉后按它还原,`initialTarget`/`homeInitialTarget` 整套删除;「picker 回来落 (0,0)」随之解决(编辑页仍整体替换首页,不在此列)。
 - 菜单项文案 `card_menu_*` ×6 + 描述行,三语。
 

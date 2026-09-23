@@ -151,7 +151,7 @@ object Layout {
         write(ctx, transform(read(ctx)))
     }
 
-    /** 从第 rowIndex 行移除一个包(长按菜单「从当前分类移除」)。行不存在或包不在该行 → false,不写盘。 */
+    /** 从第 rowIndex 行移除一个包(长按菜单「从这一行移出」)。行不存在或包不在该行 → false,不写盘。 */
     fun removeFromRow(ctx: Context, rowIndex: Int, pkg: String): Boolean = update(ctx) { rows ->
         val row = rows.getOrNull(rowIndex)
         if (row == null || pkg !in row.apps) rows
