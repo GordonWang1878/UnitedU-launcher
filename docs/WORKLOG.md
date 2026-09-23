@@ -1512,3 +1512,5 @@ R42(`1c8118e`):行底边(含聚焦溢出)超出屏幕物理底边才上移,上�
 - GPT 出的三张图(`docs/design/icon-masters/`)对照 `docs/design/icon-needs.md` 全部合规:banner 1280×720 不透明;背景 1024 不透明;前景 1024 透明底、U 离中心最远 300 px < 安全圆半径 313 px。接入为自适应图标(`mipmap-anydpi-v26` + mdpi–xxxhdpi 两层,minSdk 28 故不做老式单张)+ 独立 banner(xhdpi 320×180),Manifest 的 icon/roundIcon/banner 分开(`3c0b6ec`)。模拟器 Google TV「Your apps」核对:圆形裁切下 U 完整(`docs/screenshots` 未归档,截图在会话 scratchpad)。已装电视(12:04,仅 install)。
 - Gordon 说「把更新发上去」。推前清点:126 个从未推过的提交、17.6 MB,含 Google TV 截图(左上角有他的 Google 账号卡通头像,另有电影海报/他人 YouTube 缩略图/一条赞助广告)与从 Google APK 提取的资源对照表。说明后 Gordon 选**先不推**。另:剔除这些内容要改写本地未推历史,会让 WORKLOG 等处几十个提交号失效——下次讨论推送时带上这条代价。
 - GitHub Release(已装用户会在「检查更新」里收到)未提,与推送一并待定。
+
+**同日续 · 「图标没变」**:Gordon 切到正式包后说图标没变。核实:默认桌面 = `com.uniteduone.launcher`、电视上的 APK 与新构建 sha256 一致、badging 里 icon 已指向自适应图标——安装无误。原因是**电视系统设置进程(`com.android.tv.settings`)昨天 16:33 起就没退出过**,内存里缓存着旧图标;当贝 / Projectivy 等桌面进程也是昨天起的,各有缓存。`am force-stop com.android.tv.settings` 与 `com.sony.dtv.settings` 后让他重开设置核对。三个包在系统里的名字:UnitedU(正式包)/ UnitedU GTV(旧 gtv 包)/ **United UI**(TvHome 原型,名字很像,别选错)。
