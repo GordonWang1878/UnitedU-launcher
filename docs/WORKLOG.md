@@ -1505,3 +1505,4 @@ R42(`1c8118e`):行底边(含聚焦溢出)超出屏幕物理底边才上移,上�
 
 **同日续 · 真机迁移完成**:早上我把 adb「No route to host」误判成「电视端口变了」并让 Gordon 去查——他回「端口没变,你先从自己身上找原因」。确实是我这边:CLAUDE.md 早写明 No route to host 是本机 adb 的问题、只有 Connection refused 才要新端口,我既没照这条、也没用 `nc -vz` 测端口本身;`nc` 一测 34949 就是通的,adb 随后也连上了,电视侧从头到尾没变。**判据:要对方动手之前,先把自己能测的那一层测完。**
 第一次跑迁移脚本在第 1 步退出:真机图库有带空格的文件名(「史诗测试03 冰原烽火.jpg」),`find | xargs` 拆错,`set -e` 生效——电视未被改动(正式包更新时间仍 9-20)。改成 `-print0` / `-exec`(`8ce1eeb`),模拟器加带空格文件重演通过后再上真机:57 个文件逐一 sha256 一致,正式包 `com.uniteduone.launcher` 已是 1.0(gtv 界面),备份 `~/unitedu-backup/20260923-115800/`。没有拉起正式包、没按键、没卸载。待 Gordon 在系统设置切默认桌面与屏幕保护程序到「UnitedU」(旧 gtv 包在列表里叫「UnitedU GTV」)。
+**电视上的我们的桌面(11:58 迁移后)**:TvHome `com.gordonwang.tvhome` 0.1(9-13 原型)/ UnitedU `com.uniteduone.launcher`(已覆盖为 1.0 = gtv 界面,数据已迁入)/ UnitedU GTV `com.uniteduone.launcher.gtv`(仍是默认桌面)。原线旧界面在电视上已不存在,代码里 main 即 gtv 线。**Gordon 批准:他切完默认桌面到「UnitedU」并确认无误后,卸载 UnitedU GTV 与 TvHome**(卸前各备份一次外部数据目录)。
