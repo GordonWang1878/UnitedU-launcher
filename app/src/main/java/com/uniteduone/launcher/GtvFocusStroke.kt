@@ -277,7 +277,7 @@ fun Modifier.gtvAppFocusFrame(
             if (moving) {
                 // 整枝审查 A(2026-09-22):外扩必须**跟着缩放后的边缘走**,与上面聚焦描边同一算法
                 // (growX/growY + 固定 dp),不能再是固定的布局框外 FOCUS_OUTSET——搬运中焦点恒在
-                // 被搬的卡上,scale 恒为 APP_FOCUS_SCALE,MEDIUM 卡横向外扩 153×0.05=7.65dp 已经
+                // 被搬的卡上,scale 恒为 APP_FOCUS_SCALE,当时的 MEDIUM 卡横向外扩 153×0.05=7.65dp 已经
                 // 大于原来描边外缘的 6dp,左右整条被缩放后的卡片盖住,纵向也只露 1.5dp——这条描边
                 // 在它唯一该出现的场景里几乎不可见。现在描边中心线在缩放后边缘外 FOCUS_OUTSET 处,
                 // 正好贴在聚焦描边(外缘 = 缩放后边缘 + APP_FOCUS_GAP + APP_FOCUS_STROKE = 4dp)

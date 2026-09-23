@@ -155,10 +155,10 @@ fun GearMenu(
 private fun MenuBanner(app: AppEntry?, name: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         if (app != null) {
-            // banner 尺寸复用 LARGE 卡片档位——参考图像素量测约 196×110dp,与 LARGE(192×108dp)
-            // 在抗锯齿误差内一致,没有必要为这一处单独定义一套新尺寸。
-            val bannerWidth = GtvLayout.cardWidth(GtvCardSize.LARGE).dp
-            val bannerHeight = GtvLayout.cardHeight(GtvCardSize.LARGE).dp
+            // banner 尺寸:参考图像素量测约 196×110dp,取 192×108dp。R59 之前直接借 LARGE 卡片档位(当时正是 192);
+            // R59 把大档改成 153 之后改读自己的常量,菜单观感不随首页档位变(见 GtvLayout.MENU_BANNER_WIDTH)。
+            val bannerWidth = GtvLayout.MENU_BANNER_WIDTH.dp
+            val bannerHeight = (GtvLayout.MENU_BANNER_WIDTH * 9f / 16f).dp
             val bmp = app.card
             val fallback = app.fallbackColor
             val scheme = MaterialTheme.colorScheme

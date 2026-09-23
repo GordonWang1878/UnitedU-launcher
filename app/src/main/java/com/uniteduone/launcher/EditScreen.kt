@@ -120,7 +120,7 @@ fun EditScreen(
     val ctx = LocalContext.current
     // 与首页同一套卡片档位尺寸,编辑页的卡片才会和首页一样大。
     // Ruling R18(终审 2026-09-20):这里原来读 Theme.cardMetrics(cardsPerRow)(HomeLayout 那一套,
-    // 6 张时 124×69.75dp),首页早已换成 gtv 三档(153×86dp 起),编辑页里的同一个应用因此比首页
+    // 6 张时 124×69.75dp),首页早已换成 gtv 三档(当时中档 153×86dp;R59 起 122 / 137 / 153),编辑页里的同一个应用因此比首页
     // 小了一整圈——B5-a 裁定的三档固定尺寸是首页专用的新模型,HomeLayout 那套按张数反推宽度的
     // 公式已经作废(decision table B5),编辑页当年漏改。见 Theme.gtvCardMetrics / cardsPerRowToGtvSize。
     val metrics = Theme.gtvCardMetrics(cardsPerRowToGtvSize(cardsPerRow))
