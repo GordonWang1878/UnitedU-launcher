@@ -9,7 +9,7 @@ class ThemePresetsTest {
     @Test fun fiveLightPresetsInSwatchOrder() {
         assertEquals(listOf("white", "champagne", "blue", "purple", "green"), ThemePresets.all.map { it.id })
         assertEquals(
-            listOf(Color(0xFFF2F2F2), Color(0xFFE6DAC3), Color(0xFFC8D4E0), Color(0xFFD4CCE3), Color(0xFFCCD9C8)),
+            listOf(Color(0xFFF2F2F2), Color(0xFFE4D1AB), Color(0xFFB2C7DC), Color(0xFFC5B6DF), Color(0xFFBBD5B3)),
             ThemePresets.all.map { it.color },
         )
     }
@@ -17,7 +17,7 @@ class ThemePresetsTest {
     @Test fun purpleIsDefault() {
         assertEquals("purple", ThemePresets.DEFAULT_ID)
         assertEquals("purple", Settings().themePresetId)
-        assertEquals(Color(0xFFD4CCE3), LocalThemeColorsDefault.accent)
+        assertEquals(Color(0xFFC5B6DF), LocalThemeColorsDefault.accent)
     }
 
     /** highlight 写成显式 hex,但必须等于 highlightFrom(accent) 算出来的值(跟随壁纸时走的是同一条算法)。 */
