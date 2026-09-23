@@ -109,6 +109,8 @@ cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的�
 | `cardFocusStroke` | 主题色,2 dp | 内容卡描边 |
 | `scrimOverlay` | 黑 65%(待真机调) | 浮层压暗 |
 
+**主题色预设(Ruling R62,2026-09-23 傍晚,Gordon 定)**:上表「主题色」的取值范围从 9 个预设缩成 5 个黑底上很浅、低饱和的颜色——白 #F2F2F2、香槟 #E6DAC3、雾蓝 #C8D4E0、**淡紫 #D4CCE3(默认)**、鼠尾草 #CCD9C8;highlight 一律 = `highlightFrom(accent)`(Compose `lerp` 在 Oklab 里混白 55%)后写显式 hex。删掉 Material 紫(原默认)/ 黑 / 金 / 石墨;旧 id 读盘迁移 material→purple、gold→champagne、graphite→white、black→white。「跟随壁纸主色」保留。连带:①菜单药丸 / 顶栏的聚焦实填按亮度自动取黑字,浅色 accent 下仍可读;②搬运中的卡用 highlight 描边、聚焦用 accent 描边——五个预设的 accent 与 highlight 都很浅、差得不多,两者同时出现时较难分辨(见 R62 实现报告);③待机小时钟(ui-pending #8)是 accent 字,浅色 accent 在亮壁纸上更吃力。
+
 ## §3 首页
 
 自上而下:**顶栏(常驻)→ hero 区(纯壁纸,192 dp)→ 应用行 ×1–5**。
@@ -262,3 +264,4 @@ cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的�
 | R59 | 同上 | 卡片三档 122 / 137 / 153(中、大下修;大档一行静止完整 5 张);长按菜单 banner 独立常量仍 192(§2.2) | 现行;默认中档比原来小一圈 |
 | R60 | 同上 | 「导入图片」改名「手机传输」,从外观组挪到通用组「设置默认桌面」之后(§6) | 现行 |
 | R61 | 同上 | 删「壁纸自动切换」与 6 张内置染色图(升级清掉已播种副本);播种钩子保留、清单为空;无壁纸时纯深色 MenuBg(§3) | 现行;待 Gordon 给默认壁纸(ui-pending #19) |
+| R62 | 同上 | 主题色 5 个浅色低饱和预设,淡紫默认;旧 id 迁移(§2.4) | 现行 |

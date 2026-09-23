@@ -211,16 +211,12 @@
     <string name="onb_skip">跳过</string>
     <string name="onb_none">没有找到可自动放置的应用</string>
 
-    <!-- preset_* : 主题色预设名(门 2「沉稳」一套) -->
-    <string name="preset_material">Material 紫</string>
+    <!-- preset_* : 主题色预设名(R62:黑底上很浅、低饱和的五色) -->
     <string name="preset_white">白</string>
-    <string name="preset_black">黑</string>
-    <string name="preset_gold">金</string>
     <string name="preset_champagne">香槟</string>
-    <string name="preset_blue">蓝</string>
-    <string name="preset_purple">紫</string>
-    <string name="preset_graphite">石墨</string>
-    <string name="preset_green">绿</string>
+    <string name="preset_blue">雾蓝</string>
+    <string name="preset_purple">淡紫</string>
+    <string name="preset_green">鼠尾草</string>
 
     <!-- toast_* : 一次性提示 -->
     <string name="toast_cant_open_app">打不开「%1$s」,它可能已被卸载</string>

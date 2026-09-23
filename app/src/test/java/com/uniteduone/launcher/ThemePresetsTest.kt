@@ -4,28 +4,46 @@ import androidx.compose.ui.graphics.Color
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
+/** Ruling R62(2026-09-23 傍晚):五个黑底上很浅、低饱和的预设,淡紫默认;旧 id 迁移。 */
 class ThemePresetsTest {
-    @Test fun materialPurpleIsFirstAndDefault() {
-        assertEquals("material", ThemePresets.DEFAULT_ID)
-        assertEquals("material", ThemePresets.all.first().id)
-        assertEquals(Color(0xFFD0BCFF), ThemePresets.all.first().color)
-        assertEquals(Color(0xFFE8DCFF), ThemePresets.all.first().highlight)
+    @Test fun fiveLightPresetsInSwatchOrder() {
+        assertEquals(listOf("white", "champagne", "blue", "purple", "green"), ThemePresets.all.map { it.id })
+        assertEquals(
+            listOf(Color(0xFFF2F2F2), Color(0xFFE6DAC3), Color(0xFFC8D4E0), Color(0xFFD4CCE3), Color(0xFFCCD9C8)),
+            ThemePresets.all.map { it.color },
+        )
     }
 
-    @Test fun oldPresetsStillResolve() {
-        assertEquals("gold", ThemePresets.byId("gold").id)
-        assertEquals(Color(0xFFC0A73A), ThemePresets.byId("gold").color)
-        assertEquals(9, ThemePresets.all.size)
+    @Test fun purpleIsDefault() {
+        assertEquals("purple", ThemePresets.DEFAULT_ID)
+        assertEquals("purple", Settings().themePresetId)
+        assertEquals(Color(0xFFD4CCE3), LocalThemeColorsDefault.accent)
     }
 
-    @Test fun whiteAndBlackFollowMaterial() {
-        assertEquals(listOf("material", "white", "black"), ThemePresets.all.take(3).map { it.id })
-        assertEquals(Color(0xFFF5F5F5), ThemePresets.byId("white").color)
-        assertEquals(Color(0xFF1A1A1A), ThemePresets.byId("black").color)
+    /** highlight 写成显式 hex,但必须等于 highlightFrom(accent) 算出来的值(跟随壁纸时走的是同一条算法)。 */
+    @Test fun highlightIsHighlightFromAccent() {
+        for (p in ThemePresets.all) assertEquals(p.id, highlightFrom(p.color), p.highlight)
     }
 
-    @Test fun unknownIdFallsBackToMaterial() {
-        assertEquals("material", ThemePresets.byId("nope").id)
-        assertEquals(0, ThemePresets.indexOf("nope"))
+    @Test fun legacyIdsMigrate() {
+        assertEquals("purple", ThemePresets.migrateId("material"))
+        assertEquals("champagne", ThemePresets.migrateId("gold"))
+        assertEquals("white", ThemePresets.migrateId("graphite"))
+        assertEquals("white", ThemePresets.migrateId("black"))
+        // 同名保留的原样
+        for (id in listOf("white", "champagne", "blue", "purple", "green")) assertEquals(id, ThemePresets.migrateId(id))
+        // indexOf / byId 认旧 id
+        assertEquals(ThemePresets.all.indexOfFirst { it.id == "purple" }, ThemePresets.indexOf("material"))
+        assertEquals("champagne", ThemePresets.byId("gold").id)
+        assertEquals("white", ThemePresets.byId("graphite").id)
+        assertEquals("white", ThemePresets.byId("black").id)
     }
+
+    @Test fun unknownIdFallsBackToDefault() {
+        assertEquals("purple", ThemePresets.byId("nope").id)
+        assertEquals(3, ThemePresets.indexOf("nope"))
+    }
+
+    // LocalThemeColors 的默认值是 staticCompositionLocalOf 的 lambda,JVM 上取不到;这里按它的定义式算一遍。
+    private val LocalThemeColorsDefault get() = ThemePresets.byId(ThemePresets.DEFAULT_ID).colors()
 }

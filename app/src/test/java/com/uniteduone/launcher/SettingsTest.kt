@@ -55,9 +55,10 @@ class SettingsTest {
         }
     }
 
-    @Test fun themePresetIdFallsBackToMaterialWhenAbsentOrBlank() {
-        assertEquals("material", parseSettings("""{}""").themePresetId)
-        assertEquals("material", parseSettings("""{"themePresetId": ""}""").themePresetId)
+    @Test fun themePresetIdFallsBackToDefaultWhenAbsentOrBlank() {
+        // R62:默认淡紫 "purple"(此前 "material")
+        assertEquals("purple", parseSettings("""{}""").themePresetId)
+        assertEquals("purple", parseSettings("""{"themePresetId": ""}""").themePresetId)
         assertEquals("sunset", parseSettings("""{"themePresetId": "sunset"}""").themePresetId)
     }
 
@@ -231,13 +232,19 @@ class SettingsTest {
         assertEquals(r, parseSettings(r.toJson()))
     }
 
-    @Test fun defaultThemePresetIsMaterial() {
-        assertEquals("material", Settings().themePresetId)
-        assertEquals("material", parseSettings("{}").themePresetId)
+    @Test fun defaultThemePresetIsPurple() {
+        assertEquals("purple", Settings().themePresetId)
+        assertEquals("purple", parseSettings("{}").themePresetId)
     }
 
-    @Test fun legacyGoldPresetIdIsKept() {
-        assertEquals("gold", parseSettings("""{"themePresetId": "gold"}""").themePresetId)
+    /** R62:旧预设 id 读盘时就换成新的,下次写盘不再带旧 id。 */
+    @Test fun legacyPresetIdsMigrateOnRead() {
+        assertEquals("purple", parseSettings("""{"themePresetId": "material"}""").themePresetId)
+        assertEquals("champagne", parseSettings("""{"themePresetId": "gold"}""").themePresetId)
+        assertEquals("white", parseSettings("""{"themePresetId": "graphite"}""").themePresetId)
+        assertEquals("white", parseSettings("""{"themePresetId": "black"}""").themePresetId)
+        assertEquals("blue", parseSettings("""{"themePresetId": "blue"}""").themePresetId)
+        assertTrue(parseSettings("""{"themePresetId": "gold"}""").toJson().contains("\"themePresetId\": \"champagne\""))
     }
 
     @Test fun screensaverFieldsDefaultWhenAbsent() {

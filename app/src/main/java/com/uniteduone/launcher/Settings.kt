@@ -22,7 +22,8 @@ data class Settings(
     val cardsPerRow: Int = 6,
     val showTitles: Boolean = false,
     val showInputRow: Boolean = false,
-    val themePresetId: String = "material",
+    /** 主题色预设 id(R62:默认淡紫 "purple";旧 id 读盘时经 [ThemePresets.migrateId] 换成新的)。 */
+    val themePresetId: String = ThemePresets.DEFAULT_ID,
     val followWallpaperColor: Boolean = false,
     // (「主题化卡片」开关 themedCards 2026-09-23 删掉,gtv spec R58:卡片的亮度 / 饱和度已由 R49 淡化统一压下来;
     //  旧文件里的键按未知键忽略,同 wallpaperThemed。)
@@ -147,8 +148,9 @@ fun parseSettings(json: String): Settings {
             cardsPerRow = snapCardsPerRow(extractInt(json, "cardsPerRow")),
             showTitles = extractBoolean(json, "showTitles") ?: d.showTitles,
             showInputRow = extractBoolean(json, "showInputRow") ?: d.showInputRow,
+            // R62:旧预设 id(material / gold / graphite / black)在这里就换成新的,下次写盘不再带旧 id。
             themePresetId = extractString(json, "themePresetId")
-                ?.takeIf { it.isNotBlank() } ?: d.themePresetId,
+                ?.takeIf { it.isNotBlank() }?.let { ThemePresets.migrateId(it) } ?: d.themePresetId,
             followWallpaperColor = extractBoolean(json, "followWallpaperColor")
                 ?: d.followWallpaperColor,
             clock24hFollowSystem = extractBoolean(json, "clock24hFollowSystem")

@@ -5,19 +5,24 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 
 /**
- * 9 个主题色预设(M8 加 Material 紫为默认;2026-09-18 加白、黑两个基础色)(门 2 Gordon 定「沉稳」一套,强调色低饱和;金保持 #C0A73A)。
+ * 主题色预设。**Ruling R62(2026-09-23 傍晚,Gordon 定)**:只剩 5 个,都是黑底上**很浅、低饱和**的颜色——
+ * 白 #F2F2F2、香槟 #E6DAC3、雾蓝 #C8D4E0、淡紫 #D4CCE3(**默认**)、鼠尾草 #CCD9C8。取代此前的 9 个
+ * (Material 紫 #D0BCFF 默认 + 白 / 黑 + 金 / 香槟 / 蓝 / 紫 / 石墨 / 绿)。旧 id 读盘时映射到最接近的新预设
+ * ([LEGACY_IDS]:material → purple、gold → champagne、graphite → white、black → white),不留死值。
+ *
  * 只在这里定义一次:设置页用它画 swatch + 持久化 [Settings.themePresetId];
  * 选中的颜色经 [LocalThemeColors] 驱动**每个界面**的强调色(2026-09-16 全面接线,原先只接首页四处)。
  *
  * 每个预设带**两种角色色**:
- * - [color](= accent):齿轮、设置页分组标题——原 Theme.ChampagneGold 的位置。就是 swatch 上那个色点。
+ * - [color](= accent):首页时钟 / 顶栏图标 / 行图标、聚焦描边与柔光、菜单药丸的聚焦实填、设置页分组标题。
+ *   就是 swatch 上那个色点。
  * - [highlight]:**首页不再落点**(时钟 / 光晕 / 行标题已改走 accent,M8);只驱动二级界面的标题 /
- *   焦点条 / 选中段 / 滑块填充 / 光标 / 选择器标签——原 Theme.Champagne 的位置。黑底上要清透可读,所以是浅色。
+ *   焦点条 / 选中段 / 滑块填充 / 光标 / 选择器标签,以及搬运中的卡的描边(要与聚焦描边的 accent 区分)。
  *
- * 金的 highlight 值沿用引入多预设那天定的 [Theme.Champagne] #FFF5DC(见任务报告)。M8 把首页的
- * 时钟 / 光晕 / 行标题改走 accent 后,这份「金预设逐位复现旧观感」的保证只在二级界面还成立,首页已不读它。
- * 其余 5 个 highlight 都是各自 accent 混白 ~55% 的浅色调(见 [highlightFrom]),这里写成
- * 显式 hex 以便单独微调。
+ * R62 起 5 个 highlight 一律 = accent 经 [highlightFrom] 混白 55% 的结果(Compose 的 `lerp` 在 Oklab 里插值,
+ * 数值是在 JVM 上实跑 `highlightFrom` 取的),写成显式 hex 以便单独微调(`ThemePresetsTest` 钉住「写的 = 算的」)。
+ * ~~金预设的 highlight 沿用 [Theme.Champagne] #FFF5DC,金预设下二级界面逐位复现引入多预设之前的观感~~——
+ * 金预设 R62 删掉,这份「逐位复现」的保证随之作废;[Theme.Champagne] / [Theme.ChampagneGold] 只剩标定记录。
  *
  * **颜色字面量只允许出现在这一个文件**:它就是预设的定义处。别处一律引这里的角色色,
  * 不自己写 Color(0x..)(见任务约束「Colors」)。
@@ -25,7 +30,7 @@ import androidx.compose.ui.graphics.lerp
 data class ThemePreset(
     val id: String,
     val nameRes: Int,
-    /** accent:齿轮。与 swatch 色点同一个值。 */
+    /** accent:与 swatch 色点同一个值。 */
     val color: Color,
     /** highlight:二级界面的标题 / 焦点条 / 选中段 / 滑块等(首页已不读,M8 改用 accent)。 */
     val highlight: Color,
@@ -44,8 +49,8 @@ data class ThemeColors(val accent: Color, val highlight: Color)
  * 的强调色都从这里读:`accent` 接原 `Theme.ChampagneGold` 的位置,`highlight` 接原 `Theme.Champagne` 的位置,
  * `.copy(alpha = …)` 一类的调制原样保留。
  *
- * 默认值 = 金预设。它的 accent / highlight 正是 `Theme.ChampagneGold` #C0A73A / `Theme.Champagne` #FFF5DC 的原值,
- * 所以金预设(也是 Settings 的默认)下每个界面逐位复现接线前的观感——这是零回归的依据。
+ * 默认值 = 默认预设(R62 起淡紫 #D4CCE3 / #EBE8F2),与 [Settings] 的默认 `themePresetId` 同一个 id——
+ * 没被 Provider 包住的预览 / 测试与真实默认观感一致。~~默认 = 金预设,逐位复现接线前的观感~~(金预设 R62 删掉)。
  * 选 static 版:主题色只在换预设 / 换壁纸取色时变,变一次整棵树重组一次可以接受;换来每处读取零订阅开销。
  */
 val LocalThemeColors = staticCompositionLocalOf { ThemePresets.byId(ThemePresets.DEFAULT_ID).colors() }
@@ -54,7 +59,7 @@ val LocalThemeColors = staticCompositionLocalOf { ThemePresets.byId(ThemePresets
 fun ThemePreset.colors(): ThemeColors = ThemeColors(color, highlight)
 
 /**
- * 由 accent 推导 highlight:混向白 55%。这是 5 个非金预设 highlight 的来历,也是
+ * 由 accent 推导 highlight:混向白 55%。这是 5 个预设 highlight 的来历(R62),也是
  * followWallpaperColor 打开时从壁纸主色现推 highlight 的唯一算法 —— 两条路同一手法,
  * 保证跟壁纸和选预设时的观感一致。
  */
@@ -94,34 +99,40 @@ fun usableAccent(rgb: Int): Int {
 }
 
 object ThemePresets {
-    /** 默认预设 id,与 [Settings] 的默认值一致。 */
-    const val DEFAULT_ID = "material"
+    /** 默认预设 id,与 [Settings] 的默认值一致。R62:material → purple(淡紫)。 */
+    const val DEFAULT_ID = "purple"
+
+    /**
+     * R62 删掉的旧 id → 新 id。读盘([parseSettings])与 [indexOf] / [byId] 都走 [migrateId]:
+     * 旧 settings.json 里的 id 下次写盘时就换成新的,swatch 选中项也不会落到「找不到 → 默认」上去。
+     * 同名保留的 champagne / blue / purple / green / white 只是换了颜色,不在表里。
+     */
+    val LEGACY_IDS: Map<String, String> = mapOf(
+        "material" to "purple",
+        "gold" to "champagne",
+        "graphite" to "white",
+        "black" to "white",
+    )
+
+    /** 旧 id 换成新 id;不在迁移表里的原样返回(未知 id 由 [indexOf] 回落默认)。 */
+    fun migrateId(id: String): String = LEGACY_IDS[id] ?: id
 
     /** 顺序即 swatch 的从左到右排列顺序;换顺序会改变左右键的移动方向,别随手动。 */
     val all: List<ThemePreset> = listOf(
-        // Material 紫:tv-material darkColorScheme 的 primary #D0BCFF 原值(spec §0);highlight = 混白 55%。
-        // 放最前 = swatch 最左 = 默认在最左(左右键方向随之,有意的)。
-        ThemePreset("material", R.string.preset_material, Color(0xFFD0BCFF), Color(0xFFE8DCFF)),
-        // 白 / 黑:2026-09-18 Gordon A95L 验收后要的基础色。白给深色壁纸;黑只在浅色照片壁纸上可读,不做保护,由用户自己选。
-        // highlight 同样按 highlightFrom(混白 55%)算出后写成显式 hex。
-        ThemePreset("white", R.string.preset_white, Color(0xFFF5F5F5), Color(0xFFFBFBFB)),
-        ThemePreset("black", R.string.preset_black, Color(0xFF1A1A1A), Color(0xFF989898)),
-        // 金:highlight = 今日 Theme.Champagne #FFF5DC 原值,金预设逐位复现今日观感。
-        ThemePreset("gold", R.string.preset_gold, Color(0xFFC0A73A), Color(0xFFFFF5DC)),
-        // 以下 5 个 highlight = accent 混白 55%(highlightFrom 的结果),写成显式 hex 以便微调。
-        ThemePreset("champagne", R.string.preset_champagne, Color(0xFFD9C7A0), Color(0xFFEEE6D4)),
-        ThemePreset("blue", R.string.preset_blue, Color(0xFF6E8FB0), Color(0xFFBECDDB)),
-        ThemePreset("purple", R.string.preset_purple, Color(0xFF9280AA), Color(0xFFCEC6D9)),
-        ThemePreset("graphite", R.string.preset_graphite, Color(0xFF9AA0A6), Color(0xFFD2D4D7)),
-        ThemePreset("green", R.string.preset_green, Color(0xFF7FA07A), Color(0xFFC5D4C3)),
+        // R62:黑底上很浅、低饱和的五色,从中性到冷再到暖绿;highlight = highlightFrom(accent)(Oklab 混白 55%)。
+        ThemePreset("white", R.string.preset_white, Color(0xFFF2F2F2), Color(0xFFF9F9F9)),
+        ThemePreset("champagne", R.string.preset_champagne, Color(0xFFE6DAC3), Color(0xFFF4EEE4)),
+        ThemePreset("blue", R.string.preset_blue, Color(0xFFC8D4E0), Color(0xFFE6EBF1)),
+        ThemePreset("purple", R.string.preset_purple, Color(0xFFD4CCE3), Color(0xFFEBE8F2)),
+        ThemePreset("green", R.string.preset_green, Color(0xFFCCD9C8), Color(0xFFE8EEE6)),
     )
 
-    /** 按 id 取预设,找不到回落到默认(与 [indexOf] 同口径)。 */
+    /** 按 id 取预设,找不到回落到默认(与 [indexOf] 同口径);旧 id 先迁移。 */
     fun byId(id: String): ThemePreset = all[indexOf(id)]
 
-    /** 找不到就回落到默认预设的下标(而不是 -1),保证 swatch 永远有一个选中项。 */
+    /** 旧 id 先迁移([migrateId]);找不到就回落到默认预设的下标(而不是 -1),保证 swatch 永远有一个选中项。 */
     fun indexOf(id: String): Int {
-        val i = all.indexOfFirst { it.id == id }
+        val i = all.indexOfFirst { it.id == migrateId(id) }
         if (i >= 0) return i
         val d = all.indexOfFirst { it.id == DEFAULT_ID }
         return if (d >= 0) d else 0
