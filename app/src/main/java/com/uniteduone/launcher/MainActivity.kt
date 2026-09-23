@@ -103,7 +103,7 @@ class MainActivity : ComponentActivity() {
     /** 换过图/改过布局后 +1,用来强制界面重新读取 */
     private var revision by mutableStateOf(0)
     /**
-     * 只重读 settings.json、**不重建首页行**的计数器。壁纸选图 / 轮播 / 设置页每一次改动走它:
+     * 只重读 settings.json、**不重建首页行**的计数器。壁纸选图 / 铺入清理 / 设置页每一次改动走它:
      * 这些事很频繁,若走 revision 会连 layout.json 与全部卡片图一起重读一遍。
      */
     private var settingsRevision by mutableStateOf(0)
@@ -392,7 +392,7 @@ class MainActivity : ComponentActivity() {
                     },
                 )
             }
-            // 设置页关闭时 leaveSettings() 会让 revision++,壁纸选图 / 轮播 / 滑块预览走的是
+            // 设置页关闭时 leaveSettings() 会让 revision++,壁纸选图 / 滑块预览走的是
             // 专用的 settingsRevision(见其字段 KDoc,只重读 settings、不重建首页行)——
             // 两颗计数器都能让这里重读 settings.json,首页拿到的就是最新设置。注意:
             // 这里不能显式写 Settings 类型名,本文件已经 `import android.provider.Settings`,
@@ -416,7 +416,7 @@ class MainActivity : ComponentActivity() {
             // 时,设置页每动一格滑块都 `settingsRevision++` → homeSettings 换新 → spec 换新 →
             // `Wallpaper` 的 produceState 以新 key 重启 → 解码 + 模糊整跑一趟:**按住方向键就是每格一次全量重处理**,
             // 而 300ms 防抖那一下 300ms 后才到、那时缓存早已被逐格填满,防抖形同虚设。
-            // 现在 spec 只在三种情况下重算:①`revision`(重扫);②`wallpaperFile` 变(选图 / 轮播);
+            // 现在 spec 只在三种情况下重算:①`revision`(重扫);②`wallpaperFile` 变(选图 / R61 清理置空);
             // ③`wallpaperParams`——**只有防抖后的那一下**才 ++。滑到中途的那些档位一格都不会进管线。
             // 重算时读的是**当时最新的** homeSettings(逐格的 settingsRevision 已经把它更到了终值),
             // 所以防抖落地时拿到的就是用户松手时的那个值。
@@ -512,19 +512,6 @@ class MainActivity : ComponentActivity() {
                 }
                 val target = screensaverButtonTarget(hasImages, idleContentNow)
                 if (target != null) standby = target
-            }
-            // 壁纸轮播。守卫读的两个量就是 key(铁律 6):rotate() 写盘后 settingsRevision++ 重读 settings,
-            // rotatedAt 变 → 本 effect 以新 key 重启、再等一个间隔;重启 app 后按剩余时间续等。
-            val rotateMs = homeSettings.wallpaperRotateMs
-            val rotatedAt = homeSettings.wallpaperRotatedAt
-            LaunchedEffect(rotateMs, rotatedAt, settings) {
-                // 设置页开着时不轮播:它持有整份 Settings 快照、每次改动整对象回写,后台轮播写进去的
-                // wallpaperFile/rotatedAt 会被下一次按键覆盖(壁纸来回翻)。leaveSettings() 会 revision++,
-                // 重读后 settings=false → 本 effect 重启,过期的那一拍在退出时补上。守卫读的量同时是 key(铁律 6)。
-                if (rotateMs == 0L || settings) return@LaunchedEffect
-                delay(rotationDelayMs(rotatedAt, rotateMs, System.currentTimeMillis()))
-                val wrote = withContext(Dispatchers.IO) { Wallpapers.rotate(this@MainActivity) }
-                if (wrote) settingsRevision++
             }
             // 不用 key(revision) 强制重建:那会连壁纸和焦点一起推倒,
             // 后台应用自动更新时屏幕会黑一下、焦点被打回第一张卡。

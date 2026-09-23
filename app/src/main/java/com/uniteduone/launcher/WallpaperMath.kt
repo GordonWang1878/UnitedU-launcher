@@ -3,7 +3,7 @@ package com.uniteduone.launcher
 import java.security.MessageDigest
 
 /**
- * 壁纸处理与轮播里**不碰 Android 类**的部分,单独一个文件,好在纯 JVM 单测里直接断言。
+ * 壁纸处理与播种 / 清理里**不碰 Android 类**的部分,单独一个文件,好在纯 JVM 单测里直接断言。
  * Android 侧(解码 / Canvas / 文件 / Compose)在 Wallpapers.kt。
  */
 
@@ -30,17 +30,33 @@ fun wallpaperSpecOf(s: Settings): WallpaperSpec = WallpaperSpec(
     brightness = s.wallpaperBrightness,
 )
 
-/** library 里当前壁纸的下一张(按名排序、循环)。当前不在列表 → 第一张;空表 → null;单张 → 它自己。 */
-fun nextWallpaper(names: List<String>, current: String): String? {
-    if (names.isEmpty()) return null
-    val sorted = names.sorted()
-    val i = sorted.indexOf(current)
-    return if (i < 0) sorted[0] else sorted[(i + 1) % sorted.size]
-}
+// (壁纸轮播的 nextWallpaper / rotationDelayMs 随「壁纸自动切换」一起删掉,2026-09-23 gtv spec R61。)
 
-/** 距下一次轮换还要等多久:已过期 → 0;rotatedAt 在未来(时钟回拨)→ 最多等一个间隔。 */
-fun rotationDelayMs(rotatedAt: Long, intervalMs: Long, nowMs: Long): Long =
-    (rotatedAt + intervalMs - nowMs).coerceIn(0L, intervalMs)
+/**
+ * **R61(2026-09-23 傍晚)**:M3 起铺进用户图库的 6 张内置染色图的文件名。这些是**我们播种的**(`Wallpapers`
+ * 的 seedBuiltins 用固定前缀 `unitedu-` + 内置名复制过去,用户上传 / adb 推的图不会叫这几个名字),R61 把它们从 APK
+ * 里删了,升级时从图库里清掉。按**完整文件名**认,不按前缀:以后 Gordon 给的「系统默认随机赠送」图也用 `unitedu-`
+ * 前缀播种,不能被这份清单误删——**新的内置图不许复用下面这几个名字**。
+ */
+internal val LEGACY_SEEDED_WALLPAPERS: Set<String> = setOf(
+    "unitedu-00-neutral.jpg", "unitedu-01-gold.jpg", "unitedu-02-champagne.jpg",
+    "unitedu-03-blue.jpg", "unitedu-04-purple.jpg", "unitedu-05-green.jpg",
+)
+
+/** 升级清理后 `wallpaperFile` 该是什么:指向被清掉的旧内置图 → 置空(回落图库第一张 / 纯深色);其余原样。 */
+internal fun wallpaperFileAfterLegacyCleanup(current: String): String =
+    if (current in LEGACY_SEEDED_WALLPAPERS) "" else current
+
+/** 这次该往图库里铺哪些内置图:清单里还没铺过的(铺过的即使被用户删了也不复活)。保持清单顺序。 */
+internal fun seedPlan(builtins: List<String>, alreadySeeded: Set<String>): List<String> =
+    builtins.filter { it !in alreadySeeded }
+
+/**
+ * 「首次播种时随机选一张当默认」(R61 的钩子):从这次真正铺成功的文件里随机挑一张;一张都没有 → null(什么都不做)。
+ * 只在 `wallpaperFile` 还没指定时才会被采用(调用方走 pointAtIfUnset),不会顶掉用户自己选的壁纸。
+ */
+internal fun pickDefaultSeed(seededFiles: List<String>, random: kotlin.random.Random): String? =
+    if (seededFiles.isEmpty()) null else seededFiles[random.nextInt(seededFiles.size)]
 
 /**
  * 模糊档位 → 缩小到的工作宽度。模糊 = 缩小再放大(spec §3.2),这里定「缩到多宽」:

@@ -135,8 +135,6 @@ class SettingsTest {
     @Test fun wallpaperFieldsDefaultWhenAbsent() {
         val s = parseSettings("{}")
         assertEquals("", s.wallpaperFile)
-        assertEquals(0L, s.wallpaperRotateMs)
-        assertEquals(0L, s.wallpaperRotatedAt)
         assertEquals(0, s.wallpaperBlur)
         assertEquals(0, s.wallpaperBrightness)
     }
@@ -151,17 +149,15 @@ class SettingsTest {
             parseSettings("""{"wallpaperFile": "unitedu-00-neutral.jpg"}""").wallpaperFile)
     }
 
-    @Test fun wallpaperRotateMsMustBeOneOfAllowedValues() {
-        assertEquals(0L, parseSettings("""{"wallpaperRotateMs": 12345}""").wallpaperRotateMs)
-        for (v in listOf(0L, 300_000L, 1_800_000L, 86_400_000L)) {
-            assertEquals(v, parseSettings("""{"wallpaperRotateMs": $v}""").wallpaperRotateMs)
-        }
-    }
-
-    @Test fun wallpaperRotatedAtNeverNegative() {
-        assertEquals(0L, parseSettings("""{"wallpaperRotatedAt": -5}""").wallpaperRotatedAt)
-        assertEquals(1_700_000_000_000L,
-            parseSettings("""{"wallpaperRotatedAt": 1700000000000}""").wallpaperRotatedAt)
+    @Test fun legacyWallpaperRotateKeysAreIgnored() {
+        // 2026-09-23 删掉「壁纸自动切换」(gtv spec R61):升级前的 settings.json 里还带着这两个键。
+        // 与 wallpaperThemed 同一写法:按未知键忽略,其余字段照常解析,写盘也不再带它们。
+        val s = parseSettings(
+            """{"wallpaperRotateMs": 1800000, "wallpaperRotatedAt": 1700000000000, "wallpaperFile": "sea.jpg", "wallpaperBlur": 30}""",
+        )
+        assertEquals(Settings(wallpaperFile = "sea.jpg", wallpaperBlur = 30), s)
+        assertFalse(s.toJson().contains("wallpaperRotate"))
+        assertEquals(Settings(), parseSettings("""{"wallpaperRotateMs": 0, "wallpaperRotatedAt": 0}"""))
     }
 
     @Test fun blurAndDimClampAndSnapToTens() {
@@ -189,8 +185,6 @@ class SettingsTest {
     @Test fun wallpaperFieldsRoundTrip() {
         val s = Settings(
             wallpaperFile = "sea.jpg",
-            wallpaperRotateMs = 1_800_000L,
-            wallpaperRotatedAt = 1_700_000_000_000L,
             wallpaperBlur = 30,
             wallpaperBrightness = -30,
         )

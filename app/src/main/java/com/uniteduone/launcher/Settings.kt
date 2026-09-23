@@ -41,10 +41,7 @@ data class Settings(
     // (「主题化壁纸」开关 wallpaperThemed 2026-09-16 整个删掉:壁纸不再染色;旧文件里的键按未知键忽略。)
     /** library/wallpapers/ 里的文件名;空 = 未指定(解析顺序见 Wallpapers.resolveSource)。 */
     val wallpaperFile: String = "",
-    /** 轮播间隔 ms;0 = 关。合法值见 [VALID_WALLPAPER_ROTATE_MS]。 */
-    val wallpaperRotateMs: Long = 0L,
-    /** 上次轮换的 epoch ms;「每天」档靠它跨重启续等。 */
-    val wallpaperRotatedAt: Long = 0L,
+    // (「壁纸自动切换」wallpaperRotateMs / wallpaperRotatedAt 2026-09-23 删掉,gtv spec R61;旧文件里的键按未知键忽略。)
     /** 模糊 0–100,步 10。 */
     val wallpaperBlur: Int = 0,
     /** 亮度 −50…+50,步 10:0 = 原片,负 = 压暗,正 = 提亮(2026-09-16 Gordon 定,取代原 0–100「压暗」)。 */
@@ -66,15 +63,11 @@ data class Settings(
 // 一份表两处读,才不会有人手改一处、另一处悄悄漂移(2026-09-15 复审前两处各写了一份字面量)。
 internal val VALID_CARDS_PER_ROW = intArrayOf(5, 6, 8)
 internal val VALID_IDLE_AFTER_MS = longArrayOf(0L, 60_000L, 180_000L, 300_000L, 600_000L)
-internal val VALID_WALLPAPER_ROTATE_MS = longArrayOf(0L, 300_000L, 1_800_000L, 86_400_000L)
 internal val VALID_LANGUAGES = listOf("system", "zh-CN", "zh-TW", "en")
 
 // M5(spec §3):「屏保启动」「屏保轮播设置」两行的唯一合法取值,同样一份表两处读(夹取 + 分段控件的档位顺序)。
 internal val VALID_SCREENSAVER_AFTER_MS = longArrayOf(0L, 60_000L, 300_000L, 600_000L, 1_800_000L)
 internal val VALID_SCREENSAVER_INTERVAL_MS = longArrayOf(30_000L, 60_000L, 300_000L)
-
-private fun snapRotateMs(v: Long?): Long =
-    if (v != null && VALID_WALLPAPER_ROTATE_MS.contains(v)) v else 0L
 
 /** 0..100 夹取后四舍五入到 10 的倍数(滑块 11 档);解析不出数字 → 该字段的默认值(真机调参后默认可能非零)。 */
 private fun clampPercentStep10(v: Int?, default: Int): Int =
@@ -168,10 +161,9 @@ fun parseSettings(json: String): Settings {
             screensaverAfterMs = snapScreensaverAfterMs(extractLong(json, "screensaverAfterMs")),
             screensaverIntervalMs = snapScreensaverIntervalMs(extractLong(json, "screensaverIntervalMs")),
             wallpaperFile = sanitizeWallpaperFileName(extractString(json, "wallpaperFile")),
-            wallpaperRotateMs = snapRotateMs(extractLong(json, "wallpaperRotateMs")),
-            wallpaperRotatedAt = clampEpoch(extractLong(json, "wallpaperRotatedAt")),
-            // 旧文件里可能还有 "wallpaperThemed"(2026-09-16 删掉的开关):这里不读它,扁平 tokenizer 只认列出的键,
-            // 未知键自然被忽略(SettingsTest.legacyWallpaperThemedKeyIsIgnored 钉住这一点)。
+            // 旧文件里可能还有 "wallpaperThemed"(2026-09-16 删掉的开关)、"themedCards"(R58)、
+            // "wallpaperRotateMs" / "wallpaperRotatedAt"(R61):这里不读它们,扁平 tokenizer 只认列出的键,
+            // 未知键自然被忽略(SettingsTest 的 legacy*KeyIsIgnored 钉住这一点)。
             wallpaperBlur = clampPercentStep10(extractInt(json, "wallpaperBlur"), d.wallpaperBlur),
             // 旧文件只有 wallpaperDim(0–100 压暗)时换算成负亮度(超过 50 的压暗夹到 −50);新键在场以新键为准。
             wallpaperBrightness = clampBrightnessStep10(
@@ -210,8 +202,6 @@ fun Settings.toJson(): String {
         append("  \"screensaverAfterMs\": $screensaverAfterMs,\n")
         append("  \"screensaverIntervalMs\": $screensaverIntervalMs,\n")
         append("  \"wallpaperFile\": \"${esc(wallpaperFile)}\",\n")
-        append("  \"wallpaperRotateMs\": $wallpaperRotateMs,\n")
-        append("  \"wallpaperRotatedAt\": $wallpaperRotatedAt,\n")
         append("  \"wallpaperBlur\": $wallpaperBlur,\n")
         append("  \"wallpaperBrightness\": $wallpaperBrightness,\n")
         append("  \"language\": \"${esc(language)}\",\n")
@@ -282,8 +272,8 @@ internal fun isWellFormedJsonObject(text: String): Boolean {
  * 解析包在 `try/catch (e: Throwable)`(超大文件 OOM 是 Error 不是 Exception);
  * 语法损坏就把坏文件改名成 `.bad`、写回默认值、`Log.w` 留痕。
  *
- * **M3 起这是个多写者的store**:主线程的设置页 / 选图,IO 线程的轮播与
- * prepare 的迁移/铺入,都会写同一个文件。所以写必须串行化——见 [lock] 与 [update]。
+ * **M3 起这是个多写者的store**:主线程的设置页 / 选图,IO 线程 prepare 的迁移/铺入/清理
+ * (壁纸轮播 R61 删掉之前也在 IO 线程写),都会写同一个文件。所以写必须串行化——见 [lock] 与 [update]。
  */
 object SettingsStore {
     private const val TAG = "UnitedU"
@@ -349,7 +339,7 @@ object SettingsStore {
     }
 
     /**
-     * 读-改-写一次完成、持锁:设置页、轮播、迁移/铺入、选图这些写者全部走这里,
+     * 读-改-写一次完成、持锁:设置页、迁移/铺入/清理、选图这些写者全部走这里,
      * 既不会互相踩 tmp,也没有「读到旧值再整对象回写」的丢更新窗口。
      * @return 写成功时返回写下的 Settings;写失败(外置没挂等)返回 null。
      */

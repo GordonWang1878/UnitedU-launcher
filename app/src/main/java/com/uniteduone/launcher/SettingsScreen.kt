@@ -150,8 +150,8 @@ fun SettingsScreen(
     var s by remember { mutableStateOf(SettingsStore.read(ctx)) }
 
     // 改一下存一下,同步落盘(理由同 M2:文件几百字节,主线程写是亚毫秒级;异步写会让
-    // 「改完立刻按返回」读到旧值)。**写前重读、只改自己那个字段**:后台轮播也写 settings.json,
-    // 整对象回写会把它的 wallpaperFile/rotatedAt 盖掉(壁纸来回翻)。
+    // 「改完立刻按返回」读到旧值)。**写前重读、只改自己那个字段**:壁纸的铺入 / 清理(IO 线程)也写 settings.json,
+    // 整对象回写会把它的 wallpaperFile 盖掉(当年是后台轮播的 wallpaperFile/rotatedAt,轮播 R61 删了,规矩不变)。
     // 写失败(外置存储没挂)时保住内存里的改动而不是退回默认值,只 Log、不崩。
     fun update(transform: (Settings) -> Settings) {
         s = SettingsStore.update(ctx, transform) ?: transform(s).also {

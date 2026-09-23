@@ -10,26 +10,41 @@ import org.junit.Test
 
 class WallpaperMathTest {
 
-    @Test fun nextWallpaperCyclesInNameOrder() {
-        val names = listOf("c.jpg", "a.jpg", "b.jpg")
-        assertEquals("b.jpg", nextWallpaper(names, "a.jpg"))
-        assertEquals("a.jpg", nextWallpaper(names, "c.jpg"))   // 末尾回到开头
+    // (nextWallpaper / rotationDelayMs 的三条随「壁纸自动切换」删掉,R61。)
+
+    // ---- R61:旧内置图清理 + 播种钩子 ----
+
+    @Test fun legacySeededWallpapersAreExactlyTheSixOldBuiltins() {
+        assertEquals(6, LEGACY_SEEDED_WALLPAPERS.size)
+        assertTrue(LEGACY_SEEDED_WALLPAPERS.all { it.startsWith("unitedu-") && it.endsWith(".jpg") })
+        assertTrue("unitedu-00-neutral.jpg" in LEGACY_SEEDED_WALLPAPERS)
+        assertTrue("unitedu-05-green.jpg" in LEGACY_SEEDED_WALLPAPERS)
+        // 按完整文件名认,不按前缀:以后同前缀的新内置图、用户的图都不算
+        assertFalse("unitedu-06-sunrise.jpg" in LEGACY_SEEDED_WALLPAPERS)
+        assertFalse("legacy-wallpaper.jpg" in LEGACY_SEEDED_WALLPAPERS)
     }
 
-    @Test fun nextWallpaperUnknownCurrentStartsFromFirst() {
-        assertEquals("a.jpg", nextWallpaper(listOf("b.jpg", "a.jpg"), "zzz.jpg"))
-        assertEquals("a.jpg", nextWallpaper(listOf("b.jpg", "a.jpg"), ""))
+    @Test fun cleanupResetsOnlyLegacyWallpaperFile() {
+        assertEquals("", wallpaperFileAfterLegacyCleanup("unitedu-00-neutral.jpg"))
+        assertEquals("", wallpaperFileAfterLegacyCleanup("unitedu-03-blue.jpg"))
+        assertEquals("sea.jpg", wallpaperFileAfterLegacyCleanup("sea.jpg"))
+        assertEquals("unitedu-06-sunrise.jpg", wallpaperFileAfterLegacyCleanup("unitedu-06-sunrise.jpg"))
+        assertEquals("", wallpaperFileAfterLegacyCleanup(""))
     }
 
-    @Test fun nextWallpaperEmptyAndSingle() {
-        assertNull(nextWallpaper(emptyList(), "a.jpg"))
-        assertEquals("only.jpg", nextWallpaper(listOf("only.jpg"), "only.jpg"))
+    @Test fun seedPlanSkipsAlreadySeededAndKeepsOrder() {
+        assertEquals(emptyList<String>(), seedPlan(emptyList(), emptySet()))
+        assertEquals(listOf("a", "b"), seedPlan(listOf("a", "b"), emptySet()))
+        // 铺过的(哪怕被用户删了)不再铺;清单新加的补铺
+        assertEquals(listOf("c"), seedPlan(listOf("a", "b", "c"), setOf("a", "b")))
     }
 
-    @Test fun rotationDelayClampsToZeroAndOneInterval() {
-        assertEquals(0L, rotationDelayMs(rotatedAt = 0L, intervalMs = 300_000L, nowMs = 1_000_000L))      // 早过期
-        assertEquals(200_000L, rotationDelayMs(rotatedAt = 900_000L, intervalMs = 300_000L, nowMs = 1_000_000L))
-        assertEquals(300_000L, rotationDelayMs(rotatedAt = 5_000_000L, intervalMs = 300_000L, nowMs = 1_000_000L)) // 时钟回拨
+    @Test fun defaultSeedPickIsRandomAmongSeededAndNullWhenEmpty() {
+        assertNull(pickDefaultSeed(emptyList(), kotlin.random.Random(1)))
+        assertEquals("only.jpg", pickDefaultSeed(listOf("only.jpg"), kotlin.random.Random(1)))
+        val files = listOf("a.jpg", "b.jpg", "c.jpg")
+        val picks = (0 until 200).map { pickDefaultSeed(files, kotlin.random.Random(it))!! }.toSet()
+        assertEquals(files.toSet(), picks)   // 三张都选得到,不是恒取第一张
     }
 
     @Test fun blurTargetWidthIsMonotonicAndDistinctAcrossElevenSteps() {

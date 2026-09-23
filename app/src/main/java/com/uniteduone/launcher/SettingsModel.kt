@@ -124,7 +124,7 @@ internal fun screensaverAfterNoteRes(idleAfterMs: Long, screensaverAfterMs: Long
 /**
  * 按当前设置 [s] 生成整棵内容树。[update] 是「读-改-写一次完成」的写入口
  * (界面传的是 `SettingsStore.update` 的包装,见 `SettingsScreen.update`)——
- * 每行只描述**自己那一个字段**怎么改,绝不整对象回写,后台轮播同时写 `wallpaperFile` 也不会被踩掉。
+ * 每行只描述**自己那一个字段**怎么改,绝不整对象回写,别的写者(选图、壁纸铺入)同时写 `wallpaperFile` 也不会被踩掉。
  *
  * 分段控件的档位顺序一律取自 `Settings.kt` 里那几张合法值表([VALID_CARDS_PER_ROW] 等):
  * 一份表两处读(夹取 + 显示顺序),才不会有人改了一处、另一处悄悄漂移。
@@ -270,25 +270,11 @@ fun settingsGroups(
         GroupSpec(
             GroupId.APPEARANCE, R.string.settings_group_appearance,
             listOf(
-                // 从齿轮菜单搬进来的动作行(spec §1)。原来还有一条「导入图片」,R60 改名「手机传输」挪到「通用」组。
+                // 从齿轮菜单搬进来的动作行(spec §1)。原来还有一条「导入图片」,R60 改名「手机传输」挪到「通用」组;
+                // 「壁纸自动切换」R61 删掉。
                 ActionRow("pickWallpaper", R.string.menu_wallpaper, R.string.menu_wallpaper_desc) {
                     actions.pickWallpaper()
                 },
-                ControlRow(
-                    id = "wallpaperRotate", labelRes = R.string.settings_wallpaper_rotate,
-                    kind = CtrlKind.SEGMENTED,
-                    optionRes = listOf(
-                        R.string.settings_off,
-                        R.string.settings_idle_minutes,
-                        R.string.settings_idle_minutes,
-                        R.string.settings_rotate_daily,
-                    ),
-                    optionArgs = listOf(null, 5, 30, null),
-                    count = VALID_WALLPAPER_ROTATE_MS.size,
-                    selected = VALID_WALLPAPER_ROTATE_MS.indexOf(s.wallpaperRotateMs)
-                        .let { if (it < 0) 0 else it },
-                    onSelect = { i -> update { it.copy(wallpaperRotateMs = VALID_WALLPAPER_ROTATE_MS[i]) } },
-                ),
                 ControlRow(
                     id = "wallpaperBlur", labelRes = R.string.settings_wallpaper_blur,
                     kind = CtrlKind.SLIDER, optionRes = emptyList(),

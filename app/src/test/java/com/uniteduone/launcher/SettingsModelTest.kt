@@ -48,8 +48,8 @@ class SettingsModelTest {
     @Test fun rowCountsPerGroup() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
         // 通用 7(R60 手机传输挪进来)+ 动画缩放条件行(默认 UNKNOWN = 读不到 → 出「查看」)/ 布局 3 /
-        // 外观 1 动作 + 3 壁纸控件 + 2 主题(主题化卡片 R58 删掉)/ 屏保 2 控件 + 2 动作
-        assertEquals(listOf(8, 3, 6, 4), g.map { it.rows.size })
+        // 外观 1 动作 + 2 壁纸滑块(自动切换 R61 删掉)+ 2 主题(主题化卡片 R58 删掉)/ 屏保 2 控件 + 2 动作
+        assertEquals(listOf(8, 3, 5, 4), g.map { it.rows.size })
     }
 
     @Test fun rowIdsAreUnique() {
@@ -95,7 +95,7 @@ class SettingsModelTest {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
         assertEquals(
             listOf(
-                "pickWallpaper", "wallpaperRotate", "wallpaperBlur", "wallpaperBrightness",
+                "pickWallpaper", "wallpaperBlur", "wallpaperBrightness",
                 "themeColor", "followWallpaper",
             ),
             g.first { it.id == GroupId.APPEARANCE }.rows.map { it.id },
