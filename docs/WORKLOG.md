@@ -1534,3 +1534,10 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - **R54 小修一组**(均为 R52 连带或已排队):移动态提示挪到顶部(#17);「新应用」提示在场时淡出零点下移到提示底边 92 dp(#18);卡片标题让到聚焦描边外缘之下(#9);编辑页切行时放大等纵向位移(#10,首页 R30/R47 的编辑页版);待机时顶栏时钟加紧贴深阴影(#8,**只部分改善**:字与描边对比约 1.36:1,要不要换待机配色留 Gordon 定)。
 - 验证:模拟器 3 行 / 5 行逐步截图 `docs/screenshots/r52-home-one-row-at-a-time.jpg`,每步焦点卡 bounds 恒 `[101,818][437,1008]`;mp4 pts 实测每步 140 dp、约 0.5–0.6 s。独立评审判「可装」;评审提的两条要紧项是文档欠账(gtv 线 spec 未跟 R50–R53、本条 WORKLOG),另有 minor:按住上键连发时焦点行曾淡到 0 约 130–190 ms(位移追不上)→ 焦点行 alpha 恒 1;行 alpha 自己重写了卡顶公式 → 改调 `restCardTop`;时钟阴影瞬切 → 跟随待机渐变。
 - 未改、留给 Gordon:壁纸变暗提前了(R52 后行 1 已到 0.42、行 2 起 0.20;以前要走过一个 hero 高度才暗),嫌快就调 `WALLPAPER_FADE_OVER_DP`。
+
+**同日续 · 无人值守余下时间:ui-pending #16 + #14 测量**
+- **#16 实现**(`be2fcc1` 代码、`7dd51ab` 文档、`cc7b3cf` 弹回判据):设置页新增第 7 组「系统」——系统屏保开/关、屏保来源、启动时间只读显示,动画缩放仅 ≠ 1× 时出提示行;确定键跳系统页。旧「系统屏保 ▸」行从「待机与屏保」组搬进来(两组各一行跳同一页会像两件事)。读不到的键显示「查看」不猜值。330 测试绿。
+- 跳屏保页用候选链 `ACTION_DREAM_SETTINGS` → `DaydreamActivity` → Google TV `ambient` → `ACTION_SETTINGS`,因为 `unitedu-gtv` AVD 上前两项一个解析不到、一个启动成功却当场 finish,Ambient 缺 dreamx 包会崩——不检测「弹回」按下去就什么都没发生。弹回判据我改成「回到前台距启动 < 1.5 s」(代理原版是「2 s 后仍在前台」,会把用户很快按返回也送去下一页)。**A95L 只读解析**:`ACTION_DREAM_SETTINGS` → `com.android.tv.settings/.device.display.daydream.DaydreamActivity`、开发者选项 → `.system.development.DevelopmentActivity`;真按会不会也当场 finish 待 Gordon 按一下。
+- 连带:左栏 8 组后「其他」叠在设置页背后的首页卡片行上(仍可读),见 `docs/screenshots/ui16-system-status.jpg`。
+- **#14 测量**(只测不改):R51 行距 40 后,上一行卡片内柔光增量只剩底部约 5 dp 的 +1–2/255(不可见),柔光主要落在 40 dp 行缝里;下一行在 R52 下静止时在屏外。对比图 `docs/screenshots/ui14-glow-after-r51.jpg`。
+- 15:04 最终包装上 A95L(只 install,未发按键)。
