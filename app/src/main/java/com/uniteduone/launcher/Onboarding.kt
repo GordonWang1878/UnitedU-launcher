@@ -515,7 +515,7 @@ private fun rememberStepFocus(count: Int, initial: Int, nonce: Int): StepFocus {
 internal fun resolveOnboarding(ctx: Context): Boolean {
     if (Paths.baseOrNull(ctx) == null) return false
     val current = SettingsStore.read(ctx).onboardingDone
-    val toWrite = onboardingDoneToWrite(current, Paths.layoutJson(ctx).exists())
+    val toWrite = onboardingDoneToWrite(current, Layout.hasSaved(ctx))
         ?: return shouldShowOnboarding(current)
     // 在锁里再判一次缺省:与别的写者(理论上此刻没有)交错时,绝不覆盖一个已经判定过的值。
     val written = SettingsStore.update(ctx) { it.copy(onboardingDone = it.onboardingDone ?: toWrite) }

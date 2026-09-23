@@ -2,8 +2,6 @@ package com.uniteduone.launcher
 
 import android.content.Context
 import android.util.Log
-import java.io.File
-import java.io.FileOutputStream
 
 /** 卡片自定义标题(design §2「修改标题」):titles.json = {"pkg": "标题", …},独立于 layout.json。 */
 
@@ -74,47 +72,50 @@ fun parseTitles(json: String): Map<String, String> {
     }
 }
 
-/** 读写照 SettingsStore:外置没挂用内存空表;缺文件 = 空表;坏文件改名 .bad + 写空表 + Log.w;写走 tmp → rename。 */
+/**
+ * 读写照 SettingsStore:外置没挂用内存空表;缺文件 = 空表;坏文件改名 .bad + 写空表 + Log.w。
+ * 落盘走 [LockedFile](锁 + 独立临时文件 + `.prev`):同一次卸载两个接收器会各调一次 [set]
+ * (见 [pruneUninstalled]),不串行的话会互删文件——2026-09-23 layout.json 就是这样丢的。
+ */
 object Titles {
     private const val TAG = "UnitedU"
+    private val store = LockedFile("titles.json")
 
-    fun read(ctx: Context): Map<String, String> {
-        if (Paths.baseOrNull(ctx) == null) return emptyMap()
-        val f = Paths.titlesJson(ctx)
-        if (!f.exists()) return emptyMap()
-        return try {
-            if (f.length() > 1_000_000) error("titles.json 大得离谱: ${f.length()} 字节")
-            val text = f.readText()
-            if (!isWellFormedJsonObject(text)) error("titles.json 不是合法的 JSON 对象")
-            parseTitles(text)
+    fun read(ctx: Context): Map<String, String> = store.locked {
+        val base = Paths.baseOrNull(ctx) ?: return@locked emptyMap()
+        val got = store.readText(base) ?: return@locked emptyMap()
+        try {
+            if (got.text.length > 1_000_000) error("titles.json 大得离谱: ${got.text.length} 字符")
+            if (!isWellFormedJsonObject(got.text)) error("titles.json 不是合法的 JSON 对象")
+            val m = parseTitles(got.text)
+            if (got.fromPrev) {
+                Log.w(TAG, "titles.json 不见了,从 titles.json.prev 恢复")
+                write(ctx, m)
+            }
+            m
         } catch (e: Throwable) {
             Log.w(TAG, "titles.json 读不了,改名保留并重写空表: ${e.message}")
-            runCatching { f.renameTo(Paths.titlesBad(ctx)) }
+            if (!got.fromPrev) runCatching { Paths.titlesJson(ctx).renameTo(Paths.titlesBad(ctx)) }
             write(ctx, emptyMap())
             emptyMap()
         }
     }
 
-    fun write(ctx: Context, m: Map<String, String>): Boolean {
-        val base = Paths.baseOrNull(ctx) ?: return false
-        val tmp = File(base, "titles.json.tmp")
-        return try {
-            FileOutputStream(tmp).use { out -> out.write(titlesToJson(m).toByteArray()); out.flush(); out.fd.sync() }
-            val dst = Paths.titlesJson(ctx)
-            if (tmp.renameTo(dst)) return true
-            dst.delete()
-            tmp.renameTo(dst)
+    fun write(ctx: Context, m: Map<String, String>): Boolean = store.locked {
+        val base = Paths.baseOrNull(ctx) ?: return@locked false
+        try {
+            store.write(base, titlesToJson(m))
         } catch (e: Throwable) {
             Log.w(TAG, "titles.json 写不了: ${e.message}")
             false
         }
     }
 
-    /** 设置/清除一个应用的标题(空 = 清除)。IO 线程调用。 */
-    fun set(ctx: Context, pkg: String, title: String): Boolean {
+    /** 设置/清除一个应用的标题(空 = 清除)。IO 线程调用。读 → 改 → 写 在锁内。 */
+    fun set(ctx: Context, pkg: String, title: String): Boolean = store.locked {
         val clean = sanitizeTitle(title)
         val m = read(ctx).toMutableMap()
         if (clean.isEmpty()) m.remove(pkg) else m[pkg] = clean
-        return write(ctx, m)
+        write(ctx, m)
     }
 }
