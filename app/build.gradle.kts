@@ -43,7 +43,7 @@ android {
     buildToolsVersion = "35.0.0"
 
     defaultConfig {
-        applicationId = "com.uniteduone.launcher.gtv"
+        applicationId = "com.uniteduone.launcher"
         minSdk = 28
         targetSdk = 35
         versionCode = appVersionCode
