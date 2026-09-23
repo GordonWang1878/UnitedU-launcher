@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -82,7 +83,10 @@ fun TitleDialog(
         }
     }
     Box(
-        Modifier.fillMaxSize().focusGroup().background(Color.Black.copy(alpha = 0.72f)),
+        // 蒙版先铺满整屏,再 imePadding():输入法弹出时对话框在剩下的上半截里居中,底部那行操作提示
+        // 不再被盖住(P1)。只改位置,焦点账本不动。依赖 MainActivity 的 setDecorFitsSystemWindows(false)
+        // + 清单 adjustResize,否则 WindowInsets.ime 恒为 0、这里等于没加。
+        Modifier.fillMaxSize().focusGroup().background(Color.Black.copy(alpha = 0.72f)).imePadding(),
         contentAlignment = Alignment.Center,
     ) {
         Column(

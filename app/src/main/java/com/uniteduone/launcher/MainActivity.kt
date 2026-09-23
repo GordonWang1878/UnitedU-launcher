@@ -288,6 +288,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.colorMode = ActivityInfo.COLOR_MODE_HDR
+        // P1(交互测试 2026-09-23 第二轮):改名对话框要在输入法弹出时避让。窗口不再自己适配系统边衬,
+        // 配合清单里的 adjustResize,系统不平移 / 不缩窗口,而是把输入法高度作为 WindowInsets.ime 交给
+        // Compose——只有 TitleDialog 用 imePadding() 接它,首页等其余界面尺寸不变(不会在蒙版后面重排)。
+        // 电视没有状态栏 / 导航栏,去掉系统边衬适配对其余界面没有可见影响。
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
         // T10 引导三态判定(spec §8)。**必须排在最前**:它靠「layout.json 在不在」分辨老用户与新装,
         // 而首页(setContent 之后)一读布局,缺失的 layout.json 就会被写成默认值。放在注册广播之前
         // 也不是多余——包变动的回调要等 onCreate 返回才轮得到主线程,但这样读起来不必再想这一层。
