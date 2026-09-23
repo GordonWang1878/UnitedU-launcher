@@ -1523,3 +1523,4 @@ R42(`1c8118e`):行底边(含聚焦溢出)超出屏幕物理底边才上移,上�
 Gordon 归档 TvHome 仓库时,那边的 agent 留了提醒:电视上 `screensaver_enabled=0`、`screen_off_timeout≈63 分钟`、`animator_duration_scale=1.25` 是 TvHome 开发时手设的。**影响**:动画缩放 1.25 让电视上所有动画慢 25%,我们这几天在电视上调的焦点放大、滚动、柔光,Gordon 评判时都是被放慢的——`docs/ui-pending.md` 第 4、5 条已标注需在 1× 下重看。屏保开关今天中午实际进入过 UnitedU 屏保,可能已被他选屏保时打开,待连上核实。这些是系统设置,按规矩由 Gordon 在设置里改(动画缩放 → 1×;屏保开、来源 UnitedU、15 分钟启动)。
 Gordon 问能否把它们放进我们的设置页。结论:普通应用只能读不能写(动画缩放 / 屏保开关需 `WRITE_SECURE_SETTINGS`,屏保启动时间需 `WRITE_SETTINGS`,TV 上都只能 adb 授权)。**他选「显示状态 + 一键跳系统页」**,不做直接改写(需每台 adb 授权;且动画缩放是开发者兼无障碍设置,桌面改它会覆盖用户有意的选择)。已列为待决清单第 16 条。
 电视 adb 这次是 `Connection refused`(nc 同样被拒、mDNS 无广播、ping 通但 570 ms)——端口确实变了,按规矩请 Gordon 读新端口。
+**同日续 · 三处系统设置已由 Gordon 改好(adb 读回核对)**:动画缩放三项 1.25 → **1.0**;系统屏保 **开启、来源 UnitedU**;启动时间 63 分钟 → **5 分钟**(他选的)。这次 adb 连不上的真实原因:TLS 握手时电视回 `SSLV3_ALERT_CERTIFICATE_UNKNOWN`(adb 服务跑前台 `ADB_TRACE=all` 才看得到)——**电视侧配对记录丢了**,不是本机问题;重新配对(`printf '<码>\n' | adb pair IP:配对端口`)后连上新端口 **43995**。
