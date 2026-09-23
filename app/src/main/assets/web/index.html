@@ -86,10 +86,11 @@ async function load() {
     c.append(img, n, del); g.appendChild(c);
   }
 }
+const uploading = n => (n === 1 ? S.uploading_one : S.uploading_other).replace("%d", n);
 $("pick").onchange = async e => {
   const files = [...e.target.files]; if (!files.length) return;
   const fd = new FormData(); for (const f of files) fd.append("files", f, f.name);
-  msg(S.uploading.replace("%d", files.length));
+  msg(uploading(files.length));
   let d;
   try { d = await (await fetch(`/api/upload?type=${type}`, { method: "POST", headers: H, body: fd })).json(); } catch (err) { msg(S.error); return; }
   if (!d || !Array.isArray(d.saved) || !Array.isArray(d.rejected)) { msg(S.error); e.target.value = ""; return; }
@@ -100,7 +101,7 @@ $("pick").onchange = async e => {
 $("apkpick").onchange = async e => {
   const f = e.target.files[0]; if (!f) return;
   const fd = new FormData(); fd.append("apk", f, f.name);
-  $("apkstatus").textContent = S.uploading.replace("%d", 1);
+  $("apkstatus").textContent = uploading(1);
   let d;
   try { d = await (await fetch("/api/apk", { method: "POST", headers: H, body: fd })).json(); } catch (err) { d = { ok: false, reason: "server" }; }
   $("apkstatus").textContent = d.ok ? `${S.done} ${d.package || ""} ${d.version || ""}` : (S["apk_" + d.reason] || S.error);

@@ -27,6 +27,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -208,7 +209,7 @@ fun ImportScreen(
                 )
                 val last = lastName
                 BasicText(
-                    text = stringResource(R.string.import_received, received) +
+                    text = pluralStringResource(R.plurals.import_received, received, received) +
                         (if (last != null) " · " + stringResource(R.string.import_last, last) else ""),
                     style = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 15.sp),
                 )

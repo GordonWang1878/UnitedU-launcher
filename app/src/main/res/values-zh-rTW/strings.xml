@@ -42,7 +42,10 @@
     <string name="import_title_wallpapers">用手機新增桌布</string>
     <string name="import_title_cards">用手機新增卡片圖</string>
     <string name="import_title_screensavers">用手機新增螢幕保護程式圖片</string>
-    <string name="import_received">已收到 %1$d 個檔案</string>
+    <plurals name="import_received">
+        <item quantity="one">已收到 %1$d 個檔案</item>
+        <item quantity="other">已收到 %1$d 個檔案</item>
+    </plurals>
     <string name="import_last">最近:%1$s</string>
     <string name="import_hint_back">按返回鍵關閉並停止服務</string>
     <string name="import_error_no_network">電視尚未連上網路,連上 Wi-Fi 或網路線後再試</string>
@@ -60,7 +63,10 @@
     <string name="web_delete">刪除</string>
     <string name="web_confirm_delete" formatted="false">刪除 %s?</string>
     <string name="web_empty">還沒有圖片,點右上「上傳」</string>
-    <string name="web_uploading" formatted="false">正在上傳 %d 個檔案…</string>
+    <plurals name="web_uploading" formatted="false">
+        <item quantity="one">正在上傳 %d 個檔案…</item>
+        <item quantity="other">正在上傳 %d 個檔案…</item>
+    </plurals>
     <string name="web_done">完成</string>
     <string name="web_error">發生錯誤,請再試一次</string>
     <string name="web_rejected_type">只支援 jpg / png / webp</string>

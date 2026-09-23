@@ -361,7 +361,6 @@ fun webStringsJson(ctx: Context): String {
         "delete" to R.string.web_delete,
         "confirm_delete" to R.string.web_confirm_delete,
         "empty" to R.string.web_empty,
-        "uploading" to R.string.web_uploading,
         "done" to R.string.web_done,
         "error" to R.string.web_error,
         "rejected_type" to R.string.web_rejected_type,
@@ -378,5 +377,12 @@ fun webStringsJson(ctx: Context): String {
         "apk_server" to R.string.web_error,
         "apk_write" to R.string.web_rejected_write,
     )
-    return keys.entries.joinToString(",", "{", "}") { (k, res) -> "${jsonStr(k)}:${jsonStr(ctx.getString(res))}" }
+    // 复数文案(P5):网页端没有 Android 的复数规则,把 one / other 两种形态原样(保留 %d)注入,JS 按件数挑。
+    // 不带格式参数的 getQuantityString 返回未格式化的原文;中文两种形态同文。
+    val plurals = mapOf(
+        "uploading_one" to ctx.resources.getQuantityString(R.plurals.web_uploading, 1),
+        "uploading_other" to ctx.resources.getQuantityString(R.plurals.web_uploading, 2),
+    )
+    return (keys.mapValues { ctx.getString(it.value) } + plurals).entries
+        .joinToString(",", "{", "}") { (k, v) -> "${jsonStr(k)}:${jsonStr(v)}" }
 }

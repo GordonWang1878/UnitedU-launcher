@@ -50,7 +50,10 @@
     <string name="import_title_wallpapers">Add wallpapers from your phone</string>
     <string name="import_title_cards">Add card images from your phone</string>
     <string name="import_title_screensavers">Add screensaver images from your phone</string>
-    <string name="import_received">%1$d file(s) received</string>
+    <plurals name="import_received">
+        <item quantity="one">%1$d file received</item>
+        <item quantity="other">%1$d files received</item>
+    </plurals>
     <string name="import_last">Latest: %1$s</string>
     <string name="import_hint_back">Press Back to close and stop the service</string>
     <string name="import_error_no_network">The TV is not connected to a network. Connect Wi-Fi or Ethernet and try again</string>
@@ -68,7 +71,10 @@
     <string name="web_delete">Delete</string>
     <string name="web_confirm_delete" formatted="false">Delete %s?</string>
     <string name="web_empty">No images yet. Tap Upload at the top right</string>
-    <string name="web_uploading" formatted="false">Uploading %d file(s)…</string>
+    <plurals name="web_uploading" formatted="false">
+        <item quantity="one">Uploading %d file…</item>
+        <item quantity="other">Uploading %d files…</item>
+    </plurals>
     <string name="web_done">Done</string>
     <string name="web_error">Something went wrong. Please try again</string>
     <string name="web_rejected_type">Only jpg / png / webp are supported</string>
