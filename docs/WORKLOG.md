@@ -1517,3 +1517,9 @@ R42(`1c8118e`):行底边(含聚焦溢出)超出屏幕物理底边才上移,上�
 
 **同日续 · 旧包卸载**:Gordon 确认新版无误(「可以卸了」)。卸前核对默认桌面与 `screensaver_components` 都已指向正式包;两个旧包的 APK + 外部数据备份到 `~/unitedu-backup/20260923-130620-before-uninstall/`(gtv 57 个文件、TvHome 35 个,附 sha256 清单),然后 `adb uninstall com.uniteduone.launcher.gtv` 与 `com.gordonwang.tvhome` 均 Success。**电视上现在我们只有一个包:UnitedU `com.uniteduone.launcher`(1.0 = gtv 线,新图标)。** 当贝的 `com.dangbei.TVHomeLauncher` 名字里带 TVHome,不是我们的。
 仍待定:推 GitHub(126 个提交,含 Google TV 截图与头像,见上)、是否发 GitHub Release、WORKLOG 排队小修(顶栏后露出上一行卡片等)、`gtv` 分支与 `.claude/worktrees/gtv` 工作树已并入 main 可清理。
+
+## 2026-09-23 · TvHome 时期遗留的三处电视系统设置
+
+Gordon 归档 TvHome 仓库时,那边的 agent 留了提醒:电视上 `screensaver_enabled=0`、`screen_off_timeout≈63 分钟`、`animator_duration_scale=1.25` 是 TvHome 开发时手设的。**影响**:动画缩放 1.25 让电视上所有动画慢 25%,我们这几天在电视上调的焦点放大、滚动、柔光,Gordon 评判时都是被放慢的——`docs/ui-pending.md` 第 4、5 条已标注需在 1× 下重看。屏保开关今天中午实际进入过 UnitedU 屏保,可能已被他选屏保时打开,待连上核实。这些是系统设置,按规矩由 Gordon 在设置里改(动画缩放 → 1×;屏保开、来源 UnitedU、15 分钟启动)。
+Gordon 问能否把它们放进我们的设置页。结论:普通应用只能读不能写(动画缩放 / 屏保开关需 `WRITE_SECURE_SETTINGS`,屏保启动时间需 `WRITE_SETTINGS`,TV 上都只能 adb 授权)。**他选「显示状态 + 一键跳系统页」**,不做直接改写(需每台 adb 授权;且动画缩放是开发者兼无障碍设置,桌面改它会覆盖用户有意的选择)。已列为待决清单第 16 条。
+电视 adb 这次是 `Connection refused`(nc 同样被拒、mDNS 无广播、ping 通但 570 ms)——端口确实变了,按规矩请 Gordon 读新端口。
