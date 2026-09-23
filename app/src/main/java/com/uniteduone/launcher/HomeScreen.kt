@@ -628,6 +628,9 @@ fun HomeScreen(
             // 两者都只在卡片 / 药丸真的拿到焦点时改写、浮层 / ON_PAUSE 期间冻结,所以图标在浮层与退后台时
             // 保持最后状态。纯派生,不写任何状态,不进任何效果的 key 或守卫(铁律 3–7 一处不动)。
             val iconFocusRow = if (tgtGear) -1 else activeRowSafe
+            // 「有 N 个新应用」提示在不在(顶栏下那一行小字,见下方顶栏 Column)。在的话 R53 淡出带的零点
+            // 下移到提示底边(GtvLayout.NEW_APPS_HINT_BOTTOM),换行动画里扫过去的行不与提示字叠在一起。
+            val newAppsShown = (loaded?.third ?: 0) > 0
             rows.forEachIndexed { rowIndex, row ->
                 CategoryRow(
                     row = row,
@@ -666,6 +669,7 @@ fun HomeScreen(
                         GtvLayout.topFadeAlpha(
                             anchorTop.value + GtvLayout.ROW_CARD_TOP +
                                 rowIndex * GtvLayout.rowPitch(cardSize, showTitles) + shift.value,
+                            clearOfNewAppsHint = newAppsShown,
                         )
                     },
                     onFocusChange = { idx, got ->
@@ -734,7 +738,7 @@ fun HomeScreen(
                 BasicText(
                     text = stringResource(R.string.home_new_apps, newCount),
                     modifier = Modifier
-                        .padding(start = GtvLayout.CONTENT_KEYLINE.dp, top = 6.dp)
+                        .padding(start = GtvLayout.CONTENT_KEYLINE.dp, top = GtvLayout.NEW_APPS_HINT_GAP.dp)
                         .alpha(contentAlpha),
                     style = androidx.tv.material3.MaterialTheme.typography.labelSmall.copy(
                         color = androidx.tv.material3.MaterialTheme.colorScheme.onSurfaceVariant,

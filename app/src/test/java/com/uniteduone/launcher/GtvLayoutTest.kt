@@ -213,6 +213,25 @@ class GtvLayoutTest {
         assertEquals(0f, GtvLayout.topFadeAlpha(line - 3 * pitch), 0f)
     }
 
+    // 2026-09-23 R53 连带:「有 N 个新应用」提示(70 + 6 + 16 = 92 底)在淡出带里。提示显示时零点下移到 92、
+    // 全亮点仍 110:卡顶到提示底边时已完全透明;540 屏上三档 × 标题开关的所有静止态 alpha 与不显示时相同。
+    @Test fun `新应用提示显示时淡出零点下移到提示底边,静止态 alpha 不变`() {
+        assertEquals(92f, GtvLayout.NEW_APPS_HINT_BOTTOM, 0f)
+        assertEquals(0f, GtvLayout.topFadeAlpha(92f, clearOfNewAppsHint = true), 0f)
+        assertEquals(0f, GtvLayout.topFadeAlpha(80f, clearOfNewAppsHint = true), 0f)
+        assertEquals(1f, GtvLayout.topFadeAlpha(110f, clearOfNewAppsHint = true), 0f)
+        assertEquals(0.5f, GtvLayout.topFadeAlpha(101f, clearOfNewAppsHint = true), 1e-6f)
+        for ((size, titles) in SIZES_TITLES) {
+            val line = GtvLayout.focusLineCardTop(size, titles, 540f)
+            val pitch = GtvLayout.rowPitch(size, titles)
+            for (n in 1..MAX_ROWS) {
+                val top = line - n * pitch
+                assertEquals("$size titles=$titles 焦点行上第 $n 行(卡顶 $top)", GtvLayout.topFadeAlpha(top),
+                    GtvLayout.topFadeAlpha(top, clearOfNewAppsHint = true), 0f)
+            }
+        }
+    }
+
     // R48 的可见区间:不复述 restVisibleTop 的公式,钉它在 KDoc 里承诺的两条性质——
     // ①上下对称:卡顶之上与卡底之下(不算卡片标题)各留一份同样的聚焦溢出;
     // ②行图标(与卡片纵向居中)整个落在区间里,所以它不必单独进区间。

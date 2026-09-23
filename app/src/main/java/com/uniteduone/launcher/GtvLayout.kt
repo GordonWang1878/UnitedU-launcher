@@ -801,9 +801,30 @@ object GtvLayout {
      * 为什么需要:R52 的焦点线在屏幕下部,焦点行上面的行会一路升到顶栏下面(540 屏中档无标题、焦点在行 2 时
      * 行 0 卡顶 ≈ 133,焦点在行 3 时行 0 ≈ −7),不淡就与药丸 / 时钟叠在一起。焦点行卡顶恒在焦点线(≥ 300 dp),
      * 永远全亮;淡出的行不可能持有焦点,所以这是纯绘制,不碰焦点。
+     *
+     * [clearOfNewAppsHint] 为真(首页正显示「有 N 个新应用」)时零点下移到 [NEW_APPS_HINT_BOTTOM](92),
+     * 全亮点不变(110),见那个常量。
      */
-    fun topFadeAlpha(cardTopDp: Float): Float =
-        ((cardTopDp - (TOP_BAR_TOP + TOP_BAR_HEIGHT)) / TOP_FADE_BAND).coerceIn(0f, 1f)
+    fun topFadeAlpha(cardTopDp: Float, clearOfNewAppsHint: Boolean = false): Float {
+        val full = TOP_BAR_TOP + TOP_BAR_HEIGHT + TOP_FADE_BAND
+        val zero = if (clearOfNewAppsHint) NEW_APPS_HINT_BOTTOM else TOP_BAR_TOP + TOP_BAR_HEIGHT
+        return ((cardTopDp - zero) / (full - zero)).coerceIn(0f, 1f)
+    }
+
+    /** 首页「有 N 个新应用」提示与顶栏底的间距(dp),提示左对齐 [CONTENT_KEYLINE]。 */
+    const val NEW_APPS_HINT_GAP = 6f
+    /** 「新应用」提示的行盒高(dp):`labelSmall` 11sp / lineHeight 16sp。 */
+    const val NEW_APPS_HINT_LINE = 16f
+    /**
+     * 「新应用」提示行盒的底边屏幕 y(dp)= 70 + 6 + 16 = **92**(模拟器实测字形 77.5–89)。
+     *
+     * **2026-09-23(R53 连带)**:提示在 R53 淡出带(卡顶 70–110)里。静止态不与任何可见行相交——三档 × 标题
+     * 开关下焦点行上方各行的静止卡顶只有 ≥ 114.7(全亮、在提示之下)或 ≤ 66.6(全透明)两类;但换行动画里
+     * 上面那行的卡顶会一路扫过 110 → 70,卡顶在 70–89 那 ~100 ms 里半透明卡片(α 0–0.48)与提示字叠在一起
+     * (docs/screenshots/minor-2-new-apps-transit-before.jpg)。修法:提示显示时 [topFadeAlpha] 的零点从 70
+     * 下移到这里、全亮点仍是 110——卡顶到提示底边时已经完全透明;所有静止态的 alpha 不变(`GtvLayoutTest`)。
+     */
+    const val NEW_APPS_HINT_BOTTOM = TOP_BAR_TOP + TOP_BAR_HEIGHT + NEW_APPS_HINT_GAP + NEW_APPS_HINT_LINE
 
     /*
      * **Ruling R52 删除**(2026-09-23):R42 的最小位移 `nextPageShiftY` 与它的窗口边界 `TOP_SAFE`(顶栏下 16)/
