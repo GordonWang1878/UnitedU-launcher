@@ -43,13 +43,13 @@ import androidx.compose.ui.unit.sp
  * - 铁律 2/4:焦点落没落下只信按钮自报 [onFocusChanged],不信 `requestFocus()` 的返回值;
  * - 铁律 3:两个按钮**逐个**挂 `FocusRequester`,初始焦点循环只信自报、`nonce` 变化重来一轮;
  * - **默认焦点在「取消」**(spec §4 终审,防止误触恢复);
- * - 左右键靠 `focusProperties` 显式接到对方的 requester 上(与 SettingsScreen 的 GroupItem/SettingRow
+ * - 左右键靠 `focusProperties` 显式接到对方的 requester 上(与已退役的两栏设置页
  *   同一手法),上下键锁 `FocusRequester.Cancel`(不是"取消"按钮,是框架的"别再找了"哨兵)——
  *   两个按钮都在同一行,没有任何方向可以纵向移出去;
  * - BACK 走 [onCancel],与「取消」按钮同一效果。
  *
  * [focusedBtn] 用「哪个按钮持有焦点」(0=取消、1=确定,null=都没有)当唯一的焦点状态,
- * 得失顺序保护同 `SettingsScreen.report`:左右键切换时新按钮先报 got、旧按钮后报 lost,
+ * 得失顺序保护同设置外壳 `CapsuleColumn` 的 `onFocusChange`:左右键切换时新按钮先报 got、旧按钮后报 lost,
  * 不能让旧按钮的 lost 把新按钮的记录抹掉。
  */
 @OptIn(ExperimentalComposeUiApi::class)

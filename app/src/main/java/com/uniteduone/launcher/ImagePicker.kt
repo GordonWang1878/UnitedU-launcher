@@ -644,7 +644,7 @@ private fun AddFromPhoneCard(focused: Boolean, thumbWidth: Dp, thumbHeight: Dp, 
  * 就夹到上一张(读的时候夹,见 PickerGrid 的 clampedFocusedIdx)。**重扫是异步的**(下面的
  * produceState 在 IO 线程跑):covered 变 false 那一刻 items 常常还是删除前的旧列表,新列表一到 focusRequesters
  * 因 items.size 变而整表换新——PickerGrid 的定位效果把 focusRequesters 也编进 key 应对这一步,
- * 另配一个只认「有没有人持有焦点」的看门狗兜底(fix round 1,镜像 SettingsScreen 那一份的写法;
+ * 另配一个只认「有没有人持有焦点」的看门狗兜底(fix round 1,镜像已退役的两栏设置页 SettingsScreen 那一份的写法,现行对应是 SettingsShell.kt 的 CapsuleColumn;
  * 这一段实测复现过焦点漏给背后盖住的设置页,删最后一张 / 小图库删任意一张都会中招)。
  * 删空后网格只剩「＋ 从手机添加」一格(R63 起不再换成单独的空态),焦点由同一套定位效果 / 看门狗夹到「＋」上。
  */

@@ -274,7 +274,7 @@ object GtvLayout {
     const val TOP_BAR_CLOCK_TEXT = 16f
 
     /**
-     * **Ruling R41(2026-09-22,owner 真机反馈 Round 10)**:UnitedU 设置页(`SettingsScreen`)左上角
+     * **Ruling R41(2026-09-22,owner 真机反馈 Round 10)**:UnitedU 设置页(当时的两栏 `SettingsScreen`,R69 起是外壳 `SettingsShell` 每一层的页名)左上角
      * 大标题(「UnitedU 设置」/「UnitedU Settings」)的字号——**32 sp**。owner 原话:「左侧中文'设置'
      * 过于小了,不需要很大。」此前是 22 sp(硬写在 SettingsScreen 里,没有常量)。
      *

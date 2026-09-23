@@ -48,11 +48,6 @@ import androidx.compose.ui.unit.sp
  * - [IdleContent.NO_FADE]:`contentAlpha` 恒为 1,`topBarClockAlpha` 循同一判据自然也是 1,
  *   什么都不淡出。
  *
- * [demoIdle](M7 T6,spec §3.2)非 null 时会**覆盖**上面这个:设置页「待机内容」行拿着焦点
- * 期间,不管真实 [idle] 是不是待机,都按 `demoIdle` 演示对应内容,离开该行即恢复。
- * 只影响这里的 `contentAlpha`/`topBarClockAlpha` 两个动画,`Screensaver` 不参与(它是
- * `MainActivity` 单独组合的另一层,M5 起读的是 `screensaverActive`)。
- *
  * [screensaver](M5 spec §1.4)为真 = 自定义屏保:行 / 渐变 / 顶栏一律淡出(「不淡出」也不例外——
  * 照片上不该浮着一排卡片),`topBarClockAlpha` 同样淡到 0——轮播照片上不该再叠一个时钟(见
  * [Screensaver] 顶部 KDoc)。系统屏保不读这里的两个 alpha:[UnitedUDream] 自 **Ruling R26**
@@ -68,7 +63,6 @@ fun HomeScreen(
     /** 待机时屏幕上显示什么(design 待机 §,Task 3);默认与老行为一致。 */
     idleContent: IdleContent = IdleContent.CLOCK_ONLY,
     /** 待机演示(M7 T6,spec §3.2):非 null 时覆盖 [idle]/[idleContent] 驱动的两个淡出动画。 */
-    demoIdle: IdleContent? = null,
     /**
      * 顶栏「设置」药丸按下(R69:打开设置页外壳的第一层,取代原来嵌在首页里的齿轮菜单)。设置外壳住在 MainActivity、
      * 叠在首页之上,首页由 [previewing] 让路、冻结目标;关掉后按冻结的 `tgtGear` 回到药丸(或 MENU 键打开时回到那张卡)。
@@ -482,11 +476,9 @@ fun HomeScreen(
     // 背景与壁纸都在 MainActivity 那一层,这里保持透明
     Box(Modifier.fillMaxSize()) {
 
-        // **待机演示覆盖**(M7 T6,spec §3.2):`demoIdle` 非空时不管真实 `idle`,这两个
-        // 动画都按它演示——设置页「待机内容」行左右切换时,底层首页要当场看到三种效果。
-        // `Screensaver` 不读这两个量,不参与演示(它是 MainActivity 单独组合的另一层)。
-        val effectiveIdle = idle || demoIdle != null
-        val effectiveIdleContent = demoIdle ?: idleContent
+        // M7 T6 的「待机演示」覆盖(demoIdle)随两栏设置页一起删掉(R75),这里只剩真实的 idle。
+        val effectiveIdle = idle
+        val effectiveIdleContent = idleContent
         // 待机用 alpha 淡出,不用 AnimatedVisibility——后者自带裁剪,会把超出屏幕的
         // 第三行整块切掉(实测 MUSIC 行因此始终不可见)。
         // NO_FADE(Task 3):待机时恒 1,卡片/行图标/pill 都不淡出。**自定义屏保例外**(M5 spec §0 / §1.4):

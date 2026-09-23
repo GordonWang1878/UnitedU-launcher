@@ -4,7 +4,7 @@ package com.uniteduone.launcher
  * 设置页的**内容模型**:四个分组(R57)、每组有哪些行、每行当前在第几档、选中之后写什么。
  *
  * 为什么单独一个文件、而且**一行 Compose / Android 都不碰**:M7 之前这些信息散在
- * `SettingsScreen` 的 `controls`/`order`/`WALLPAPER_CTRLS` 三处,靠「同一个下标」互相对齐 ——
+ * (已退役的两栏设置页)`SettingsScreen` 的 `controls`/`order`/`WALLPAPER_CTRLS` 三处,靠「同一个下标」互相对齐 ——
  * 加一行就要同步改三处,漏一处就是「预览判定指到了别的行」。改成两栏之后行不再是一条线性表,
  * 那种下标对齐根本不可能维持,所以先把「有什么」从「怎么画、焦点怎么走」里整个拆出来:
  * 这边是纯数据 + 纯函数,可以在 JVM 单元测试里全部钉死([SettingsModelTest]);
@@ -136,7 +136,7 @@ internal fun screensaverAfterNoteRes(idleAfterMs: Long, screensaverAfterMs: Long
 
 /**
  * 按当前设置 [s] 生成整棵内容树。[update] 是「读-改-写一次完成」的写入口
- * (界面传的是 `SettingsStore.update` 的包装,见 `SettingsScreen.update`)——
+ * (界面传的是 `SettingsStore.update` 的包装,见 `SettingsShell.kt` 里 `SettingsShell` 的 `update`)——
  * 每行只描述**自己那一个字段**怎么改,绝不整对象回写,别的写者(选图、壁纸铺入)同时写 `wallpaperFile` 也不会被踩掉。
  *
  * 分段控件的档位顺序一律取自 `Settings.kt` 里那几张合法值表([VALID_CARDS_PER_ROW] 等):
