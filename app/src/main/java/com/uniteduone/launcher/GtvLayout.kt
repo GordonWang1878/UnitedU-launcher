@@ -680,6 +680,22 @@ object GtvLayout {
      */
     const val MENU_BANNER_WIDTH = 192f
 
+    /**
+     * **Ruling R83(2026-09-24)**:「添加应用」列表每项左边小卡片的宽(dp),高按 16:9 = 54 dp。
+     * 取小档 [cardWidth] SMALL 122 的约 0.8 倍:列表面板高 [PICKER_PANEL_MAX_HEIGHT] 480 dp 时,减去标题行,
+     * 每项 = 卡高 54 + 上下各一个聚焦溢出 [appFocusOverflow](54) ≈ 6.7 dp(取整到 7)= 68 dp,
+     * 一屏放得下约 6 项;用 122 整档时每项 83.5 dp、一屏只有 5 项,A95L 约 38 个候选要多翻近一屏。
+     * 再小(< 90)横幅上的中文字标开始糊,认不出是哪个应用——卡片存在的意义就没了。
+     */
+    const val PICKER_CARD_WIDTH = 96f
+    /** 「添加应用」面板内容区的宽(dp),沿用改版前的 460:卡 96 + 两侧聚焦溢出各 9 + 间距 16 之后,
+     *  名字 + 「新」标还有约 330 dp(模拟器实测 520 时右半截整块空着)。 */
+    const val PICKER_PANEL_WIDTH = 460f
+    /** 「添加应用」面板的最大高(dp):屏高 540 dp 上下各留 30。 */
+    const val PICKER_PANEL_MAX_HEIGHT = 480f
+    /** 小卡片与右侧名字的间距(dp)。 */
+    const val PICKER_CARD_NAME_GAP = 16f
+
     fun cardHeight(size: GtvCardSize): Float = cardWidth(size) * 9f / 16f
 
     fun cardPitch(size: GtvCardSize): Float = cardWidth(size) + CARD_GAP

@@ -120,11 +120,7 @@ fun AppCard(
     // 容器色:有图的卡透明(横幅铺满,库的 clip 裁圆角);图标回落卡铺边缘色;
     // 连图都没有(文字回落)用库的 surfaceVariant #49454F。accent 不进卡片中间(M7 §10.5)。
     // (「主题化卡片」开关 2026-09-23 删掉,gtv spec R58:卡片的亮度 / 饱和度已由 R49 淡化统一压下来。)
-    val container = when {
-        fallbackColor != null && app.card != null && !app.isWide -> fallbackColor
-        app.card != null -> Color.Transparent
-        else -> scheme.surfaceVariant
-    }
+    val container = appCardContainer(app, fallbackColor)
     val shape = RoundedCornerShape(metrics.cardCorner)
     Column(
         // 聚焦卡浮到邻居上面(缩放 + 外扩描边不被右邻居盖住)。标题是 Card 外层 Column 的兄弟节点,
@@ -162,32 +158,7 @@ fun AppCard(
             scale = CardDefaults.scale(focusedScale = 1f),
             border = border,
         ) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                val bmp = app.card
-                if (bmp != null && app.isWide) {
-                    Image(
-                        bitmap = bmp.asImageBitmap(),
-                        contentDescription = app.label,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.size(metrics.cardWidth, metrics.cardHeight),
-                    )
-                } else if (bmp != null) {
-                    Image(
-                        bitmap = bmp.asImageBitmap(),
-                        contentDescription = app.label,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.size(metrics.cardHeight),
-                    )
-                } else {
-                    BasicText(
-                        text = app.label,
-                        style = TextStyle(
-                            fontFamily = Theme.Sans, color = scheme.onSurface,
-                            fontSize = 15.sp, textAlign = TextAlign.Center,
-                        ),
-                    )
-                }
-            }
+            AppCardImage(app, metrics)
         }
         if (title != null) {
             // 库的 CardDefaults.SubtitleAlpha = 0.6;字号取 metrics.titleSize——main 线是
@@ -215,6 +186,52 @@ fun AppCard(
         } else if (reserveTitleSpace) {
             // 与上面标题那一行等高(padding titleGap + 行高 titleLine),只占位不画
             Spacer(Modifier.height(metrics.titleGap + metrics.titleLine))
+        }
+    }
+}
+
+/**
+ * 卡片底色(与图一起决定一张卡长什么样):有图的卡透明(横幅铺满,外层 clip 裁圆角);图标回落卡铺边缘色;
+ * 连图都没有(文字回落)用库的 surfaceVariant #49454F。accent 不进卡片中间(M7 §10.5)。
+ * [AppCard] 与「添加应用」列表的小卡片(R83)共用,同一个应用在两处的卡面一致。
+ */
+@Composable
+internal fun appCardContainer(app: AppEntry, fallbackColor: Color?): Color = when {
+    fallbackColor != null && app.card != null && !app.isWide -> fallbackColor
+    app.card != null -> Color.Transparent
+    else -> MaterialTheme.colorScheme.surfaceVariant
+}
+
+/**
+ * 卡面内容:横幅(自定义图也算)铺满、方图标按卡高居中留边、都没有就居中写应用名。
+ * [AppCard] 与「添加应用」列表的小卡片(R83)共用——选图逻辑在 `Apps.entryOf`,画法在这里,两处都只有一份。
+ */
+@Composable
+internal fun AppCardImage(app: AppEntry, metrics: CardMetrics) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        val bmp = app.card
+        if (bmp != null && app.isWide) {
+            Image(
+                bitmap = bmp.asImageBitmap(),
+                contentDescription = app.label,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(metrics.cardWidth, metrics.cardHeight),
+            )
+        } else if (bmp != null) {
+            Image(
+                bitmap = bmp.asImageBitmap(),
+                contentDescription = app.label,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(metrics.cardHeight),
+            )
+        } else {
+            BasicText(
+                text = app.label,
+                style = TextStyle(
+                    fontFamily = Theme.Sans, color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 15.sp, textAlign = TextAlign.Center,
+                ),
+            )
         }
     }
 }
@@ -249,7 +266,8 @@ val LocalCardFade = staticCompositionLocalOf { CardFade.DEFAULT }
  * 内层画的全部内容放进一个带颜色矩阵的离屏层(`saveLayer` + paint 的 colorFilter,效果同
  * `graphicsLayer { compositingStrategy = Offscreen }` 再上滤镜)。**只挂在卡片内容那一层**:
  * 外层的聚焦描边 / 柔光 / 搬运态描边(`gtvAppFocusFrame` 的 drawBehind)不在这层里,颜色不变。
- * 用在首页 / 编辑页的 [AppCard] 与长按菜单左侧 banner;「添加应用」列表与图片选择器不用。
+ * 用在首页 / 编辑页的 [AppCard]、长按菜单左侧 banner,以及 R83 起「添加应用」列表的小卡片(同一张卡在三处颜色一致);
+ * 图片选择器不用。
  * 与聚焦框同用时走 [gtvFocusFrameOverFade],不要自己拼链(顺序是硬约束,见那里)。
  *
  * 实现是一个 `ModifierNodeElement` **数据类**:参数相等的两次调用得到相等的元素(GtvGlowTest 靠这一点认

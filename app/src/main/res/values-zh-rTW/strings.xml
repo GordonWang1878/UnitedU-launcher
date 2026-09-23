@@ -93,6 +93,7 @@
     <string name="edit_loading_apps">正在讀取應用程式清單…</string>
     <string name="edit_no_more_apps">沒有可新增的應用程式了</string>
     <string name="edit_badge_new">新</string>
+    <string name="edit_picker_system_tools">系統工具</string>
 
     <!-- home_* : 首頁與預設桌面設定卡 -->
     <string name="home_empty_apps_hint">沒有可顯示的應用程式\n按遙控器的選單鍵,或選左上角的設定按鈕,再進「版面 → 編輯分欄」新增</string>

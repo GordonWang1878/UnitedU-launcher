@@ -300,3 +300,13 @@ cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的�
 - **R80 首页行图标跟主题色**:焦点行 = accent,其余行 = accent × `ROW_ICON_IDLE_ALPHA` 0.55,取代 R46 灰 ↔ 近白;与编辑页(本来就是 accent)一致。尺寸 22 dp 暂不动,owner 看过若嫌显眼再改小。
 - **R81 设置第一层顺序**:通用、布局、外观、屏保、系统设置、关于;缺省焦点跟着第一颗落在「通用」。
 - **R82 暂时拿掉首页背景衰减**(2026-09-24 owner):R24 那层「右上亮、往左下压暗」的 2D 衰减(`GtvTokens.HeroGradient*`)由 `HERO_GRADIENT_ENABLED = false` 关掉——首页英雄区左侧没有内容,压黑只显得空。上下移动时的整体压暗照旧。owner 之后给新渐变策略,替换 HomeScreen 里那两层即可。
+
+### 2026-09-24 「添加应用」列表重做(R83,Gordon 定)
+
+- **R83 分组过滤 + 小卡片列表**:
+  - **过滤**(`PickerGroups.kt` 纯函数 `pickerGroupOf`,单测喂 A95L 实测包名):有启动分类且非系统 / 系统但更新过 → 应用;有启动分类 + 系统 + 平台 / 厂商命名空间(`android`、`com.android.`、`com.google.android.`、`com.sony.dtv.`、`mediatek.`、`com.mediatek.`)→ 系统工具;有启动分类 + 系统 + 其他命名空间(腾讯视频、乐播、当贝市场)→ 应用;只有裸 MAIN 的,仅当有 exported MAIN 且(在 `DEFAULT_LAYOUT` 里或非系统)才算应用,其余系统组件一律不列;本应用自身不列。列表顺序:应用(按名字)在上,底部「系统工具 / 系統工具 / System Tools」分组(不可聚焦的标题,画在该组第一项的聚焦节点里,翻回来时跟着露出)。
+  - **「有 N 个新应用」口径对齐**:`countNewApps` 只数归进「应用」的包;系统工具、系统组件不算。实现上先按 firstInstallTime 筛,平时一个都没有就连分类查询都省掉。
+  - **展示**:每项 = 左边 96×54 dp 小卡片(`GtvLayout.PICKER_CARD_WIDTH`,小档 122 的约 0.8 倍,一屏约 6 项)+ 右边名字(16 sp,未聚焦次要灰、聚焦主题 highlight)+「新」标;包名那行小字删掉(first-run 走查指出它是「给开发者看的样子」)。卡面与首页同一套选图(自定义图 → banner → 图标 + 边缘色底)、同一套聚焦(`gtvFocusFrameOverFade`:放大 1.10 + 描边 + 柔光 + R49/R70 淡化)。面板内容区仍 460 dp 宽,最高 480 dp。取代上一轮的 24 dp 小图标。
+  - **滚动 / 焦点**:仍是 LazyColumn + 逐项 requester + 四向锁边界(2026-09-11 起真机验证过的写法),聚焦节点仍是整行;行内上下左右各留一个 `appFocusOverflow`,放大 + 描边后的卡片永远在行的布局框里,LazyColumn 把行带进视窗时它就完整可见、不被纵向硬裁。代价同图片网格:柔光(纯绘制 60 dp)在列表上下边被硬切。
+  - **位图**:每项上屏时 IO 线程读(`Apps.pickerCard`),按包名做 key 的 LRU(8 MB 上界,值带 `lastUpdateTime` + 自定义图修改时间的版本戳,更新后原地替换);顺手消掉上一轮 `cachedSmallIcon` 按 `包名@戳` 前缀取到 LRU 里最旧一份的问题。
+  - 打开时初始焦点、选中后落在该行新加的那张卡、BACK 回该行「＋」、读取中 / 空列表提示均不变。模拟器拼图 `docs/screenshots/app-picker-cards.jpg`。

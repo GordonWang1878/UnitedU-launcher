@@ -35,7 +35,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.zIndex
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -1052,7 +1052,10 @@ private fun PendingCard(
     }
 }
 
-/** 选一个应用加进某行。列出机器上所有能启动的应用,已在桌面上的不再重复列出。 */
+/**
+ * 选一个应用加进某行(R83 起:一列小应用卡片 + 名字)。列出机器上的应用,已在桌面上的不再重复列出;
+ * 应用在上,电视设置与厂商系统工具在底部「系统工具」分组,只有裸 MAIN 的系统组件不列(分组规则见 PickerGroups.kt)。
+ */
 @Composable
 private fun AppPicker(
     nonce: Int,
@@ -1067,13 +1070,13 @@ private fun AppPicker(
             SettingsStore.update(ctx) { it.copy(newAppsSeenAt = System.currentTimeMillis()) }
         }
     }
-    // 选择器只显示名字,不需要位图
+    // 候选只读名字 + 分组,不解码位图(卡片图由每一项上屏时按需读,见 PickerRow)。
     // null = 还在读。用 emptyList 当初值时,弹出的框第一眼就写着「没有可添加的应用了」,
     // 几百毫秒后才刷出列表 —— 看到这句话的人会直接按返回,认定功能坏了。
-    // (includeAllInstalled 之后要多做上百次包查询,这个窗口更明显。)
-    val candidates by produceState<List<AppEntry>?>(initialValue = null, exclude) {
+    // (按已安装包全量枚举要多做几十次包查询,这个窗口更明显。)
+    val candidates by produceState<List<PickerCandidate>?>(initialValue = null, exclude) {
         value = withContext(Dispatchers.IO) {
-            runCatching { loadCandidates(ctx, exclude) }.getOrDefault(emptyList())
+            runCatching { Apps.pickerCandidates(ctx, exclude) }.getOrDefault(emptyList())
         }
     }
     // 同 HomeScreen:requestFocus 返回 void,只有目标自报 isFocused 才算真的落下
@@ -1103,6 +1106,9 @@ private fun AppPicker(
             frames++
         }
     }
+    val list = candidates.orEmpty()
+    // 「系统工具」分组标题画在该组第一项里(不可聚焦,见 PickerRow 的 header)。
+    val firstTool = list.indexOfFirst { it.group == PickerGroup.SYSTEM_TOOLS }
 
     Box(
         Modifier
@@ -1116,8 +1122,8 @@ private fun AppPicker(
                 .clip(RoundedCornerShape(14.dp))
                 .background(Theme.DialogSurface)
                 .padding(14.dp)
-                .width(460.dp)
-                .heightIn(max = 420.dp),
+                .width(GtvLayout.PICKER_PANEL_WIDTH.dp)
+                .heightIn(max = GtvLayout.PICKER_PANEL_MAX_HEIGHT.dp),
         ) {
             BasicText(
                 stringResource(R.string.edit_add_app_title),
@@ -1137,20 +1143,26 @@ private fun AppPicker(
                     style = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 13.sp),
                 )
             }
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                itemsIndexed(candidates.orEmpty(), key = { _, a -> a.packageName }) { i, app ->
+            // 仍是 LazyColumn(2026-09-11 起真机验证过的写法:逐项 requester + 四向锁边界),R83 只换每一项的画法。
+            // **聚焦放大不被裁**:LazyColumn 在纵向上按自身边界硬裁,而 bringIntoView 只保证「聚焦节点的布局框」
+            // 完整可见——所以聚焦节点是整行(不是卡片本身),行内上下各留一个聚焦溢出量(PickerRow 的 padV):
+            // 放大 + 描边后的卡片永远落在行的布局框里,行被带进视窗时它也就完整可见。横向 LazyColumn 本来就外扩 15dp
+            // 再裁,行内左右同样各留一个溢出量。代价同图片网格:R28 的柔光(纯绘制、60dp)在列表上下边被硬切。
+            LazyColumn {
+                itemsIndexed(list, key = { _, c -> c.app.packageName }) { i, c ->
                     PickerRow(
-                        app = app,
+                        app = c.app,
+                        header = if (i == firstTool) stringResource(R.string.edit_picker_system_tools) else null,
                         modifier = Modifier.focusRequester(rowFocus[i.coerceIn(0, rowFocus.lastIndex)]),
                         onFocusChange = { got ->
                             if (got) { focusedItem = i; focusedIdx = i }
                             else if (focusedItem == i) focusedItem = null
                         },
                         isFirst = i == 0,
-                        isLast = i == candidates.orEmpty().lastIndex,
-                        // 候选本来就不在桌面上(loadCandidates 已经把 layout.json 里的包 exclude 掉了)。
-                        isNew = isNewApp(app.firstInstallTime, seenAtBefore, onLayout = false),
-                        onClick = { onPick(app.packageName) },
+                        isLast = i == list.lastIndex,
+                        // 候选本来就不在桌面上(pickerCandidates 已经把 layout.json 里的包 exclude 掉了)。
+                        isNew = isNewApp(c.app.firstInstallTime, seenAtBefore, onLayout = false),
+                        onClick = { onPick(c.app.packageName) },
                     )
                 }
             }
@@ -1158,10 +1170,24 @@ private fun AppPicker(
     }
 }
 
+/** 「添加应用」列表的小卡片几何(R83):宽 [GtvLayout.PICKER_CARD_WIDTH]、16:9,圆角与首页卡片同。 */
+private val PickerCardMetrics = CardMetrics(
+    cardWidth = GtvLayout.PICKER_CARD_WIDTH.dp,
+    cardHeight = (GtvLayout.PICKER_CARD_WIDTH * 9f / 16f).dp,
+    cardCorner = GtvLayout.CARD_CORNER.dp,
+    cardSpacing = 0.dp,
+    rowVerticalPad = 0.dp,
+    titleGap = 0.dp,
+    titleLine = 0.dp,
+    titleSize = 14.sp,
+)
+
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 private fun PickerRow(
     app: AppEntry,
+    /** 非 null = 这一项是「系统工具」组的第一项,标题画在它上方(同一个聚焦节点里,见下)。 */
+    header: String?,
     modifier: Modifier,
     onFocusChange: (Boolean) -> Unit = {},
     isFirst: Boolean = false,
@@ -1171,17 +1197,22 @@ private fun PickerRow(
 ) {
     var focused by remember { mutableStateOf(false) }
     val highlight = LocalThemeColors.current.highlight
+    val accent = LocalThemeColors.current.accent
     val ctx = LocalContext.current
-    // 应用图标(第二轮交互测试):IO 线程读、Apps 里有进程内缓存;初值取缓存,滚回来的项首帧就有图。
-    // 只是显示,不参与焦点(逐项 requester / 上报照旧挂在外层 Column 上)。
-    val icon by produceState(Apps.cachedSmallIcon(app.packageName), app.packageName) {
-        value = withContext(Dispatchers.IO) { Apps.smallIcon(ctx, app.packageName) }
+    val metrics = PickerCardMetrics
+    // 卡片图:与首页同一套选图(Apps.pickerCard → entryOf),IO 线程读、按包名的 LRU;初值取缓存,
+    // 滚回来的项首帧就有图。null = 还在读(只画底色,不先闪一下文字回落);读不到则用无图的 app → 文字回落。
+    val face by produceState(Apps.cachedPickerCard(app.packageName), app.packageName) {
+        value = withContext(Dispatchers.IO) { runCatching { Apps.pickerCard(ctx, app.packageName) }.getOrNull() } ?: app
     }
+    // 行内上下 / 左右各留一个聚焦溢出量:聚焦节点是整行,放大 + 描边后的卡片必须落在行的布局框里(见 AppPicker 的注释)。
+    val padV = kotlin.math.ceil(GtvLayout.appFocusOverflow(metrics.cardHeight.value)).dp
+    val padH = kotlin.math.ceil(GtvLayout.appFocusOverflow(metrics.cardWidth.value)).dp
     Column(
         modifier = modifier
+            // 聚焦行浮到邻居上面:柔光向下铺开时不被下一项的卡片盖住(同首页 AppCard 的 zIndex)。
+            .zIndex(if (focused) 1f else 0f)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (focused) highlight.copy(alpha = 0.16f) else Color.Transparent)
             // 四向显式锁住边界。
             // **注意:这不是在修一个已复现的故障。**静态复审推断「这里按左右或越界会整棵树失焦」,
             // 2026-09-11 真机实测**四个方向全部原地停住**,推断没有成立——大概率是外层的
@@ -1197,27 +1228,51 @@ private fun PickerRow(
                 if (isLast) down = FocusRequester.Cancel
             }
             .onFocusChanged { focused = it.isFocused; onFocusChange(it.isFocused) }
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            // 聚焦反馈全部交给卡片(放大 + 描边 + 柔光)与名字变色,不要 clickable 默认的整行灰色蒙层。
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            // 读不到图标时留同样大小的空位,名字仍然左对齐成一列。
-            val bmp = icon
-            if (bmp != null) {
-                androidx.compose.foundation.Image(
-                    bitmap = bmp.asImageBitmap(),
-                    contentDescription = null,
-                    modifier = Modifier.size(PICKER_ICON_SIZE),
-                )
-            } else {
-                Spacer(Modifier.size(PICKER_ICON_SIZE))
+        // 分组标题放在该组第一项的聚焦节点里:从下往上翻回这一项时,bringIntoView 带进视窗的是整行,
+        // 标题跟着露出来;单独做成一项的话,它会停在视窗上边外面,系统工具看上去没有标题。
+        if (header != null) {
+            BasicText(
+                header,
+                modifier = Modifier.padding(start = 6.dp, top = 10.dp, bottom = 2.dp),
+                style = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 13.sp),
+            )
+        }
+        Row(
+            Modifier.padding(horizontal = padH, vertical = padV),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(GtvLayout.PICKER_CARD_NAME_GAP.dp),
+        ) {
+            val shown = face
+            Box(
+                Modifier
+                    // 与首页卡片同一套聚焦画法与淡化(R49/R70),顺序由 gtvFocusFrameOverFade 固定
+                    .gtvFocusFrameOverFade(focused, accent, metrics.cardCorner, fade = LocalCardFade.current)
+                    .size(metrics.cardWidth, metrics.cardHeight)
+                    .clip(RoundedCornerShape(metrics.cardCorner))
+                    .background(
+                        if (shown == null) androidx.tv.material3.MaterialTheme.colorScheme.surfaceVariant
+                        else appCardContainer(shown, shown.fallbackColor?.let { Color(it) }),
+                    ),
+            ) {
+                if (shown != null) AppCardImage(shown.copy(label = app.label), metrics)
             }
             BasicText(
                 text = app.label.ifBlank { app.packageName },
-                // weight(fill = false):名字很长时先挤自己(换行),不把「新」标推出对话框右边缘;
+                // weight(fill = false):名字很长时先挤自己(省略号),不把「新」标推出对话框右边缘;
                 // fill = false 保证短名字仍然紧挨着标,不会中间空一大段。
                 modifier = Modifier.weight(1f, fill = false),
-                style = TextStyle(fontFamily = Theme.Sans, color = if (focused) highlight else Theme.DialogBodyText, fontSize = 14.sp),
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                // 未聚焦的名字压成次要灰、聚焦行提到主题 highlight:光靠近白与近白的差别,
+                // 模拟器截图上认不出哪一行是焦点行(卡片放大在左边,读名字的人眼睛在右边)。
+                style = TextStyle(
+                    fontFamily = Theme.Sans,
+                    color = if (focused) highlight else Theme.SecondaryText,
+                    fontSize = GtvLayout.MENU_ITEM_TEXT.sp,
+                ),
             )
             if (isNew) Box(
                 Modifier.clip(RoundedCornerShape(4.dp)).background(highlight.copy(alpha = 0.22f)).padding(horizontal = 6.dp, vertical = 1.dp),
@@ -1225,28 +1280,5 @@ private fun PickerRow(
                 BasicText(text = stringResource(R.string.edit_badge_new), style = TextStyle(fontFamily = Theme.Sans, color = highlight, fontSize = 10.sp))
             }
         }
-        BasicText(
-            text = app.packageName,
-            // 与上一行的名字对齐:缩进 = 图标宽 + 图标与名字的间距。
-            modifier = Modifier.padding(start = PICKER_ICON_SIZE + 8.dp),
-            style = TextStyle(fontFamily = Theme.Sans, color = Theme.FootnoteText, fontSize = 10.sp),
-        )
     }
 }
-
-/** 「添加应用」列表每项左边的应用图标边长。 */
-private val PICKER_ICON_SIZE = 24.dp
-
-/**
- * 可添加的应用。用 `includeAllInstalled` 按已安装包全量补齐,好让当贝音乐这类
- * 「只有 MAIN/DEFAULT、没有 LAUNCHER 分类」的应用**移出后还能加回来**。
- * 2026-09-11 实测:此前那版用 `extraPackages = exclude` 再 filter 掉,等于从没生效,
- * 当贝音乐移出后在列表里彻底消失,只能 adb 改 layout.json 才找得回来。
- */
-private fun loadCandidates(ctx: Context, exclude: Set<String>): List<AppEntry> =
-    // **不要再传 extraPackages = exclude**:那些包紧接着就被下面的 filter 滤掉,
-    // 这条兜底对选择器从来没有生效过;而应用一旦被移出就不在 exclude 里,更查不到它。
-    // 改为按已安装包全量补齐。
-    Apps.load(ctx, withBitmaps = emptySet(), includeAllInstalled = true).values
-        .filter { it.packageName !in exclude && it.packageName != ctx.packageName }
-        .sortedBy { it.label }

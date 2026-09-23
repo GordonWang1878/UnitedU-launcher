@@ -101,6 +101,7 @@
     <string name="edit_loading_apps">Loading app list…</string>
     <string name="edit_no_more_apps">No more apps to add</string>
     <string name="edit_badge_new">NEW</string>
+    <string name="edit_picker_system_tools">System Tools</string>
 
     <!-- home_* : home screen and default-home settings card -->
     <string name="home_empty_apps_hint">No apps to show\nPress Menu on your remote, or select the settings button in the top left, then choose “Layout → Edit Rows” to add some</string>

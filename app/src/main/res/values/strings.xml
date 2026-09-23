@@ -93,6 +93,7 @@
     <string name="edit_loading_apps">正在读取应用列表…</string>
     <string name="edit_no_more_apps">没有可添加的应用了</string>
     <string name="edit_badge_new">新</string>
+    <string name="edit_picker_system_tools">系统工具</string>
 
     <!-- home_* : 首页与默认桌面设置卡 -->
     <string name="home_empty_apps_hint">没有可显示的应用\n按遥控器的菜单键,或选左上角的设置按钮,再进「布局 → 编辑分栏」添加</string>

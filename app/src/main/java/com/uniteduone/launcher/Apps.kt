@@ -2,6 +2,7 @@ package com.uniteduone.launcher
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
 import android.graphics.Bitmap
@@ -23,17 +24,36 @@ object Apps {
      *   之前给电视上**每一个**可启动应用都建位图(约 50 个),而首页只用其中 11 个,
      *   其余立刻被丢掉——纯浪费,且每次退出编辑界面都重跑一遍。
      * @param withLabels 只有这些包需要读标签(读标签要打开对方的资源包)。null = 全都要。
-     *   同一个道理:首页只画 11 张卡,却给全部约 50 个应用读了标签。选择器则相反,
-     *   它只要名字、一个位图都不要。
+     *   同一个道理:首页只画 11 张卡,却给全部约 50 个应用读了标签。
+     *
+     * 「添加应用」列表不走这里,走 [pickerCandidates](按已安装包全量枚举 + 分组过滤,R83)。
      */
     fun load(
         ctx: Context,
         extraPackages: Collection<String> = emptyList(),
         withBitmaps: Set<String>? = null,
         withLabels: Set<String>? = null,
-        includeAllInstalled: Boolean = false,
     ): Map<String, AppEntry> {
         val pm = ctx.packageManager
+        val found = launcherEntries(pm)
+        // 兜底:不带 category 按包名查一次
+        for (pkg in extraPackages) {
+            if (found.containsKey(pkg)) continue
+            val intent = Intent(Intent.ACTION_MAIN).setPackage(pkg)
+            runCatching { pm.queryIntentActivities(intent, 0) }.getOrDefault(emptyList())
+                .firstOrNull()?.let { found[pkg] = it }
+        }
+        return found.mapValues { (pkg, ri) ->
+            // **逐包兜底,不是整批**。原来整个 mapValues 外面才有一层 runCatching:
+            // 任何一个包在被替换的中间态下 loadBanner/loadIcon 抛异常,整张桌面就变成空的,
+            // 而重建恰恰由 PACKAGE_CHANGED 触发 —— 正是最容易抛的那一刻。
+            runCatching { entryOf(ctx, pm, pkg, ri, withBitmaps, withLabels) }
+                .getOrElse { AppEntry(pkg, "", null, isWide = false) }
+        }
+    }
+
+    /** 按两个启动分类枚举(LEANBACK 优先),包名 → 它的入口。 */
+    private fun launcherEntries(pm: PackageManager): LinkedHashMap<String, ResolveInfo> {
         val found = LinkedHashMap<String, ResolveInfo>()
         for (cat in listOf(Intent.CATEGORY_LEANBACK_LAUNCHER, Intent.CATEGORY_LAUNCHER)) {
             val intent = Intent(Intent.ACTION_MAIN).addCategory(cat)
@@ -43,39 +63,74 @@ object Apps {
                 found.putIfAbsent(ri.activityInfo.packageName, ri)
             }
         }
-        // 兜底:不带 category 按包名查一次
-        for (pkg in extraPackages) {
-            if (found.containsKey(pkg)) continue
-            val intent = Intent(Intent.ACTION_MAIN).setPackage(pkg)
-            runCatching { pm.queryIntentActivities(intent, 0) }.getOrDefault(emptyList())
-                .firstOrNull()?.let { found[pkg] = it }
-        }
-        // 选择器要用:按分类枚举查不到「只有 MAIN + DEFAULT」的应用(当贝音乐就是这种),
-        // 而 extraPackages 那条兜底只能捞出**调用方已经知道**的包 —— 一个应用被移出桌面之后
-        // 就不在任何已知集合里,于是**再也加不回来**,只能 adb 改 layout.json。
-        // 所以这里按已安装包全量补一遍,只在选择器那条路上开(首页不需要,也不该付这个代价)。
-        if (includeAllInstalled) {
-            val installed = runCatching { pm.getInstalledApplications(0) }.getOrDefault(emptyList())
-            for (info in installed) {
-                val pkg = info.packageName
-                if (pkg == ctx.packageName || found.containsKey(pkg)) continue
-                // 只收 **exported** 的活动:不带 category 的查询会匹配「任何声明了 action MAIN
-                // 的活动」,输入法/动态壁纸/系统组件的设置页(裸 MAIN 无 category)都会被捞进来;
-                // 而 queryIntentActivities 不按 exported 过滤,不可导出的要到 startActivity
-                // 才报 SecurityException —— 列出来却打不开,提示词还会说「可能已被卸载」。
-                runCatching { pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).setPackage(pkg), 0) }
-                    .getOrDefault(emptyList())
-                    .firstOrNull { it.activityInfo?.exported == true }
-                    ?.let { found[pkg] = it }
+        return found
+    }
+
+    /**
+     * 包的第一个 **exported** 裸 MAIN 活动。不带 category 的查询会匹配「任何声明了 action MAIN 的活动」,
+     * 而 queryIntentActivities 不按 exported 过滤,不可导出的要到 startActivity 才报 SecurityException ——
+     * 列出来却打不开,提示词还会说「可能已被卸载」。
+     */
+    private fun exportedMain(pm: PackageManager, pkg: String): ResolveInfo? =
+        runCatching { pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).setPackage(pkg), 0) }
+            .getOrDefault(emptyList())
+            .firstOrNull { it.activityInfo?.exported == true }
+
+    private val defaultLayoutPackages: Set<String> by lazy { DEFAULT_LAYOUT.flatMap { it.apps }.toSet() }
+
+    /**
+     * 读出分类用的事实([pickerGroupOf] 的输入)与可用的入口。**裸 MAIN 查询只对可能入选的包做**
+     * (非系统、或在分类表里的):系统组件无论有没有 exported MAIN 都不列,不必为它们多一次包查询——
+     * 电视上这类包上百个。
+     */
+    private fun factsOf(
+        pm: PackageManager,
+        info: ApplicationInfo,
+        launcher: ResolveInfo?,
+    ): Pair<PackageFacts, ResolveInfo?> {
+        val pkg = info.packageName
+        val system = info.flags and ApplicationInfo.FLAG_SYSTEM != 0
+        val inDefault = pkg in defaultLayoutPackages
+        val main = if (launcher == null && (!system || inDefault)) exportedMain(pm, pkg) else null
+        val facts = PackageFacts(
+            packageName = pkg,
+            isSystem = system,
+            isUpdatedSystem = info.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP != 0,
+            hasLauncherEntry = launcher != null,
+            hasExportedMain = main != null,
+            inDefaultLayout = inDefault,
+        )
+        return facts to (launcher ?: main)
+    }
+
+    /**
+     * 「添加应用」列表的候选(R83,Gordon 2026-09-24):按已安装包**全量**枚举——当贝音乐这类
+     * 「只有 MAIN + DEFAULT、没有启动分类」的应用移出桌面后要能加回来(2026-09-11 实测:只按分类查,
+     * 移出后在列表里彻底消失)——再用 [pickerGroupOf] 分组:应用在上、系统工具在下,只有裸 MAIN 的
+     * 系统组件一律不列。[exclude](已在桌面上的)与本应用自身不列。只读名字与装机时间,**不解码位图**:
+     * 卡片图由每一项上屏时 [pickerCard] 按需读。IO 线程调用。
+     */
+    fun pickerCandidates(ctx: Context, exclude: Set<String>): List<PickerCandidate> {
+        val pm = ctx.packageManager
+        val launcher = launcherEntries(pm)
+        val installed = runCatching { pm.getInstalledPackages(0) }.getOrDefault(emptyList())
+        // 包全集:已安装包 ∪ 启动分类查到的(getInstalledPackages 失败时启动分类那份照样能用)
+        val infos = LinkedHashMap<String, Pair<ApplicationInfo, Long>>()
+        for (pi in installed) pi.applicationInfo?.let { infos[pi.packageName] = it to pi.firstInstallTime }
+        for ((pkg, ri) in launcher) if (pkg !in infos) ri.activityInfo?.applicationInfo?.let { infos[pkg] = it to 0L }
+        val out = ArrayList<PickerCandidate>()
+        for ((pkg, v) in infos) {
+            if (pkg in exclude || pkg == ctx.packageName) continue
+            val (info, firstInstall) = v
+            runCatching {
+                val (facts, ri) = factsOf(pm, info, launcher[pkg])
+                val group = pickerGroupOf(facts, ctx.packageName) ?: return@runCatching
+                val entry = ri ?: return@runCatching
+                val label = runCatching { entry.loadLabel(pm)?.toString() }.getOrNull().orEmpty()
+                out += PickerCandidate(AppEntry(pkg, label, card = null, isWide = false, firstInstallTime = firstInstall), group)
             }
         }
-        return found.mapValues { (pkg, ri) ->
-            // **逐包兜底,不是整批**。原来整个 mapValues 外面才有一层 runCatching:
-            // 任何一个包在被替换的中间态下 loadBanner/loadIcon 抛异常,整张桌面就变成空的,
-            // 而重建恰恰由 PACKAGE_CHANGED 触发 —— 正是最容易抛的那一刻。
-            runCatching { entryOf(ctx, pm, pkg, ri, withBitmaps, withLabels) }
-                .getOrElse { AppEntry(pkg, "", null, isWide = false) }
-        }
+        return orderPickerCandidates(out)
     }
 
     private fun entryOf(
@@ -143,24 +198,21 @@ object Apps {
     }
 
     /**
-     * 「新应用」个数:按两个启动分类枚举(与首页同一口径,不做全量补齐——那要上百次包查询),
-     * firstInstallTime 晚于 seenAt、不在桌面上、不是自己。IO 线程调用。
+     * 「新应用」个数(R83 起口径与「添加应用」列表的「应用」分组对齐,见 [countNewApps]):系统工具、
+     * 系统组件不算。先按 firstInstallTime 筛出「晚于 seenAt、不在桌面上、不是自己」的包——平常一个都没有,
+     * 两次分类查询都省掉;有才对这几个包读分类事实。IO 线程调用。
      */
     fun countNew(ctx: Context, seenAt: Long, onLayout: Set<String>): Int {
         val pm = ctx.packageManager
-        val pkgs = LinkedHashSet<String>()
-        for (cat in listOf(Intent.CATEGORY_LEANBACK_LAUNCHER, Intent.CATEGORY_LAUNCHER)) {
-            val intent = Intent(Intent.ACTION_MAIN).addCategory(cat)
-            runCatching { pm.queryIntentActivities(intent, 0) }.getOrDefault(emptyList())
-                .forEach { pkgs += it.activityInfo.packageName }
+        val fresh = runCatching { pm.getInstalledPackages(0) }.getOrDefault(emptyList())
+            .filter { isNewApp(it.firstInstallTime, seenAt, it.packageName in onLayout) && it.packageName != ctx.packageName }
+        if (fresh.isEmpty()) return 0
+        val launcher = launcherEntries(pm)
+        val facts = fresh.mapNotNull { pi ->
+            val info = pi.applicationInfo ?: return@mapNotNull null
+            runCatching { factsOf(pm, info, launcher[pi.packageName]).first to pi.firstInstallTime }.getOrNull()
         }
-        return pkgs.count { pkg ->
-            pkg != ctx.packageName && isNewApp(
-                firstInstallTime = runCatching { pm.getPackageInfo(pkg, 0).firstInstallTime }.getOrDefault(0L),
-                seenAt = seenAt,
-                onLayout = pkg in onLayout,
-            )
-        }
+        return countNewApps(facts, seenAt, onLayout, ctx.packageName)
     }
 
     /** 卡片在屏幕上的像素尺寸(1920x1080 下 127x71dp @2x),位图不必比这更大。 */
@@ -204,30 +256,45 @@ object Apps {
     }
 
     /**
-     * 「添加应用」列表每项左边的小图标(交互测试 2026-09-23 第二轮):应用图标(方形,不是卡片用的横幅),
-     * 画成 [SMALL_ICON_PX] 见方的位图。进程内 LRU 缓存,key 带 `lastUpdateTime`——应用更新换了图标,
-     * 旧条目自然不再命中。读不到(包正被替换、没有图标)返回 null,调用方留空位。**IO 线程调用**。
+     * 「添加应用」列表每项左边的小卡片图(R83,取代上一轮的 24dp 小图标):与首页卡片同一套选图
+     * ([entryOf]:自定义图 → leanback banner → 图标 + 边缘色底),只在这一项上屏时读。
+     * 进程内 LRU,**按包名做 key、值里带版本戳**(`lastUpdateTime` + 自定义图的修改时间):应用更新 / 换了卡片图,
+     * 戳对不上就重读并**原地替换**这个包的条目——同一个包在缓存里永远只有一份。
+     * (上一轮小图标按 `包名@戳` 做 key,更新后新旧两份并存,主线程取缓存按 `startsWith` 找到的是 LRU 顺序里
+     * 最旧的那份,即更新前的旧图——评审指出的问题,随这次改写一起消掉。)
+     * 读不到(包正被替换、没有入口)返回 null,调用方画占位底。**IO 线程调用**。
      */
-    fun smallIcon(ctx: Context, pkg: String): Bitmap? {
+    fun pickerCard(ctx: Context, pkg: String): AppEntry? {
         val pm = ctx.packageManager
-        val stamp = runCatching { pm.getPackageInfo(pkg, 0).lastUpdateTime }.getOrNull() ?: return null
-        val key = "$pkg@$stamp"
-        smallIcons.get(key)?.let { return it }
-        return runCatching {
-            val d = pm.getApplicationIcon(pkg)
-            Bitmap.createBitmap(SMALL_ICON_PX, SMALL_ICON_PX, Bitmap.Config.ARGB_8888).also {
-                val c = Canvas(it); d.setBounds(0, 0, SMALL_ICON_PX, SMALL_ICON_PX); d.draw(c)
-            }
-        }.getOrNull()?.also { smallIcons.put(key, it) }
+        val updated = runCatching { pm.getPackageInfo(pkg, 0).lastUpdateTime }.getOrNull() ?: return null
+        val stamp = "$updated/${runCatching { Paths.iconFor(ctx, pkg).lastModified() }.getOrDefault(0L)}"
+        pickerCards.get(pkg)?.takeIf { it.first == stamp }?.let { return it.second }
+        val ri = launcherEntryOf(pm, pkg) ?: exportedMain(pm, pkg) ?: return null
+        val entry = runCatching { entryOf(ctx, pm, pkg, ri, withBitmaps = null, withLabels = emptySet()) }.getOrNull()
+            ?: return null
+        pickerCards.put(pkg, stamp to entry)
+        return entry
     }
 
-    /** 缓存里已有的小图标(主线程可调,不碰 PackageManager):列表滚回来时首帧就有图,不闪空位。 */
-    fun cachedSmallIcon(pkg: String): Bitmap? =
-        smallIcons.snapshot().entries.firstOrNull { it.key.startsWith("$pkg@") }?.value
+    /** 缓存里这个包当前那一份卡片图(主线程可调,不碰 PackageManager):列表滚回来时首帧就有图,不闪占位。 */
+    fun cachedPickerCard(pkg: String): AppEntry? = pickerCards.get(pkg)?.second
 
-    private const val SMALL_ICON_PX = 72
-    /** 72×72×4 ≈ 20 KB 一张,128 张 ≈ 2.6 MB;选择器候选一般 50 个上下。 */
-    private val smallIcons = android.util.LruCache<String, Bitmap>(128)
+    private fun launcherEntryOf(pm: PackageManager, pkg: String): ResolveInfo? {
+        for (cat in listOf(Intent.CATEGORY_LEANBACK_LAUNCHER, Intent.CATEGORY_LAUNCHER)) {
+            runCatching { pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(cat).setPackage(pkg), 0) }
+                .getOrNull()?.firstOrNull()?.let { return it }
+        }
+        return null
+    }
+
+    /**
+     * 上界按字节算:一张卡片图最大 [CARD_W]×[CARD_H]×4 ≈ 153 KB(横幅),图标回落的方图 ≈ 86 KB;
+     * 8 MB 装得下 50 张以上横幅——A95L 的候选约 38 个,整张列表翻一遍都不会被挤出去。
+     */
+    private val pickerCards = object : android.util.LruCache<String, Pair<String, AppEntry>>(8 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: Pair<String, AppEntry>): Int =
+            (value.second.card?.allocationByteCount ?: 0).coerceAtLeast(1)
+    }
 
     fun originalIcon(ctx: Context, pkg: String): Bitmap? = runCatching {
         val pm = ctx.packageManager
