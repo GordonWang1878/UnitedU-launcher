@@ -101,11 +101,13 @@ fun CapsuleColumn(
     var holder by remember { mutableStateOf<Int?>(null) }
     // 初值 true:第一帧 Compose 若自己把焦点给了某一颗,那次上报不能改写目标;定位效果落地后放开。
     var restoring by remember { mutableStateOf(true) }
-    // 上一次解析出的目标下标:目标 id 不在了(条件行消失)就退回它、夹到新长度。普通数组,只在组合阶段读写,不引起重组。
-    val lastIdx = remember { intArrayOf(0) }
+    // 目标最近一次**还在**时的下标:目标 id 不在了(条件行消失)就落到它的上一行(评审 #6:原先退回同一下标,
+    // 落的是消失那行的下一行——动画缩放行消失时焦点跳到「恢复默认」),夹到新长度。
+    // 只在找到时更新,目标缺席期间的每次重组都算出同一个下标,不会一路往上走。普通数组,只在组合阶段读写,不引起重组。
+    val lastFound = remember { intArrayOf(0) }
     val found = ids.indexOf(target)
-    val targetIdx = (if (found >= 0) found else lastIdx[0]).coerceIn(0, ids.lastIndex)
-    lastIdx[0] = targetIdx
+    if (found >= 0) lastFound[0] = found
+    val targetIdx = (if (found >= 0) found else lastFound[0] - 1).coerceIn(0, ids.lastIndex)
     val targetNow by rememberUpdatedState(targetIdx)
     val lastIds = remember { arrayOfNulls<List<String>>(1) }
     if (lastIds[0] != null && lastIds[0] != ids) restoring = true
