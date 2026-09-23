@@ -88,9 +88,10 @@ class GtvLayoutTest {
     @Test fun `R48 无行标题几何——行距逐项、图标在左边距里不碰焦点卡`() {
         for (size in GtvCardSize.values()) for (titles in listOf(false, true)) {
             // 行距逐项,每项写字面量、不拿 rowPitch 去比 rowPitch:上下描边留白 2 × 7 + 卡高
-            // + 卡片标题(开着时 4 + 20)+ ROW_GAP(R48 时 8,R51 起 40)。R48 前还有行标题行盒 20 + 标题到卡
+            // + 卡片标题(开着时 标题间距 + 20;间距 ui-pending #9 起 = 聚焦溢出,此前 4)+ ROW_GAP(R48 时 8,R51 起 40)。R48 前还有行标题行盒 20 + 标题到卡
             // 12.5 两项。
-            val perItem = 2f * 7f + GtvLayout.cardHeight(size) + (if (titles) 4f + 20f else 0f) + 40f
+            val perItem = 2f * 7f + GtvLayout.cardHeight(size) +
+                (if (titles) GtvLayout.appFocusOverflow(GtvLayout.cardHeight(size)) + 20f else 0f) + 40f
             assertEquals("$size titles=$titles 行距", perItem, GtvLayout.rowPitch(size, titles), 0.001f)
         }
         assertEquals(7f, GtvLayout.ROW_CARD_TOP, 0f)
@@ -214,7 +215,8 @@ class GtvLayoutTest {
     }
 
     // 2026-09-23 R53 连带:「有 N 个新应用」提示(70 + 6 + 16 = 92 底)在淡出带里。提示显示时零点下移到 92、
-    // 全亮点仍 110:卡顶到提示底边时已完全透明;540 屏上三档 × 标题开关的所有静止态 alpha 与不显示时相同。
+    // 全亮点仍 110:卡顶到提示底边时已完全透明;540 屏上三档 × 标题开关的静止态 alpha 与不显示时相同——
+    // 唯一例外是小档开标题的上两行(卡顶 104.4,ui-pending #9 加高标题间距之后):0.86 → 0.69。
     @Test fun `新应用提示显示时淡出零点下移到提示底边,静止态 alpha 不变`() {
         assertEquals(92f, GtvLayout.NEW_APPS_HINT_BOTTOM, 0f)
         assertEquals(0f, GtvLayout.topFadeAlpha(92f, clearOfNewAppsHint = true), 0f)
@@ -226,8 +228,15 @@ class GtvLayoutTest {
             val pitch = GtvLayout.rowPitch(size, titles)
             for (n in 1..MAX_ROWS) {
                 val top = line - n * pitch
-                assertEquals("$size titles=$titles 焦点行上第 $n 行(卡顶 $top)", GtvLayout.topFadeAlpha(top),
-                    GtvLayout.topFadeAlpha(top, clearOfNewAppsHint = true), 0f)
+                val plain = GtvLayout.topFadeAlpha(top)
+                val withHint = GtvLayout.topFadeAlpha(top, clearOfNewAppsHint = true)
+                if (size == GtvCardSize.SMALL && titles && n == 2) {
+                    assertEquals(104.40f, top, 0.01f)
+                    assertEquals(0.86f, plain, 0.01f)
+                    assertEquals(0.69f, withHint, 0.01f)
+                } else {
+                    assertEquals("$size titles=$titles 焦点行上第 $n 行(卡顶 $top)", plain, withHint, 0f)
+                }
             }
         }
     }
@@ -242,7 +251,7 @@ class GtvLayoutTest {
             val top = GtvLayout.restVisibleTop(r, size, titles, 540f)
             val bottom = GtvLayout.restRowVisibleBottom(r, size, titles, 540f)
             val above = cardTop - top
-            val below = bottom - GtvLayout.titleHeight(titles) - cardBottom
+            val below = bottom - GtvLayout.titleHeight(size, titles) - cardBottom
             assertTrue("$size titles=$titles 行 $r:卡顶之上要留出聚焦溢出", above > 0f)
             assertEquals("$size titles=$titles 行 $r:上下溢出对称", above, below, 0.001f)
             val iconTop = cardTop + GtvLayout.cardHeight(size) / 2f - GtvLayout.ROW_ICON_SIZE / 2f
@@ -282,9 +291,23 @@ class GtvLayoutTest {
     @Test fun `显示标题时 rowPitch 比不显示恰好多出一份标题高度(showTitles=true 覆盖)`() {
         val withTitles = GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = true)
         val withoutTitles = GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = false)
-        assertEquals(GtvLayout.titleHeight(true), withTitles - withoutTitles, 0.01f)
-        // 164.0625 = 140.0625(showTitles=false,R51 之后的新值)+ 24(CARD_TITLE_GAP 4 + CARD_TITLE_LINE 20)
-        assertEquals(164.0625f, withTitles, 0.01f)
+        assertEquals(GtvLayout.titleHeight(GtvCardSize.MEDIUM, true), withTitles - withoutTitles, 0.01f)
+        // 168.3656 = 140.0625(showTitles=false,R51 之后的新值)+ 28.3031(标题间距 8.3031 + CARD_TITLE_LINE 20)。
+        // 标题间距 ui-pending #9(2026-09-23)起 = 中档聚焦溢出 86.0625 × 0.05 + 4 = 8.3031(此前常量 4,和 164.0625)。
+        assertEquals(168.3656f, withTitles, 0.001f)
+    }
+
+    // ui-pending #9(2026-09-23):开卡片标题时,聚焦描边外缘(卡底下 appFocusOverflow)不能压到标题——
+    // 标题行盒顶至少让到描边外缘;cap 顶在行盒顶下约 3.5 dp(模拟器实测),所以描边外缘总在 cap 顶之上。
+    @Test fun `ui-pending 9 卡片标题行盒顶让到聚焦描边外缘之下,三档都是`() {
+        for (size in GtvCardSize.values()) {
+            val strokeOuterBelowCard = GtvLayout.appFocusOverflow(GtvLayout.cardHeight(size))
+            assertTrue("$size 标题行盒顶 ${GtvLayout.cardTitleGap(size)} 高于描边外缘 $strokeOuterBelowCard",
+                GtvLayout.cardTitleGap(size) >= strokeOuterBelowCard)
+            assertEquals(GtvLayout.cardTitleGap(size), Theme.gtvCardMetrics(size).titleGap.value, 1e-4f)
+            assertEquals(GtvLayout.cardTitleGap(size) + GtvLayout.CARD_TITLE_LINE, GtvLayout.titleHeight(size, true), 1e-4f)
+            assertEquals(0f, GtvLayout.titleHeight(size, false), 0f)
+        }
     }
 
     // owner 反馈 Round 4(2026-09-21)§5:「验证,不要假设」——app 卡片聚焦缩放

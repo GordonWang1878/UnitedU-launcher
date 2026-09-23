@@ -157,7 +157,17 @@ object GtvLayout {
      *  (owner 反馈 Round 4 明确要求不改 rowPitch)。 */
     const val FOCUS_STROKE = 2f
     const val FOCUS_OUTSET = 5f
-    const val CARD_TITLE_GAP = 4f
+    /**
+     * 卡片标题行盒顶边离卡片布局框底边的距离(dp)——**随档位变,= [appFocusOverflow](卡高)**。
+     *
+     * **ui-pending #9(2026-09-23)**:此前是常量 `CARD_TITLE_GAP` = 4 dp。标题不随卡片缩放(`AppCard` 的标题是
+     * Card 的兄弟节点),聚焦描边外缘却在卡底下方 [appFocusOverflow](SMALL 7.43 / MEDIUM 8.30 / LARGE 9.40)处;
+     * 14sp 标题的 cap 顶在行盒顶下约 3.5 dp(模拟器实测:三档都是卡底下 7.5 dp),于是描边压在标题字顶上——
+     * 中档压 1 px、大档压 4 px、小档正好贴住(docs/screenshots/minor-3-title-stroke-before-*.jpg)。
+     * 现在行盒顶让到描边外缘:cap 顶在描边外缘下约 3.5 dp(7 px)。代价:开标题时 [titleHeight] / [rowPitch]
+     * 各档多 3.4–5.4 dp;R52「静止只露一行」与标题高无关(行 1 卡顶 = H + 22 − overflow),不受影响。
+     */
+    fun cardTitleGap(size: GtvCardSize): Float = appFocusOverflow(cardHeight(size))
     /** Fix 1(owner 反馈 R2,2026-09-20,R15 的同一种病第二次发作):**16 dp 是 `Theme.gtvCardMetrics`
      *  把卡片标题字号从 Google 的 Latin 量测抬到 14sp 时沿用的旧容器高,对 CJK 不成立,不要改回去。**
      *  真机(owner 的「云视听极光」「银河奇异果」)上逐行像素扫描:标题墨迹在 y=470→493 之间从
@@ -690,8 +700,9 @@ object GtvLayout {
         return if (overRight > 0f) -overRight else 0f
     }
 
-    fun titleHeight(showTitles: Boolean): Float =
-        if (showTitles) CARD_TITLE_GAP + CARD_TITLE_LINE else 0f
+    /** 开卡片标题时每行多出的高度(dp)= [cardTitleGap](size) + [CARD_TITLE_LINE];关掉时 0。 */
+    fun titleHeight(size: GtvCardSize, showTitles: Boolean): Float =
+        if (showTitles) cardTitleGap(size) + CARD_TITLE_LINE else 0f
 
     /** Task 9b:补上焦点描边留白项(`CategoryRow` 的卡片行上下各留 `FOCUS_OUTSET + FOCUS_STROKE`,
      *  见 `Theme.gtvCardMetrics.rowVerticalPad`),此前公式没有这一项,是每行 26.5dp 纵向漂移的
@@ -706,7 +717,7 @@ object GtvLayout {
      *  **Ruling R48(2026-09-22)**:首页取消行标题,去掉标题行盒 20 + 标题到卡 12.5 = 32.5 dp;
      *  中档不显示标题 140.5625 → **108.0625**(效果图 A2「行距收紧 32dp」)。 */
     fun rowPitch(size: GtvCardSize, showTitles: Boolean): Float =
-        2f * (FOCUS_OUTSET + FOCUS_STROKE) + cardHeight(size) + titleHeight(showTitles) + ROW_GAP
+        2f * (FOCUS_OUTSET + FOCUS_STROKE) + cardHeight(size) + titleHeight(size, showTitles) + ROW_GAP
 
     /** 首页整页纵向位移(dp,≤ 0):焦点在行 [activeRow] 时,装着全部行的那根 Column 的 `offset(y)`。
      *  = −activeRow × [rowPitch],负值(顶栏)夹到 0。
@@ -753,7 +764,7 @@ object GtvLayout {
      */
     fun focusLineCardTop(size: GtvCardSize, showTitles: Boolean, screenHeightDp: Float): Float =
         screenHeightDp - HOME_BOTTOM_MARGIN -
-            (cardHeight(size) + appFocusOverflow(cardHeight(size)) + titleHeight(showTitles))
+            (cardHeight(size) + appFocusOverflow(cardHeight(size)) + titleHeight(size, showTitles))
 
     /** 一行内部,从行布局块顶边到卡片布局框顶边的距离(dp):上侧描边留白
      *  (`rowVerticalPad` = FOCUS_OUTSET + FOCUS_STROKE)。 */
@@ -774,7 +785,7 @@ object GtvLayout {
      *  `screenHeightDp − HOME_BOTTOM_MARGIN`。上沿是 [restVisibleTop]。 */
     fun restRowVisibleBottom(row: Int, size: GtvCardSize, showTitles: Boolean, screenHeightDp: Float): Float =
         restCardTop(row, size, showTitles, screenHeightDp) + cardHeight(size) + appFocusOverflow(cardHeight(size)) +
-            titleHeight(showTitles)
+            titleHeight(size, showTitles)
 
     /** **R48**:行 [row] 在静止态(位移 0)「需要可见」区间的**上沿**(dp)= 卡顶 − 聚焦放大与描边的
      *  纵向溢出([appFocusOverflow]),与 [restRowVisibleBottom] 对称。行图标与卡片纵向居中、比卡矮,
@@ -783,12 +794,14 @@ object GtvLayout {
         restCardTop(row, size, showTitles, screenHeightDp) - appFocusOverflow(cardHeight(size))
 
     /**
-     * 首页原地移动态提示(「← → 移动 · ↑ ↓ 换行 · 确定 放下 · 返回 取消」)的顶边屏幕 y(dp)= 顶栏底 + 12,
-     * 水平居中。**2026-09-23 从贴底挪到这里**:R52 焦点线让焦点行卡底落在 ≈ 500 dp(放大后 ≈ 508),原来
-     * 贴底 28 dp 的提示(≈ 484–512)正好盖住被搬的卡。这里上方的行按 [topFadeAlpha] 已淡出(卡顶 < 110 起
-     * 变淡),剩下全亮的行卡顶都在提示底边(≈ 115)之下;焦点行恒在焦点线,不会与提示相交。
+     * 首页原地移动态提示(「← → 移动 · ↑ ↓ 换行 · 确定 放下 · 返回 取消」)的顶边屏幕 y(dp)= 顶栏底 + 4,
+     * 水平居中,胶囊高 ≈ 32.5(实测),底边 ≈ 106.5。**2026-09-23 从贴底挪到这里**:R52 焦点线让焦点行卡底落在
+     * ≈ 500 dp(放大后 ≈ 508),原来贴底 28 dp 的提示(≈ 484–512)正好盖住被搬的卡。焦点行恒在焦点线,
+     * 不会与提示相交;焦点行上面那些行,540 屏三档 × 标题开关的静止卡顶是 ≥ 104.4(全亮或 α 0.86)或 ≤ 66.6
+     * (全透明)。间距先取的 12(底边 114.5),同日 ui-pending #9 把开标题的行距加高后,小档开标题的上两行
+     * 卡顶从 114.7 升到 104.4,改为 4;那一档仍有 ≈ 2 dp 卡顶压在胶囊底下(胶囊底 α 0.8,提示可读)。
      */
-    const val MOVE_HINT_TOP = TOP_BAR_TOP + TOP_BAR_HEIGHT + 12f
+    const val MOVE_HINT_TOP = TOP_BAR_TOP + TOP_BAR_HEIGHT + 4f
 
     /** **Ruling R53(2026-09-23)**:顶栏下淡出带的高度(dp)。见 [topFadeAlpha]。 */
     const val TOP_FADE_BAND = 40f
@@ -819,10 +832,11 @@ object GtvLayout {
      * 「新应用」提示行盒的底边屏幕 y(dp)= 70 + 6 + 16 = **92**(模拟器实测字形 77.5–89)。
      *
      * **2026-09-23(R53 连带)**:提示在 R53 淡出带(卡顶 70–110)里。静止态不与任何可见行相交——三档 × 标题
-     * 开关下焦点行上方各行的静止卡顶只有 ≥ 114.7(全亮、在提示之下)或 ≤ 66.6(全透明)两类;但换行动画里
+     * 开关下焦点行上方各行的静止卡顶只有 ≥ 104.4(在提示之下)或 ≤ 66.6(全透明)两类;但换行动画里
      * 上面那行的卡顶会一路扫过 110 → 70,卡顶在 70–89 那 ~100 ms 里半透明卡片(α 0–0.48)与提示字叠在一起
      * (docs/screenshots/minor-2-new-apps-transit-before.jpg)。修法:提示显示时 [topFadeAlpha] 的零点从 70
-     * 下移到这里、全亮点仍是 110——卡顶到提示底边时已经完全透明;所有静止态的 alpha 不变(`GtvLayoutTest`)。
+     * 下移到这里、全亮点仍是 110——卡顶到提示底边时已经完全透明。静止态 alpha 只有小档开标题的上两行
+     * (卡顶 104.4,ui-pending #9 加高行距后)从 0.86 变成 0.69,其余不变(`GtvLayoutTest`)。
      */
     const val NEW_APPS_HINT_BOTTOM = TOP_BAR_TOP + TOP_BAR_HEIGHT + NEW_APPS_HINT_GAP + NEW_APPS_HINT_LINE
 

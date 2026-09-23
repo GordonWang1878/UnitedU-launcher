@@ -105,7 +105,7 @@ class GtvGlowTest {
         // 撑开行距」这件事钉在 R28 自己的测试里,以后有人改柔光时先撞到这一条)
         // R48 去掉行标题带(32.5 dp)后、R51 行距 8 → 40 后的值
         assertEquals(140.0625f, GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = false), 0.0001f)
-        assertEquals(164.0625f, GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = true), 0.0001f)
+        assertEquals(168.365625f, GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = true), 0.0001f)   // ui-pending #9 起标题间距 = 聚焦溢出
         assertEquals(-280.125f, GtvLayout.rowShiftY(2, GtvCardSize.MEDIUM, showTitles = false), 0.0001f)
         for (size in GtvCardSize.values()) {
             assertEquals(

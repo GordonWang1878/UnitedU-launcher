@@ -149,7 +149,8 @@ object Theme {
         // 「不会碰到下一行卡片的描边留白带」断言的就是这条);R28 的柔光更是纯绘制、不在任何预算里。
         // 数值沿用 content card 时代的 FOCUS_OUTSET + FOCUS_STROKE 只是为了不动 rowPitch(Round 4 要求)。
         rowVerticalPad = (GtvLayout.FOCUS_OUTSET + GtvLayout.FOCUS_STROKE).dp,
-        titleGap = GtvLayout.CARD_TITLE_GAP.dp,
+        // ui-pending #9:标题让到聚焦描边外缘之下(随档位变),见 GtvLayout.cardTitleGap
+        titleGap = GtvLayout.cardTitleGap(size).dp,
         titleLine = GtvLayout.CARD_TITLE_LINE.dp,
         titleSize = 14.sp,
     )
