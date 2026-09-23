@@ -204,7 +204,7 @@
     <string name="about_net_failed">Couldn\'t check for updates, try again later</string>
     <string name="about_bad_json">Couldn\'t read the update information</string>
     <string name="about_license_title">Licenses</string>
-    <string name="about_license">UnitedU is released under Apache-2.0. Third-party: Google Sans Flex (OFL 1.1), Material Icons (Apache-2.0), NanoHTTPD (BSD-3-Clause), ZXing (Apache-2.0). Built-in wallpapers are procedurally generated.</string>
+    <string name="about_license">UnitedU is released under Apache-2.0. Third-party: Google Sans Flex (OFL 1.1), Material Icons (Apache-2.0), NanoHTTPD (BSD-3-Clause), ZXing (Apache-2.0).</string>
     <string name="about_repo">Project: github.com/GordonWang1878/UnitedU-launcher</string>
     <!-- onb_* : first-run guide (T10, spec §8); step 1 language buttons reuse settings_lang_* -->
     <string name="onb_step1_title">Choose a language</string>
