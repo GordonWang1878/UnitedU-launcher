@@ -33,6 +33,10 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -1167,6 +1171,12 @@ private fun PickerRow(
 ) {
     var focused by remember { mutableStateOf(false) }
     val highlight = LocalThemeColors.current.highlight
+    val ctx = LocalContext.current
+    // 应用图标(第二轮交互测试):IO 线程读、Apps 里有进程内缓存;初值取缓存,滚回来的项首帧就有图。
+    // 只是显示,不参与焦点(逐项 requester / 上报照旧挂在外层 Column 上)。
+    val icon by produceState(Apps.cachedSmallIcon(app.packageName), app.packageName) {
+        value = withContext(Dispatchers.IO) { Apps.smallIcon(ctx, app.packageName) }
+    }
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -1191,6 +1201,17 @@ private fun PickerRow(
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // 读不到图标时留同样大小的空位,名字仍然左对齐成一列。
+            val bmp = icon
+            if (bmp != null) {
+                androidx.compose.foundation.Image(
+                    bitmap = bmp.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier.size(PICKER_ICON_SIZE),
+                )
+            } else {
+                Spacer(Modifier.size(PICKER_ICON_SIZE))
+            }
             BasicText(
                 text = app.label.ifBlank { app.packageName },
                 // weight(fill = false):名字很长时先挤自己(换行),不把「新」标推出对话框右边缘;
@@ -1206,10 +1227,15 @@ private fun PickerRow(
         }
         BasicText(
             text = app.packageName,
+            // 与上一行的名字对齐:缩进 = 图标宽 + 图标与名字的间距。
+            modifier = Modifier.padding(start = PICKER_ICON_SIZE + 8.dp),
             style = TextStyle(fontFamily = Theme.Sans, color = Theme.FootnoteText, fontSize = 10.sp),
         )
     }
 }
+
+/** 「添加应用」列表每项左边的应用图标边长。 */
+private val PICKER_ICON_SIZE = 24.dp
 
 /**
  * 可添加的应用。用 `includeAllInstalled` 按已安装包全量补齐,好让当贝音乐这类

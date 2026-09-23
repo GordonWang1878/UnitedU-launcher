@@ -203,6 +203,32 @@ object Apps {
         return runCatching { Bitmap.createScaledBitmap(src, w, h, true) }.getOrDefault(src)
     }
 
+    /**
+     * 「添加应用」列表每项左边的小图标(交互测试 2026-09-23 第二轮):应用图标(方形,不是卡片用的横幅),
+     * 画成 [SMALL_ICON_PX] 见方的位图。进程内 LRU 缓存,key 带 `lastUpdateTime`——应用更新换了图标,
+     * 旧条目自然不再命中。读不到(包正被替换、没有图标)返回 null,调用方留空位。**IO 线程调用**。
+     */
+    fun smallIcon(ctx: Context, pkg: String): Bitmap? {
+        val pm = ctx.packageManager
+        val stamp = runCatching { pm.getPackageInfo(pkg, 0).lastUpdateTime }.getOrNull() ?: return null
+        val key = "$pkg@$stamp"
+        smallIcons.get(key)?.let { return it }
+        return runCatching {
+            val d = pm.getApplicationIcon(pkg)
+            Bitmap.createBitmap(SMALL_ICON_PX, SMALL_ICON_PX, Bitmap.Config.ARGB_8888).also {
+                val c = Canvas(it); d.setBounds(0, 0, SMALL_ICON_PX, SMALL_ICON_PX); d.draw(c)
+            }
+        }.getOrNull()?.also { smallIcons.put(key, it) }
+    }
+
+    /** 缓存里已有的小图标(主线程可调,不碰 PackageManager):列表滚回来时首帧就有图,不闪空位。 */
+    fun cachedSmallIcon(pkg: String): Bitmap? =
+        smallIcons.snapshot().entries.firstOrNull { it.key.startsWith("$pkg@") }?.value
+
+    private const val SMALL_ICON_PX = 72
+    /** 72×72×4 ≈ 20 KB 一张,128 张 ≈ 2.6 MB;选择器候选一般 50 个上下。 */
+    private val smallIcons = android.util.LruCache<String, Bitmap>(128)
+
     fun originalIcon(ctx: Context, pkg: String): Bitmap? = runCatching {
         val pm = ctx.packageManager
         val info = pm.getApplicationInfo(pkg, 0)
