@@ -47,9 +47,9 @@ class SettingsModelTest {
 
     @Test fun rowCountsPerGroup() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
-        // 通用 6 + 动画缩放条件行(默认 UNKNOWN = 读不到 → 出「查看」)/ 布局 3 /
-        // 外观 2 动作 + 3 壁纸控件 + 2 主题(主题化卡片 R58 删掉)/ 屏保 2 控件 + 2 动作
-        assertEquals(listOf(7, 3, 7, 4), g.map { it.rows.size })
+        // 通用 7(R60 手机传输挪进来)+ 动画缩放条件行(默认 UNKNOWN = 读不到 → 出「查看」)/ 布局 3 /
+        // 外观 1 动作 + 3 壁纸控件 + 2 主题(主题化卡片 R58 删掉)/ 屏保 2 控件 + 2 动作
+        assertEquals(listOf(8, 3, 6, 4), g.map { it.rows.size })
     }
 
     @Test fun rowIdsAreUnique() {
@@ -63,21 +63,31 @@ class SettingsModelTest {
         assertTrue(g.all { it.rows.size <= 8 })
     }
 
-    @Test fun appearanceGroupStartsWithTwoActionRows() {
+    @Test fun appearanceGroupStartsWithOneActionRow() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
         val appearance = g.first { it.id == GroupId.APPEARANCE }.rows
         assertTrue(appearance[0] is ActionRow)
-        assertTrue(appearance[1] is ActionRow)
-        assertTrue(appearance.drop(2).all { it is ControlRow })
+        assertTrue(appearance.drop(1).all { it is ControlRow })
     }
 
-    /** R57:通用组的行序——语言、默认桌面、待机两行、时钟显示紧跟待机显示、恢复默认收尾。 */
+    /** R57:通用组的行序——语言、默认桌面、手机传输(R60)、待机两行、时钟显示紧跟待机显示、恢复默认收尾。 */
     @Test fun generalGroupRowOrder() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages, system = allNormal)
         assertEquals(
-            listOf("language", "setDefaultHome", "idleAfter", "idleContent", "clockDisplay", "restoreDefaults"),
+            listOf("language", "setDefaultHome", "openImport", "idleAfter", "idleContent", "clockDisplay", "restoreDefaults"),
             g.first { it.id == GroupId.GENERAL }.rows.map { it.id },
         )
+    }
+
+    /** R60:「导入图片」改名「手机传输」、挪到通用组,打开的仍是扫码页。 */
+    @Test fun phoneTransferRowInGeneral() {
+        val r = Recorder()
+        val g = settingsGroups(Settings(), {}, r.actions, someImages)
+        val row = g.first { it.id == GroupId.GENERAL }.rows.first { it.id == "openImport" } as ActionRow
+        assertEquals(R.string.settings_phone_transfer, row.labelRes)
+        assertEquals(R.string.settings_phone_transfer_desc, row.hintRes)
+        row.onActivate()
+        assertEquals(listOf("openImport"), r.fired)
     }
 
     /** R57:外观组 = 原壁纸组 + 原主题组。 */
@@ -85,7 +95,7 @@ class SettingsModelTest {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
         assertEquals(
             listOf(
-                "pickWallpaper", "openImport", "wallpaperRotate", "wallpaperBlur", "wallpaperBrightness",
+                "pickWallpaper", "wallpaperRotate", "wallpaperBlur", "wallpaperBrightness",
                 "themeColor", "followWallpaper",
             ),
             g.first { it.id == GroupId.APPEARANCE }.rows.map { it.id },

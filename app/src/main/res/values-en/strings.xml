@@ -45,8 +45,9 @@
     <string name="toast_title_not_saved">Could not save the title</string>
     <string name="toast_uninstall_failed">Could not open the system uninstall page</string>
     <string name="toast_remove_failed">Card not found — it may have just been removed</string>
-    <string name="menu_import">Import Images</string>
-    <string name="menu_import_desc">Scan a QR code to upload wallpapers, card images, screensavers</string>
+    <!-- R60(2026-09-23):原「导入图片」改名「手机传输」,从外观组挪到通用组;扫码页本身不变 -->
+    <string name="settings_phone_transfer">Phone Transfer</string>
+    <string name="settings_phone_transfer_desc">Upload wallpapers, card &amp; screensaver images, or an APK by phone</string>
     <!-- import_* : Import Images page (TV side) -->
     <string name="import_title">Import images from your phone</string>
     <string name="import_received">%1$d file(s) received</string>

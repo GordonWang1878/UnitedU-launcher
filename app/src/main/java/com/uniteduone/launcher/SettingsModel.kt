@@ -178,6 +178,11 @@ fun settingsGroups(
                 ActionRow("setDefaultHome", R.string.menu_set_default_home, R.string.menu_set_default_home_desc) {
                     actions.setDefaultHome()
                 },
+                // R60(2026-09-23 傍晚,Gordon 定):原外观组「导入图片」改名「手机传输」挪到这里——手机传的不只是
+                // 壁纸,还有卡片图、屏保图片和 APK,放在「外观」里名不副实。打开的仍是同一个扫码页(openImport)。
+                ActionRow("openImport", R.string.settings_phone_transfer, R.string.settings_phone_transfer_desc) {
+                    actions.openImport()
+                },
                 ControlRow(
                     id = "idleAfter", labelRes = R.string.settings_idle_after,
                     kind = CtrlKind.SEGMENTED,
@@ -261,16 +266,13 @@ fun settingsGroups(
                 } else null,
             ),
         ),
-        // R57:原「壁纸」「主题」两组合成「外观」:先壁纸(换 / 导入 / 调),再主题色。
+        // R57:原「壁纸」「主题」两组合成「外观」:先壁纸(换 / 调),再主题色。
         GroupSpec(
             GroupId.APPEARANCE, R.string.settings_group_appearance,
             listOf(
-                // 两条动作行从齿轮菜单搬进来(spec §1):菜单只剩四项,壁纸相关的事都在这一组里(R57 起叫「外观」)。
+                // 从齿轮菜单搬进来的动作行(spec §1)。原来还有一条「导入图片」,R60 改名「手机传输」挪到「通用」组。
                 ActionRow("pickWallpaper", R.string.menu_wallpaper, R.string.menu_wallpaper_desc) {
                     actions.pickWallpaper()
-                },
-                ActionRow("openImport", R.string.menu_import, R.string.menu_import_desc) {
-                    actions.openImport()
                 },
                 ControlRow(
                     id = "wallpaperRotate", labelRes = R.string.settings_wallpaper_rotate,
