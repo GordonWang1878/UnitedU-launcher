@@ -4,11 +4,8 @@
 
     <!-- menu_* : 齒輪選單與選單項 -->
     <string name="menu_settings_title">設定</string>
-    <string name="menu_back_to_close">按返回鍵關閉</string>
     <string name="menu_edit">編輯分欄</string>
     <string name="menu_edit_desc">新增或移除應用程式、調整順序、換卡片圖</string>
-    <string name="menu_settings">UnitedU 設定</string>
-    <string name="menu_settings_desc">通用、版面、外觀、螢幕保護程式</string>
     <string name="menu_wallpaper">換桌布</string>
     <string name="menu_wallpaper_desc">選一張圖片取代背景</string>
     <string name="menu_system_settings">系統設定</string>
@@ -101,7 +98,6 @@
     <string name="home_settings_current_label">目前</string>
     <string name="home_settings_change_button">在系統設定中變更</string>
     <string name="home_settings_note">Android 要求預設桌面須在系統設定裡切換。</string>
-    <string name="home_back_to_close">按返回鍵關閉</string>
     <string name="home_settings_unknown">未知</string>
 
     <!-- picker_* : 桌布/卡片圖/螢幕保護程式圖庫選擇器 -->
@@ -121,7 +117,6 @@
     <string name="pool_delete_ok">刪除</string>
 
     <!-- settings_* : UnitedU 設定頁(分組帶標題) -->
-    <string name="settings_title">UnitedU 設定</string>
     <!-- R57(2026-09-23):设置页左栏四组 通用 / 布局 / 外观 / 屏保 -->
     <string name="settings_group_general">通用</string>
     <string name="settings_group_layout">版面</string>

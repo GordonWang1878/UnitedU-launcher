@@ -57,31 +57,31 @@
 
 **Files:** `Settings.kt`、`SettingsModel.kt`、`ShellModel.kt`(新)、`AppCard.kt`、`GearMenu.kt`、`MainActivity.kt`(只加 `LocalCardFade` 提供与 `openEdit` 接线)、`SettingsScreen.kt`(只是让新行在旧界面里也能画)、三套 strings;测试 `SettingsTest`、`SettingsModelTest`、`ShellModelTest`(新)、`GtvGlowTest`。
 
-- [ ] Settings:两个新字段、解析夹取、`toJson`;测试缺键 = 30/75、夹取 / 取整、往返。
-- [ ] `CardFade` 数据类 + `cardFadeMatrix(fade)`;`Modifier.gtvCardFade(fade)` 改 Node;`LocalCardFade`;AppCard / GearMenu banner 读它。
-- [ ] SettingsModel:布局组首行 `editLayout`(动作行 → `actions.openEdit`);外观组末尾两条滑块 `cardSaturation` / `cardBrightness`;`ControlRow` 加 `write`(纯函数,`onSelect` 由它派生),`optionWrite(id)` 表;壁纸两条滑块改名「壁纸模糊 / 壁纸亮度」。
-- [ ] ShellModel:页 id、栈操作、编解码、`defaultFocus`、`optionOrder`(卡片大小显示成 小 / 中 / 大)、`effectiveSettings`、`sliderStep`、`sliderText`、`capsuleGap`、`previewRect`、第一层条目表。
-- [ ] 构建 + 单测 → commit「settings-shell phase 1」。
+- [x] Settings:两个新字段、解析夹取、`toJson`;测试缺键 = 30/75、夹取 / 取整、往返。
+- [x] `CardFade` 数据类 + `cardFadeMatrix(fade)`;`Modifier.gtvCardFade(fade)` 改 Node;`LocalCardFade`;AppCard / GearMenu banner 读它。
+- [x] SettingsModel:布局组首行 `editLayout`(动作行 → `actions.openEdit`);外观组末尾两条滑块 `cardSaturation` / `cardBrightness`;`ControlRow` 加 `write`(纯函数,`onSelect` 由它派生),`optionWrite(id)` 表;壁纸两条滑块改名「壁纸模糊 / 壁纸亮度」。
+- [x] ShellModel:页 id、栈操作、编解码、`defaultFocus`、`optionOrder`(卡片大小显示成 小 / 中 / 大)、`effectiveSettings`、`sliderStep`、`sliderText`、`capsuleGap`、`previewRect`、第一层条目表。
+- [x] 构建 + 单测 → commit「settings-shell phase 1」。
 
 ## Phase 2:外壳本体 + 路由 + 预览层
 
 **Files:** `ShellCapsule.kt`(新:从 GearMenu 抽出的 `MenuPill` + 值 / ✓ / › / 滑块形态)、`SettingsShell.kt`(新:`CapsuleColumn`、`ShellScaffold`、各页)、`MainActivity.kt`、`HomeScreen.kt`(删齿轮菜单那层)、`GearMenu.kt`(改用共享 `MenuPill`,删 `showHints`)、删 `SettingsScreen.kt`、`HomeSettingsCard.kt` 只留 `rememberCurrentHome` / `CurrentHomeRow`;strings。
 
-- [ ] `MenuPill` 抽出,GearMenu 单行外观像素级不变。
-- [ ] `CapsuleColumn`(见架构 B)、`ShellScaffold`(左右 1:1)。
-- [ ] 页:第一层(6 颗两行胶囊,缺省焦点「布局」)、四个分组页、选项层、默认桌面页、恢复默认确认页。
-- [ ] MainActivity:`shellStack` 取代 `settings` / `settingsPos` / `confirmRestore` / `settingsReloadNonce` / `menuOpen` / `demoIdle`;齿轮药丸与 MENU 键打开第一层;预览层 `graphicsLayer`;`effectiveSettings`;壁纸参数防抖挪到这里;Bundle 编码栈;HOME 全收(含从设置里打开的选择器)。
-- [ ] 构建 + 单测 → commit。
+- [x] `MenuPill` 抽出,GearMenu 单行外观像素级不变。
+- [x] `CapsuleColumn`(见架构 B)、`ShellScaffold`(左右 1:1)。
+- [x] 页:第一层(6 颗两行胶囊,缺省焦点「布局」)、四个分组页、选项层、默认桌面页、恢复默认确认页。
+- [x] MainActivity:`shellStack` 取代 `settings` / `settingsPos` / `confirmRestore` / `settingsReloadNonce` / `menuOpen` / `demoIdle`;齿轮药丸与 MENU 键打开第一层;预览层 `graphicsLayer`;`effectiveSettings`;壁纸参数防抖挪到这里;Bundle 编码栈;HOME 全收(含从设置里打开的选择器)。
+- [x] 构建 + 单测 → commit。
 
 ## Phase 3:关于页换壳
 
-- [ ] `AboutScreen` 改用 `ShellScaffold` + 单颗胶囊的 `CapsuleColumn`;状态机 `AboutController` 不动;返回键语义不变(下载中 = 取消下载)。
-- [ ] 构建 + 单测 → commit。
+- [x] `AboutScreen` 改用 `ShellScaffold` + 单颗胶囊的 `CapsuleColumn`;状态机 `AboutController` 不动;返回键语义不变(下载中 = 取消下载)。
+- [x] 构建 + 单测 → commit。
 
 ## Phase 4:验证 + 文档
 
-- [ ] 模拟器 5556 逐层截图(中英两套第一层 + 布局层,卡片大小第三层光标在「大」,外观滑块聚焦,关于,恢复默认确认,默认桌面),拼 `docs/screenshots/settings-shell-implemented.jpg`。
-- [ ] 焦点回归清单(派单「验证」一节逐条),读 settings.json 断言预览不写盘、确定才写。
-- [ ] CLAUDE.md 焦点责任表:删「设置页两栏」「确认框(恢复默认)」,改「齿轮菜单 / 长按卡片菜单」「关于页」「图片选择器」,加外壳各层。
-- [ ] spec §6 / §8 / §12 补 R69 起的裁定,删除线标注被推翻的旧设置页结构。
-- [ ] 模拟器还原 → commit。
+- [x] 模拟器 5556 逐层截图(中英两套第一层 + 布局层,卡片大小第三层光标在「大」,外观滑块聚焦,关于,恢复默认确认,默认桌面),拼 `docs/screenshots/settings-shell-implemented.jpg`。
+- [x] 焦点回归清单(派单「验证」一节逐条),读 settings.json 断言预览不写盘、确定才写。
+- [x] CLAUDE.md 焦点责任表:删「设置页两栏」「确认框(恢复默认)」,改「齿轮菜单 / 长按卡片菜单」「关于页」「图片选择器」,加外壳各层。
+- [x] spec §6 / §8 / §12 补 R69 起的裁定,删除线标注被推翻的旧设置页结构。
+- [x] 模拟器还原 → commit。

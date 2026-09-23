@@ -470,8 +470,11 @@ private fun optionLabel(row: ControlRow, i: Int): String {
     return if (arg != null) stringResource(res, arg) else stringResource(res)
 }
 
-/** 跳安卓原生设置页的动作行:不进外壳的下一层,右端不画 ›(Gordon 定案第 1 条的例外)。 */
-private val JUMP_ROWS = setOf("systemScreensaver", "systemAnimationScale")
+/**
+ * 右端不画 › 的动作行:跳安卓原生设置页的(不进外壳的下一层,Gordon 定案第 1 条的例外),
+ * 以及按下去当场生效、不打开任何界面的(「恢复隐藏的输入源」)。› 只表示「会进到另一个界面」。
+ */
+private val JUMP_ROWS = setOf("systemScreensaver", "systemAnimationScale", "restoreHiddenInputs")
 
 /** 分组页的一颗胶囊。 */
 @Composable

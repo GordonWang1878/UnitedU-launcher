@@ -4,10 +4,8 @@
 
     <!-- menu_* : gear menu and its items -->
     <string name="menu_settings_title">Settings</string>
-    <string name="menu_back_to_close">Press Back to close</string>
     <string name="menu_edit">Edit Rows</string>
     <string name="menu_edit_desc">Add, remove, reorder apps, or change card art</string>
-    <string name="menu_settings">UnitedU Settings</string>
     <!-- Fix 5 (final review, 2026-09-20): the old forced line break was tuned for the pre-Task-8 dialog
          row, where the focus indicator bar narrowed the text column (521px unfocused vs 515px focused
          width at 11sp DM Sans) and an uneven wrap made the whole menu jump height on focus. The Task 8
@@ -16,7 +14,6 @@
          Compose choose the break point at the current width/size (12sp, roughly a 220dp column) fits
          this on two lines with no truncation; the forced break no longer did, once Task 8 narrowed
          the column. -->
-    <string name="menu_settings_desc">General, layout, appearance and screensaver</string>
     <string name="menu_wallpaper">Change Wallpaper</string>
     <string name="menu_wallpaper_desc">Pick an image to replace the background</string>
     <string name="menu_system_settings">System Settings</string>
@@ -109,7 +106,6 @@
     <string name="home_settings_current_label">Current</string>
     <string name="home_settings_change_button">Change in System Settings</string>
     <string name="home_settings_note">Android requires switching the default home screen in System Settings.</string>
-    <string name="home_back_to_close">Press Back to close</string>
     <string name="home_settings_unknown">Unknown</string>
 
     <!-- picker_* : wallpaper / card-image / screensaver pickers -->
@@ -129,7 +125,6 @@
     <string name="pool_delete_ok">Delete</string>
 
     <!-- settings_* : UnitedU settings page (grouped) -->
-    <string name="settings_title">UnitedU Settings</string>
     <!-- R57(2026-09-23):设置页左栏四组 通用 / 布局 / 外观 / 屏保 -->
     <string name="settings_group_general">General</string>
     <string name="settings_group_layout">Layout</string>
