@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -331,21 +332,17 @@ class AboutController(
 }
 
 /**
- * 关于页(spec §7.1):应用名 + 版本、「检查更新」按钮、许可声明短文、项目地址。
- * 一屏放下,**不滚动**(铁律 1);`notes` 最多四行,超出省略。
+ * 关于页(spec §7.1;R74 起换成设置页外壳的样子):左边标题 + 版本 + 检查结果 + 许可声明 + 项目地址,
+ * 右边一颗胶囊(检查更新 / 下载并安装 / 安装更新 / 忙碌态的进度文字)。一屏放下,**不滚动**(铁律 1);
+ * `notes` 最多四行,超出省略。
  *
- * 焦点账本(与 ImportScreen 同一手法):
- * - **唯一可聚焦节点是那颗按钮**,上下左右全锁 `Cancel`,没有任何方向能移出去;
- * - 焦点落没落下只信按钮自报的 `focused`(铁律 2/4);守卫 `focused` 同时是 key(铁律 6):
- *   焦点若因任何原因丢了,`focused` 变 false → 效果以新 key 重启 → 重新请求;
- *   `nonce` 变化(从别的应用回来)同理。本页自己负责自己的焦点恢复(铁律 3),
- *   首页看门狗此时因 `previewing` 让路;
- * - **按钮永远 `clickable(enabled = true)`**:忙碌态靠 [AboutState.action] = NONE 吞掉点击。
- *   若写成 `enabled = false`,`clickable` 会撤掉自己的可聚焦节点——它正是持有焦点的唯一节点,
- *   焦点当场被清掉(与 `MainActivity.dispatchKeyEvent` KDoc 里 `canFocus = !idle` 那次是
- *   同一个坑),而且清掉之后请求循环也落不下,遥控器全死。
+ * 焦点账本 = 外壳同一个 [CapsuleColumn](一颗胶囊):初始焦点循环只信自报、`nonce` 变化(从别的应用回来)重来一轮、
+ * `holder == null` 看门狗兜底、`ON_PAUSE` 冻结;上下左右都锁 `Cancel`。本页自己负责自己的焦点(铁律 3),
+ * 底下的外壳因 `covered` 让路,关掉后外壳把焦点接回第一层「关于」那颗胶囊。
+ * **胶囊永远可点**:忙碌态靠 [AboutState.action] = NONE 吞掉点击。若撤掉可聚焦性,它正是持有焦点的唯一节点,
+ * 焦点当场被清掉(与 `MainActivity.dispatchKeyEvent` KDoc 里 `canFocus = !idle` 那次是同一个坑)。
  *
- * 按钮按 [AboutState.action] 分派:CHECK → [onCheck],DOWNLOAD → [onDownload](下载 + 校验 + 安装),
+ * 胶囊按 [AboutState.action] 分派:CHECK → [onCheck],DOWNLOAD → [onDownload](下载 + 校验 + 安装),
  * INSTALL → [onInstall](把已校验的文件交给安装器)。
  * [onBack] 是返回键:由调用方决定「取消下载」还是「关页」(见 [AboutController.cancelIfBusy])。
  */
@@ -361,161 +358,108 @@ fun AboutScreen(
     onBack: () -> Unit,
     nonce: Int,
 ) {
-    val fr = remember { FocusRequester() }
-    var focused by remember { mutableStateOf(false) }
     val highlight = LocalThemeColors.current.highlight
 
     androidx.activity.compose.BackHandler { onBack() }
 
-    LaunchedEffect(nonce, focused) {
-        if (focused) return@LaunchedEffect
-        var frames = 0
-        while (!focused && frames < 60) {
-            withFrameNanos { }
-            runCatching { fr.requestFocus() }
-            frames++
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .focusGroup()
-            .background(Color.Black.copy(alpha = 0.72f)),
-        // **顶端对齐、固定上边距,不居中**:结果区(新版本 / notes / 失败原因)出现时面板会变高,
-        // 居中的话整块上移,持有焦点的按钮跟着跳一截。顶端固定后只往下长,按钮纹丝不动。
-        // 80dp 的余量按最高的状态算过:结局行 + 四行 notes + 三行英文许可声明,底边仍在 540dp 以内。
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(top = 80.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(Theme.DialogSurface)
-                .width(560.dp)
-                .padding(horizontal = 32.dp, vertical = 26.dp),
-        ) {
-            BasicText(
-                text = stringResource(R.string.about_title),
-                style = TextStyle(
-                    fontFamily = Theme.Sans,
-                    fontWeight = FontWeight.Medium,
-                    color = highlight,
-                    fontSize = 16.sp,
-                    letterSpacing = 1.sp,
-                ),
-            )
-            Spacer(Modifier.height(6.dp))
-            BasicText(
-                text = stringResource(R.string.about_version, versionName, versionCode),
-                style = TextStyle(fontFamily = Theme.Sans, color = Theme.EmphasisText, fontSize = 15.sp),
-            )
-
-            Spacer(Modifier.height(20.dp))
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (focused) highlight.copy(alpha = 0.16f) else Theme.UnfocusedSurface)
-                    .then(
-                        if (focused) Modifier.border(
-                            BorderStroke(1.dp, highlight.copy(alpha = 0.7f)),
-                            RoundedCornerShape(10.dp),
-                        ) else Modifier,
-                    )
-                    .focusRequester(fr)
-                    .focusProperties {
-                        up = FocusRequester.Cancel; down = FocusRequester.Cancel
-                        left = FocusRequester.Cancel; right = FocusRequester.Cancel
-                    }
-                    .onFocusChanged { focused = it.isFocused }
-                    .clickable {
-                        when (state.action) {
-                            AboutAction.CHECK -> onCheck()
-                            AboutAction.DOWNLOAD -> onDownload()
-                            AboutAction.INSTALL -> onInstall()
-                            AboutAction.NONE -> Unit
+    val items = listOf(
+        Capsule(
+            id = ShellPages.ABOUT,
+            label = buttonLabel(state),
+            onClick = {
+                when (state.action) {
+                    AboutAction.CHECK -> onCheck()
+                    AboutAction.DOWNLOAD -> onDownload()
+                    AboutAction.INSTALL -> onInstall()
+                    AboutAction.NONE -> Unit
+                }
+            },
+        ),
+    )
+    // 本页叠在外壳之上:自己铺一层不透明的 MenuBg,否则底下外壳的胶囊会透出来。
+    Box(Modifier.fillMaxSize().background(GtvTokens.MenuBg)) {
+        ShellScaffold(
+            left = {
+                ShellTitle(
+                    path = stringResource(R.string.menu_settings_title),
+                    title = stringResource(R.string.about_title),
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        BasicText(
+                            text = stringResource(R.string.about_version, versionName, versionCode),
+                            style = TextStyle(fontFamily = Theme.Sans, color = Theme.EmphasisText, fontSize = 15.sp),
+                        )
+                        // 结果区。第一行始终占位(空白态也留一行高),下面的许可声明不会因为「检查中 → 已是最新」上下跳。
+                        Spacer(Modifier.height(10.dp))
+                        val info = state.info
+                        val headline = headline(state)
+                        BasicText(
+                            text = headline?.first ?: "",
+                            style = TextStyle(
+                                fontFamily = Theme.Sans,
+                                fontWeight = FontWeight.Medium,
+                                color = headline?.second?.color(highlight) ?: Theme.EmphasisText,
+                                fontSize = 14.sp,
+                                textAlign = TextAlign.Center,
+                            ),
+                            modifier = Modifier.heightIn(min = 22.dp),
+                        )
+                        val outcome = outcome(state)
+                        if (outcome != null) {
+                            Spacer(Modifier.height(4.dp))
+                            BasicText(
+                                text = outcome.first,
+                                style = TextStyle(
+                                    fontFamily = Theme.Sans, color = outcome.second.color(highlight), fontSize = 13.sp,
+                                    textAlign = TextAlign.Center,
+                                ),
+                            )
                         }
+                        if (info != null && info.notes.isNotBlank()) {
+                            Spacer(Modifier.height(6.dp))
+                            BasicText(
+                                text = info.notes,
+                                style = TextStyle(
+                                    fontFamily = Theme.Sans,
+                                    color = Theme.SecondaryText,
+                                    fontSize = 12.sp,
+                                    lineHeight = 17.sp,
+                                    textAlign = TextAlign.Center,
+                                ),
+                                maxLines = 4,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        Spacer(Modifier.height(18.dp))
+                        BasicText(
+                            text = stringResource(R.string.about_license_title),
+                            style = TextStyle(
+                                fontFamily = Theme.Sans,
+                                fontWeight = FontWeight.Medium,
+                                color = Theme.HintText,
+                                fontSize = 11.sp,
+                            ),
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        BasicText(
+                            text = stringResource(R.string.about_license),
+                            style = TextStyle(
+                                fontFamily = Theme.Sans, color = Theme.FootnoteText, fontSize = 11.sp, lineHeight = 16.sp,
+                                textAlign = TextAlign.Center,
+                            ),
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        BasicText(
+                            text = stringResource(R.string.about_repo),
+                            style = TextStyle(fontFamily = Theme.Sans, color = Theme.FootnoteText, fontSize = 11.sp),
+                        )
                     }
-                    .padding(vertical = 14.dp, horizontal = 16.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                BasicText(
-                    text = buttonLabel(state),
-                    style = TextStyle(
-                        fontFamily = Theme.Sans,
-                        fontWeight = FontWeight.Medium,
-                        color = if (focused) highlight else Theme.ButtonText,
-                        fontSize = 14.sp,
-                    ),
-                )
-            }
-
-            // 结果区。第一行始终占位(空白态也留一行高;22dp 盖得住中文回落字体的行高),
-            // 下面的许可声明不会因为「检查中 → 已是最新」上下跳。
-            Spacer(Modifier.height(12.dp))
-            val info = state.info
-            val headline = headline(state)
-            BasicText(
-                text = headline?.first ?: "",
-                style = TextStyle(
-                    fontFamily = Theme.Sans,
-                    fontWeight = FontWeight.Medium,
-                    color = headline?.second?.color(highlight) ?: Theme.EmphasisText,
-                    fontSize = 14.sp,
-                ),
-                modifier = Modifier.heightIn(min = 22.dp),
-            )
-            val outcome = outcome(state)
-            if (outcome != null) {
-                Spacer(Modifier.height(4.dp))
-                BasicText(
-                    text = outcome.first,
-                    style = TextStyle(fontFamily = Theme.Sans, color = outcome.second.color(highlight), fontSize = 13.sp),
-                )
-            }
-            if (info != null && info.notes.isNotBlank()) {
-                Spacer(Modifier.height(6.dp))
-                BasicText(
-                    text = info.notes,
-                    style = TextStyle(
-                        fontFamily = Theme.Sans,
-                        color = Theme.SecondaryText,
-                        fontSize = 12.sp,
-                        lineHeight = 17.sp,
-                    ),
-                    maxLines = 4,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-
-            Spacer(Modifier.height(22.dp))
-            BasicText(
-                text = stringResource(R.string.about_license_title),
-                style = TextStyle(
-                    fontFamily = Theme.Sans,
-                    fontWeight = FontWeight.Medium,
-                    color = Theme.HintText,
-                    fontSize = 11.sp,
-                ),
-            )
-            Spacer(Modifier.height(4.dp))
-            BasicText(
-                text = stringResource(R.string.about_license),
-                style = TextStyle(fontFamily = Theme.Sans, color = Theme.FootnoteText, fontSize = 11.sp, lineHeight = 16.sp),
-            )
-            Spacer(Modifier.height(8.dp))
-            BasicText(
-                text = stringResource(R.string.about_repo),
-                style = TextStyle(fontFamily = Theme.Sans, color = Theme.FootnoteText, fontSize = 11.sp),
-            )
-            Spacer(Modifier.height(14.dp))
-            BasicText(
-                text = stringResource(R.string.menu_back_to_close),
-                style = TextStyle(fontFamily = Theme.Sans, color = Theme.FooterHintText, fontSize = 10.sp),
-            )
-        }
+                }
+            },
+            right = {
+                CapsuleColumn(items, target = ShellPages.ABOUT, onTarget = {}, nonce = nonce, covered = false)
+            },
+        )
     }
 }
 
