@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.sp
 
 /**
  * 首页:壁纸层 + hero 区(0–192dp,恒是壁纸,不叠任何时钟——84 sp 大字时钟已删,spec §2.3 B2)
- * + 锚定在 hero 区之下的卡片行 + 顶栏(gtv 线的 [GtvTopBar]:药丸组靠左 / 时钟字标靠右)。
+ * + 卡片行(R52:焦点行卡顶钉在屏幕下部的焦点线上,静止只露行 0)+ 顶栏(gtv 线的 [GtvTopBar]:药丸组靠左 / 时钟字标靠右)。
  * 待机由 [MainActivity] 通过 [idle] 传进来,内容由 [idleContent] 定(Task 3),驱动这里的两个
  * 淡出动画——`contentAlpha`(卡片行 / 渐变 / 顶栏药丸组 / 「新应用」提示)与 `topBarClockAlpha`
  * (顶栏的时钟 + 字标,单独判断,见该 val 自己的注释):
@@ -338,28 +338,19 @@ fun HomeScreen(
     // 数值上与写 -1 完全等价,只是不再需要一个没人读的哨兵值。
     var activeRow by remember { mutableStateOf(0) }
 
-    // 垂直位置自己算,不用 verticalScroll(铁律 1)。gtv 线:hero 区固定 192dp + 顶栏 34+36dp(spec §3/§4),
-    // 应用行顶部起点是这三个常量之和(GtvLayout.ROWS_TOP),不再是「屏高 × 2/3」(HomeLayout.anchorTop
-    // 那套比例锚点,main 线仍用)。
+    // 垂直位置自己算,不用 verticalScroll(铁律 1)。
     val activeRowSafe = activeRow.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
-    val anchorTop = GtvLayout.ROWS_TOP.dp
-    // Ruling R42(owner 真机反馈 2026-09-22,覆盖 R32 的锚点规则):整页位移改为**最小位移、粘性**——
-    // 焦点行本来完整可见就不动,要出底边才上移、只移到刚好露全;往上走时要出顶边才下移;回行 0 归 0。
-    // 目标由上一次的目标出发算最小修正(GtvLayout.nextPageShiftY),所以要记住上一次的值。
-    // **不用 LaunchedEffect**(铁律 6/7):在组合里按 remember 的 key 同步派生;`lastShiftTarget`
-    // 是普通字段、不是 Compose 状态,只在派生时读写,不触发任何重组,也不是守卫。
-    // 冻结规则与 R32 相同:目标只跟 activeRowSafe 走,activeRow 只在卡片 / 药丸真的拿到焦点时改写,
-    // 浮层 / ON_PAUSE 期间焦点离开卡片不改它,位移随之不动。
+    // Ruling R52(owner 2026-09-23,推翻 R42 的最小位移):固定焦点线。行 0 静止卡顶 = 焦点线
+    // (GtvLayout.focusLineCardTop,屏幕下部,静止只露行 0);焦点在行 n 时整页上移 n × pitch,
+    // 焦点行卡顶恒在焦点线上,每换一行走一整行,上下对称。纯派生、无状态:目标只跟 activeRowSafe 走,
+    // activeRow 只在卡片 / 药丸真的拿到焦点时改写,浮层 / ON_PAUSE 期间焦点离开卡片不改它,位移随之不动
+    // (与 R32/R42 相同的冻结规则)。不进任何效果的 key 或守卫。
     val screenHeightDp = LocalConfiguration.current.screenHeightDp.toFloat()
-    val lastShiftTarget = remember { FloatArray(1) }
-    val shiftTarget = remember(activeRowSafe, rows.size, cardSize, showTitles, screenHeightDp) {
-        GtvLayout.nextPageShiftY(lastShiftTarget[0], activeRowSafe, rows.size, cardSize, showTitles, screenHeightDp)
-            .also { lastShiftTarget[0] = it }
-    }
+    val anchorTop = GtvLayout.rowsTop(cardSize, showTitles, screenHeightDp).dp
+    val shiftTarget = GtvLayout.rowShiftY(activeRowSafe, cardSize, showTitles)
     val shift by animateDpAsState(
-        // R32(已被 R42 覆盖):曾把行 1 及以下的卡顶一律钉到 GtvLayout.BROWSE_ROW_ANCHOR(120dp),
-        // owner 真机:「我才只往下移了一行……为什么整体全部堆到上面去了?」。hero 的空间仍是下面
-        // Column 的 padding(top)、在 offset 之内,随这个 shift 一起走(R32 的「整页位移」这一半保留)。
+        // R32 → R42 → R52:曾钉锚点 120dp(R32)、改最小位移(R42),现在是焦点线(R52)。hero 的空位
+        // (现在就是行 0 上方到顶栏之间的壁纸区)仍是下面 Column 的 padding(top)、在 offset 之内,随 shift 一起走。
         targetValue = shiftTarget.dp,
         // Ruling R29(owner 反馈 Round 8):换行时整块内容的纵向平移 = Google TV 的 browse 手势,
         // 逐帧实测是先加速后减速的临界阻尼弹簧(R27 的 tv_easing_browse 是纯硬减速,对不上),
@@ -608,7 +599,7 @@ fun HomeScreen(
                 // 框架的焦点恢复 —— 症状是「醒来后按确定永远没反应」。待机的唤醒改由
                 // MainActivity.dispatchKeyEvent 吞掉第一下按键来实现,焦点全程不动。
                 .focusProperties { canFocus = !covered }
-                // R32:offset 在 padding 之外——padding(top = ROWS_TOP)就是 hero 的空间,它必须
+                // R32:offset 在 padding 之外——padding(top = rowsTop,R52 焦点线)就是 hero 的空间,它必须
                 // 随 shift 一起走(整页位移),两者顺序不能对调。
                 .offset(y = shift)
                 .padding(top = anchorTop),
@@ -662,10 +653,10 @@ fun HomeScreen(
                         else -> tgtIdx.getOrElse(tgtRow) { 0 }
                     },
                     carried = if (moveTarget?.row == rowIndex) moveTarget.col else -1,
-                    // R30 + R42:焦点落到本行会不会让整页位移——看位移目标会不会变,不再看「是不是当前行」
-                    // (R42 下换行而位移不变是常态,那时放大不该等一个不存在的位移)。
+                    // R30 + R52:焦点落到本行会不会让整页位移——看位移目标会不会变。R52 下换行必位移,
+                    // 从顶栏落到行 0 不位移(两者位移都是 0),放大不该等一个不存在的位移。
                     landingShiftsPage = rowIndex != activeRowSafe &&
-                        GtvLayout.nextPageShiftY(shiftTarget, rowIndex, rows.size, cardSize, showTitles, screenHeightDp) != shiftTarget,
+                        GtvLayout.rowShiftY(rowIndex, cardSize, showTitles) != shiftTarget,
                     // R48:行图标近白 ⇔ 本行是焦点行。只读焦点账本、不写(见 iconFocusRow)。
                     isFocusRow = rowIndex == iconFocusRow,
                     onFocusChange = { idx, got ->
@@ -826,8 +817,8 @@ private fun CategoryRow(
     targetIndex: Int,
     /** 移动态里被搬的卡在本行第几列;-1 = 不在本行(或不在移动态)。 */
     carried: Int = -1,
-    /** R30 + R42:焦点落到本行会不会改变整页纵向位移的目标(HomeScreen 用 `nextPageShiftY` 预先算好)。
-     *  R42 起换行不一定位移(最小位移),所以不能再用「不是当前行」代替。 */
+    /** R30 + R52:焦点落到本行会不会改变整页纵向位移的目标(HomeScreen 用 `rowShiftY` 预先算好)。
+     *  R52 下换行必位移;从顶栏落到行 0 不位移,所以仍按「目标变不变」判,不只看「是不是当前行」。 */
     landingShiftsPage: Boolean,
     /** R48:本行是不是焦点行(焦点在本行卡片上);是则行图标近白,否则灰(不缩放)。 */
     isFocusRow: Boolean,

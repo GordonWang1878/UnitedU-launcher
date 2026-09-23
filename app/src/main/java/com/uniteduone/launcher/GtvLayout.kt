@@ -122,13 +122,6 @@ object GtvLayout {
      * 墨迹随之 19.5 → 16.5 dp。
      */
     const val ROW_ICON_SIZE = 22f
-    /**
-     * **Ruling R48**:hero 底到行 0 布局块顶之间保留的空白(dp)。效果图 A2 的说明是「卡片位置不动,
-     * 行距收紧 32dp」——行 0 的卡片仍在 R48 之前的位置(静止卡顶 301.5 dp),所以原来行 0 标题带
-     * (标题行盒 20 + 标题到卡 12.5 = 32.5 dp)那一段留作 hero 底边距;行与行之间的同一段则去掉,
-     * 每行 [rowPitch] 少 32.5 dp。
-     */
-    const val ROWS_LEAD = 32.5f
     /** Fix round 1(R15,2026-09-20):**125.5 dp 同样是 Google 用 Latin 量出来的行距,对中文标题不
      *  成立,不要试图凑回这个数。** 沿用它会把 `ROW_GAP` 推到约 −10dp(23+12.5+14+86.06−125.5≈−10),
      *  而 `rowVerticalPad`(上下各 7dp)是货真价实要留给外扩焦点描边的空间——那么负的 `ROW_GAP` 会让
@@ -715,142 +708,86 @@ object GtvLayout {
     fun rowPitch(size: GtvCardSize, showTitles: Boolean): Float =
         2f * (FOCUS_OUTSET + FOCUS_STROKE) + cardHeight(size) + titleHeight(showTitles) + ROW_GAP
 
-    /** **Ruling R32 之前**的首页纵向位移:只按行数累加 pitch,hero 的空间始终留着(行 0 静止在
-     *  hero 下方,切到行 1 时行 1 也落在同一个位置)。R32 起首页改读 [pageShiftY],这个函数保留给
-     *  单测与「每行再移一个 pitch」这一半的推导(pageShiftY 的 activeRow ≥ 1 分支就是它再加一段
-     *  常量);gtv 线目前没有别的调用点。 */
+    /** 首页整页纵向位移(dp,≤ 0):焦点在行 [activeRow] 时,装着全部行的那根 Column 的 `offset(y)`。
+     *  = −activeRow × [rowPitch],负值(顶栏)夹到 0。
+     *
+     *  **Ruling R52(2026-09-23)起首页就读它**(`HomeScreen` 的 `shiftTarget`):焦点行的卡顶恒在
+     *  [focusLineCardTop] 那条焦点线上,每换一行整页正好走一个 pitch,上移下移对称,没有粘性、不看
+     *  「放不放得下」——详见 [focusLineCardTop]。调用方先把 activeRow 夹到 `rows.size − 1` 以内。
+     *  (R32 之前它也是首页的位移,那时行 0 静止在 hero 下方;R32/R42 期间只剩单测在读。) */
     fun rowShiftY(activeRow: Int, size: GtvCardSize, showTitles: Boolean): Float =
         -activeRow.coerceAtLeast(0) * rowPitch(size, showTitles)
 
     /**
-     * **Ruling R32(2026-09-22,owner 真机反馈 Round 9)**:浏览态(焦点在行 1 及以下)焦点行钉住的
-     * 屏幕 y(dp)——量的是**焦点行的卡片布局框顶边**(未缩放的 a11y bounds 顶边,不是行标题顶),
-     * 出处 `docs/research/2026-09-20-google-tv-launcherx-measurements.md` §8b:launcherx 从
-     * 「Your apps」行起连按三次下键,焦点卡 a11y bounds 恒为 `[116,240][268,392]`,y = 240 px =
-     * **120 dp**,一次不差;`docs/screenshots/gtv/09-apps-row-focused.jpg` 可核——聚焦的「Live TV」
-     * 旁边未缩放的「YouTube」图块顶边正在 240 px,「Your apps」标题在它上面(约 130–185 px),
-     * 所以 240 是卡顶不是标题顶。
+     * **Ruling R32(2026-09-22,owner 真机反馈 Round 9)**:浏览态焦点行钉住的屏幕 y(dp),量的是焦点卡
+     * 布局框顶边。出处 `docs/research/2026-09-20-google-tv-launcherx-measurements.md` §8b:launcherx 从
+     * 「Your apps」行起连按三次下键,焦点卡 a11y bounds 恒为 `[116,240][268,392]`,y = 240 px = **120 dp**。
      *
-     * owner 原话:「我往下滑,页面整体往上滑(包括英雄区也是整体往上滑)」——此前只有行块按
-     * [rowPitch] 平移、hero 那 192 dp 的空间永远留着,每次只动 ~143 dp、像「一下一下」;现在
-     * 整个内容块(hero 顶到最后一行)按 [pageShiftY] 一起走,行 1 直接落到这条锚线上。
-     *
-     * 静止态(焦点在行 0 或顶栏)**不用这条锚**:行 0 仍在 hero 下方(见 [ROWS_TOP]),与现状一致。
-     * 顶栏按 R21 不折叠、不动(Google 会折叠,owner 明确说过不要)。
-     *
-     * **R32 当时的副作用(那时还有行标题;如实记录,不是 bug)**:锚在 120 dp、顶栏占 34–70 dp,
-     * 浏览态下焦点行的标题行盒落在 80.5–100.5 dp,与顶栏只隔 10.5 dp;上一行的卡片会有 65.5 dp
-     * 露在屏幕顶部、压在顶栏药丸下面(Google 只露约 20 dp,差别来自它的行标题区更高)。
-     *
-     * **R42(2026-09-22)起不再用于位移**:owner 裁定首页纵向改为最小位移([nextPageShiftY]),
-     * 焦点行不再被钉到这条锚线。常量保留作 Google 实测记录;R48 起首页也没有行标题了,上面两个数
-     * 只是 R32 的历史。现在上一行露出多少由最小位移决定——例:5 行中档无标题,从行 4 回到行 1 时
-     * 行 1 上沿贴 [TOP_SAFE],位移 −315.26,上一行卡片占屏幕 y −13.8…72.3 dp,卡底比顶栏底(70)
-     * 低 2.3 dp。
+     * **R42 起不再用于位移;R52 起首页也不用**(焦点线改在屏幕下部,见 [focusLineCardTop])。
+     * 只作 Google 实测记录保留,没有调用点。
      */
     const val BROWSE_ROW_ANCHOR = 120f
 
-    /** 行 0 布局块顶边(R48 之前是行标题顶边)在静止态的屏幕 y(dp)= 顶栏 + hero + [ROWS_LEAD]:`HomeScreen` 那根被位移的 Column
-     *  的 `padding(top)` 就是这个值(hero 的空间以 padding 的形式放在 Column **内**、`offset` 之外,
-     *  所以位移时 hero 跟着一起走——R32 要的「整页位移」靠的正是这个顺序,不要把 padding 挪到
-     *  offset 外面)。 */
-    const val ROWS_TOP = TOP_BAR_TOP + TOP_BAR_HEIGHT + HERO_HEIGHT + ROWS_LEAD
+    /** **Ruling R52**:焦点行「需要可见」区间的下沿(卡底 + 聚焦溢出 + 卡片标题)离屏幕物理底边的留白(dp)。 */
+    const val HOME_BOTTOM_MARGIN = 32f
+
+    /**
+     * **Ruling R52(2026-09-23,推翻 R42 的最小位移)**:首页焦点线——焦点行卡片布局框顶边的屏幕 y(dp)。
+     * owner 原话:「首页一上来默认只显示一行,而且刚好一行,整体位置要往下调。往下滑动的时候,再出动效
+     * 向上滑并显示第二行,再滑一次出第三行。」
+     *
+     * `= screenHeightDp − HOME_BOTTOM_MARGIN − (cardHeight + appFocusOverflow(cardHeight) + titleHeight)`,
+     * 即焦点行放大后的视觉下沿(含卡片标题)离屏幕底边恰好 [HOME_BOTTOM_MARGIN]。960×540、中档、无标题
+     * = 540 − 32 − (86.0625 + 8.303) = **413.63**。
+     *
+     * 规则:静止态(焦点在顶栏或行 0)行 0 卡顶 = 焦点线;焦点在行 n 时整页位移 [rowShiftY](n) = −n × pitch,
+     * 所以焦点行卡顶**恒在**焦点线上。每换一行都走一整行,上下对称,不粘性、不看放不放得下。
+     *
+     * 「恰好只露一行」不是另外凑的:行 1 静止卡顶 = 焦点线 + pitch
+     * = H − 32 − overflow − title + (14 + cardHeight + title + ROW_GAP) − cardHeight
+     * = H + 22 − overflow(与档位、卡片标题开关都无关;LARGE 的 overflow 最大 9.4)≥ H + 12.6,
+     * 恒在屏幕之外。前提是 `ROW_GAP + 14 − HOME_BOTTOM_MARGIN > overflow`——R51 把 ROW_GAP 改回 40 之后才
+     * 成立(8 的时候行 1 会露出 ~20 dp),两个常量要一起看(`GtvLayoutTest` 三档 × 标题开关钉住)。
+     *
+     * 屏高由调用方传入(`HomeScreen` 读 `LocalConfiguration.current.screenHeightDp`),本函数不含 Compose 类型。
+     */
+    fun focusLineCardTop(size: GtvCardSize, showTitles: Boolean, screenHeightDp: Float): Float =
+        screenHeightDp - HOME_BOTTOM_MARGIN -
+            (cardHeight(size) + appFocusOverflow(cardHeight(size)) + titleHeight(showTitles))
 
     /** 一行内部,从行布局块顶边到卡片布局框顶边的距离(dp):上侧描边留白
-     *  (`rowVerticalPad` = FOCUS_OUTSET + FOCUS_STROKE)。R48 之前还有标题行盒 + 标题到卡两段(共 39.5),
-     *  现在只剩 7;`ROWS_TOP` 多出的 [ROWS_LEAD] 让行 0 的静止卡顶仍是 301.5 dp。 */
+     *  (`rowVerticalPad` = FOCUS_OUTSET + FOCUS_STROKE)。 */
     const val ROW_CARD_TOP = FOCUS_OUTSET + FOCUS_STROKE
 
-    /** 行 [row] 的卡片布局框顶边在**静止态**(位移 0)的屏幕 y(dp)。 */
-    fun restCardTop(row: Int, size: GtvCardSize, showTitles: Boolean): Float =
-        ROWS_TOP + ROW_CARD_TOP + row.coerceAtLeast(0) * rowPitch(size, showTitles)
+    /** **R52**:行 0 布局块顶边在静止态的屏幕 y(dp)= 焦点线 − [ROW_CARD_TOP]。`HomeScreen` 那根被位移的
+     *  Column 的 `padding(top)` 就是这个值(padding 在 `offset` 之内,随整页位移一起走——R32 的顺序不变)。
+     *  取代 R48 的常量 `ROWS_TOP`(= 顶栏 + hero + `ROWS_LEAD`,行 0 卡顶 301.5)。 */
+    fun rowsTop(size: GtvCardSize, showTitles: Boolean, screenHeightDp: Float): Float =
+        focusLineCardTop(size, showTitles, screenHeightDp) - ROW_CARD_TOP
 
-    /**
-     * R32 的首页整页纵向位移(dp,≤ 0):`HomeScreen` 里装着 hero 空间与全部行的那根 Column 的
-     * `offset(y)`。
-     * - `activeRow ≤ 0`(焦点在行 0 或顶栏)→ 0:静止态,hero 露出,行 0 在 hero 下方。
-     * - `activeRow ≥ 1` → 让该行的卡顶落到 [BROWSE_ROW_ANCHOR]:`ANCHOR − restCardTop(activeRow)`,
-     *   即 `−(ROWS_TOP + ROW_CARD_TOP − ANCHOR) − activeRow × rowPitch`;行 1 一次走
-     *   ROWS_TOP + ROW_CARD_TOP − ANCHOR + pitch(中档不显示标题:181.5 + 108.0625 = 289.56;
-     *   R48 之前 pitch 是 140.5625,这一步是 322.06),
-     *   之后每行再走一个 pitch([rowShiftY] 那一半)。往上回到行 0 时整体复原、hero 重新露出。
-     *
-     * 与 [rowShiftX] 一样不含 Compose 类型,`GtvLayoutTest` 钉住三个行号的值。
-     *
-     * **R42 起首页不再读它**(owner 裁定改为最小位移,见 [nextPageShiftY]);留着只给单测与
-     * R32 的历史推导,不要再接回首页。
-     */
-    fun pageShiftY(activeRow: Int, size: GtvCardSize, showTitles: Boolean): Float =
-        if (activeRow <= 0) 0f else BROWSE_ROW_ANCHOR - restCardTop(activeRow, size, showTitles)
+    /** 行 [row] 的卡片布局框顶边在**静止态**(位移 0)的屏幕 y(dp)= 焦点线 + row × pitch(R52)。 */
+    fun restCardTop(row: Int, size: GtvCardSize, showTitles: Boolean, screenHeightDp: Float): Float =
+        focusLineCardTop(size, showTitles, screenHeightDp) + row.coerceAtLeast(0) * rowPitch(size, showTitles)
 
-    /** R42:可见窗口上界(dp)——顶栏底再留 16。R48 之前要露全的是焦点行的行标题行盒顶;R48 起没有
-     *  行标题,要露全的是焦点卡的**视觉**顶边(卡顶 − 聚焦放大与描边溢出,见 [restVisibleTop]),
-     *  数值不变。 */
-    const val TOP_SAFE = TOP_BAR_TOP + TOP_BAR_HEIGHT + 16f
-    /** R42:**需要上移时**下沿对齐的线离屏幕底边的留白(dp),取 [CONTENT_KEYLINE]——与 R20 横向右侧
-     *  留白对称。注意它**不是**「要不要动」的判据:判据是屏幕物理底边(见 [nextPageShiftY])。 */
-    const val BOTTOM_SAFE = CONTENT_KEYLINE
-
-    /** R42:行 [row] 在静止态(位移 0)「需要可见」区间的下沿(dp):卡底 + 聚焦放大与描边的
-     *  纵向溢出([appFocusOverflow])+ 卡片标题([titleHeight],关掉时为 0)。上沿是 [restVisibleTop]。 */
-    fun restRowVisibleBottom(row: Int, size: GtvCardSize, showTitles: Boolean): Float =
-        restCardTop(row, size, showTitles) + cardHeight(size) + appFocusOverflow(cardHeight(size)) +
+    /** 行 [row] 在静止态(位移 0)「需要可见」区间的下沿(dp):卡底 + 聚焦放大与描边的纵向溢出
+     *  ([appFocusOverflow])+ 卡片标题([titleHeight],关掉时为 0)。R52 起行 0 的这个值恒为
+     *  `screenHeightDp − HOME_BOTTOM_MARGIN`。上沿是 [restVisibleTop]。 */
+    fun restRowVisibleBottom(row: Int, size: GtvCardSize, showTitles: Boolean, screenHeightDp: Float): Float =
+        restCardTop(row, size, showTitles, screenHeightDp) + cardHeight(size) + appFocusOverflow(cardHeight(size)) +
             titleHeight(showTitles)
 
-    /**
-     * **Ruling R42(2026-09-22,owner 真机反馈)**:首页整页纵向位移改成**最小位移、粘性**——
-     * 纵向版的 R20。**覆盖 R32 的锚点规则**([pageShiftY] / [BROWSE_ROW_ANCHOR] 不再被首页读取)。
-     *
-     * owner 原话:「原始态焦点在齿轮;向下一格到第一行第一个应用,没问题;再往下一格到第二行第一个
-     * 应用(咪视界)。但在焦点来到咪视界的同时,整个画面内容都被整体往上抬了,咪视界直接跑到了页面
-     * 上方。我才只往下移了一行,就算是因为首页状态下显示不全需要往上移,那也只要移到能露出来就可以
-     * 了,为什么整体全部堆到上面去了?」
-     *
-     * owner 补充硬验收(隐藏输入源行后只剩两行应用、两行在屏内完整可见,下移到第二行页面必须完全
-     * 不动):「明明完全显示得了,干嘛还要往上滚?滚动条的作用是当前画幅无法显示所有内容才上下滚动。」
-     *
-     * 规则(从上一次的位移 [prevShiftDp] 出发,只做最小修正):
-     * - 焦点行「需要可见」区间 = [restVisibleTop](R48 前是行标题顶)… [restRowVisibleBottom];
-     * - **要不要动**看画幅:下沿超出屏幕物理底边 `screenHeightDp` → 上移;上沿高过 [TOP_SAFE] → 下移。
-     *   都没超 → 不动(同一行左右移、本来就完整可见的行,都不改位移);
-     * - **动的话动到哪**:上移时下沿贴 `screenHeightDp − BOTTOM_SAFE`(底部留一条与 R20 右侧对称的
-     *   留白,不让聚焦描边贴着屏幕边);下移时上沿贴 [TOP_SAFE]。区间比窗口还高时上沿优先;
-     * - `activeRow ≤ 0`(行 0 或顶栏)→ 0,hero 重新露出;
-     * - 结果夹在 `[minShift, 0]`:末行下沿不超出屏幕底边(内容整体放得下)时 minShift = 0,
-     *   **任何行、任何焦点序列位移恒为 0**;放不下时 minShift = 末行下沿贴对齐线所需的位移
-     *   (行数变少之后不会留着一截过深的位移)。
-     *
-     * 判据与对齐线分开的理由:若判据也用 `screenHeightDp − 58`,960×540 dp 屏上中档两行(行 1 下沿
-     * 503.93 dp,屏内完整可见;R48 之前是 536.4)会被判为「放不下」、上移 21.9 dp(R48 之前 54 dp)
-     * ——正是 owner 否掉的行为。
-     * 纯函数,`GtvLayoutTest` 钉住 owner 的场景。
-     */
-    fun nextPageShiftY(
-        prevShiftDp: Float,
-        activeRow: Int,
-        rowCount: Int,
-        size: GtvCardSize,
-        showTitles: Boolean,
-        screenHeightDp: Float,
-    ): Float {
-        if (activeRow <= 0 || rowCount <= 1) return 0f
-        val row = activeRow.coerceAtMost(rowCount - 1)
-        val align = screenHeightDp - BOTTOM_SAFE
-        val top = restVisibleTop(row, size, showTitles)
-        val bottom = restRowVisibleBottom(row, size, showTitles)
-        var shift = prevShiftDp
-        if (bottom + shift > screenHeightDp) shift = align - bottom
-        if (top + shift < TOP_SAFE) shift = TOP_SAFE - top
-        val lastBottom = restRowVisibleBottom(rowCount - 1, size, showTitles)
-        val minShift = if (lastBottom <= screenHeightDp) 0f else -(lastBottom - align).coerceAtLeast(0f)
-        return shift.coerceIn(minShift, 0f)
-    }
-
     /** **R48**:行 [row] 在静止态(位移 0)「需要可见」区间的**上沿**(dp)= 卡顶 − 聚焦放大与描边的
-     *  纵向溢出([appFocusOverflow]),与 [restRowVisibleBottom] 对称。取代 R42 的 `restTitleTop`
-     *  (行标题行盒顶)——首页没有行标题了。行图标与卡片纵向居中、比卡矮,不单独进这个区间。 */
-    fun restVisibleTop(row: Int, size: GtvCardSize, showTitles: Boolean): Float =
-        restCardTop(row, size, showTitles) - appFocusOverflow(cardHeight(size))
+     *  纵向溢出([appFocusOverflow]),与 [restRowVisibleBottom] 对称。行图标与卡片纵向居中、比卡矮,
+     *  不单独进这个区间。 */
+    fun restVisibleTop(row: Int, size: GtvCardSize, showTitles: Boolean, screenHeightDp: Float): Float =
+        restCardTop(row, size, showTitles, screenHeightDp) - appFocusOverflow(cardHeight(size))
+
+    /*
+     * **Ruling R52 删除**(2026-09-23):R42 的最小位移 `nextPageShiftY` 与它的窗口边界 `TOP_SAFE`(顶栏下 16)/
+     * `BOTTOM_SAFE`(58),R32 的锚点位移 `pageShiftY`,R48 的 `ROWS_TOP` / `ROWS_LEAD`(行 0 卡顶钉在 301.5)。
+     * R42 为 owner 的硬验收「两行都放得下时下移页面不动」而设;R52 是 owner 明确推翻它——现在每换一行都位移
+     * 一整行。历史推导见 git(c93f9ea 及更早)。
+     */
 
     /*
      * **Ruling R48(2026-09-22)删除了 R43/R46 的行标题焦点态**(焦点行标题放大 `ROW_TITLE_FOCUS_SCALE`
@@ -894,7 +831,7 @@ object GtvLayout {
      * 下面是 R35 的原始依据,「距离」这一半沿用,「随页面上移」这一半已被 R45 撤销:
      *
      * **Ruling R35(2026-09-22,owner 真机反馈 Round 10)**:壁纸随整页位移淡到黑所用的距离(dp)。
-     * 页面上滑 [pageShiftY] 这么多时壁纸的 alpha 由 1 线性降到 0;取 [HERO_HEIGHT],即页面滑过
+     * 页面上滑(R32 的 `pageShiftY`,R52 起是 [rowShiftY])这么多时壁纸的 alpha 由 1 线性降到 0;取 [HERO_HEIGHT],即页面滑过
      * 一个 hero 高度(行 1 落到 [BROWSE_ROW_ANCHOR] 之前就已走完)壁纸恰好完全淡出。
      *
      * 依据:B3 裁定 hero 区留给壁纸,在我们这里「英雄区」**就是壁纸本身**——R32 让 hero 的空位随整页
@@ -924,7 +861,7 @@ object GtvLayout {
     const val WALLPAPER_BROWSE_ALPHA = 0.20f
 
     /**
-     * R45:整页位移 [shiftDp](与 [pageShiftY] 同一个量,≤ 0 表示上移;正负都按绝对值算,调用方不必
+     * R45:整页位移 [shiftDp](R52 起与 [rowShiftY] 同一个量,≤ 0 表示上移;正负都按绝对值算,调用方不必
      * 关心符号)对应的**单层**壁纸 alpha:
      * `1 − (1 − WALLPAPER_BROWSE_ALPHA) × clamp(|shift| / WALLPAPER_FADE_OVER_DP, 0, 1)`,
      * 即从 1 线性降到 [WALLPAPER_BROWSE_ALPHA]。壁纸不再位移(R45),只有这一个量随页面变;
