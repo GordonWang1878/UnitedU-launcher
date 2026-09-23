@@ -192,7 +192,7 @@
     <string name="about_net_failed">检查失败,请稍后再试</string>
     <string name="about_bad_json">更新信息无法解析</string>
     <string name="about_license_title">许可声明</string>
-    <string name="about_license">本项目以 Apache-2.0 许可发布。第三方组件:DM Sans(OFL 1.1)、Material Icons(Apache-2.0)、NanoHTTPD(BSD-3-Clause)、ZXing(Apache-2.0)。内置壁纸为程序生成。</string>
+    <string name="about_license">本项目以 Apache-2.0 许可发布。第三方组件:Google Sans Flex(OFL 1.1)、Material Icons(Apache-2.0)、NanoHTTPD(BSD-3-Clause)、ZXing(Apache-2.0)。内置壁纸为程序生成。</string>
     <string name="about_repo">项目地址 github.com/GordonWang1878/UnitedU-launcher</string>
     <!-- onb_* : 首次启动引导(T10,spec §8);第 1 步的语言按钮复用 settings_lang_* -->
     <string name="onb_step1_title">选择语言</string>

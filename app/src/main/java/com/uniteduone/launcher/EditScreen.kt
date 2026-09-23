@@ -2,9 +2,7 @@ package com.uniteduone.launcher
 
 import android.content.Context
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -25,7 +23,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -121,8 +118,12 @@ fun EditScreen(
     onCarryingChange: (Boolean) -> Unit = {},
 ) {
     val ctx = LocalContext.current
-    // 与首页同一套卡片档位尺寸,编辑页的卡片才会和首页一样大。见 Theme.cardMetrics。
-    val metrics = Theme.cardMetrics(cardsPerRow)
+    // 与首页同一套卡片档位尺寸,编辑页的卡片才会和首页一样大。
+    // Ruling R18(终审 2026-09-20):这里原来读 Theme.cardMetrics(cardsPerRow)(HomeLayout 那一套,
+    // 6 张时 124×69.75dp),首页早已换成 gtv 三档(153×86dp 起),编辑页里的同一个应用因此比首页
+    // 小了一整圈——B5-a 裁定的三档固定尺寸是首页专用的新模型,HomeLayout 那套按张数反推宽度的
+    // 公式已经作废(decision table B5),编辑页当年漏改。见 Theme.gtvCardMetrics / cardsPerRowToGtvSize。
+    val metrics = Theme.gtvCardMetrics(cardsPerRowToGtvSize(cardsPerRow))
     // 自定义标题表,revision 变化(改过标题)时重读;与首页同一份数据源。
     val titles by produceState(emptyMap<String, String>(), revision) {
         value = withContext(Dispatchers.IO) { Titles.read(ctx) }
@@ -454,7 +455,9 @@ fun EditScreen(
     val shiftPx = if (firstRow == 0) 0 else headerPx + (0 until firstRow).sumOf { rowHeights[it] ?: pitchPx }
     val yShift by animateDpAsState(
         targetValue = with(density) { (-shiftPx).toDp() },
-        animationSpec = tween(Theme.MotionInMs, easing = Theme.MotionEasing),
+        // Ruling R29(owner 反馈 Round 8,承 R27):编辑页的纵向平移与首页换行是同一件事——焦点在
+        // 网格里移动、内容跟着平移,属 browse 手势,同样走 Theme.browseShiftSpec 的临界阻尼弹簧。
+        animationSpec = Theme.browseShiftSpec(),
         label = "editYShift",
     )
 
@@ -605,12 +608,17 @@ fun EditScreen(
                         .padding(bottom = Theme.EditRowSpacing),
                     verticalArrangement = Arrangement.spacedBy(Theme.EditRowTitleGap),
                 ) {
-                    // 行标题前画这一行的图标(M4b spec §2):与首页同一个组件、同一个 24dp 与 accent 色,
-                    // 行高固定 24dp、竖直居中(同首页 CategoryRow),中英文名字的行高差不会让各行高低不一。
+                    // 行名前画这一行的图标(M4b spec §2):`RowIcon` 固定尺寸的那个重载,方框 = 行盒高
+                    // GtvLayout.ROW_TITLE_LINE(20dp),accent 色。**与首页不是同一套画法**:R48 起首页不画行名,
+                    // 行图标走另一个重载(26dp、放在左边距、焦点行近白 / 其余灰)。行高固定、竖直居中,
+                    // 中英文名字的行高差不会让各行高低不一。
                     Row(
-                        modifier = Modifier.padding(start = Theme.SidePadding).height(HomeLayout.ROW_TITLE_LINE.dp),
+                        // Ruling R18:行标题行高改读 GtvLayout,不再是 HomeLayout.ROW_TITLE_LINE(24dp,main 线
+                        // titleMedium 的默认行高反推值)——编辑页用的是 gtv 三档卡片,行标题理应对齐同一条 gtv 几何。
+                        // (R18 时首页 CategoryRow 也读这个值;R48 起首页没有行标题,这里是它仅剩的行盒读者。)
+                        modifier = Modifier.padding(start = Theme.SidePadding).height(GtvLayout.ROW_TITLE_LINE.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(Theme.EditRowIconGap),
                     ) {
                         RowIcon(name, RowKind.APPS, row.icon, tint = LocalThemeColors.current.accent)
                         BasicText(
@@ -622,9 +630,21 @@ fun EditScreen(
                     // 表现为「进编辑界面后按下键焦点就没了,之后按什么都没反应」。
                     // 横向位移自己算(把行尾的加号也算成一格)。
                     val fi = rowFocused.getOrElse(ri) { 0 }.coerceIn(0, pkgs.size)
-                    val right = Theme.SidePadding + metrics.cardWidth * (fi + 1) + metrics.cardSpacing * fi
+                    // 整枝审查 B(2026-09-22):判据用**视觉**右缘——加上聚焦缩放 + 贴边描边的溢出
+                    // (GtvLayout.appFocusOverflow,与首页 rowShiftX 的 Round 4 §5 同一规则),否则
+                    // 「布局右缘刚好没超、缩放后的描边已经超」时不挪行,最右那格的描边被屏缘裁掉。
+                    // AddCard / MissingCard / AppCard 三种格子都走 gtvAppFocusFrame,溢出量相同。
+                    val right = Theme.SidePadding + metrics.cardWidth * (fi + 1) + metrics.cardSpacing * fi +
+                        GtvLayout.appFocusOverflow(metrics.cardWidth.value).dp
                     val over = right + Theme.SidePadding - LocalConfiguration.current.screenWidthDp.dp
-                    val dx by animateDpAsState(if (over > 0.dp) -over else 0.dp, label = "editRowX")
+                    val dx by animateDpAsState(
+                        targetValue = if (over > 0.dp) -over else 0.dp,
+                        // Ruling R29(承 R27 / 整枝审查 B):编辑页的横向位移与纵向位移、首页的 x/y 位移是
+                        // 同一个 browse 手势,四处同读 Theme.browseShiftSpec(此前是 R27 的 tween;
+                        // 再之前漏在默认 spring 上——默认 spring 的 stiffness 是 1500,不是现在这根)。
+                        animationSpec = Theme.browseShiftSpec(),
+                        label = "editRowX",
+                    )
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(metrics.cardSpacing),
                         modifier = Modifier
@@ -638,7 +658,8 @@ fun EditScreen(
                     ) {
                         pkgs.forEachIndexed { pi, pkg ->
                             val app = all?.get(pkg)
-                            // 搬运中被搬的那张:3dp accent 描边(与首页移动态同一样式,聚焦与否都画)
+                            // 搬运中被搬的那张:highlight 色 2dp 描边,画在聚焦描边外侧、跟着缩放后边缘走
+                            // (gtvAppFocusFrame 的 moving 分支,与首页移动态同一样式,聚焦与否都画)
                             val carried = carry?.pos?.let { it.row == ri && it.col == pi } == true
                             // requester 挂在**这一行当前聚焦的那一格**上,不是永远挂在第 0 格:
                             // 否则「往右移一位」之后焦点回到行首,把一张卡挪三位要重走三遍
@@ -773,6 +794,8 @@ fun EditScreen(
                 // 标题用这张卡的显示名,不传的话 GearMenu 落回「设置」标题(M4b-R13,终审 Important #2)——
                 // 与首页长按卡片菜单同一套取法:自定义标题优先,查不到就用应用名,再查不到用包名兜底。
                 title = titles[pkg] ?: all?.get(pkg)?.label ?: pkg,
+                // gtv 线 Task 8:左半 banner。all 就是这份数据本来的来源,按 pkg 查。
+                app = all?.get(pkg),
             )
         }
 
@@ -819,8 +842,6 @@ fun EditScreen(
                 onDismiss = { rowMenu = null; toRowEnd(ri) },
                 nonce = focusNonce,
                 title = row.name,
-                // 中间行 7 项全列时,常规间距在 1080p 上放不下(见 GearMenu 的 compact)
-                compact = true,
             )
         }
 
@@ -910,16 +931,19 @@ private fun AddCard(
 ) {
     var focused by remember { mutableStateOf(false) }
     val highlight = LocalThemeColors.current.highlight
-    // 卡片聚焦会放大 1.1 倍并起描边,加号原来只换个底色,暗背景下看不出「我选中的是它」
-    val addScale by androidx.compose.animation.core.animateFloatAsState(
-        if (focused) 1.12f else 1f, label = "addScale",
-    )
+    val accent = LocalThemeColors.current.accent
+    // Ruling R18(终审 2026-09-20):Decision B1 把「聚焦放大 1.1 倍」的画法整体作废,不只管首页——
+    // 这里原来用 1.12 倍缩放 + 换底色补偿(这条注释本身就是当年为什么加缩放的解释:「加号原来只
+    // 换个底色,暗背景下看不出『我选中的是它』」),后来跟着 AppCard 改成过外扩描边、不缩放。
+    // **owner 反馈 Round 4 起又跟 AppCard 一起改回缩放**——这次不是走当年 R18 作废的那条路
+    // (库默认 1.1x + 换底色),是 Google app tile 的真实处理(gtvAppFocusFrame:缩放
+    // GtvLayout.APP_FOCUS_SCALE 倍 + 描边贴缩放后边缘),底色仍然不随聚焦变化。
     Box(
         modifier = modifier
+            .gtvAppFocusFrame(focused, accent, metrics.cardCorner)
             .size(metrics.cardWidth, metrics.cardHeight)
-            .scale(addScale)
             .clip(RoundedCornerShape(metrics.cardCorner))
-            .background(if (focused) highlight.copy(alpha = 0.30f) else Theme.AddCardBackground)
+            .background(Theme.AddCardBackground)
             .focusProperties {
                 right = FocusRequester.Cancel          // 行尾锁在这里,别跳到下一行
                 if (isRowStart) left = FocusRequester.Cancel   // 空行时它就是行首
@@ -979,19 +1003,25 @@ private fun MissingCard(
     isRowStart: Boolean = false,
     isLastRow: Boolean = false,
     isFirstRow: Boolean = false,
-    /** 搬运中被搬的就是它(M4b §0-18):与 `AppCard(moving = true)` 同一道 3dp accent 描边,聚焦与否都画。 */
+    /** 搬运中被搬的就是它(M4b §0-18):与 `AppCard(moving = true)` 同一道固定几何的高亮描边
+     *  (`gtvAppFocusFrame` 的 `moving` 分支,highlight 色),聚焦与否都画,不随聚焦缩放变化。 */
     moving: Boolean = false,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(metrics.cardCorner)
     val accent = LocalThemeColors.current.accent
+    // Ruling R18(终审 2026-09-20)+ owner 反馈 Round 4:与 AppCard 统一成同一种画法——container
+    // 不随聚焦变色,聚焦用 gtvAppFocusFrame 的缩放 + 贴边描边表示;moving 换成同一支笔的
+    // highlight 版本、固定几何不缩放(与 accent 同时成立时两者仍可辨,理由见 AppCard.kt 上
+    // moving 参数的说明)。
+    val movingColor = LocalThemeColors.current.highlight
     Box(
         modifier = modifier
+            .gtvAppFocusFrame(focused, accent, metrics.cardCorner, moving, movingColor)
             .size(metrics.cardWidth, metrics.cardHeight)
             .clip(shape)
-            .background(if (focused) Theme.MissingCardFocusedBackground else Theme.MissingCardBackground)
-            .then(if (moving) Modifier.border(HomeLayout.FOCUS_BORDER.dp, accent, shape) else Modifier)
+            .background(Theme.MissingCardBackground)
             // 行首/末行的边界同样要锁,理由见 AppCard:找不到候选时焦点会整棵树消失
             .focusProperties {
                 if (isRowStart) left = FocusRequester.Cancel

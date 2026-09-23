@@ -360,3 +360,14 @@ object SettingsStore {
         if (write(ctx, next)) next else null
     }
 }
+
+/**
+ * 旧的 `cardsPerRow`(5/6/8)迁移到新的三档。张数越多卡越小,所以 8→小、6→中、5→大。
+ * 设置文件里仍存旧的整数键,避免动存储格式;只有渲染层改读新档位。
+ */
+fun cardsPerRowToGtvSize(stored: Int): GtvCardSize = when (stored) {
+    8 -> GtvCardSize.SMALL
+    5 -> GtvCardSize.LARGE
+    6 -> GtvCardSize.MEDIUM
+    else -> GtvCardSize.MEDIUM
+}

@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -352,9 +353,26 @@ object Wallpapers {
  * 壁纸层。**住在 MainActivity 的 setContent 顶层,不在 HomeScreen 里**:进出编辑页/设置页会把
  * 那一层整棵拆掉重建,壁纸若跟着走就要每次重解一张 1920×1080,期间纯黑——退出时黑闪一下。
  * key 只有 spec:换图 / 改参数 / 轮播都只换位图;新图就绪前旧图原样留着,再交叉淡入过去。
+ *
+ * **Ruling R45(2026-09-22,取代 R35 的「壁纸随整页上移」与 R36 的两层方案)**:壁纸**单层、原地不动**,
+ * 只随首页整页位移变暗。owner 真机:「右边的壁纸有双重的残影,这很恐怖:我移上去的时候,龙猫会向上移,
+ * 但它原来位置上留了一个残影。」R36 是两层同一位图(上层随页面 1:1 上移并淡出、底层原地常驻 20%),
+ * R42 最小位移后常常只移几十 dp,上层淡不完,两只错位的龙猫同时可见——只要两份错位副本同时可见就必然
+ * 残影,所以撤掉的是方案本身。Google 实测(`docs/screenshots/gtv/22-google-backdrop-static-while-scrolling.jpg`,
+ * launcherx 录像 #12/#13/#14、#26/#28/#30):上下滚动时 backdrop 图原地一动不动,只变暗 / 换图。
+ *
+ * 位移量仍由 HomeScreen 每帧上报、MainActivity 持有,但只用来算 [alpha]:
+ * `GtvLayout.wallpaperAlpha(pageShift)`,1 → `GtvLayout.WALLPAPER_BROWSE_ALPHA`(0.2)。以 lambda 的形式
+ * 在绘制阶段读取(`graphicsLayer {}`),动画每一帧只改图层透明度,**不重组**这个 composable、更不重解位图。
+ * 静止态(位移 0)alpha 1、无位移、取景不变,与 R35 之前逐像素一致。
  */
 @Composable
-fun Wallpaper(ctx: Context, spec: WallpaperSpec, onSettingsChanged: () -> Unit = {}) {
+fun Wallpaper(
+    ctx: Context,
+    spec: WallpaperSpec,
+    onSettingsChanged: () -> Unit = {},
+    alpha: () -> Float = { 1f },
+) {
     // produceState 的 remember 不带 key:spec 变时只重启生产者,旧值留着 → 不闪黑
     val bmp by produceState<Bitmap?>(initialValue = null, spec) {
         val loaded = withContext(Dispatchers.IO) { Wallpapers.load(ctx, spec) }
@@ -369,11 +387,16 @@ fun Wallpaper(ctx: Context, spec: WallpaperSpec, onSettingsChanged: () -> Unit =
         animationSpec = tween(Theme.WallpaperCrossfadeMs),
         label = "wallpaperCrossfade",
     ) { bitmap ->
+        // R45:**单层、不位移**。R36 的「底层常驻 20% + 上层随页面上移淡出」两层会在小位移时露出两份
+        // 错位的图(owner:「双重的残影」),已删除。**仍然不许**为了浏览态改动静止态的取景
+        // (放大、画高、裁边都算;R36 修正时被否的做法是把壁纸画高 192 dp,静止时整张图被放大约 18%)。
         Image(
             bitmap = bitmap.asImageBitmap(),
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { this.alpha = alpha() },
         )
     }
 }

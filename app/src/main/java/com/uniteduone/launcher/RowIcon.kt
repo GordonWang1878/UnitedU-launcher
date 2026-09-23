@@ -16,17 +16,30 @@ import androidx.compose.material.icons.outlined.SettingsInputHdmi
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Tv
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 
 /**
  * 行标题前的小图标。用真的 Material 图标,不再手画:
  * 复审逐项对比后指出手画版本的填充、朝向、笔画粗细都和参考图不同
  * (胶片画成了横向描边矩形、电视画成了开口盒子加天线、音符的旗是细线)。
- */
+ *
+ * **owner 反馈 Round 5(2026-09-21)24→20dp**:Google TV 首页本身没有行图标这个元素
+ * (`docs/research/2026-09-20-google-tv-launcherx-measurements.md` 通篇没有对应物),没有
+ * Google 数值可以对齐,判据只能是「和它现在挨着的标题字号相不相称」——任务原话。这里的标题字号
+ * 随 Ruling R25 从 16sp/23dp 行盒改成了 14sp/20dp 行盒(`GtvLayout.ROW_TITLE_LINE`),原来
+ * 24dp 的图标框对比新行盒会显得明显偏大(24/23≈1.04,原本贴合;24/20=1.2,新行盒下超出两成)。
+ * 改成与 `ROW_TITLE_LINE` 相等的 20dp——图标框高与它右边文字的行盒高度一致,是这里唯一
+ * 站得住脚的比例基准(两者都读同一个 `GtvLayout` 常量,以后行标题字号再变,这里跟着一起变,
+ * 不会重新漂移)。 */
 @Composable
 fun RowIcon(
     name: String,
@@ -35,20 +48,46 @@ fun RowIcon(
     icon: String? = null,
     tint: androidx.compose.ui.graphics.Color = Theme.RowTitle,
 ) {
-    // 输入源行的标题是本地化文字(「输入源」/「Inputs」),按 name 匹配跨语言不可靠 ——
-    // 用 kind 判定,不看标题文字。
-    val vector = if (kind == RowKind.INPUTS) {
-        Icons.Outlined.SettingsInputHdmi     // 信号源:HDMI 插口
-    } else rowIconVector(effectiveRowIconId(name, icon))
     // 用 Image + ColorFilter 着色,免得为一个 Icon 引入整套 material3
     Image(
-        imageVector = vector,
+        imageVector = rowIconFor(name, kind, icon),
         contentDescription = name,
         colorFilter = ColorFilter.tint(tint),
-        // Material 的矢量图标只填满外框的 24/32,所以框要给到 24dp 才等于参考里的 36px 字形
-        modifier = Modifier.size(24.dp),
+        // owner 反馈 Round 5:框高改为与行标题的行盒(GtvLayout.ROW_TITLE_LINE)相等,理由见本
+        // 文件顶部 KDoc——不再是「填满外框的 24/32」那个已作废的 36px 参考推导。
+        modifier = Modifier.size(GtvLayout.ROW_TITLE_LINE.dp),
     )
 }
+
+/** R46:首页用的版本——颜色在**绘制阶段**读([tint] 每帧求值),跟着焦点态的灰 ↔ 近白插值走,
+ *  动画不重组;图形与上面的 [RowIcon] 相同。
+ *  **R48**:首页不再画行标题,图标独自画在左边距里,方框改为 [boxSize](没有默认值,唯一调用点首页显式传
+ *  `GtvLayout.ROW_ICON_SIZE`);
+ *  行名改由这里的 `contentDescription` 带给无障碍服务(原来由旁边的标题文字提供)。 */
+@Composable
+fun RowIcon(
+    name: String,
+    kind: RowKind,
+    icon: String?,
+    tint: () -> androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier,
+    boxSize: androidx.compose.ui.unit.Dp,
+) {
+    val painter = rememberVectorPainter(rowIconFor(name, kind, icon))
+    Box(
+        modifier
+            .size(boxSize)
+            .semantics { contentDescription = name }
+            .drawBehind { with(painter) { draw(size, colorFilter = ColorFilter.tint(tint())) } },
+    )
+}
+
+// 输入源行的标题是本地化文字(「输入源」/「Inputs」),按 name 匹配跨语言不可靠 ——
+// 用 kind 判定,不看标题文字。
+private fun rowIconFor(name: String, kind: RowKind, icon: String?): ImageVector =
+    if (kind == RowKind.INPUTS) {
+        Icons.Outlined.SettingsInputHdmi     // 信号源:HDMI 插口
+    } else rowIconVector(effectiveRowIconId(name, icon))
 
 /** 行图标 id → 矢量图。movie / tv / music 三个与 M4b 之前按名字匹配的图完全相同(外观不变)。 */
 internal fun rowIconVector(id: String): ImageVector = when (id) {

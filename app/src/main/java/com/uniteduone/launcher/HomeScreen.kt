@@ -26,23 +26,37 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * 首页:壁纸层 + hero 大字时钟 + 锚定在下三分之一的卡片行 + 右上 pill 组(设置 / 屏保)。
- * 待机由 [MainActivity] 通过 [idle] 传进来,内容由 [idleContent] 定(Task 3):
- * [IdleContent.CLOCK_ONLY](默认)卡片/行标题淡出、时钟留着;[IdleContent.BLACK] 同上但
- * 时钟也淡出(配合 MainActivity 叠加的黑屏,整屏全黑);[IdleContent.NO_FADE] 这里的
- * `contentAlpha` 恒为 1、什么都不淡出。
+ * 首页:壁纸层 + hero 区(0–192dp,恒是壁纸,不叠任何时钟——84 sp 大字时钟已删,spec §2.3 B2)
+ * + 锚定在 hero 区之下的卡片行 + 顶栏(gtv 线的 [GtvTopBar]:药丸组靠左 / 时钟字标靠右)。
+ * 待机由 [MainActivity] 通过 [idle] 传进来,内容由 [idleContent] 定(Task 3),驱动这里的两个
+ * 淡出动画——`contentAlpha`(卡片行 / 渐变 / 顶栏药丸组 / 「新应用」提示)与 `topBarClockAlpha`
+ * (顶栏的时钟 + 字标,单独判断,见该 val 自己的注释):
+ * - [IdleContent.CLOCK_ONLY](默认):`contentAlpha` 淡出,`topBarClockAlpha` 钉 1——顶栏这行
+ *   16sp 小字正是这一档要留住的内容(**Ruling R23**,终审 2026-09-20,撤回 Fix R16 曾经在 hero
+ *   区加回的 84 sp [HeroClock]:owner 真机走查后否掉大字时钟——「我的 GTV 就是要尽可能还原 GTV
+ *   的那个样子,你加一个大时钟,整个气氛就破坏掉了」——三个候选方案里选了「只留顶栏小时钟」)。
+ *   不这样拆开的话 `topBarClockAlpha` 会跟着 `contentAlpha` 一起淡到 0,CLOCK_ONLY 就会和
+ *   [IdleContent.BLACK] 长得一模一样,这一档等于白设。
+ * - [IdleContent.BLACK]:两个动画一起淡到 0,不叠时钟,与淡出前的唯一差别就是「全黑」——
+ *   这条路径不受 R23 影响,和 gtv 线改版之前一样。
+ * - [IdleContent.NO_FADE]:`contentAlpha` 恒为 1,`topBarClockAlpha` 循同一判据自然也是 1,
+ *   什么都不淡出。
  *
- * [demoIdle](M7 T6,spec §3.2)非 null 时会**覆盖**这两个:设置页「待机内容」行拿着焦点
+ * [demoIdle](M7 T6,spec §3.2)非 null 时会**覆盖**上面这个:设置页「待机内容」行拿着焦点
  * 期间,不管真实 [idle] 是不是待机,都按 `demoIdle` 演示对应内容,离开该行即恢复。
- * 只影响这里的 `contentAlpha`/`clockAlpha` 两个动画,`Screensaver` 不参与(它是
+ * 只影响这里的 `contentAlpha`/`topBarClockAlpha` 两个动画,`Screensaver` 不参与(它是
  * `MainActivity` 单独组合的另一层,M5 起读的是 `screensaverActive`)。
  *
- * [screensaver](M5 spec §1.4)为真 = 自定义屏保:行 / 渐变 / pill 一律淡出(「不淡出」也不例外——
- * 照片上不该浮着一排卡片),大字时钟恒亮并加淡阴影(「全黑」待机进屏保时,时钟随照片一起亮出来)。
+ * [screensaver](M5 spec §1.4)为真 = 自定义屏保:行 / 渐变 / 顶栏一律淡出(「不淡出」也不例外——
+ * 照片上不该浮着一排卡片),`topBarClockAlpha` 同样淡到 0——轮播照片上不该再叠一个时钟(见
+ * [Screensaver] 顶部 KDoc)。系统屏保不读这里的两个 alpha:[UnitedUDream] 自 **Ruling R26**
+ * (2026-09-21,推翻 R9)起画的也是顶栏同款 `ClockWordmark`(恒亮,照片上带淡阴影),不再是
+ * 84 sp `HeroClock`——三处待机画面里,首页待机 CLOCK_ONLY 与系统屏保是同一行小字,自定义屏保不叠。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
@@ -64,7 +78,8 @@ fun HomeScreen(
     showDate: Boolean = true,
     cardsPerRow: Int = 6,
     /** 卡片标题全局开关(design §2)。开着时卡片下方多一行标题,行高随之增加
-     *  (见 HomeLayout.titleHeight),纵向位移沿用同一套自算逻辑。 */
+     *  (见 GtvLayout.titleHeight;main 线的编辑页等未换皮界面走 HomeLayout.titleHeight 同一套公式),
+     *  纵向位移沿用同一套自算逻辑。 */
     showTitles: Boolean = false,
     /** 输入源行开关(design §2,默认关)。开着且真机枚举到硬件输入时,在应用行**上方**
      *  多渲染一行输入源;它以普通行的身份加进纵向焦点账本,种类差异只影响点击行为与行图标。 */
@@ -86,7 +101,7 @@ fun HomeScreen(
     /**
      * **预览态**(M7 T4 分层叠加):选择器 / 导入页这类整屏浮层现在**叠在首页之上**,
      * 首页不再被移除,而是退到底下当背景(设置页 T5 起同理)。为真时首页交出一切交互:
-     * - **不可聚焦**:所有 [AppCard] / [TopPills] `canFocus = false` —— 与 `anyOverlay`
+     * - **不可聚焦**:所有 [AppCard] / [GtvTopBar] `canFocus = false` —— 与 `anyOverlay`
      *   合成 `covered` 一个量,上面那层拿焦点,底下这层绝不抢(铁律 4 的推论)。
      * - **不处理任何按键**:首页自己没有 `onKeyEvent`,卡片的点击挂在 `clickable` 上,
      *   不可聚焦就一个按键都收不到;长按识别在 `MainActivity.dispatchKeyEvent` 里,
@@ -111,10 +126,19 @@ fun HomeScreen(
     moveLanding: MoveLanding? = null,
     /** 这一次组合画出来的行(含置顶的输入源行)。MainActivity 进移动态时拿最近一份当工作副本。 */
     onRowsShown: (List<Row>) -> Unit = {},
+    /**
+     * **Ruling R35**:整页位移的**每帧动画值**(dp,≤ 0 表示上移,= 下面 `shift`)上报给 MainActivity,
+     * 由它喂给住在 setContent 顶层的壁纸层——壁纸不在这里被位移的 Column 里,要和行走同一根曲线,
+     * 只能把动画值举上去。报的是动画的当前值不是目标值,每一帧都报;首页不在组合里时(编辑页替换首页)
+     * MainActivity 自己把它归 0。
+     */
+    onPageShift: (Dp) -> Unit = {},
 ) {
     val ctx = LocalContext.current
-    // 卡片档位尺寸:5/6/8 三档统一由 HomeLayout 按张数推导,不再有「6 是标定常量、5/8 反推」的特例。见 Theme.cardMetrics。
-    val metrics = Theme.cardMetrics(cardsPerRow)
+    // gtv 线:卡片尺寸不再由「每行几张」反推,而是旧的 5/6/8 存量档位映射到三个固定尺寸
+    // (cardsPerRowToGtvSize)之一,渲染统一读 Theme.gtvCardMetrics——与 main 线的 Theme.cardMetrics 并存。
+    val cardSize = cardsPerRowToGtvSize(cardsPerRow)
+    val metrics = Theme.gtvCardMetrics(cardSize)
     // **首页内嵌的浮层**:齿轮菜单、长按卡片菜单、修改标题对话框 —— 它们住在首页这棵树里面。
     val anyOverlay = menuOpen || cardMenu != null || renameTarget != null
     // **「首页被盖住了没有」只此一个判据。**内嵌的那三层(`anyOverlay`)之外,M7 T4 起还有
@@ -274,14 +298,15 @@ fun HomeScreen(
         // 齿轮真的拿到焦点 = 这次「关菜单回齿轮」的意图已经兑现,比对立刻作废。
         // 不作废的话它会一直成立到下一次 nonce 递增,**窗口里每一次丢焦点都被送到齿轮**
         // (比如后台某个应用自动更新让某行短一格、焦点所在节点被销毁),
-        // 人正站在第三行却突然瞬移到右上角。
+        // 人正站在第三行却突然瞬移到左上角。
         if (got && row == -1) gearNonce = -1
         // 目标跟着「焦点真的落在哪」走,**还原过程中不更新**——理由与下面卡片那两个目标完全相同:
         // 浮层关掉那一帧 Compose 会抢先把焦点塞给 (0,0),那次上报若不挡住就会把目标从齿轮改成卡片。
         // **数据还没到也不更新**(`loaded != null`):冷启动时卡片一张都还没建出来,整棵树里
         // 唯一可聚焦的就是齿轮,Compose 会把首帧的焦点给它 —— 那不是用户的选择,是「没得选」。
         // 不挡住的话目标被这一下定成齿轮,行数据到达后还原效果反而主动把焦点拽回齿轮,
-        // 开机第一屏的焦点就从第一张卡变成了右上角(2026-09-17 冷启动三连实测)。
+        // 开机第一屏的焦点就从第一张卡变成了左上角(2026-09-17 冷启动三连实测;gtv 线齿轮药丸组
+        // 靠左对齐 CONTENT_KEYLINE,B2-a 裁定,这句话说的是它现在的位置)。
         // 卡片那两个目标不必判:卡片本身就是数据到了才存在,这条件对它们是隐含成立的。
         // **移动态期间也不更新**(与卡片那两个目标同一条,铁律 5「每一个分量」):那时的目标归 MainActivity 的
         // moving.pos 管,首页自己的记忆冻结,结束时由落点(moveLanding)一次写入。
@@ -302,25 +327,50 @@ fun HomeScreen(
     // 配置里的包一个都装不到时,卡片一张都没有,焦点无处可落;而这时唯一能自救的
     // 控件正是齿轮。不能指望框架的隐式 focus-enter——这份代码在别处恰恰拒绝依赖它。
     val gearFocus = remember { FocusRequester() }
-    // 哪一行是「当前行」——决定纵向锚定位移与 hero 淡出;跟着焦点走。
+    // 顶栏屏保按钮自己的 requester(gtv 线新顶栏 GtvTopBar 需要,见其参数 KDoc)。
+    // 目前没有别处主动把焦点送到这一格——「回到顶栏」只认 gearFocus——但 GtvTopBar 的
+    // 接口按两个按钮对称给,留着这颗以防以后要直接把焦点送到屏保按钮。
+    val screensaverFocus = remember { FocusRequester() }
+    // 哪一行是「当前行」——决定纵向锚定位移;跟着焦点走。Task 9 曾经把 -1 当合法值写进来
+    // (药丸组拿到焦点时写入),给 GtvTopBar 的 `collapsed` 参数当「焦点在不在应用行」的信号。
+    // Ruling R21(终审 2026-09-20)删掉了顶栏折叠,这个信号没有消费者了——药丸组拿到焦点时
+    // 直接写回 0(见下面 GtvTopBar 的 onFocusChange):activeRowSafe 本来就会把负值夹回 0,
+    // 数值上与写 -1 完全等价,只是不再需要一个没人读的哨兵值。
     var activeRow by remember { mutableStateOf(0) }
 
-    // 垂直位置自己算,不用 verticalScroll(铁律 1)。M8:焦点行**锚定**在下三分之一(spec §2.2)——
-    // 内容整块上移 activeRow 个行距,第 0 行时 hero 完整;不再是「溢出才上移」。
-    val screenH = LocalConfiguration.current.screenHeightDp.toFloat()
+    // 垂直位置自己算,不用 verticalScroll(铁律 1)。gtv 线:hero 区固定 192dp + 顶栏 34+36dp(spec §3/§4),
+    // 应用行顶部起点是这三个常量之和(GtvLayout.ROWS_TOP),不再是「屏高 × 2/3」(HomeLayout.anchorTop
+    // 那套比例锚点,main 线仍用)。
     val activeRowSafe = activeRow.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
-    val anchorTop = HomeLayout.anchorTop(screenH).dp
+    val anchorTop = GtvLayout.ROWS_TOP.dp
+    // Ruling R42(owner 真机反馈 2026-09-22,覆盖 R32 的锚点规则):整页位移改为**最小位移、粘性**——
+    // 焦点行本来完整可见就不动,要出底边才上移、只移到刚好露全;往上走时要出顶边才下移;回行 0 归 0。
+    // 目标由上一次的目标出发算最小修正(GtvLayout.nextPageShiftY),所以要记住上一次的值。
+    // **不用 LaunchedEffect**(铁律 6/7):在组合里按 remember 的 key 同步派生;`lastShiftTarget`
+    // 是普通字段、不是 Compose 状态,只在派生时读写,不触发任何重组,也不是守卫。
+    // 冻结规则与 R32 相同:目标只跟 activeRowSafe 走,activeRow 只在卡片 / 药丸真的拿到焦点时改写,
+    // 浮层 / ON_PAUSE 期间焦点离开卡片不改它,位移随之不动。
+    val screenHeightDp = LocalConfiguration.current.screenHeightDp.toFloat()
+    val lastShiftTarget = remember { FloatArray(1) }
+    val shiftTarget = remember(activeRowSafe, rows.size, cardSize, showTitles, screenHeightDp) {
+        GtvLayout.nextPageShiftY(lastShiftTarget[0], activeRowSafe, rows.size, cardSize, showTitles, screenHeightDp)
+            .also { lastShiftTarget[0] = it }
+    }
     val shift by animateDpAsState(
-        targetValue = HomeLayout.shift(activeRowSafe, cardsPerRow, showTitles).dp,
-        animationSpec = tween(Theme.MotionInMs, easing = Theme.MotionEasing),
+        // R32(已被 R42 覆盖):曾把行 1 及以下的卡顶一律钉到 GtvLayout.BROWSE_ROW_ANCHOR(120dp),
+        // owner 真机:「我才只往下移了一行……为什么整体全部堆到上面去了?」。hero 的空间仍是下面
+        // Column 的 padding(top)、在 offset 之内,随这个 shift 一起走(R32 的「整页位移」这一半保留)。
+        targetValue = shiftTarget.dp,
+        // Ruling R29(owner 反馈 Round 8):换行时整块内容的纵向平移 = Google TV 的 browse 手势,
+        // 逐帧实测是先加速后减速的临界阻尼弹簧(R27 的 tv_easing_browse 是纯硬减速,对不上),
+        // 四处位移共用 Theme.browseShiftSpec,依据见 GtvLayout.BROWSE_SPRING_STIFFNESS。
+        animationSpec = Theme.browseShiftSpec(),
         label = "rowShift",
     )
-    // hero 主体第 1 行起淡出(spec §2.3);待机时无条件回到 1(spec §2.4)——Task 6 的 HeroClock 读它。
-    val heroAlpha by animateFloatAsState(
-        targetValue = if (idle || demoIdle != null) 1f else HomeLayout.heroAlpha(activeRowSafe),
-        animationSpec = tween(Theme.MotionInMs, easing = Theme.MotionEasing),
-        label = "heroAlpha",
-    )
+    // R35:每帧把动画的当前值举给 MainActivity(壁纸层住在那里)。这里的 shift 本来就在组合阶段被
+    // 下面 Column 的 offset(y = shift) 读取,动画期间每帧都重组,SideEffect 每次重组后跑一遍;
+    // 值没变时 MainActivity 那颗 mutableStateOf 写入相同值不会触发任何失效。
+    SideEffect { onPageShift(shift) }
     // **焦点看门狗。**判据取自真机日志:根节点的 onFocusChanged 里
     //   hasFocus=true && !isFocused  → 某个子节点持有焦点(正常)
     //   hasFocus=true &&  isFocused  → 焦点停在根上,即**没有任何卡片持有**(要补)
@@ -468,24 +518,16 @@ fun HomeScreen(
         val effectiveIdleContent = demoIdle ?: idleContent
         // 待机用 alpha 淡出,不用 AnimatedVisibility——后者自带裁剪,会把超出屏幕的
         // 第三行整块切掉(实测 MUSIC 行因此始终不可见)。
-        // NO_FADE(Task 3):待机时恒 1,卡片/行标题/pill 都不淡出。**自定义屏保例外**(M5 spec §0 / §1.4):
+        // NO_FADE(Task 3):待机时恒 1,卡片/行图标/pill 都不淡出。**自定义屏保例外**(M5 spec §0 / §1.4):
         // 「不淡出」只管待机显示,屏保照样全屏——照片上不能浮着一排卡片,所以 screensaver 为真时一律淡出。
+        // 「该淡出了」的谓词只写一份:contentAlpha 与下面的 topBarClockAlpha 都读它(整枝审查
+        // 2026-09-22 合并,此前两处各抄了一份同样的表达式)。
+        val idleFading = screensaver || (effectiveIdle && effectiveIdleContent != IdleContent.NO_FADE)
         val contentAlpha by animateFloatAsState(
-            targetValue = if (screensaver || (effectiveIdle && effectiveIdleContent != IdleContent.NO_FADE)) 0f else 1f,
+            targetValue = if (idleFading) 0f else 1f,
             animationSpec = tween(if (effectiveIdle) 1200 else 400),
             label = "contentAlpha",
         )
-        // 时钟默认待机也留着(CLOCK_ONLY/NO_FADE);只有 BLACK 时钟才跟着淡出,
-        // 配合 MainActivity 在 Screensaver 之上叠的黑色蒙版,整屏才会真正全黑。
-        // 自定义屏保时恒 1(M5 spec §1.4):「全黑」待机进屏保那一刻,时钟随照片一起亮出来。
-        val clockAlpha by animateFloatAsState(
-            targetValue = if (!screensaver && effectiveIdle && effectiveIdleContent == IdleContent.BLACK) 0f else 1f,
-            animationSpec = tween(if (effectiveIdle) 1200 else 400),
-            label = "clockAlpha",
-        )
-        // scrim(spec §2.1):#1C1B1F α0 → α0.8;顶边 = 锚点上方 60dp 再加 shift,底边固定屏底——行往上推时它变高,
-        // 下方新露出的行始终在暗层里。待机时随内容一起淡出。
-        val scrimTop = anchorTop - HomeLayout.SCRIM_LEAD.dp + shift
         val surface = androidx.tv.material3.MaterialTheme.colorScheme.surface
         // 首页提示文字的字样:空桌面求救那句与移动态底部提示共用一份(M4b spec §0-10「沿用现有提示文字样式」)
         val hintStyle = TextStyle(
@@ -493,28 +535,61 @@ fun HomeScreen(
             color = androidx.tv.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
             fontSize = 15.sp,
         )
+        // Ruling R24(终审 2026-09-21,owner 真机走查 Round 3):**2D 背景衰减**,取代 R22 的纯横向
+        // 渐变加 Round 2 那版跟着行位移走的竖直 scrim。owner 指出 Google 的暗色区域是「右上角一块图,
+        // 其余整块黑底」,不是「只从右到左压暗、上下不变」;量参考截图 `docs/screenshots/gtv/01-home-default.jpg`
+        // 的 7×8 亮度网格证实形状是**横向衰减 × 纵向衰减的乘积**(推导见 GtvTokens.HeroGradientNear
+        // 的 KDoc 与 `docs/WORKLOG.md` 2026-09-21 R24 条目),不是单一方向的线性渐变。
+        // 下面画两条独立的纯黑半透明 1D 渐变(这一层管横向,下一层管纵向),Compose 默认的图层
+        // over 合成本身就是透光率相乘,不需要手写 2D shader。
+        //
+        // 铺满全屏(不只是 192dp 的 hero 条):卡片行与左边距里的行图标(R48 前是贴左基准线的行标题)
+        // 一路往下到最后一行都是,只压 hero 那一段的话第一行以下依旧没人管。
+        // 随 contentAlpha 一起淡出——待机 / 自定义屏保时两层暗色一起消失,只剩干净壁纸,
+        // 与 HomeScreen 顶部 KDoc「screensaver 为真时行 / 渐变 / 顶栏一律淡出」说的是同一件事;
+        // 两层共读同一个 `contentAlpha`,不会互相错拍。
         Box(
             Modifier
-                .fillMaxWidth()
-                .offset(y = scrimTop)
-                .height((screenH.dp - scrimTop).coerceAtLeast(0.dp))
+                .fillMaxSize()
+                .alpha(contentAlpha)
+                .background(
+                    androidx.compose.ui.graphics.Brush.horizontalGradient(
+                        0f to GtvTokens.HeroGradientNear,
+                        GtvTokens.HeroGradientHPlateau to GtvTokens.HeroGradientNear,
+                        GtvTokens.HeroGradientHFadeEnd to GtvTokens.HeroGradientFar,
+                    ),
+                ),
+        )
+        // 纵向的一半(R24 新增)。**固定在屏幕坐标上,不读 anchorTop/shift/activeRow 里任何一个**——
+        // 这是与 Round 2 那版 scrimTop 竖直 scrim 的关键区别:Google 的暗色窗口不随内容行的焦点
+        // 滚动而移动,行位移只搬内容,不搬背景;所以这里改用默认(无 startY/endY)的
+        // `Brush.verticalGradient`,两个 stop 的分数直接对应这个 `fillMaxSize()` Box 自身的实际
+        // 高度——完全不需要 Round 2 那套「转 px、算 scrimTop」的机制,那套机制本身正是这次删掉的
+        // 东西(它在 scrimTop 为负时会在屏幕底部露出硬边,详见 `docs/WORKLOG.md` Round 2 条目里
+        // 「measure 先于 offset」的完整推导——那次的教训移到那边存档,不再在这里为一段已删除的
+        // 代码重复解释它当年为什么错)。
+        Box(
+            Modifier
+                .fillMaxSize()
                 .alpha(contentAlpha)
                 .background(
                     androidx.compose.ui.graphics.Brush.verticalGradient(
-                        0f to surface.copy(alpha = 0f), 1f to surface.copy(alpha = 0.8f),
+                        GtvTokens.HeroGradientVFadeStart to GtvTokens.HeroGradientFar,
+                        GtvTokens.HeroGradientVPlateau to GtvTokens.HeroGradientNear,
                     ),
                 ),
         )
 
-        // hero 主体(spec §2.1 第 3 层):不随 shift 走;第 1 行起淡出、待机时回到 1(heroAlpha),BLACK 待机再随 clockAlpha 淡出。
-        // 自定义屏保时加淡阴影(M5 spec §1.5):照片可能很亮。
-        HeroClock(
-            showDate = showDate,
-            shadow = screensaver,
-            modifier = Modifier
-                .padding(start = Theme.SidePadding, top = HomeLayout.HERO_TOP.dp)
-                .alpha(heroAlpha * clockAlpha),
-        )
+        // hero 区(0–192dp,GtvLayout.HERO_HEIGHT)恒是壁纸(spec §3 B3):84 sp 大字时钟已删
+        // (spec §2.3 B2),这里什么都不画,壁纸直接透出来——待机时也一样。
+        //
+        // **Ruling R23(终审 2026-09-20,撤回 Fix R16)**:R16 曾在待机 CLOCK_ONLY 档于这里淡入一份
+        // 84 sp 的 [HeroClock](理由是顶栏那行 16sp 小字随 contentAlpha 一起淡出后,CLOCK_ONLY
+        // 会和 BLACK 长得一模一样)。owner 真机走查后否掉的不是这个判断,是**大字时钟本身**——
+        // 「我的 GTV 就是要尽可能还原 GTV 的那个样子,你加一个大时钟,整个气氛就破坏掉了」,
+        // 三个候选方案里选了「只留顶栏小时钟」。待机 CLOCK_ONLY 因此不淡出的是顶栏自己的时钟 +
+        // 字标(见下方 `topBarClockAlpha`),不是在 hero 区另画一份;hero 区从此不再需要关心
+        // 待机状态。
 
         // 待机用 alpha 淡出而**不移除节点**:移除会连带销毁焦点,醒来后按键落空。
         // 同理也不能用 canFocus 把它们关掉,理由见下面 focusProperties 那段。
@@ -533,9 +608,13 @@ fun HomeScreen(
                 // 框架的焦点恢复 —— 症状是「醒来后按确定永远没反应」。待机的唤醒改由
                 // MainActivity.dispatchKeyEvent 吞掉第一下按键来实现,焦点全程不动。
                 .focusProperties { canFocus = !covered }
+                // R32:offset 在 padding 之外——padding(top = ROWS_TOP)就是 hero 的空间,它必须
+                // 随 shift 一起走(整页位移),两者顺序不能对调。
                 .offset(y = shift)
                 .padding(top = anchorTop),
-            verticalArrangement = Arrangement.spacedBy(HomeLayout.ROW_GAP.dp),
+            // gtv 线:行外间距改读 GtvLayout(Task 9b)——之前留读 HomeLayout.ROW_GAP(20dp)是
+            // 每行 26.5dp 纵向漂移的来源之一(与 rowPitch() 假设的 ROW_GAP 对不上,见 GtvLayoutTest)。
+            verticalArrangement = Arrangement.spacedBy(GtvLayout.ROW_GAP.dp),
         ) {
             // 配置里的应用一个都装不到时,屏幕上只剩时钟和齿轮,看着像坏了。
             // 给一句话告诉用户怎么自救(实测:此时齿轮菜单仍可用)。
@@ -545,14 +624,23 @@ fun HomeScreen(
             if (loaded != null && rows.isEmpty() && !previewing) {
                 BasicText(
                     text = stringResource(R.string.home_empty_apps_hint),
-                    modifier = Modifier.padding(start = Theme.SidePadding),
+                    // gtv 线内读一个常量(Fix 5,终审 2026-09-20):这个文件里以前 Theme.SidePadding
+                    // 与 GtvLayout.CONTENT_KEYLINE 两个名字都指同一条 58dp 基准线,值相同、名字不同,
+                    // 是与纵向 26.5dp 漂移同一类的命名漂移,统一改读后者。
+                    modifier = Modifier.padding(start = GtvLayout.CONTENT_KEYLINE.dp),
                     style = hintStyle,
                 )
             }
+            // Ruling R43 → R48:哪一行的行图标是「焦点行」近白态(R48 前是行标题大白态)。焦点在顶栏药丸组
+            // (tgtGear)→ 没有焦点行(-1);否则就是 activeRowSafe(整页位移用的同一个量,图标与位移同时变)。
+            // 两者都只在卡片 / 药丸真的拿到焦点时改写、浮层 / ON_PAUSE 期间冻结,所以图标在浮层与退后台时
+            // 保持最后状态。纯派生,不写任何状态,不进任何效果的 key 或守卫(铁律 3–7 一处不动)。
+            val iconFocusRow = if (tgtGear) -1 else activeRowSafe
             rows.forEachIndexed { rowIndex, row ->
                 CategoryRow(
                     row = row,
                     metrics = metrics,
+                    cardSize = cardSize,
                     showTitles = showTitles,
                     themedCards = themedCards,
                     titles = titles,
@@ -574,6 +662,12 @@ fun HomeScreen(
                         else -> tgtIdx.getOrElse(tgtRow) { 0 }
                     },
                     carried = if (moveTarget?.row == rowIndex) moveTarget.col else -1,
+                    // R30 + R42:焦点落到本行会不会让整页位移——看位移目标会不会变,不再看「是不是当前行」
+                    // (R42 下换行而位移不变是常态,那时放大不该等一个不存在的位移)。
+                    landingShiftsPage = rowIndex != activeRowSafe &&
+                        GtvLayout.nextPageShiftY(shiftTarget, rowIndex, rows.size, cardSize, showTitles, screenHeightDp) != shiftTarget,
+                    // R48:行图标近白 ⇔ 本行是焦点行。只读焦点账本、不写(见 iconFocusRow)。
+                    isFocusRow = rowIndex == iconFocusRow,
                     onFocusChange = { idx, got ->
                         report(rowIndex, idx, got)
                         if (got) {
@@ -589,29 +683,59 @@ fun HomeScreen(
             }
         }
 
-        // 顶栏(spec §1.5):右上 pill 组 + 其下的「有 N 个新应用」。不随 shift 走;待机随内容淡出。
-        // 节点只淡出不移除:移除会连带销毁停在按钮上的焦点,醒来第一下按键落空。
-        Column(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = HomeLayout.PILL_TOP.dp, end = Theme.SidePadding)
-                .alpha(contentAlpha),
-            horizontalAlignment = Alignment.End,
-        ) {
-            TopPills(
-                gearFocus = gearFocus,
+        // 顶栏(spec §4):gtv 新顶栏,药丸组靠左对齐 CONTENT_KEYLINE + 右侧时钟/字标,铺满顶部;
+        // 其下的「有 N 个新应用」跟着药丸组左对齐(原来贴右上 pill,随药丸组一起搬到左边)。
+        // 不随 shift 走。节点只淡出不移除:移除会连带销毁停在按钮上的焦点,醒来第一下按键落空。
+        //
+        // **药丸组 / 「新应用」提示随 contentAlpha 淡出,时钟 + 字标另算(Ruling R23,终审
+        // 2026-09-20)**:gtv 线把首页大字时钟挪进了顶栏这行 16sp 小字之后,`IdleContent.CLOCK_ONLY`
+        // 待机档唯一的意义就是「这行小字仍然看得见」——owner 真机走查否掉了 Fix R16 加回大字时钟
+        // 的方案(「气氛就破坏掉了」),选了「只留顶栏小时钟」。所以这一行不能再跟着药丸组一起
+        // 淡到 0,否则 CLOCK_ONLY 又会和 BLACK 长得一模一样。BLACK / 非待机 / 自定义屏保三种情形下
+        // topBarClockAlpha 与 contentAlpha 取值相同(该淡就淡,BLACK 路径不变);只在「未在自定义
+        // 屏保、真待机、且档位是 CLOCK_ONLY」这一种情形下钉 1——与 contentAlpha 同一份 idleFading
+        // 判据(上面 contentAlpha 处定义的那一份),只是多一层例外,不是另起一套逻辑,tween 时长也与 contentAlpha 一致。
+        val topBarClockAlpha by animateFloatAsState(
+            targetValue = when {
+                !screensaver && effectiveIdle && effectiveIdleContent == IdleContent.CLOCK_ONLY -> 1f
+                idleFading -> 0f
+                else -> 1f
+            },
+            animationSpec = tween(if (effectiveIdle) 1200 else 400),
+            label = "topBarClockAlpha",
+        )
+        Column(modifier = Modifier.fillMaxWidth()) {
+            GtvTopBar(
+                settingsFocusRequester = gearFocus,
+                screensaverFocusRequester = screensaverFocus,
                 canFocus = !covered,
                 rowsEmpty = rows.isEmpty(),
                 downTarget = rowFocus.getOrNull(tgtRow.coerceIn(0, rowFocus.lastIndex)),
+                pillAlpha = contentAlpha,
+                clockAlpha = topBarClockAlpha,
+                showDate = showDate,
                 onSettings = { onMenuOpenChange(true) },
                 onScreensaver = onScreensaver,
-                onFocusChange = { col, got -> report(-1, col, got) },
+                onFocusChange = { col, got ->
+                    report(-1, col, got)
+                    // 与下面卡片行「got 时 activeRow = rowIndex」对称的另一半:药丸组拿到焦点也要
+                    // 认领 activeRow,否则它会停在离开前那一行的值上,与焦点实际所在的位置
+                    // (顶栏,不是任何一行)对不上。
+                    // 安全性:药丸组只能从第 0 行 UP 到达(CategoryRow 的 upTarget 只有 rowIndex==0
+                    // 才指向 gearFocus),这一刻 activeRow 必然已经是 0——写成 0 只是重申当前值,
+                    // activeRowSafe/rowShiftY 都不会因此变化,不会让卡片行跟着抖一下。
+                    // (Ruling R21 之前这里写的是 -1,专给已删掉的顶栏折叠动画当信号;
+                    // 折叠没了,-1 这个哨兵值没有消费者,改回语义更直接的 0。)
+                    if (got) activeRow = 0
+                },
             )
             val newCount = loaded?.third ?: 0
             if (newCount > 0) {
                 BasicText(
                     text = stringResource(R.string.home_new_apps, newCount),
-                    modifier = Modifier.padding(top = 6.dp),
+                    modifier = Modifier
+                        .padding(start = GtvLayout.CONTENT_KEYLINE.dp, top = 6.dp)
+                        .alpha(contentAlpha),
                     style = androidx.tv.material3.MaterialTheme.typography.labelSmall.copy(
                         color = androidx.tv.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                     ),
@@ -620,7 +744,7 @@ fun HomeScreen(
         }
 
         // 移动态底部提示(M4b spec §0-10:视觉只加描边与这一行)。字样沿用首页提示文字;垫一层与 scrim 底端
-        // 同色同透明度的底:焦点行下面那一行的行标题正好露在屏幕底部,不垫的话两行字叠在一起认不出来。
+        // 同色同透明度的底:焦点行下面那一行正好露在屏幕底部(R48 前是它的行标题),不垫的话提示字与卡片叠在一起认不出来。
         if (moving != null) {
             BasicText(
                 text = stringResource(R.string.home_move_hint),
@@ -641,6 +765,10 @@ fun HomeScreen(
                 },
                 onDismiss = { onMenuOpenChange(false) },
                 nonce = focusNonce,
+                // Ruling R17(终审 2026-09-20):这是「齿轮菜单」本尊——四项都不是自解释的动词,
+                // 「UnitedU 设置」与「系统设置」不看第二行根本分不清是两个不同的设置入口。
+                // 长按卡片菜单(下面那个 GearMenu)刻意不传,理由见 GearMenu 顶部 KDoc。
+                showHints = true,
             )
         }
 
@@ -654,6 +782,9 @@ fun HomeScreen(
                 onDismiss = onCardMenuDismiss,
                 nonce = focusNonce,
                 title = cm.label.ifBlank { cm.pkg },
+                // gtv 线 Task 8:左半 banner 就是这张卡当前画的那个 AppEntry,按行列坐标原样取,
+                // 不用另起一份按 pkg 查的 map——rows 已经是这次组合画出来的那一份,行列必然对得上。
+                app = rows.getOrNull(cm.rowIndex)?.apps?.getOrNull(cm.colIndex),
             )
         }
 
@@ -681,6 +812,8 @@ fun HomeScreen(
 private fun CategoryRow(
     row: Row,
     metrics: CardMetrics,
+    /** gtv 线的卡片档位(Task 3);横向位移公式 [GtvLayout.rowShiftX] 按它算 pitch。 */
+    cardSize: GtvCardSize,
     /** 卡片标题全局开关 + 自定义标题表(design §2);输入源行不受它影响,见下方 AppCard 调用。 */
     showTitles: Boolean,
     themedCards: Boolean,
@@ -693,41 +826,68 @@ private fun CategoryRow(
     targetIndex: Int,
     /** 移动态里被搬的卡在本行第几列;-1 = 不在本行(或不在移动态)。 */
     carried: Int = -1,
+    /** R30 + R42:焦点落到本行会不会改变整页纵向位移的目标(HomeScreen 用 `nextPageShiftY` 预先算好)。
+     *  R42 起换行不一定位移(最小位移),所以不能再用「不是当前行」代替。 */
+    landingShiftsPage: Boolean,
+    /** R48:本行是不是焦点行(焦点在本行卡片上);是则行图标近白,否则灰(不缩放)。 */
+    isFocusRow: Boolean,
     onFocusChange: (Int, Boolean) -> Unit,
 ) {
     val ctx = LocalContext.current
-    // 行标题文字 + 行图标 = 主题 **accent**(与齿轮同一个饱和色),换预设时和齿轮一起明显变色。
-    // 早先用的是 highlight(accent 混 55% 白后近白),六个预设的近白值肉眼几乎无差,看着「换了预设也没变」
-    // (2026-09-16 Gordon 真机指出);卡片聚焦的呼吸光晕仍读 highlight,那处要浅色不刺眼。
-    val accent = LocalThemeColors.current.accent
-    // 记住聚焦在第几张,用来算这一行的横向位移(超出右边界就整行左移)
+    // Ruling R48(2026-09-22,owner 看效果图后选 A2):首页取消行标题,行图标留在左边距里当焦点提示。
+    // 焦点行近白、其余行灰(R46 的两色),与整页位移同一根弹簧(R47 的 Theme.rowIconFocusSpec),
+    // **不缩放**。进度量 iconFocus 只在绘制阶段读(RowIcon 的 tint lambda),动画每帧不重组本行、
+    // 不改布局;不进焦点账本、不碰任何 FocusRequester / 看门狗(铁律 3–7)。
+    val iconFocus by animateFloatAsState(
+        targetValue = if (isFocusRow) 1f else 0f,
+        animationSpec = Theme.rowIconFocusSpec(),
+        label = "rowIconFocus",
+    )
+    val iconColor = { androidx.compose.ui.graphics.lerp(GtvTokens.RowIconIdle, GtvTokens.RowIconFocused, iconFocus) }
+    // 记住聚焦在第几张,用来算这一行的横向位移(行放得下就不动、放不下才移够用的距离,
+    // 见下面 GtvLayout.rowShiftX 的 KDoc——R20)
     var focusedIndex by remember { mutableStateOf(0) }
-    Column(verticalArrangement = Arrangement.spacedBy(HomeLayout.ROW_TITLE_GAP.dp)) {
-        Row(
-            modifier = Modifier.padding(start = Theme.SidePadding).height(HomeLayout.ROW_TITLE_LINE.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            RowIcon(row.name, row.kind, row.icon, tint = accent)
-            BasicText(
-                text = row.name,
-                // 行标题 = titleMedium 16sp Medium(spec §1.4),颜色 accent(spec §0「accent 落点」)
-                style = androidx.tv.material3.MaterialTheme.typography.titleMedium.copy(color = accent),
-            )
-        }
+    // Ruling R30(owner 反馈 Round 8):最近一次落到本行的焦点有没有带着行位移(纵向切行或
+    // 横向 rowShiftX 目标值变了)。在焦点回调里与 focusedIndex 同一个事件写入,AppCard 下一次
+    // 重组时 focused 与它一起生效,gtvAppFocusFrame 据此决定放大要不要等位移。它只是给绘制动画
+    // 选 spec 用的旁路信号,不进焦点账本、不被任何效果读(铁律 3–7 的链条一处不动)。
+    var landedWithShift by remember { mutableStateOf(false) }
+    // R48:没有标题行了,本行 = 行图标(左边距)+ 卡片行。Box 里先画图标、再画卡片行:行放不下、
+    // 整行左移(rowShiftX)时卡片从图标上面滑过、把它盖住,而不是图标压在卡片内容上。
+    Box {
+        // 水平中心 x = CONTENT_KEYLINE / 2(29 dp),纵向中心 = 卡片中心(上侧描边留白 + 半个卡高;
+        // 卡片标题开着时标题在卡下方,不参与居中——效果图 A2 对齐的是卡片本身)。
+        // 行名由 RowIcon 的 contentDescription 带给无障碍服务。图标不随 xShift 走。
+        RowIcon(
+            row.name, row.kind, row.icon,
+            tint = iconColor,
+            boxSize = GtvLayout.ROW_ICON_SIZE.dp,
+            modifier = Modifier.padding(
+                start = ((GtvLayout.CONTENT_KEYLINE - GtvLayout.ROW_ICON_SIZE) / 2f).dp,
+                top = metrics.rowVerticalPad + metrics.cardHeight / 2 - (GtvLayout.ROW_ICON_SIZE / 2f).dp,
+            ),
+        )
         // **绝不能用 LazyRow / horizontalScroll**:任何可滚动容器都会挡住纵向焦点外出。
         // 2026-09-11 真机实测:按上/下时 Compose 找不到候选,平台的 View 级焦点导航接手,
         // 把整棵树的焦点清空(日志里是 ROOT hasFocus=false → 再 isFocused=true),
         // 之后按什么都没反应 —— 三行的桌面实际退化成只有第一行能用。
         // LazyRow 加 focusGroup、普通 Row 套 horizontalScroll,两种都试过,同样断。
         // 所以横向位移和上面纵向那段一样自己算:只有「不可滚动的 Row」不挡焦点。
-        // 行可能变短(卸载了应用),索引留在旧值上会让整行多左移
+        // Ruling R20(终审 2026-09-20,owner 真机走查后推翻 Task 7 的「焦点卡永远钉左基准线」):
+        // 那条规则是照搬 Google 无边界推荐流的模型,对我们「常见 5 张卡、一行本来就装得下」的
+        // 有限应用列表不成立——从第一次按右键就整行左移一个 pitch,会把第 1 张卡推出屏幕左侧、
+        // 右边空出约 230dp 死白。现在改回「行完全可见就不动,只在焦点卡右缘会超出屏幕右侧可视
+        // 区域时才左移刚好这么多」(pre-Task-7 的规则,数值出处与推导见 GtvLayout.rowShiftX 的
+        // KDoc,不要再往回改)。超出屏幕右缘的卡依旧不砍宽度,靠 wrapContentWidth(unbounded)
+        // + 屏幕本身的绘制裁切自然露出一截、仍可聚焦(行尾 peeking,见下面 Row 的注释)。
+        // 行可能变短(卸载了应用),索引留在旧值上会让 rowShiftX 按一个不存在的列数左移
         val focused = focusedIndex.coerceIn(0, row.apps.lastIndex.coerceAtLeast(0))
-        val focusRight = Theme.SidePadding + metrics.cardWidth * (focused + 1) + metrics.cardSpacing * focused
-        val overRight = focusRight + Theme.SidePadding - LocalConfiguration.current.screenWidthDp.dp
+        val screenWidthDp = LocalConfiguration.current.screenWidthDp.toFloat()
         val xShift by animateDpAsState(
-            targetValue = if (overRight > 0.dp) -overRight else 0.dp,
-            animationSpec = tween(Theme.MotionInMs, easing = Theme.MotionEasing),
+            targetValue = GtvLayout.rowShiftX(focused, cardSize, screenWidthDp).dp,
+            // Ruling R29(owner 反馈 Round 8):行内横向平移与上面的换行纵向平移是同一个 browse
+            // 手势的两个方向,同一根弹簧(见 Theme.browseShiftSpec 的 KDoc)。
+            animationSpec = Theme.browseShiftSpec(),
             label = "rowXShift",
         )
         Row(
@@ -742,7 +902,7 @@ private fun CategoryRow(
                 // 内容早在测量阶段就被砍掉了尾巴。纵向的 wrapContentHeight 是同一招。
                 .wrapContentWidth(Alignment.Start, unbounded = true)
                 .offset(x = xShift)
-                .padding(start = Theme.SidePadding, top = metrics.rowVerticalPad, bottom = metrics.rowVerticalPad),
+                .padding(start = GtvLayout.CONTENT_KEYLINE.dp, top = metrics.rowVerticalPad, bottom = metrics.rowVerticalPad),
         ) {
             row.apps.forEachIndexed { index, app ->
                 AppCard(
@@ -755,6 +915,7 @@ private fun CategoryRow(
                     fallbackColor = app.fallbackColor?.let { Color(it) },
                     themed = themedCards,
                     moving = index == carried,
+                    focusAfterShift = landedWithShift,
                     onClick = {
                         // 唯一按种类分流的地方:应用行启动包,输入源行切信号源
                         //(packageName 里存的是输入 id)。其余焦点/渲染全部与种类无关。
@@ -777,7 +938,19 @@ private fun CategoryRow(
                         .let { m ->
                             if (index == 0 && firstCard != null) m.focusRequester(firstCard) else m
                         },
-                    onFocusChange = { got -> onFocusChange(index, got); if (got) focusedIndex = index },
+                    onFocusChange = { got ->
+                        if (got) {
+                            // R30:判「这次落焦会不会让行动」——lambda 捕获的 focused / landingShiftsPage /
+                            // screenWidthDp 都是上一次重组的值,正好是这次焦点变化**之前**的状态。
+                            // 纵向:落上来整页位移目标会变(R42);横向:目标 rowShiftX 变了才算滑行
+                            // (行放得下时左右移不动,与 R20 的规则一致,不延迟)。
+                            val xBefore = GtvLayout.rowShiftX(focused, cardSize, screenWidthDp)
+                            val xAfter = GtvLayout.rowShiftX(index, cardSize, screenWidthDp)
+                            landedWithShift = landingShiftsPage || xAfter != xBefore
+                            focusedIndex = index
+                        }
+                        onFocusChange(index, got)
+                    },
                     isRowStart = index == 0,
                     isRowEnd = index == row.apps.lastIndex,
                     isLastRow = isLastRow,

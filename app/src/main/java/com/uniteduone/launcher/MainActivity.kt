@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.*
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
@@ -41,6 +42,9 @@ private const val VIEW_IMPORT = "__import__"
  * 一个同构的常量,不要挤进这几个已有的键里。
  */
 private const val KEY_SETTINGS_OPEN = "settingsOpen"
+
+/** R39:设置页压暗层(`GtvTokens.SettingsScrim`)的淡入淡出时长。设置页本身没有转场,只有这一层动。 */
+private const val SETTINGS_SCRIM_FADE_MS = 150
 private const val KEY_SETTINGS_PANE = "pane"
 private const val KEY_SETTINGS_GROUP = "group"
 private const val KEY_SETTINGS_ROW = "row"
@@ -415,6 +419,12 @@ class MainActivity : ComponentActivity() {
             val wallpaperSpec = remember(revision, wallpaperParams, homeSettings.wallpaperFile) {
                 wallpaperSpecOf(homeSettings)
             }
+            // **Ruling R35**:首页整页位移的每帧动画值(HomeScreen.onPageShift 上报)。壁纸层住在这一层、
+            // 不在首页被位移的 Column 里(刻意的:进出编辑页不重解 1920×1080、不闪黑),要让它跟着行走
+            // 同一根曲线,只能把动画值举到这里再喂给 Wallpaper。编辑页替换首页时首页不在组合里、没人
+            // 上报,这里归 0——编辑页本来就该看到完整壁纸(静止态)。
+            var pageShift by remember { mutableStateOf(0.dp) }
+            LaunchedEffect(editing) { if (editing) pageShift = 0.dp }
             val touched = lastInput
             // **编辑界面和菜单开着时不进入待机。**淡出只做在首页那一层,而吞掉唤醒键是
             // Activity 级的 —— 两头不占的结果是:编辑界面画面全亮(看着醒着),
@@ -528,10 +538,21 @@ class MainActivity : ComponentActivity() {
             // prepare() 在首启/升级那一趟会往 settings.json 写 wallpaperFile,而 homeSettings
             // 是在此之前读的;不重读的话,从 M2 升上来、开着「跟随壁纸主色」的用户整个首次会话
             // 都看不到壁纸主色(见 Wallpapers.prepare 的 KDoc)。
-            Wallpaper(this@MainActivity, wallpaperSpec, onSettingsChanged = { settingsRevision++ })
+            // R45:壁纸单层、不位移,只有 alpha 随整页位移变暗;以 lambda 传入,绘制阶段读,动画每帧不重组它。
+            Wallpaper(
+                this@MainActivity,
+                wallpaperSpec,
+                onSettingsChanged = { settingsRevision++ },
+                alpha = { GtvLayout.wallpaperAlpha(pageShift.value) },
+            )
             // 自定义屏保层(M5 spec §1.4 第 2 层):只看 screensaverActive。不再因「不淡出」不组合——
             // 待机显示只管待机,「不淡出」时屏保照样会来(spec §0);没进屏保时 alpha 为 0,一张图都不画。
-            Screensaver(active = screensaverActive, intervalMs = homeSettings.screensaverIntervalMs)
+            // 不再传 showDate(Ruling R23,终审 2026-09-20):这一层不叠时钟了,没有时钟就没有
+            // 「时钟旁带不带日期」这回事——该开关现在只在 HomeScreen/UnitedUDream 两处生效。
+            Screensaver(
+                active = screensaverActive,
+                intervalMs = homeSettings.screensaverIntervalMs,
+            )
             // BLACK(Task 3):在屏保之上叠一层纯黑,随 idle 淡入淡出;配合 HomeScreen 里
             // 时钟自己的 clockAlpha 一起淡出,才是「整屏全黑」而不是黑底衬着屏保/时钟。
             // **待机演示(spec §3.2)也要能让这层变黑**:目标值同时看真实待机与演示值
@@ -631,6 +652,7 @@ class MainActivity : ComponentActivity() {
                     moving = moving,
                     moveLanding = moveLanding,
                     onRowsShown = { shownRows = it },
+                    onPageShift = { pageShift = it },
                 )
                 // **设置页叠在首页之上**(M7 T5,spec §3.1):首页留在底下继续组合,
                 // 半透明渐变遮罩底下看到的就是真正的首页 —— 改卡片大小 / 标题 / 主题色当场可见。
@@ -638,6 +660,22 @@ class MainActivity : ComponentActivity() {
                 // 而模糊 / 亮度另走设置页里 300 ms 防抖的那条,壁纸不必每按一下就重处理一遍。
                 // 写在选择器层(PickerLayer)**之前**:从设置页里打开的换壁纸 / 导入图片 / 默认桌面卡要盖在它上面,
                 // 同时设置页收到 `covered` 让路(焦点归那一层管,铁律 3)。
+                // **Ruling R39(2026-09-22,owner 真机反馈 Round 10)**:设置页之下先铺一层均匀压暗
+                // (GtvTokens.SettingsScrim,黑 0.75),150 ms 淡入淡出。铺在这里而不是设置页根节点上,
+                // 是因为 `settings` 翻 false 时设置页当场离开组合,只有留在外面的这一层能淡出。
+                // 纯绘制层,不可聚焦、不吃按键,不进任何焦点账本(铁律 3–7 一处不动)。
+                val settingsScrim by animateFloatAsState(
+                    targetValue = if (settings) 1f else 0f,
+                    animationSpec = tween(SETTINGS_SCRIM_FADE_MS),
+                    label = "settingsScrim",
+                )
+                if (settingsScrim > 0f) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(GtvTokens.SettingsScrim.copy(alpha = GtvTokens.SettingsScrim.alpha * settingsScrim)),
+                    )
+                }
                 if (settings) {
                     SettingsScreen(
                         onExit = ::leaveSettings,

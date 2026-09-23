@@ -45,7 +45,9 @@ adb emu kill                                     # 关闭
 - 音量对话框收起过程中做一次 `uiautomator dump` 会让 SystemUI 崩溃(`ViewRootImpl.setAccessibilityFocus` 空指针,重启次数超限被杀);这台 AVD 上 SystemUI 兼管 WM shell,它重启期间前台应用拿不到输入焦点,下一下按键卡 5 秒被系统记成对 UnitedU 的 ANR,应用被系统关掉、换回原厂桌面。按过音量键之后约 4 秒内不要做 UI dump(M4b Task 5 实证)。
 - `idleAfterMs`(待机时长)只认 关/1/3/5/10 分(即 0/60000/180000/300000/600000 毫秒)这五档,写别的值读回来会被默默吃成 180000(3 分)。
 - 冷启动用 `am start -n` 拉起之后,如果再发一次 HOME intent,会新建一个 home-type 的第二实例,不会走已有实例的 `onNewIntent`;要测同一实例的 `onNewIntent` 路径(例如「按 HOME 复原」),第一次进入也要走 HOME intent,不能用 `-n`。
-- `screenrecord --output-format=frames --size <w>x<h> -`(隐藏选项)只在画面变化时吐原始 RGB888 帧,不认 `--time-limit`,`pkill -INT screenrecord` 停止;抓「有没有闪一下跳回旧状态再跳回来」这类比截图间隔还快的过程很好用。
+- `screenrecord --output-format=frames --size <w>x<h> -`(隐藏选项)只在画面变化时吐原始 RGB888 帧,不认 `--time-limit`,`pkill -INT screenrecord` 停止;抓「有没有闪一下跳回旧状态再跳回来」这类比截图间隔还快的过程很好用。**但这个流的逐帧字节对齐没有文档、实测不可靠**(owner 反馈 R2 Fix 3 踩过):第一帧前有个约 2 字节的一次性前导偏移(1920×1080 时如此,960×540 时实测又不是稳定的一次性偏移,疑似还有周期性的每帧头部),不补偏移量会把画面解成错误的通道分布(蓝色卡片显示成绿/品红)且随帧数累积错位、画面看着像斜切;抓单帧对比(而不是判断颜色是否偏移)才勉强够用,凡是要在多帧上做像素级比色的场合,改用无参数 `adb exec-out screencap`(不带 `-p`)——单次往返 1.6s(1920×1080),但格式简单且有据可查:16 字节头(`width`/`height`/`format`/保留字段各 4 字节小端,`format=1` = `RGBA_8888`)+ `width*height*4` 字节的 RGBA8888,循环调用取多个时间点足够验证一次 focus 动画的渐变过程(`animator_duration_scale` 调到 30–60 拉长过渡窗口,配合这个 1.6s 粒度更容易采到中间帧)。`screencap -p`(PNG)在这台机型上单次往返约 9.7s,比 raw 慢 6 倍,像素级比色场合不要用。
+- `unitedu-gtv` AVD(装了 Google 的 `launcherx` 供参照测量,见下方「Google TV 官方对照」)上 `am force-stop` 我方包后紧跟着 `am start -n` 常常第一次会落到 `launcherx` 的 `HomeActivity`(HOME 角色被系统在 force-stop 后的过场里抢回去了,不是命令本身失败,`adb` 也不报错);再发一次同样的 `am start -n` 才会稳定落到我方 `MainActivity`。装脚本时默认 `am start -n` 发两次(或 `dumpsys window | grep mCurrentFocus` 断言一次、不对就重发),不要只发一次就假设前台是自己的界面。
+- `layout.json` 里同一行的重复包名会在读盘时被 `Layout.read` 的 `.distinct()` 静默去重(逐字理由见该函数注释:「重复包名会让列表 key 撞车」)——想在模拟器上人为造一行 2 张卡做纯横向焦点测试(不掺垂直换行),不能靠同一个包名写两遍,得挑两个不同的真实包名塞进同一行。
 
 真机(Sony A95L)只在里程碑真机验收用;开发全程走模拟器。真机 adb 走「无线调试」(**不是** 5555),**配对会跨会话保留,装包前别先向 Gordon 要配对码**(2026-09-17 实证,见 WORKLOG 当日 M7 合并一节):先 `adb connect 192.168.1.22:38673`(连接端口以电视「无线调试」主页面显示的为准;IP 走 DHCP);报 `No route to host` 就 `adb kill-server` 后重连同一地址(本机 adb 后台进程的问题,不是电视);报 `Connection refused` 才请 Gordon 读电视页面上的新端口(mDNS 广播的端口可能是休眠前的过期记录,端口扫描也扫不到真端口;mDNS 发现要 `ADB_MDNS_OPENSCREEN=1`);真机的 adb 序列号形如 `adb-…-1F8N2S (2)._adb-tls-connect._tcp`,**带空格**,脚本里 `adb devices` 要按 tab 切分、`-s` 参数加引号(2026-09-18 M8 装包时 awk 默认切分取到半截序列号报 device not found);只有连上后 `offline` / 认证失败才需重配:电视「使用配对码配对设备」拿码,`printf '<码>\n' | adb pair <IP:配对端口>`(管道喂码,参数形式会 protocol fault),再 connect。
 
@@ -100,16 +102,16 @@ adb emu kill                                     # 关闭
 
    | 界面 / 浮层 | 恢复责任方 |
    |---|---|
-   | 首页卡片/pill 组(设置 / 屏保两个按钮,账本里都是 row = -1) | HomeScreen 看门狗 + 还原效果(选择器、设置页等整屏浮层都叠在常驻首页上,`covered` 期间冻结 `tgtRow/tgtIdx/tgtGear`,关掉后按它还原;编辑页仍整体替换首页,回来落 (0,0)) |
+   | 首页卡片 / 顶栏药丸组(gtv 线新顶栏 `GtvTopBar`,换皮自旧的 `TopPills`,设置 / 屏保两个按钮从右上搬到左上,账本里仍是 row = -1 不变) | HomeScreen 看门狗 + 还原效果(选择器、设置页等整屏浮层都叠在常驻首页上,`covered` 期间冻结 `tgtRow/tgtIdx/tgtGear`,关掉后按它还原;编辑页仍整体替换首页,回来落 (0,0)) |
    | 首页原地移动态(M4b) | 没有浮层:HomeScreen 还原效果(key 含 `moveTarget = moving.pos`)+ 看门狗,以被搬的卡为目标;期间 `tgtRow`/`tgtIdx`/`tgtGear` 冻结,结束时由 `MoveLanding` 一次写入(放下 = 新位置,取消 = 出发格);放下后 `revision++` 的重读落地前继续画搬好的那一份,不会闪回旧顺序再跳回来 |
-   | 齿轮菜单 / 长按卡片菜单 | GearMenu 自己的初始焦点循环(nonce,退出判据是 `holder != null` 的自报——菜单里任意一项持有焦点即算落地,铁律 2)+ `holder == null` 看门狗(3 帧宽限后重请求 `focusedIdx`,每轮最多 60 帧封顶,守卫与 key 同为 `holder == null`,铁律 6);再次丢焦点时 key 翻转、看门狗重新武装,不是一次性闩(铁律 7) |
+   | 齿轮菜单 / 长按卡片菜单 | GearMenu 自己的初始焦点循环(nonce,退出判据是 `holder != null` 的自报——菜单里任意一项持有焦点即算落地,铁律 2)+ `holder == null` 看门狗(3 帧宽限后重请求 `focusedIdx`,每轮最多 60 帧封顶,守卫与 key 同为 `holder == null`,铁律 6);再次丢焦点时 key 翻转、看门狗重新武装,不是一次性闩(铁律 7)。**gtv 线 Task 8 换皮**:整屏 `GtvTokens.MenuBg` 底 + 左侧 banner/名字 + 右侧一列 268×55dp 起全圆角药丸(聚焦填主题 accent、按亮度选对比文字色),菜单项内容与上面这套焦点机制逐字未动;新增的 `app: AppEntry?` 参数只喂左半的图,不参与焦点账本。**Ruling R17(终审 2026-09-20)补的 `showHints`**:仅齿轮设置菜单(4 项)传 `true`,药丸内多一行说明文字、高度按内容撑高(`heightIn(min = 55dp)`,单行时精确等于 55dp,像素级不变);长按卡片菜单与编辑页的两个菜单不传,仍是精确 55dp 单行——同一个 `MenuPill` 组件,两种外观是显式参数区分,不是意外分叉 |
    | 改名对话框(`TitleDialog`,M4b 起通用化) | 不再认卡片/行/输入源的种类,只按 `key` 记草稿、按调用方传入的 heading/hint/subtitle 渲染,nonce + focused,四向 Cancel;卡片改名、行改名(`key = "row-$ri"`)、输入源改名共用同一份实现 |
    | 设置页两栏 | SettingsScreen 看门狗(二维账本 pane/group/rowOf,`covered` 让路,`reloadNonce` 重读;`ON_PAUSE` 起冻结目标,回到前台才放开)。**「恢复隐藏的输入源」行消失时的交接(M4b,Task 3 fix)**:这是第一个行数(不只是值)会在持有焦点时变化的行——定位效果的 key 加了 `rows.size`,并在同一次重组里同步夹紧 `rowOf[group]`(赶在 Compose 应用树差异、把行摘掉之前落子),`restoring = true` 挡住这期间任何杂散的 `report()` 改写目标;退出判据仍是该行自报 `focusedCell == want`,不是「随便哪个节点有焦点」 |
    | 确认框(恢复默认) | ConfirmDialog(nonce + focusedBtn) |
    | 关于页 | AboutScreen(nonce + focused,四向 Cancel) |
    | 首次引导 | Onboarding(每步 nonce + 逐项 requester + 看门狗;`ON_PAUSE` 起冻结目标) |
    | 编辑页 | EditScreen 看门狗 + 显式重定位。「换卡片图」的选择器**替换**编辑页(开着时 EditScreen 不在组合里,它没有 `covered` 让路开关);关掉后编辑页重建,由 MainActivity 的 `editTarget`(layout 行号, 包名)种子定位回同一张卡。**纵向位移自算(M4b 去掉 `verticalScroll`)**:焦点行变化时整块平移(与图片网格 `keepInView` 同一规则,另加头部高度的特殊项)。**初始焦点(M4b)**:进页时冻结在一个待处理的 (0,0) 重定位,等首帧合成之后才开始请求循环,且只在目标格仍是「即将被换掉的占位卡」(`PendingCard`,数据未到位)时才继续等——「+」、Remove From Row、非空删行这类目标本来就在旧数据里渲染成真卡片,立即落地,不会被无关的重载拖住(Task 4 review 收窄后的判据,而不是等「数据是否已刷新」这种更宽的条件)。**搬运模式(M4b 补丁)不是浮层**:焦点始终在被搬的卡上,每一步走 `retarget`,返回 / `ON_PAUSE` / 离开编辑页取消并复原(`rows` 放回进入时那一份、不写盘、焦点回出发格;离开编辑页 = 整页离开组合,搬运随之作废)。目标 = `carry.pos`,搬运中焦点上报不改 `focusRow`/`focusTarget`(与 `retargeting` 冻结同写法);被搬的卡若是源行最后一张,它的节点随这一步摘掉,系统当场把焦点给左上角那张卡、`retarget` 下一帧接回——所以冻结不能省。按键由编辑页根节点的 `onPreviewKeyEvent` 截获;MainActivity 按 `editCarrying` 在搬运中不让 MENU 退出编辑页,并把确定键整下(含重复事件)原样交给编辑页认长按 |
-   | 编辑页的行菜单(M4b,行尾「+」) | 复用 GearMenu(`compact = true`)的初始循环 + `holder == null` 看门狗(与上一行的齿轮菜单同形状);动作完成后由编辑页的 `retarget()` 落回具体位置——上/下移跟着被移动的行走(落它的「+」),新建落新行的「+」,BACK/`Add App`/`Rename Row`/`Change Row Icon` 都转交给下一个 overlay 或落回本行的「+」 |
+   | 编辑页的行菜单(M4b,行尾「+」) | 复用 GearMenu 的初始循环 + `holder == null` 看门狗(与上一行的齿轮菜单同形状);动作完成后由编辑页的 `retarget()` 落回具体位置——上/下移跟着被移动的行走(落它的「+」),新建落新行的「+」,BACK/`Add App`/`Rename Row`/`Change Row Icon` 都转交给下一个 overlay 或落回本行的「+」。**gtv 线 Task 8**:`compact` 参数已删——换皮后药丸是固定 55dp 高,最多 7 项(3 固定 + 上移/下移/新建/删除四个条件项)算下来 7×55dp + 6×16dp(`GtvLayout.MENU_ITEM_GAP`)= 481dp,1080p/320dpi 是 540dp 高的屏,`Box(contentAlignment = Center)` 整体居中放得下,不再需要旧版按内边距硬挤(2026-09-20 模拟器实测 7 项截图确认无裁切) |
    | 行图标选择器(`RowIconPicker`,M4b) | 自己的 nonce 初始循环 + 逐项 requester + `holder == null` 看门狗(同 GearMenu 形状);四向边界用 `FocusRequester.Cancel` 钉死,不溢出网格;选定 / BACK 都 `retarget` 回该行的「+」 |
    | 编辑页的删行确认框(M4b) | `ConfirmDialog`(nonce + focusedBtn,默认焦点在 Cancel,与「确认框(恢复默认)」同一形状);只有非空行会经过这一步(空行直接删,不弹框,spec §0-4);Cancel/BACK → 回到该行的「+」,OK → 落到上一行的「+」(删的是第 1 行则落新第 1 行的「+」) |
    | 添加应用列表 | AppPicker(逐项 requester) |
@@ -122,7 +124,8 @@ adb emu kill                                     # 关闭
    曾经用根节点的 `hasFocus && !isFocused` 当判据,它在多数路径上是对的,
    但在「退到后台再回来」这条路上**不重发**,会停在过期的 `true`:日志说有焦点,
    截图里卡片却既没有放大也没有光晕(上边缘 777→812、光晕峰值 142→66)。
-   现在由 `AppCard` / `TopPills` 通过 `onFocusChange(Boolean)` 同时上报「得到」和「失去」。
+   现在由 `AppCard` / `GtvTopBar`(原 `TopPills`,该文件已随 Fix 5〔终审 2026-09-20〕删除)
+   通过 `onFocusChange(Boolean)` 同时上报「得到」和「失去」。
    **推论:看门狗的账本必须覆盖它会去抢焦点的全部场合。**它不认识齿轮菜单的菜单项,
    菜单一开账本就变成「没有焦点」,于是每帧抢着请求、把菜单刚拿到的焦点搅掉 ——
    菜单开着时必须让路。
