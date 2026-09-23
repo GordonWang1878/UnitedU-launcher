@@ -1479,3 +1479,11 @@ R42(`1c8118e`):行底边(含聚焦溢出)超出屏幕物理底边才上移,上�
 4. 编辑页切行:位移已换弹簧,但放大不等位移(R30/R47 只做了首页)。
 5. R42 后浏览深处上一行卡片是否还压在顶栏胶囊后面——owner 选过「先不动」,R42 后实际情况未复核。
 分支 `gtv` 未推远程、未并 main。
+
+## 2026-09-23 · 1.0 定线:gtv 线;包名回到 com.uniteduone.launcher 并搬数据
+
+- 原线 vs gtv 线同布局同壁纸并排:`docs/screenshots/line-compare-main-vs-gtv.jpg`(main 分支 `9098945`)。两条线共用同一套设置/编辑页/屏保/主题色/行图标,gtv 只改首页与几个浮层外观,选哪条都不丢功能。
+- **Gordon 裁定:1.0 = gtv 线。** 包名**回到 `com.uniteduone.launcher`**,把 gtv 名下数据搬过去(另一选项是保留 `.gtv` 后缀)。
+- 数据全在外部文件目录、只用相对文件名(`Paths.kt`),adb 直接复制即可。迁移脚本 `scripts/migrate-gtv-to-main.sh`:备份两边到 `~/unitedu-backup/<时间>/`(带 sha256 清单)→ 覆盖安装正式包 → 复制 → 逐文件 sha256 核对。**不卸载 gtv、不切桌面角色、不改系统屏保**——后两者 Gordon 在系统设置里切(系统屏保当前也指向 gtv 包的 `UnitedUDream`),卸载 gtv 前再单独确认。
+- 合并前补整枝评审(范围 `3378e7f..gtv`,R42–R49 未经整体评审)。
+- 电视 adb 断了:过夜后两个老端口(34949 / 38673)都 `No route to host`,`kill-server` 无效,ping 通——无线调试端口变了,等 Gordon 读新端口。
