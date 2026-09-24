@@ -514,6 +514,25 @@ fun HomeScreen(
         // R82(2026-09-24 owner):**暂时拿掉**这层「右上亮、往左下压暗」的背景衰减——现在的首页英雄区左侧没有内容,
         // 照 Google 那样把左侧压黑只会让左半屏显得空着没用。之后 owner 会给新的渐变策略,替换下面这两层即可。
         // 上下移动时的整体压暗(wallpaperAlpha)不受影响。
+        // R84(2026-09-24 owner 试做):从上往下「加速」压暗到黑——压暗程度 = 屏高分数的 3 次方
+        // (一半高度 12.5%、四分之三 42%、底边 100%):上面的英雄区基本是原壁纸,越往下暗得越快,卡片行落在深色底上。
+        // Compose 渐变在相邻 stop 之间线性插值,用 [GtvTokens.HOME_FADE_STOPS] 个等分 stop 逼近 t³。
+        // 与 R24 一样固定在屏幕坐标、随 contentAlpha 淡出(待机 / 屏保时消失)。
+        if (GtvTokens.HOME_FADE_ENABLED) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .alpha(contentAlpha)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                            *Array(GtvTokens.HOME_FADE_STOPS + 1) { i ->
+                                val t = i.toFloat() / GtvTokens.HOME_FADE_STOPS
+                                t to GtvTokens.MenuBg.copy(alpha = GtvTokens.homeFadeAlpha(t))
+                            },
+                        ),
+                    ),
+            )
+        }
         if (GtvTokens.HERO_GRADIENT_ENABLED) {
             Box(
                 Modifier

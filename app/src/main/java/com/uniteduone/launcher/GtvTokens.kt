@@ -52,6 +52,15 @@ object GtvTokens {
      * (仍是 0.96/0),纯灰壁纸的地板亮度因此从 ~5 抬到 ~14–18(两道衰减都没叠满的边缘区域更亮,
      * 都叠满的角落最接近 14——见 `docs/WORKLOG.md` 2026-09-21 Round 4 条目的推导)。
      */
+    /** R84:首页从上往下加速压暗到黑(试做)。 */
+    const val HOME_FADE_ENABLED = true
+    /** R84:压暗曲线的次方;3 = 一半高度 12.5%、四分之三 42%、底边 100%。 */
+    const val HOME_FADE_POWER = 3f
+    /** R84:逼近曲线用的等分 stop 数(相邻 stop 之间线性插值)。 */
+    const val HOME_FADE_STOPS = 16
+    /** R84:屏高分数 t(0 = 顶,1 = 底)处的压暗透明度。 */
+    fun homeFadeAlpha(t: Float): Float = Math.pow(t.coerceIn(0f, 1f).toDouble(), HOME_FADE_POWER.toDouble()).toFloat()
+
     /** R82:首页背景衰减(下面这组 HeroGradient*)的总开关。2026-09-24 owner 暂时拿掉,等新策略。 */
     const val HERO_GRADIENT_ENABLED = false
     val HeroGradientNear: Color = MenuBg.copy(alpha = 0.96f)
