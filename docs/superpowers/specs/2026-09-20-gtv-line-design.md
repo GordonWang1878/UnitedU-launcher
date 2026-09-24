@@ -310,3 +310,4 @@ cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的�
   - **滚动 / 焦点**:仍是 LazyColumn + 逐项 requester + 四向锁边界(2026-09-11 起真机验证过的写法),聚焦节点仍是整行;行内上下左右各留一个 `appFocusOverflow`,放大 + 描边后的卡片永远在行的布局框里,LazyColumn 把行带进视窗时它就完整可见、不被纵向硬裁。代价同图片网格:柔光(纯绘制 60 dp)在列表上下边被硬切。
   - **位图**:每项上屏时 IO 线程读(`Apps.pickerCard`),按包名做 key 的 LRU(8 MB 上界,值带 `lastUpdateTime` + 自定义图修改时间的版本戳,更新后原地替换);顺手消掉上一轮 `cachedSmallIcon` 按 `包名@戳` 前缀取到 LRU 里最旧一份的问题。
   - 打开时初始焦点、选中后落在该行新加的那张卡、BACK 回该行「＋」、读取中 / 空列表提示均不变。模拟器拼图 `docs/screenshots/app-picker-cards.jpg`。
+- **R84 首页从上往下加速压暗到黑**(2026-09-24 owner 看模拟器对比后定「就这样」):一层全屏竖直渐变,压暗透明度 = 屏高分数的 3 次方(一半 12.5%、四分之三 42%、底边 100%),颜色 `MenuBg`,16 个等分 stop 逼近曲线,固定在屏幕坐标、随 contentAlpha 淡出。常量 `GtvTokens.HOME_FADE_*`。R82 关掉的 R24 两层衰减仍关着。对比图见 WORKLOG 2026-09-24。
