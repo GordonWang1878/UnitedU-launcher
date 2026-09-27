@@ -183,8 +183,8 @@ object ScreensaverPlayer {
     internal fun isFailed(f: File): Boolean = failed[f.absolutePath]?.let { it == f.lastModified() } ?: false
 
     private fun markFailed(path: String) {
-        failed[path] = File(path).lastModified()
-        android.util.Log.w("UnitedU", "屏保跳过无法播放的一项 $path")
+        val mtime = File(path).lastModified()
+        if (failed.put(path, mtime) != mtime) android.util.Log.w("UnitedU", "屏保跳过无法播放的一项 $path")
     }
 
     /**

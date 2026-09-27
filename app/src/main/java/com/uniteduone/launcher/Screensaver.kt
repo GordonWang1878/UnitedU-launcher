@@ -189,6 +189,12 @@ internal fun MotionSlideshow(
     val playable = active && rememberHostStarted()
     val latestPlayable by rememberUpdatedState(playable)
 
+    // 换层时被撤下的视频层当场释放播放器(不等它的组合节点被拆):紧接着的预加载要建新播放器,
+    // 这样 VideoGate 不必去「收回」一个本来就要走的(R102)
+    fun show(next: List<SlideLayer>) {
+        for (l in layers) if (l is VideoLayer && l !in next) l.controller.release()
+        layers = next
+    }
     DisposableEffect(Unit) { onDispose { preload.clear() } }
     LaunchedEffect(playable) { if (!playable) preload.clearVideo() }
     LaunchedEffect(Unit) { while (true) withFrameNanos { clock.longValue = it } }
@@ -198,10 +204,10 @@ internal fun MotionSlideshow(
     // 视频按轮次重跑(单视频循环);照片只认文件(只有一张照片时不因轮次重来)
     LaunchedEffect(targetPath, if (targetIsVideo) round else -1) {
         // 上一轮没等到首帧就被换掉的视频层:撤掉,不让它当「底下那层」露出空画布
-        layers = layers.filter { it !is VideoLayer || it.startNanos != VideoLayer.HIDDEN }
+        show(layers.filter { it !is VideoLayer || it.startNanos != VideoLayer.HIDDEN })
         val path = targetPath
         if (path == null) {
-            layers = emptyList()
+            show(emptyList())
             preload.clear()
             return@LaunchedEffect
         }
@@ -215,7 +221,7 @@ internal fun MotionSlideshow(
             if (layers.size > 1) {
                 // 上一段过渡被打断:补完再撤底层
                 delay(ScreensaverMotion.TRANSITION_MS.toLong())
-                layers = listOf(top)
+                show(listOf(top))
             }
         } else if (targetIsVideo) {
             // 同一时刻一个播放器(R102):底下 / 前一个视频先截成静图、释放
@@ -235,7 +241,7 @@ internal fun MotionSlideshow(
             ctrl.onStarted = { d -> ScreensaverPlayer.report(SlideEvent.Started(path, layer.round, d)) }
             ctrl.onPlayedOut = { ScreensaverPlayer.report(SlideEvent.Done(path, layer.round)) }
             ctrl.onFailed = { ScreensaverPlayer.report(SlideEvent.Failed(path, layer.round)) }
-            layers = listOfNotNull(layers.lastOrNull(), layer)
+            show(listOfNotNull(layers.lastOrNull(), layer))
             try {
                 // 首帧超时由播放器自己计(只在真的在播时计,退到后台不算),失败时它已经报过 Failed
                 if (!ctrl.firstFrame.await()) return@LaunchedEffect
@@ -243,10 +249,10 @@ internal fun MotionSlideshow(
                 clock.longValue = start
                 layer.startNanos = start
                 delay(ScreensaverMotion.TRANSITION_MS.toLong())
-                layers = listOf(layer)
+                show(listOf(layer))
             } finally {
                 if (layer.startNanos == VideoLayer.HIDDEN) {
-                    layers = layers - layer
+                    show(layers - layer)
                     ctrl.release()
                 }
             }
@@ -261,9 +267,9 @@ internal fun MotionSlideshow(
             val prev = layers.lastOrNull()
             val layer = PhotoLayer(path, bmp, ScreensaverMotion.random(Random.Default, (prev as? PhotoLayer)?.motion), start)
             clock.longValue = start
-            layers = listOfNotNull(prev, layer)
+            show(listOfNotNull(prev, layer))
             delay(ScreensaverMotion.TRANSITION_MS.toLong())
-            layers = listOf(layer)
+            show(listOf(layer))
         }
         // 过渡结束、旧的已撤:预备下一项
         val next = latestUpcoming ?: return@LaunchedEffect
