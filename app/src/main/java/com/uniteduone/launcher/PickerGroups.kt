@@ -71,9 +71,19 @@ fun countNewApps(
 /** 列表里的一项:应用本身(只有名字与装机时间,位图按需另读)与它的分组。 */
 data class PickerCandidate(val app: AppEntry, val group: PickerGroup)
 
-/** 列表顺序:应用在上、系统工具在下,两组各按名字排(名字读不到时按包名)。 */
-fun orderPickerCandidates(items: List<PickerCandidate>): List<PickerCandidate> {
-    val byName = compareBy<PickerCandidate, String>(String.CASE_INSENSITIVE_ORDER) { it.app.label.ifBlank { it.app.packageName } }
+/**
+ * 列表顺序:应用在上、系统工具在下,两组各按名字排(名字读不到时按包名)。
+ * **R90 起按界面语言的排序规则**([locale],缺省 = 应用内语言,跟随系统时取系统语言):简体中文汉字按拼音、繁体中文按
+ * 该地区习惯(ICU 的 zh-TW 是笔画)、拉丁字母不分大小写——原来的 `CASE_INSENSITIVE_ORDER` 按码位排汉字(「优酷」排在
+ * 「爱奇艺」前面),所有应用页一铺开就看得出来是乱的。「添加应用」列表与所有应用页共用这一份。
+ * Collator 实例不是线程安全的,每次调用新建一个。
+ */
+fun orderPickerCandidates(
+    items: List<PickerCandidate>,
+    locale: java.util.Locale = AppLocale.current ?: java.util.Locale.getDefault(),
+): List<PickerCandidate> {
+    val collator = java.text.Collator.getInstance(locale)
+    val byName = compareBy<PickerCandidate, String>(collator) { it.app.label.ifBlank { it.app.packageName } }
     return items.filter { it.group == PickerGroup.APPS }.sortedWith(byName) +
         items.filter { it.group == PickerGroup.SYSTEM_TOOLS }.sortedWith(byName)
 }

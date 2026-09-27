@@ -114,7 +114,7 @@ fun pageHasPreview(page: String): Boolean {
 }
 
 /** 选项层里「光标停在哪档,首页就立刻变成那样」的行(布局、外观两组的选项行)。 */
-val PREVIEW_ROW_IDS = setOf("cardsPerRow", "showTitles", "showInputRow", "themeColor", "followWallpaper")
+val PREVIEW_ROW_IDS = setOf("cardsPerRow", "showTitles", "themeColor", "followWallpaper")
 
 /**
  * **预览—保存—放弃状态机的「预览」一半**(R71):栈顶是带预览的选项层、光标停在第 i 档 →

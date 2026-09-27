@@ -674,7 +674,7 @@ fun EditScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Theme.EditRowIconGap),
                     ) {
-                        RowIcon(name, RowKind.APPS, row.icon, tint = LocalThemeColors.current.accent)
+                        RowIcon(name, row.icon, tint = LocalThemeColors.current.accent)
                         BasicText(
                             text = name,
                             style = TextStyle(fontFamily = Theme.Sans, color = Color.White, fontSize = 13.sp),

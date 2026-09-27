@@ -71,10 +71,9 @@ data class ActionRow(
     /** 值文字;null = 不显示值(只画 ▸)。[hintParts] 非空时以它为准,不看这一项。 */
     val hintRes: Int?,
     /**
-     * 非空时 [hintRes] 是带格式参数的文案(如「%1$d 个」「%1$s×,界面动画会变慢」),界面按
+     * 非空时 [hintRes] 是带格式参数的文案(如「%1$s×,界面动画会变慢」),界面按
      * `stringResource(hintRes, *hintArgs)` 解析——与 [ControlRow.optionArgs] 同一个理由:这一层不认识
-     * Context,不能自己把数字拼进字符串。用它的:「恢复隐藏的输入源」(M4b,一个 Int)、「通用」组的
-     * 动画缩放提示行(ui-pending #16,Int 或 String)。
+     * Context,不能自己把数字拼进字符串。用它的:「通用」组的动画缩放提示行(ui-pending #16,Int 或 String)。
      */
     val hintArgs: List<Any> = emptyList(),
     /**
@@ -116,8 +115,9 @@ class SettingsActions(
     val openScreensaverGallery: () -> Unit,
     /** M5:跳系统屏保设置页;解析不到退到系统设置首页,两个都打不开 toast(spec §3)。 */
     val openSystemScreensaver: () -> Unit,
-    /** M4b:布局组「恢复隐藏的输入源」行——清空 hidden-inputs.json,只在 hiddenInputs > 0 时这一行才存在。 */
-    val restoreHiddenInputs: () -> Unit,
+    /** R93:屏保组第一行「立即开始屏保」(原顶栏屏保按钮):图库空 → 提示;有图 → 关设置、进自定义屏保。 */
+    val startScreensaver: () -> Unit = {},
+    // ~~restoreHiddenInputs~~(R92):布局组「恢复隐藏的输入源」行随首页输入源行一起删掉,挪到「输入源」页列表末尾。
     /** ui-pending #16:「通用」组的动画缩放提示行——跳开发者选项;解析不到退到系统设置首页。 */
     val openSystemAnimationSettings: () -> Unit,
 )
@@ -149,16 +149,8 @@ fun settingsGroups(
     /** 屏保图库张数(M5:「屏保启动」行的提示要分「图库为空」);−1 = 设置页还没数完。 */
     screensaverImages: Int,
     /**
-     * 隐藏的输入源数(M4b spec §0-11):布局组「恢复隐藏的输入源」行只在 > 0 时才插入,
-     * 值文字取 [R.string.settings_hidden_inputs_count] 格式化这个数。−1 = 设置页还没数完,
-     * 与 0 同样不露出这一行(不提前显示,也不在数完之前先露出再收回)。
-     * 默认 0:19 处既有调用点不关心这一行,不必逐一改成显式传参(与 [screensaverImages] 不同,
-     * 那个参数当年是随 M5 一次性改掉了全部调用点;这里改用默认值换一条更小的 diff)。
-     */
-    hiddenInputs: Int = 0,
-    /**
      * 系统设置快照:「系统屏保 ▸」行的摘要与「通用」组的动画缩放提示行(R56/R57)。默认 [SystemUiStatus.UNKNOWN]——
-     * 与 [hiddenInputs] 同一个理由,既有调用点不关心,不必逐一改;UNKNOWN 下系统屏保行不显示值、
+     * 既有调用点不关心,不必逐一改;UNKNOWN 下系统屏保行不显示值、
      * 动画缩放那一项读不到 → 提示行出现并写「查看」。
      */
     system: SystemUiStatus = SystemUiStatus.UNKNOWN,
@@ -204,19 +196,8 @@ fun settingsGroups(
                     selected = VALID_CARDS_PER_ROW.indexOf(s.cardsPerRow).let { if (it < 0) 1 else it },
                 ),
                 toggle("showTitles", R.string.settings_show_titles, s.showTitles),
-                toggle("showInputRow", R.string.settings_show_input_row, s.showInputRow),
-                // M4b:一键恢复全部被「隐藏」的输入源卡。只在真有隐藏项时才出现——`listOfNotNull`
-                // 用 null 表达「这一行不存在」,不是空字符串/占位行(不变量与 buildInputRow 返回
-                // null 让整行不渲染同一个理由)。放在 showInputRow 开关之后:先有开关再有它的例外清单。
-                if (hiddenInputs > 0) {
-                    ActionRow(
-                        id = "restoreHiddenInputs",
-                        labelRes = R.string.settings_restore_hidden_inputs,
-                        hintRes = R.string.settings_hidden_inputs_count,
-                        hintArgs = listOf(hiddenInputs),
-                        onActivate = actions.restoreHiddenInputs,
-                    )
-                } else null,
+                // ~~「输入源行」开关 / 「恢复隐藏的输入源」~~(R92,2026-09-27 Gordon):首页不再有输入源行,
+                // 输入源(连同隐藏 / 恢复)搬到顶栏「输入源」胶囊打开的页面。
             ),
         ),
         // R57:「通用」= 语言、默认桌面、待机、时钟这些「装好先调一次」的项;恢复默认收尾。
@@ -335,6 +316,10 @@ fun settingsGroups(
         GroupSpec(
             GroupId.SCREENSAVER, R.string.settings_group_screensaver,
             listOf(
+                // R93(2026-09-27 Gordon):顶栏屏保按钮挪到这里,放最上面。按下去当场开始,不进外壳的下一层。
+                ActionRow("startScreensaver", R.string.settings_start_screensaver, hintRes = null) {
+                    actions.startScreensaver()
+                },
                 // M5 spec §3:进入待机后再过多久进自定义屏保;小字说明计时起点 / 图库为空(screensaverAfterNoteRes)。
                 ctl(
                     id = "screensaverAfter", labelRes = R.string.settings_screensaver_after,
@@ -382,7 +367,6 @@ fun settingsGroups(
 internal fun optionWrite(rowId: String): ((Settings, Int) -> Settings)? = when (rowId) {
     "cardsPerRow" -> { s, i -> s.copy(cardsPerRow = VALID_CARDS_PER_ROW[i]) }
     "showTitles" -> { s, i -> s.copy(showTitles = i == 1) }
-    "showInputRow" -> { s, i -> s.copy(showInputRow = i == 1) }
     "idleAfter" -> { s, i -> s.copy(idleAfterMs = VALID_IDLE_AFTER_MS[i]) }
     "idleContent" -> { s, i -> s.copy(idleContent = IdleContent.entries[i]) }
     "clockDisplay" -> { s, i -> s.copy(showDate = i == 1) }

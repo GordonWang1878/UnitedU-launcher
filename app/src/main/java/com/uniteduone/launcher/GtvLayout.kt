@@ -23,7 +23,7 @@ object GtvLayout {
      *  图形本身的大小从没被量过——这就是本轮 owner 反馈「齿轮和屏保按钮显得过大」的根因。
      *
      *  现在这个常量**只管触控/焦点框**(`IconButton` 的 `.size()`,决定可点击/可聚焦范围与
-     *  药丸内的居中留白),图形本身画多大改由 [TOP_BAR_GEAR_GLYPH]/[TOP_BAR_SCREENSAVER_GLYPH]
+     *  药丸内的居中留白),图形本身画多大改由 [TOP_BAR_GEAR_GLYPH](R89 起还有 [TOP_BAR_APPS_GLYPH]/[TOP_BAR_INPUTS_GLYPH];原来的屏保那颗随按钮删掉)
      *  分别决定——**不要把这两件事重新合并成一个常量**。**32 dp 这个数字本身不变**(两个图标的
      *  a11y bounds 都是 64×64px,来自目标版本 1.0.976298245 本身的实测,不是旧版臆测,继续
      *  可信);药丸轨道高 [TOP_BAR_HEIGHT](36dp)、图标框 32dp,上下各留 2dp,owner 对轨道高度
@@ -57,25 +57,19 @@ object GtvLayout {
      *  16×18dp 相差都在 0.5dp(1px)以内,落在测量噪声范围,不再二次迭代——复核过程见报告
      *  「Round 6」`gear-mask-viz.png`。 */
     const val TOP_BAR_GEAR_GLYPH = 21.5f
-    /** 屏保(相册 / Slideshow)图标的**图形绘制大小**,道理与量法都同上一个常量,数值不同——
-     *  **Google 这两个图标本来就不一样大,不能取平均**(任务原话明确点出「gear 明显比
-     *  gallery/screensaver 图形大」,这次测量印证了这一点:齿轮 16×18dp,相册只有 13×13dp,
-     *  比齿轮小了三分之一左右)。
-     *
-     *  **Google 的量法**:同一张参考图,屏保图标框 a11y bounds (656,76)-(720,140),图标本体
-     *  是灰阶、周围没有角标遮挡,不需要角标分离这一步。同样用「药丸底色均值(≈46.2)与图标核心
-     *  亮度峰值(≈249.3)取中点(≈147.8)」的阈值量,90–150 区间内包围盒同样稳定不变,量得
-     *  26×26px = **13×13 dp**(比任务原始表格的 14×13.5dp 略小,差距不到 1px,这颗图标没有
-     *  角标遮挡问题,判断是阈值取舍的正常量测噪声,不是系统性误判——以这次自己复核的严格阈值
-     *  结果为准)。
-     *
-     *  **框到图的换算**:Round 5 sweep 表量出改动前(单一 32dp 常量时期)这颗图标的墨迹是
-     *  24×24dp,正方形,占框比例 24/32=0.75。按同一比例反推:13/0.75≈17.3dp,取 **17.5 dp**。
-     *  **已装机复核**:改动后实际墨迹(外框,内含的三角形播放符号完全落在外框范围内,不单独
-     *  外扩)27×26px = 13.5×13.0dp(bg 均值同上一个常量,峰值≈201.6,中点≈121.6),与目标
-     *  13×13dp 相差都在 0.5dp(1px)以内,同样落在测量噪声范围,不再二次迭代——复核过程见报告
-     *  「Round 6」。 */
-    const val TOP_BAR_SCREENSAVER_GLYPH = 17.5f
+    // ~~TOP_BAR_SCREENSAVER_GLYPH = 17.5f~~(屏保 Slideshow 图标,Round 6 量 Google 相册图标墨迹 13×13 dp 反推):
+    // **R89(2026-09-27 Gordon)屏保按钮从顶栏拿掉**(挪到「设置 → 屏保 → 立即开始屏保」),常量随之删掉。
+    /**
+     * **R89** 顶栏「应用」胶囊(`Icons.Filled.Apps`,3×3 方块)的图形绘制大小。量法同 [TOP_BAR_GEAR_GLYPH]:
+     * 目标墨迹 ≈ Google 顶栏同一排图标(相册 13×13、齿轮 16×18 dp)之间,取约 13.5 dp;这颗矢量图的墨迹占框
+     * 16/24 = 0.67(方块从 4 到 20),13.5 / 0.67 ≈ 20 dp。
+     */
+    const val TOP_BAR_APPS_GLYPH = 20f
+    /**
+     * **R89** 顶栏「输入源」胶囊(`Icons.Filled.Input`,方框 + 进入箭头)的图形绘制大小。这颗矢量图横向墨迹占框
+     * 约 20/24 = 0.83、纵向 18/24 = 0.75,取 18 dp:墨迹约 15×13.5 dp,与「应用」那颗视觉上等重。
+     */
+    const val TOP_BAR_INPUTS_GLYPH = 18f
     const val TOP_BAR_ICON_GAP = 8f
     /** Fix round 1(R15,2026-09-20):**15 dp 是 Google 用 Latin 文本(`Top picks for you`)量出来的
      *  值,对中文不成立,不要改回去。** 原始推导是 a11y (116,600)-(302,630) = 30 px = 15 dp——但那是
@@ -454,6 +448,46 @@ object GtvLayout {
     const val BROWSE_SPRING_STIFFNESS = 220f
     /** [BROWSE_SPRING_STIFFNESS] 弹簧的收敛阈值(dp),见那里。 */
     const val BROWSE_SPRING_THRESHOLD_DP = 0.5f
+
+    /**
+     * **vertical-motion 研究(2026-09-27,分支 `try/vertical-motion`,未经 owner 裁定)**:首页**上下换行**
+     * 整页位移(连同行图标的焦点色,两者同起同止)用哪条曲线。左右位移、编辑页不受影响,仍读
+     * [Theme.browseShiftSpec]。测量数据、录像与推荐见 `docs/design/vertical-motion/README.md`。
+     *
+     * - [SPRING_220]:现状(R38),与左右同一根临界阻尼弹簧。t = 0 加速度最大,
+     *   80 ms 已走 33%、峰速 ≈ 715 dp/s 出现在 67 ms(一个中档行距 131 dp)。
+     * - [TWEEN_450]:方案 A,`tween(450, FastOutSlowInEasing)`。起步柔和(80 ms 10%),到 95% 用时与现状
+     *   几乎相同(327 vs 320 ms),峰速略高(≈ 796 dp/s,在 136 ms)。
+     * - [TWEEN_550_SOFT]:方案 B,`tween(550, CubicBezier(0.35, 0, 0.15, 1))`。起步更慢,95% 在 390 ms。
+     * - [SPRING_110]:方案 C,刚度减半的临界阻尼弹簧。起步加速度减半,但尾巴拖到 ~760 ms 才停稳。
+     *
+     * **tween 的已知代价**:`animateDpAsState` 在动画中途换目标(连按两下)时,tween 从当前位置以
+     * **零速度**重新起步,弹簧会带着当前速度接着走——A/B 连按时有一下「刹停再起步」。
+     */
+    enum class HomeVerticalMotion { SPRING_220, TWEEN_450, TWEEN_550_SOFT, SPRING_110 }
+
+    /** 首页上下换行用哪条曲线,见 [HomeVerticalMotion]。**R96 起默认 = 方案 A(TWEEN_450)**,原现状为 SPRING_220;改这一行即可切换方案
+     *  (推荐 [HomeVerticalMotion.TWEEN_450],[WALLPAPER_DIM_PER_ROW] 随之打开)。 */
+    val HOME_VERTICAL_MOTION: HomeVerticalMotion = HomeVerticalMotion.TWEEN_450
+
+    /** 方案 A 的时长(ms),曲线 `FastOutSlowInEasing`。 */
+    const val VMOTION_A_MS = 450
+    /** 方案 B 的时长(ms),曲线 [Theme.HomeVerticalSoftEasing]。 */
+    const val VMOTION_B_MS = 550
+    /** 方案 C 的刚度(临界阻尼,ω ≈ 10.5 rad/s)。 */
+    const val VMOTION_C_STIFFNESS = 110f
+
+    /**
+     * **vertical-motion 研究(2026-09-27)发现的「不同步」**:壁纸压暗按 [WALLPAPER_FADE_OVER_DP](192)
+     * 线性、到头夹住,而每换一行走 [rowPitch](中档无标题 131)。行 0 → 1 时两者同步;**行 1 → 2** 时
+     * 壁纸在位移走到 47% 就暗到底(弹簧上 ≈ 110 ms),卡片还要再走 400 ms;**行 2 → 1** 反过来,壁纸
+     * 前 53% 一动不动、在位移尾巴里才亮起来。打开后改按「行进度」逐行线性插值([wallpaperAlphaPerRow]),
+     * 每次换行壁纸的变化都与这次位移同进度;各行静止时的 alpha 与现状逐值相同。
+     *
+     * **跟着 [HOME_VERTICAL_MOTION] 走**:现状([HomeVerticalMotion.SPRING_220])时关 = 行为不变;选了任何新曲线就一并
+     * 打开——所以切到推荐方案只改 [HOME_VERTICAL_MOTION] 那一行。想单独对比时把这里写成字面量。
+     */
+    val WALLPAPER_DIM_PER_ROW: Boolean = HOME_VERTICAL_MOTION != HomeVerticalMotion.SPRING_220
 
     /**
      * owner 反馈 Round 4:Google 对 **app tile**(不是 content card)的聚焦处理——放大,不是外扩
@@ -995,4 +1029,22 @@ object GtvLayout {
      */
     fun wallpaperAlpha(shiftDp: Float): Float =
         1f - (1f - WALLPAPER_BROWSE_ALPHA) * (kotlin.math.abs(shiftDp) / WALLPAPER_FADE_OVER_DP).coerceIn(0f, 1f)
+
+    /**
+     * [WALLPAPER_DIM_PER_ROW] 的实现:整页位移 [shiftDp] 折成「第几行 + 行内进度」,在相邻两行的静止 alpha
+     * (都取 [wallpaperAlpha])之间线性插值。整数行上与 [wallpaperAlpha] 逐值相同;每次换行,壁纸的变化量
+     * 按这次位移的进度匀速分摊,不会在前半程就暗到底、或后半程才开始亮。[pitchDp] ≤ 0 时退回 [wallpaperAlpha]。
+     */
+    fun wallpaperAlphaPerRow(shiftDp: Float, pitchDp: Float): Float {
+        if (pitchDp <= 0f) return wallpaperAlpha(shiftDp)
+        val pos = kotlin.math.abs(shiftDp) / pitchDp
+        val n = kotlin.math.floor(pos)
+        val a0 = wallpaperAlpha(n * pitchDp)
+        val a1 = wallpaperAlpha((n + 1f) * pitchDp)
+        return a0 + (a1 - a0) * (pos - n)
+    }
+
+    /** 首页壁纸层实际用的 alpha:按 [perRow](默认 [WALLPAPER_DIM_PER_ROW])在两种算法间选。 */
+    fun homeWallpaperAlpha(shiftDp: Float, pitchDp: Float, perRow: Boolean = WALLPAPER_DIM_PER_ROW): Float =
+        if (perRow) wallpaperAlphaPerRow(shiftDp, pitchDp) else wallpaperAlpha(shiftDp)
 }

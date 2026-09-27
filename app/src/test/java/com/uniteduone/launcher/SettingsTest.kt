@@ -23,7 +23,6 @@ class SettingsTest {
         assertEquals(5, s.rowCount)
         assertEquals(Settings().cardsPerRow, s.cardsPerRow)
         assertEquals(Settings().showTitles, s.showTitles)
-        assertEquals(Settings().showInputRow, s.showInputRow)
         assertEquals(Settings().themePresetId, s.themePresetId)
         assertEquals(Settings().idleAfterMs, s.idleAfterMs)
         assertEquals(Settings().idleContent, s.idleContent)
@@ -68,7 +67,6 @@ class SettingsTest {
         assertEquals(true, s.showTitles)
         assertEquals(false, s.showDate)
         // untouched fields keep their own defaults
-        assertEquals(Settings().showInputRow, s.showInputRow)
         assertEquals(Settings().followWallpaperColor, s.followWallpaperColor)
         assertEquals(Settings().clock24hFollowSystem, s.clock24hFollowSystem)
     }
@@ -85,7 +83,6 @@ class SettingsTest {
             rowCount = 5,
             cardsPerRow = 8,
             showTitles = true,
-            showInputRow = true,
             themePresetId = "sunset",
             followWallpaperColor = true,
             clock24hFollowSystem = false,
@@ -132,6 +129,15 @@ class SettingsTest {
         assertEquals(Settings(showTitles = true, themePresetId = "blue"), s)
         assertFalse(s.toJson().contains("themedCards"))
         assertEquals(Settings(), parseSettings("""{"themedCards": false}"""))
+    }
+
+    @Test fun legacyShowInputRowKeyIsIgnored() {
+        // 2026-09-27 首页输入源行删掉(gtv spec R92):升级前的 settings.json 里还带着 showInputRow 键(开着或关着)。
+        // 与 themedCards 同一写法:按未知键忽略,其余字段照常解析,写盘也不再带它。
+        val s = parseSettings("""{"showInputRow": true, "showTitles": true, "cardsPerRow": 8}""")
+        assertEquals(Settings(showTitles = true, cardsPerRow = 8), s)
+        assertFalse(s.toJson().contains("showInputRow"))
+        assertEquals(Settings(), parseSettings("""{"showInputRow": false}"""))
     }
 
     @Test fun wallpaperFieldsDefaultWhenAbsent() {
