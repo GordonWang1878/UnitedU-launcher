@@ -1577,3 +1577,6 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 同日续 01:00:「添加应用」列表改版并入(`a7317e4`,R83:过滤裸 MAIN 系统组件、应用在上 / 系统工具在底、一列 96×54 小卡片 + 右侧名字;425 测试绿)。A95L 只读实测发现 `com.sony.dtv.mysony` 带 FLAG_UPDATED_SYSTEM_APP,原规则「更新过 = 应用」会漏进应用组 → `c1df8c7` 改为「系统 + 工具命名空间(com.android./com.google.android.tv./com.sony.dtv./mediatek.)更新过也归系统工具」,宽泛的 com.google.android. 不再算工具(Google TV 机型预装 YouTube 仍是应用),Play 商店归系统工具。Gordon 拖来新 banner(1280×720 不透明),替换母图与 xhdpi 320×180(`e446cca`),装 A95L 并 force-stop 电视设置清图标缓存。注:聊天里**粘贴**的图不落文件,**拖入**的才会存到会话 images 目录。
 - 同日续:Gordon 先要 banner 加速渐变(本机试了 2/3/4 次方,字会被一起压暗),随即更正为**首页**背景渐变。R84:首页一层从上往下压暗到黑,透明度 = 屏高分数³(一半 12.5%、四分之三 42%、底边 100%),亮色壁纸下前后对比 `docs/screenshots/r84-home-fade-cubic.jpg`;他看后定「就这样」,合入 main 装 A95L。深色照片壁纸下半部本来就暗,对比几乎看不出——视觉取舍要用亮色壁纸截对比。
 - 同日续 08:56:Gordon 电视上看不出 R84 渐变。电视只读截图 + 设置:壁纸《雨后纸船巷》下半部本来就暗,3 次方只在卡片一带及以下明显(一半高度才 12.5%)——渐变在,但这张图上不显。之前模拟器对比用了亮色 banner 当壁纸,放大了效果,**对比图应当用他实际在用的壁纸**。已用他的壁纸本机模拟 6 种曲线 `docs/screenshots/r84-fade-variants-tv-wallpaper.jpg`,待他选。
+
+## 2026-09-27 · R85 首页压暗改三段曲线
+- Gordon 在他电视壁纸的 6 种模拟里选「从 30% 开始、卡片那一行压到 85%」:30% 以上不压暗,30%→80% 二次方加速到 0.85,80%→100% 线性到全黑。`homeFadeAlpha` 改三段,新增 `HomeFadeTest`(4 条),429 测试绿,装 A95L。adb 这次报 No route to host,`adb kill-server` 后同端口连上(本机 adb 进程问题,照 CLAUDE.md)。

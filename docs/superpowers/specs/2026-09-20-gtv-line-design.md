@@ -311,3 +311,4 @@ cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的�
   - **位图**:每项上屏时 IO 线程读(`Apps.pickerCard`),按包名做 key 的 LRU(8 MB 上界,值带 `lastUpdateTime` + 自定义图修改时间的版本戳,更新后原地替换);顺手消掉上一轮 `cachedSmallIcon` 按 `包名@戳` 前缀取到 LRU 里最旧一份的问题。
   - 打开时初始焦点、选中后落在该行新加的那张卡、BACK 回该行「＋」、读取中 / 空列表提示均不变。模拟器拼图 `docs/screenshots/app-picker-cards.jpg`。
 - **R84 首页从上往下加速压暗到黑**(2026-09-24 owner 看模拟器对比后定「就这样」):一层全屏竖直渐变,压暗透明度 = 屏高分数的 3 次方(一半 12.5%、四分之三 42%、底边 100%),颜色 `MenuBg`,16 个等分 stop 逼近曲线,固定在屏幕坐标、随 contentAlpha 淡出。常量 `GtvTokens.HOME_FADE_*`。R82 关掉的 R24 两层衰减仍关着。对比图见 WORKLOG 2026-09-24。
+- **R85 首页压暗改三段曲线**(2026-09-27 owner 在自己电视壁纸《雨后纸船巷》的 6 种模拟里选第 6 种,取代 R84 的 t³):屏高 30% 以上不压暗;30% → 80%(卡片行附近)按 2 次方加速压到 85%;80% → 底边线性到 100%。`GtvTokens.HOME_FADE_START/KNEE/KNEE_ALPHA`、`homeFadeAlpha`,20 等分 stop 让拐点落在 stop 上。模拟图 `docs/screenshots/r84-fade-variants-tv-wallpaper.jpg`。

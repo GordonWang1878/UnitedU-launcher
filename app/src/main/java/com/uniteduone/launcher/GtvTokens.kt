@@ -54,12 +54,28 @@ object GtvTokens {
      */
     /** R84:首页从上往下加速压暗到黑(试做)。 */
     const val HOME_FADE_ENABLED = true
-    /** R84:压暗曲线的次方;3 = 一半高度 12.5%、四分之三 42%、底边 100%。 */
-    const val HOME_FADE_POWER = 3f
-    /** R84:逼近曲线用的等分 stop 数(相邻 stop 之间线性插值)。 */
-    const val HOME_FADE_STOPS = 16
-    /** R84:屏高分数 t(0 = 顶,1 = 底)处的压暗透明度。 */
-    fun homeFadeAlpha(t: Float): Float = Math.pow(t.coerceIn(0f, 1f).toDouble(), HOME_FADE_POWER.toDouble()).toFloat()
+    /**
+     * R85(2026-09-27 owner 在自己电视壁纸的 6 种模拟里选定,取代 R84 的 t³):三段曲线——
+     * 屏高 [HOME_FADE_START] 以上完全不压暗;从那里到卡片行附近 [HOME_FADE_KNEE] 按 2 次方加速压到
+     * [HOME_FADE_KNEE_ALPHA];再往下线性压到底边 1.0(全黑)。R84 的 t³ 在 owner 那张下半部本来就暗的壁纸上看不出来。
+     */
+    const val HOME_FADE_START = 0.30f
+    const val HOME_FADE_KNEE = 0.80f
+    const val HOME_FADE_KNEE_ALPHA = 0.85f
+    /** 逼近曲线用的等分 stop 数(相邻 stop 之间线性插值);20 等分让 0.30 / 0.80 两个拐点正好落在 stop 上。 */
+    const val HOME_FADE_STOPS = 20
+    /** 屏高分数 t(0 = 顶,1 = 底)处的压暗透明度。 */
+    fun homeFadeAlpha(t: Float): Float {
+        val x = t.coerceIn(0f, 1f)
+        return when {
+            x <= HOME_FADE_START -> 0f
+            x <= HOME_FADE_KNEE -> {
+                val u = (x - HOME_FADE_START) / (HOME_FADE_KNEE - HOME_FADE_START)
+                u * u * HOME_FADE_KNEE_ALPHA
+            }
+            else -> HOME_FADE_KNEE_ALPHA + (x - HOME_FADE_KNEE) / (1f - HOME_FADE_KNEE) * (1f - HOME_FADE_KNEE_ALPHA)
+        }
+    }
 
     /** R82:首页背景衰减(下面这组 HeroGradient*)的总开关。2026-09-24 owner 暂时拿掉,等新策略。 */
     const val HERO_GRADIENT_ENABLED = false

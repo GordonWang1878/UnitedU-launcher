@@ -516,7 +516,7 @@ fun HomeScreen(
         // 上下移动时的整体压暗(wallpaperAlpha)不受影响。
         // R84(2026-09-24 owner 试做):从上往下「加速」压暗到黑——压暗程度 = 屏高分数的 3 次方
         // (一半高度 12.5%、四分之三 42%、底边 100%):上面的英雄区基本是原壁纸,越往下暗得越快,卡片行落在深色底上。
-        // Compose 渐变在相邻 stop 之间线性插值,用 [GtvTokens.HOME_FADE_STOPS] 个等分 stop 逼近 t³。
+        // Compose 渐变在相邻 stop 之间线性插值,用 [GtvTokens.HOME_FADE_STOPS] 个等分 stop 逼近曲线(R85 起三段,见 homeFadeAlpha)。
         // 与 R24 一样固定在屏幕坐标、随 contentAlpha 淡出(待机 / 屏保时消失)。
         if (GtvTokens.HOME_FADE_ENABLED) {
             Box(
