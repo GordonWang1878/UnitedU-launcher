@@ -1,20 +1,20 @@
 package com.uniteduone.launcher
 
-/** 首页移动态里被搬的那张卡的位置(首页渲染行的下标,含置顶的输入源行)。按位置追踪,不按包名找(同一个包可以在两行里)。 */
+/** 首页移动态里被搬的那张卡的位置(首页渲染行的下标)。按位置追踪,不按包名找(同一个包可以在两行里)。 */
 data class MovePos(val row: Int, val col: Int)
 
 enum class MoveDir { LEFT, RIGHT, UP, DOWN }
 
 /**
- * 搬一步(M4b spec §0-9)。左右:与同行邻卡换位,到头不动。上下:落到那个方向最近的**应用行**
- * (跳过输入源行)的同一列,越过行尾就放行尾;那个方向没有应用行 → 不动;**那一行里已经有同一个包 → 不动**
+ * 搬一步(M4b spec §0-9)。左右:与同行邻卡换位,到头不动。上下:落到那个方向相邻那一行的同一列
+ * (R92 前要跳过置顶的输入源行,首页没有这一行了),越过行尾就放行尾;那个方向没有行 → 不动;**那一行里已经有同一个包 → 不动**
  * (也不越过它去找更远的行)——一行里一个包只能有一张(`Layout.read` 做 distinct),搬进去的话放下时
  * 会被合并掉,卡片等于从源行凭空消失(M4b Task 5 跟进裁定)。源行被移空 → 从结果里去掉
  * (首页不显示空行),落点行号随之校正。不动时返回**同一个** list 与原位置。
  */
 internal fun moveCard(rows: List<Row>, pos: MovePos, dir: MoveDir): Pair<List<Row>, MovePos> {
     val src = rows.getOrNull(pos.row) ?: return rows to pos
-    if (src.kind != RowKind.APPS || pos.col !in src.apps.indices) return rows to pos
+    if (pos.col !in src.apps.indices) return rows to pos
     when (dir) {
         MoveDir.LEFT, MoveDir.RIGHT -> {
             val to = if (dir == MoveDir.LEFT) pos.col - 1 else pos.col + 1
@@ -24,8 +24,7 @@ internal fun moveCard(rows: List<Row>, pos: MovePos, dir: MoveDir): Pair<List<Ro
         }
         MoveDir.UP, MoveDir.DOWN -> {
             val step = if (dir == MoveDir.UP) -1 else 1
-            var t = pos.row + step
-            while (t in rows.indices && rows[t].kind != RowKind.APPS) t += step
+            val t = pos.row + step
             if (t !in rows.indices) return rows to pos
             val card = src.apps[pos.col]
             val target = rows[t]
@@ -55,8 +54,8 @@ internal fun moveCard(rows: List<Row>, pos: MovePos, dir: MoveDir): Pair<List<Ro
  */
 internal fun mergeMove(disk: List<LayoutRow>, original: List<Row>, working: List<Row>): List<LayoutRow> =
     disk.mapIndexed { l, row ->
-        val before = original.firstOrNull { it.kind == RowKind.APPS && it.layoutRow == l }?.apps?.map { it.packageName }
-        val now = working.firstOrNull { it.kind == RowKind.APPS && it.layoutRow == l }?.apps?.map { it.packageName }
+        val before = original.firstOrNull { it.layoutRow == l }?.apps?.map { it.packageName }
+        val now = working.firstOrNull { it.layoutRow == l }?.apps?.map { it.packageName }
         if (now == before) return@mapIndexed row
         val shown = before.orEmpty().toSet()
         row.copy(apps = (now.orEmpty() + row.apps.filter { it !in shown }).distinct())
@@ -87,7 +86,7 @@ class MoveLanding(val pos: MovePos, val wrote: Boolean)
 
 /**
  * 编辑页搬卡一步(M4b spec §0-18,Gordon 2026-09-20):与首页 [moveCard] 同一套键位,对象是 layout.json 的行——
- * 空行也是合法落点(编辑页显示空行),源行被移空照样保留;编辑页没有输入源行。左右:与同行邻卡换位,到头不动。
+ * 空行也是合法落点(编辑页显示空行),源行被移空照样保留。左右:与同行邻卡换位,到头不动。
  * 上下:落到相邻行的同一列,越过行尾放行尾;相邻行已有同一个包 → 不动(同首页 Ruling M4b-R16);那个方向没有行 → 不动。
  * 不动时返回同一个 list 与原位置。
  */

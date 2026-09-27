@@ -65,10 +65,13 @@ fun HomeScreen(
     /** 待机演示(M7 T6,spec §3.2):非 null 时覆盖 [idle]/[idleContent] 驱动的两个淡出动画。 */
     /**
      * 顶栏「设置」药丸按下(R69:打开设置页外壳的第一层,取代原来嵌在首页里的齿轮菜单)。设置外壳住在 MainActivity、
-     * 叠在首页之上,首页由 [previewing] 让路、冻结目标;关掉后按冻结的 `tgtGear` 回到药丸(或 MENU 键打开时回到那张卡)。
+     * 叠在首页之上,首页由 [previewing] 让路、冻结目标;关掉后按冻结的 `tgtPill` 回到药丸(或 MENU 键打开时回到那张卡)。
      */
     onSettings: () -> Unit = {},
-    onScreensaver: () -> Unit = {},
+    /** R89:顶栏「应用」胶囊 = 打开所有应用页(MainActivity 那一层的整屏浮层,同设置外壳走 [previewing] 让路)。 */
+    onApps: () -> Unit = {},
+    /** R89:顶栏「输入源」胶囊 = 打开输入源页(同上)。R89 前这一格是屏保按钮(`onScreensaver`),挪进「设置 → 屏保」。 */
+    onInputs: () -> Unit = {},
     focusNonce: Int,
     revision: Int = 0,
     showDate: Boolean = true,
@@ -77,9 +80,7 @@ fun HomeScreen(
      *  (见 GtvLayout.titleHeight;main 线的编辑页等未换皮界面走 HomeLayout.titleHeight 同一套公式),
      *  纵向位移沿用同一套自算逻辑。 */
     showTitles: Boolean = false,
-    /** 输入源行开关(design §2,默认关)。开着且真机枚举到硬件输入时,在应用行**上方**
-     *  多渲染一行输入源;它以普通行的身份加进纵向焦点账本,种类差异只影响点击行为与行图标。 */
-    showInputRow: Boolean = false,
+    // ~~showInputRow~~(R92,2026-09-27 Gordon):首页不再有输入源行,输入源搬到顶栏「输入源」胶囊打开的页面(InputsPage)。
     /** 上次打开「添加应用」列表的时刻(design §4);默认「什么都不算新」,未接线的调用点零回归。 */
     newAppsSeenAt: Long = Long.MAX_VALUE,
     /** 当前聚焦的卡(得到时上报,失去时报 null)——MainActivity 长按时据此弹菜单。 */
@@ -118,7 +119,7 @@ fun HomeScreen(
     moving: MoveState? = null,
     /** 移动态结束时焦点该落的那一格(见 [MoveLanding]):还原效果把它写进 `tgtRow`/`tgtIdx`,每个落点只写一次。 */
     moveLanding: MoveLanding? = null,
-    /** 这一次组合画出来的行(含置顶的输入源行)。MainActivity 进移动态时拿最近一份当工作副本。 */
+    /** 这一次组合画出来的行。MainActivity 进移动态时拿最近一份当工作副本。 */
     onRowsShown: (List<Row>) -> Unit = {},
     /**
      * **Ruling R35**:整页位移的**每帧动画值**(dp,≤ 0 表示上移,= 下面 `shift`)上报给 MainActivity,
@@ -141,15 +142,13 @@ fun HomeScreen(
     // 分开写四遍 `cardMenu != null ||` 迟早漏掉一处,而漏掉的那一处就是「菜单开着时看门狗每帧抢焦点,
     // 菜单里一项都不高亮」(铁律 4 的推论)。合成一个量之后,它同时是那两个效果的 key 与守卫(铁律 6)。
     // (R69 起齿轮菜单不再嵌在首页里:设置页外壳是 MainActivity 那一层的整屏浮层,算在 [previewing] 里;
-    //  原来专管「齿轮菜单关了回齿轮」的 gearNonce 随之删掉,回齿轮只靠冻结的 tgtGear,见它的 KDoc。)
+    //  原来专管「齿轮菜单关了回齿轮」的 gearNonce 随之删掉,回齿轮只靠冻结的 tgtPill〔R89 前叫 tgtGear〕,见它的 KDoc。)
     val covered = anyOverlay || previewing
     // 枚举应用 + 解码全部横幅是重活,放到 IO 线程,别拖慢首帧
     // (冷启动实测 2.0–2.3s,Projectivy 是 1.45s)。
     // 用 null 区分「还在加载」和「真的空」,否则每次冷启动和每次退出编辑都会闪一句求救文案
     // revision 变化(换了卡片图、装/卸了应用)时重跑,但 produceState 的 remember 不带 key,
     // 新数据到达前**旧画面原样留着**——不会像 key(revision) 那样先黑一下再重建。
-    // showInputRow 也作 key:设置页改了这个开关后 leaveSettings() 会 revision++,
-    // 这里本就会重跑;带上它是白纸黑字,不依赖「revision 一定跟着变」这条间接约束。
     // titles.json 与 rows 同一趟 IO 读出,配成一对:标题开关关着时 titles 仍会被读到但不渲染
     // (显示与否只由 showTitles 决定,不进 key——开关切换不必重读数据,只是换一种渲不渲染)。
     // 「手上这份数据是为哪个 revision 算的」。**移除 / 卸载后焦点能不能留在同一行,全靠它**:
@@ -159,25 +158,17 @@ fun HomeScreen(
     // 与 EditScreen 的 allFresh 同构:数据不新鲜时冻结目标,新鲜之后再由还原效果送回去。
     var loadedRevision by remember { mutableStateOf(-1) }
     val loaded by produceState<Triple<List<Row>, Map<String, String>, Int>?>(
-        initialValue = null, ctx, revision, showInputRow, newAppsSeenAt,
+        initialValue = null, ctx, revision, newAppsSeenAt,
     ) {
         value = withContext(Dispatchers.IO) {
-            val appRows = runCatching { buildRows(ctx) }.getOrDefault(emptyList())
-            // titles 要在输入源行之前读出:buildInputRow 用它给改过名的输入源换标签(applyInputPrefs)。
+            val rows = runCatching { buildRows(ctx) }.getOrDefault(emptyList())
             val titles = runCatching { Titles.read(ctx) }.getOrDefault(emptyMap())
-            // 输入源行放**最上面**:design §2 把「输入源」当独立顶层类目,置顶与之相符;
-            // 且置顶后应用行的相对次序、以及「开机焦点落在最上一行」的直觉都不变。
-            // 枚举为空(非电视 / 没有硬件输入 / 全部隐藏)时返回 null,这一行干脆不存在 —— 焦点账本
-            // 只认非空行,不会挂空 requester(见 buildRows 结尾那条不变量)。
-            val inputRow = if (showInputRow) runCatching { buildInputRow(ctx, titles) }.getOrNull() else null
-            val rows = if (inputRow != null) listOf(inputRow) + appRows else appRows
-            // 「新应用」计数:与首页同一趟 IO 算(应用已经枚举过一次),onLayout 只看应用行
-            // ——输入源行的 packageName 存的是输入 id,不是真的包名。
+            // 「新应用」计数:与首页同一趟 IO 算(应用已经枚举过一次)。
             // 基线还没建立(newAppsSeenAt == 0:onCreate 那次基线写盘失败,比如外置存储开机时还没挂上)
             // 就什么都不算新——否则 countNew(ctx, 0, …) 会把整机几十个应用全算成「新」,整个会话都挂着计数
             // (终审 Minor #5)。isNewApp 的纯语义不动(仍是「装机时间 > seenAt 且不在桌面上」),只是不喂 0 进去。
             val newCount = if (newAppsSeenAt == 0L) 0 else runCatching {
-                Apps.countNew(ctx, newAppsSeenAt, appRows.flatMap { r -> r.apps.map { it.packageName } }.toSet())
+                Apps.countNew(ctx, newAppsSeenAt, rows.flatMap { r -> r.apps.map { it.packageName } }.toSet())
             }.getOrDefault(0)
             Triple(rows, titles, newCount)
         }
@@ -230,8 +221,12 @@ fun HomeScreen(
     }
     var tgtRow by remember { mutableStateOf(0) }
     /**
-     * **目标是齿轮(true)还是那一格卡片(false)**。与 [tgtRow]/[tgtIdx] 同构,是同一条铁律 5
-     * 在齿轮上的应用:「目标」与「当前位置」必须分开,而且从浮层打开(或 `ON_PAUSE`)就冻住。
+     * **目标是顶栏哪一颗胶囊(0 设置 / 1 应用 / 2 输入源),还是那一格卡片(-1)**。与 [tgtRow]/[tgtIdx] 同构,是同一条铁律 5
+     * 在顶栏上的应用:「目标」与「当前位置」必须分开,而且从浮层打开(或 `ON_PAUSE`)就冻住。
+     * **R89(2026-09-27)从布尔 `tgtGear` 扩成列号**:顶栏从「设置 / 屏保」两颗变成「设置 / 应用 / 输入源」三颗,
+     * 其中两颗(应用、输入源)会打开浮层,关掉后要回到**打开它的那一颗**——布尔量只记得「回顶栏」,还原时一律
+     * 送到设置那颗(R89 之前屏保按钮不开浮层,这个差别从来没暴露过)。「每一个分量都要拆」(铁律 5 原话):
+     * 顶栏的列号与卡片的行 / 列同样是目标的一个分量,同样跟着自报的焦点走、同样在还原期间冻结。
      *
      * 为什么不能只靠 `gearNonce`(M7 T4 实测):`gearNonce` 把「关掉之后回齿轮」这个意图
      * **钉在某一个 focusNonce 上**,而浮层链里每一层关掉时都会 `focusNonce++`
@@ -241,12 +236,12 @@ fun HomeScreen(
      * 浮层期间 `restoring` 冻着它,关掉后原样还原,中途 nonce 怎么涨都不影响。
      * 也不是闩(铁律 7):每次焦点落地都是一次全新赋值,没有「只有一条窄路能清」的状态。
      */
-    var tgtGear by remember { mutableStateOf(false) }
+    var tgtPill by remember { mutableStateOf(-1) }
     var restoring by remember { mutableStateOf(false) }
     // **谁持有焦点,只信控件自己的上报。**根节点的 onFocusChanged 在「退到后台再回来」
     // 这条路上不会重发,`hasFocus` 会停在过期的 true —— 实测日志说有焦点,截图里
     // 卡片却没有放大也没有光晕(上边缘 777→812、光晕峰值 142→66)。
-    // (-1, col) 表示焦点在顶栏 pill 组上(col 0 设置 / 1 屏保)。
+    // (-1, col) 表示焦点在顶栏 pill 组上(col 0 设置 / 1 应用 / 2 输入源,R89)。
     var focusedCell by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     // **从 onPause 就开始冻结目标**,而不是等还原效果开始时才冻。实测:从别的应用回来时
     // Compose 会抢在还原效果之前把焦点给第一张卡,那次焦点事件会把目标改写成 (0,0),
@@ -279,7 +274,7 @@ fun HomeScreen(
         if (row < 0) return null                       // (-1, col) = 顶栏 pill:它不是卡,长按不该出菜单
         val r = rows.getOrNull(row) ?: return null
         val app = r.apps.getOrNull(idx) ?: return null
-        return CardRef(row, idx, r.layoutRow, r.kind, app.packageName, app.label)
+        return CardRef(row, idx, r.layoutRow, app.packageName, app.label)
     }
     fun report(row: Int, idx: Int, got: Boolean) {
         // 目标跟着「焦点真的落在哪」走,**还原过程中不更新**——理由与下面卡片那两个目标完全相同:
@@ -292,7 +287,7 @@ fun HomeScreen(
         // 卡片那两个目标不必判:卡片本身就是数据到了才存在,这条件对它们是隐含成立的。
         // **移动态期间也不更新**(与卡片那两个目标同一条,铁律 5「每一个分量」):那时的目标归 MainActivity 的
         // moving.pos 管,首页自己的记忆冻结,结束时由落点(moveLanding)一次写入。
-        if (got && !restoring && loaded != null && movingNow == null) tgtGear = row == -1
+        if (got && !restoring && loaded != null && movingNow == null) tgtPill = if (row == -1) idx else -1
         // focusedCell 自己的得失顺序保护留着:只有「本格仍是持有者」才作废。导航时若两张卡的
         // 得失顺序颠倒(新卡先报 got、旧卡后报 lost),旧卡那次 lost 不会把新卡抹掉。
         if (got) focusedCell = row to idx
@@ -308,11 +303,11 @@ fun HomeScreen(
     LaunchedEffect(rows, focusedCell) { onFocusedCard(cardAt(focusedCell)) }
     // 配置里的包一个都装不到时,卡片一张都没有,焦点无处可落;而这时唯一能自救的
     // 控件正是齿轮。不能指望框架的隐式 focus-enter——这份代码在别处恰恰拒绝依赖它。
-    val gearFocus = remember { FocusRequester() }
-    // 顶栏屏保按钮自己的 requester(gtv 线新顶栏 GtvTopBar 需要,见其参数 KDoc)。
-    // 目前没有别处主动把焦点送到这一格——「回到顶栏」只认 gearFocus——但 GtvTopBar 的
-    // 接口按两个按钮对称给,留着这颗以防以后要直接把焦点送到屏保按钮。
-    val screensaverFocus = remember { FocusRequester() }
+    // 顶栏三颗胶囊各一个 requester(R89:设置 / 应用 / 输入源),下标 = 焦点账本里的 col。
+    val pillFocus = remember { List(TOP_PILL_COUNT) { FocusRequester() } }
+    val gearFocus = pillFocus[0]
+    /** 冻结的顶栏目标对应的 requester;越界(理论上不会)退回设置那颗。 */
+    fun pillTarget(): FocusRequester = pillFocus.getOrElse(tgtPill) { gearFocus }
     // 哪一行是「当前行」——决定纵向锚定位移;跟着焦点走。Task 9 曾经把 -1 当合法值写进来
     // (药丸组拿到焦点时写入),给 GtvTopBar 的 `collapsed` 参数当「焦点在不在应用行」的信号。
     // Ruling R21(终审 2026-09-20)删掉了顶栏折叠,这个信号没有消费者了——药丸组拿到焦点时
@@ -390,7 +385,7 @@ fun HomeScreen(
         val landing = moveLanding
         if (moveTarget == null && landing != null && landing !== appliedLanding) {
             appliedLanding = landing
-            tgtGear = false
+            tgtPill = -1
             tgtRow = landing.pos.row
             if (landing.pos.row in tgtIdx.indices) tgtIdx[landing.pos.row] = landing.pos.col
         }
@@ -399,16 +394,17 @@ fun HomeScreen(
         // 浮层关掉后 Compose 的默认恢复就在这几帧里把焦点塞给了 (0,0),看门狗看到 `focusedCell != null`
         // 当场让路,于是「换壁纸回来焦点回齿轮」变成了「落在第一张卡」。卡片那条路一直是对的,
         // 正因为它是这里主动请求的;齿轮只是缺了对称的一半。
-        // 目标读 [tgtGear](冻结过的);它是「读的量」不是守卫,与 tgtRow/tgtIdx 同例,不进 key(进了会在每次导航时重跑还原)。
+        // 目标读 [tgtPill](冻结过的);它是「读的量」不是守卫,与 tgtRow/tgtIdx 同例,不进 key(进了会在每次导航时重跑还原)。
         restoring = true
         var frames = 0
         // 移动态下焦点只去被搬的那张卡,不回齿轮
-        if (moveTarget == null && tgtGear) {
-            // 退出条件同样只信控件自报(铁律 2):设置 / 屏保两个 pill 都会 report(-1, col, true),
-            // 两者都算「回到顶栏」——按 focusedCell?.first 判,不钉死某一列(col 0/1 都算数)。
-            while (frames < 60 && focusedCell?.first != -1) {
+        if (moveTarget == null && tgtPill >= 0) {
+            // 退出条件同样只信控件自报(铁律 2),而且要落在**冻结的那一颗**上(R89:三颗里两颗会开浮层,
+            // 关掉要回到打开它的那颗;只判「在顶栏上」的话,Compose 先把焦点给设置那颗就会提前退出)。
+            val want = -1 to tgtPill
+            while (frames < 60 && focusedCell != want) {
                 withFrameNanos { }
-                runCatching { gearFocus.requestFocus() }
+                runCatching { pillTarget().requestFocus() }
                 frames++
             }
             restoring = false
@@ -449,13 +445,13 @@ fun HomeScreen(
         repeat(3) { withFrameNanos {} }
         if (focusedCell != null) return@LaunchedEffect
         // 与还原效果同一判据:冻结过的目标优先。
-        // `tgtGear` 不进 key 也不违反铁律 6:它只在焦点真的落下时才变,而那一下必定同时改写
+        // `tgtPill` 不进 key 也不违反铁律 6:它只在焦点真的落下时才变,而那一下必定同时改写
         // `focusedCell`(已经是 key),本效果照样会以新值重启;而且它不是守卫,只决定送去哪儿。
         // 移动态:目标是被搬的那张卡(moveTarget 只决定送去哪儿、不是守卫;它一变还原效果就重启、
         // restoring 随之置真,本效果以 restoring 这个 key 重启让路,不会拿着旧目标跟还原效果抢)。
-        val useGear = moveTarget == null && tgtGear
+        val usePill = moveTarget == null && tgtPill >= 0
         val target = when {
-            useGear && loaded != null -> gearFocus
+            usePill && loaded != null -> pillTarget()
             // 落点用「那一行记住的那一格」而不是第一行第一张 —— rowFocus 正好挂在那里
             // (upTarget/downTarget 用的就是它)。冷启动时两者是同一个节点,不构成回归。
             rows.isNotEmpty() ->
@@ -620,10 +616,10 @@ fun HomeScreen(
                 )
             }
             // Ruling R43 → R48:哪一行的行图标是「焦点行」近白态(R48 前是行标题大白态)。焦点在顶栏药丸组
-            // (tgtGear)→ 没有焦点行(-1);否则就是 activeRowSafe(整页位移用的同一个量,图标与位移同时变)。
+            // (tgtPill ≥ 0)→ 没有焦点行(-1);否则就是 activeRowSafe(整页位移用的同一个量,图标与位移同时变)。
             // 两者都只在卡片 / 药丸真的拿到焦点时改写、浮层 / ON_PAUSE 期间冻结,所以图标在浮层与退后台时
             // 保持最后状态。纯派生,不写任何状态,不进任何效果的 key 或守卫(铁律 3–7 一处不动)。
-            val iconFocusRow = if (tgtGear) -1 else activeRowSafe
+            val iconFocusRow = if (tgtPill >= 0) -1 else activeRowSafe
             // 「有 N 个新应用」提示在不在(顶栏下那一行小字,见下方顶栏 Column)。在的话 R53 淡出带的零点
             // 下移到提示底边(GtvLayout.NEW_APPS_HINT_BOTTOM),换行动画里扫过去的行不与提示字叠在一起。
             val newAppsShown = (loaded?.third ?: 0) > 0
@@ -705,8 +701,7 @@ fun HomeScreen(
         )
         Column(modifier = Modifier.fillMaxWidth()) {
             GtvTopBar(
-                settingsFocusRequester = gearFocus,
-                screensaverFocusRequester = screensaverFocus,
+                pillFocusRequesters = pillFocus,
                 canFocus = !covered,
                 rowsEmpty = rows.isEmpty(),
                 downTarget = rowFocus.getOrNull(tgtRow.coerceIn(0, rowFocus.lastIndex)),
@@ -719,7 +714,8 @@ fun HomeScreen(
                 // 淡掉多少、阴影就补上多少,进出待机随同一个 tween 渐变,不瞬切;NO_FADE 档渐变不淡,阴影也不出。
                 clockShadowAlpha = 1f - contentAlpha,
                 onSettings = onSettings,
-                onScreensaver = onScreensaver,
+                onApps = onApps,
+                onInputs = onInputs,
                 onFocusChange = { col, got ->
                     report(-1, col, got)
                     // 与下面卡片行「got 时 activeRow = rowIndex」对称的另一半:药丸组拿到焦点也要
@@ -786,10 +782,7 @@ fun HomeScreen(
                 key = rt.pkg,
                 current = titles[rt.pkg] ?: "",
                 heading = stringResource(R.string.title_dialog_title),
-                // 输入源卡:清空恢复系统名(title_dialog_hint_input);应用卡:清空恢复应用名。
-                hint = stringResource(
-                    if (rt.kind == RowKind.INPUTS) R.string.title_dialog_hint_input else R.string.title_dialog_hint,
-                ),
+                hint = stringResource(R.string.title_dialog_hint),
                 onSave = { onRenameSave(rt, it) },
                 onCancel = onRenameCancel,
                 nonce = focusNonce,
@@ -805,7 +798,7 @@ private fun CategoryRow(
     metrics: CardMetrics,
     /** gtv 线的卡片档位(Task 3);横向位移公式 [GtvLayout.rowShiftX] 按它算 pitch。 */
     cardSize: GtvCardSize,
-    /** 卡片标题全局开关 + 自定义标题表(design §2);输入源行不受它影响,见下方 AppCard 调用。 */
+    /** 卡片标题全局开关 + 自定义标题表(design §2)。 */
     showTitles: Boolean,
     titles: Map<String, String>,
     firstCard: FocusRequester?,
@@ -857,7 +850,7 @@ private fun CategoryRow(
         // 卡片标题开着时标题在卡下方,不参与居中——效果图 A2 对齐的是卡片本身)。
         // 行名由 RowIcon 的 contentDescription 带给无障碍服务。图标不随 xShift 走。
         RowIcon(
-            row.name, row.kind, row.icon,
+            row.name, row.icon,
             tint = iconColor,
             boxSize = GtvLayout.ROW_ICON_SIZE.dp,
             modifier = Modifier.padding(
@@ -906,21 +899,13 @@ private fun CategoryRow(
                 AppCard(
                     app = app,
                     metrics = metrics,
-                    // 标题开关为全局(design §2.2):输入源行不显示,自定义标题也一样受它约束。
-                    title = if (showTitles && row.kind == RowKind.APPS) (titles[app.packageName] ?: app.label) else null,
-                    // 输入源行不画标题但照样占住那一行,行距与应用行一致(应用行 title 非空,走不到这一支)
-                    reserveTitleSpace = showTitles,
+                    // 标题开关为全局(design §2.2),自定义标题也一样受它约束。
+                    title = if (showTitles) (titles[app.packageName] ?: app.label) else null,
                     fallbackColor = app.fallbackColor?.let { Color(it) },
                     moving = index == carried,
                     focusAfterShift = landedWithShift,
                     onClick = {
-                        // 唯一按种类分流的地方:应用行启动包,输入源行切信号源
-                        //(packageName 里存的是输入 id)。其余焦点/渲染全部与种类无关。
-                        val ok = when (row.kind) {
-                            RowKind.INPUTS -> Inputs.launch(ctx, app.packageName)
-                            RowKind.APPS -> Apps.launch(ctx, app.packageName)
-                        }
-                        if (!ok) {
+                        if (!Apps.launch(ctx, app.packageName)) {
                             android.widget.Toast.makeText(
                                 ctx, ctx.getString(R.string.toast_cant_open_app, app.label), android.widget.Toast.LENGTH_SHORT,
                             ).show()
@@ -957,25 +942,6 @@ private fun CategoryRow(
             }
         }
     }
-}
-
-/**
- * 输入源行。把每个硬件输入伪装成 [AppEntry](packageName 存输入 id、card=null 走文字回退),
- * 从而与应用行**共用** AppCard / CategoryRow / 整套纵向焦点账本。
- * 枚举为空(非电视、或没有硬件输入、或全部被隐藏)时返回 null —— 这一行不渲染,焦点账本只挂非空行,
- * 与 buildRows 结尾那条不变量同源。标题走本地化字符串;ctx.getString 在 IO 线程可安全调用。
- * HDMI-CEC 父子去重见 [dedupeCec];隐藏 / 改名见 [applyInputPrefs]——[titles] 与卡片标题共用
- * titles.json(key = 输入 id),名字只换卡上文字,不受「卡片标题」开关影响。
- * 多个调谐器只留一张,见 [mergeTuners]。
- */
-private fun buildInputRow(ctx: Context, titles: Map<String, String>): Row? {
-    val inputs = applyInputPrefs(mergeTuners(dedupeCec(Inputs.load(ctx))), HiddenInputs.read(ctx), titles)
-    if (inputs.isEmpty()) return null
-    return Row(
-        name = ctx.getString(R.string.home_input_row_title),
-        apps = inputs.map { AppEntry(packageName = it.id, label = it.label, card = null, isWide = false) },
-        kind = RowKind.INPUTS,
-    )
 }
 
 private fun buildRows(ctx: Context): List<Row> {

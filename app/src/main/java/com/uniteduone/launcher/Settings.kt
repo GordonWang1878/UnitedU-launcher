@@ -19,7 +19,7 @@ data class Settings(
     val rowCount: Int = 3,
     val cardsPerRow: Int = 6,
     val showTitles: Boolean = false,
-    val showInputRow: Boolean = false,
+    // (「输入源行」开关 showInputRow 2026-09-27 删掉,gtv spec R92:首页不再有输入源行;旧文件里的键按未知键忽略。)
     /** 主题色预设 id(R62:默认淡紫 "purple";旧 id 读盘时经 [ThemePresets.migrateId] 换成新的)。 */
     val themePresetId: String = ThemePresets.DEFAULT_ID,
     val followWallpaperColor: Boolean = false,
@@ -181,7 +181,6 @@ fun parseSettings(json: String): Settings {
             rowCount = clampRowCount(extractInt(json, "rowCount")),
             cardsPerRow = snapCardsPerRow(extractInt(json, "cardsPerRow")),
             showTitles = extractBoolean(json, "showTitles") ?: d.showTitles,
-            showInputRow = extractBoolean(json, "showInputRow") ?: d.showInputRow,
             // R62:旧预设 id(material / gold / graphite / black)在这里就换成新的,下次写盘不再带旧 id。
             themePresetId = extractString(json, "themePresetId")
                 ?.takeIf { it.isNotBlank() }?.let { ThemePresets.migrateId(it) } ?: d.themePresetId,
@@ -198,7 +197,7 @@ fun parseSettings(json: String): Settings {
             screensaverIntervalMs = snapScreensaverIntervalMs(extractLong(json, "screensaverIntervalMs")),
             wallpaperFile = sanitizeWallpaperFileName(extractString(json, "wallpaperFile")),
             // 旧文件里可能还有 "wallpaperThemed"(2026-09-16 删掉的开关)、"themedCards"(R58)、
-            // "wallpaperRotateMs" / "wallpaperRotatedAt"(R61):这里不读它们,扁平 tokenizer 只认列出的键,
+            // "wallpaperRotateMs" / "wallpaperRotatedAt"(R61)、"showInputRow"(R92):这里不读它们,扁平 tokenizer 只认列出的键,
             // 未知键自然被忽略(SettingsTest 的 legacy*KeyIsIgnored 钉住这一点)。
             wallpaperBlur = clampPercentStep10(extractInt(json, "wallpaperBlur"), d.wallpaperBlur),
             // 旧文件只有 wallpaperDim(0–100 压暗)时换算成负亮度(超过 50 的压暗夹到 −50);新键在场以新键为准。
@@ -231,7 +230,6 @@ fun Settings.toJson(): String {
         append("  \"rowCount\": $rowCount,\n")
         append("  \"cardsPerRow\": $cardsPerRow,\n")
         append("  \"showTitles\": $showTitles,\n")
-        append("  \"showInputRow\": $showInputRow,\n")
         append("  \"themePresetId\": \"${esc(themePresetId)}\",\n")
         append("  \"followWallpaperColor\": $followWallpaperColor,\n")
         append("  \"clock24hFollowSystem\": $clock24hFollowSystem,\n")

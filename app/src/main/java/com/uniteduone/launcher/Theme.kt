@@ -304,9 +304,10 @@ object Theme {
      * 这里只剩两个读者:播放器第一次 attach 之前的初值、图库全屏预览的 Ken Burns 时长。
      */
     const val ScreensaverIntervalMs = 30_000L
-    /** 屏保轮播:两张图之间的交叉淡入时长。 */
-    const val ScreensaverCrossfadeMs = 2000
-    /** 屏保 Ken Burns:每张图缓慢放大到多少倍(1.0 = 不放大)。 */
+    /**
+     * 屏保图库全屏预览:每张图缓慢放大到多少倍(1.0 = 不放大)。屏保本体的推拉摇移与过渡时长
+     * 自 Ruling R95 起在 [ScreensaverMotion](原来的 `ScreensaverCrossfadeMs` 2000 ms 由其 `TRANSITION_MS` 取代)。
+     */
     const val ScreensaverZoom = 1.08f
 
     /** 壁纸换图(选图 / 轮播 / 改参数)的交叉淡入时长。 */
