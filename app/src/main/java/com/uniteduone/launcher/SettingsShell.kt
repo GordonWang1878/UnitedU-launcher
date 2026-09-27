@@ -25,7 +25,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -36,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
@@ -68,7 +68,7 @@ data class Capsule(
 )
 
 /**
- * **一列胶囊的焦点账本**(R69)。设置页外壳的每一层、关于页都用它;每一层 `key(页)` 重建一份。
+ * **一列胶囊的焦点账本**(R69)。设置页外壳的每一层、关于页、输入源页都用它;每一层重建一份(R108 起由 FadeSwitch 按 `(栈深, 页)` 换层)。淡出中的残影([LocalPageGhost])当作 covered,且每颗 `canFocus = false`。
  * 七条铁律逐条落在:
  * - 铁律 2 / 4:焦点落没落下只信胶囊自报([holder]),`requestFocus()` 的返回值什么都不说明;
  * - 铁律 3:逐项挂 `FocusRequester`;本列自己负责初始焦点(定位效果)与丢焦点(看门狗),外层谁都不替它管;
@@ -94,6 +94,11 @@ fun CapsuleColumn(
     covered: Boolean,
 ) {
     if (items.isEmpty()) return
+    // R108:淡出中的残影(见 SettingsFade.kt)当作被盖住——两个效果都让路,不抢焦点;下面每一颗再 canFocus = false。
+    // 守卫与 key 读的是同一个合并后的 covered(铁律 6)。
+    val ghost = LocalPageGhost.current
+    @Suppress("NAME_SHADOWING")
+    val covered = covered || ghost
     val ids = items.map { it.id }
     // 逐项一个 requester;id 清单一变整表换新。两个效果都在协程里跑,读的必须是当前这一份(rememberUpdatedState)。
     val reqs = remember(ids) { ids.map { FocusRequester() } }
@@ -160,7 +165,7 @@ fun CapsuleColumn(
                 MenuPill(
                     label = c.label,
                     onClick = c.onClick,
-                    modifier = Modifier.focusRequester(reqs[i]),
+                    modifier = Modifier.focusRequester(reqs[i]).focusProperties { if (ghost) canFocus = false },
                     onFocusChange = { got ->
                         // 得失顺序保护:只有「本项仍是持有者」时 lost 才作废。
                         if (got) {
@@ -175,6 +180,7 @@ fun CapsuleColumn(
                     slider = c.slider,
                     onStep = c.onStep,
                     leadingDot = c.leadingDot,
+                    textStep = GtvLayout.SETTINGS_TYPE_STEP,
                 )
             }
         },
@@ -203,15 +209,19 @@ fun ShellScaffold(left: @Composable BoxScope.() -> Unit, right: @Composable () -
     }
 }
 
-private val pathStyle = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 16.sp)
+// R109:设置类页面的字号一律「基准 + GtvLayout.SETTINGS_TYPE_STEP」(settingsSp)。基准:路径 16、页名 32、说明 14 / 行距 20。
+private val pathStyle = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = GtvLayout.settingsSp(16f).sp)
 private val titleStyle = TextStyle(
     fontFamily = Theme.Sans,
     fontWeight = FontWeight.Medium,
     color = Theme.EmphasisText,
-    fontSize = GtvLayout.SETTINGS_TITLE_TEXT.sp,
-    lineHeight = (GtvLayout.SETTINGS_TITLE_TEXT * 1.2f).sp,
+    fontSize = GtvLayout.settingsSp(GtvLayout.SETTINGS_TITLE_TEXT).sp,
+    lineHeight = (GtvLayout.settingsSp(GtvLayout.SETTINGS_TITLE_TEXT) * 1.2f).sp,
 )
-internal val shellBodyStyle = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 14.sp, lineHeight = 20.sp)
+internal val shellBodyStyle = TextStyle(
+    fontFamily = Theme.Sans, color = Theme.SecondaryText,
+    fontSize = GtvLayout.settingsSp(14f).sp, lineHeight = GtvLayout.settingsSp(20f).sp,
+)
 
 /**
  * 没有预览的页:路径(小字灰)+ 页名(32 sp)放在左半屏正中(效果图 README 第 4 条「照 M1 的做法」);
@@ -306,7 +316,7 @@ fun SettingsShell(
     revision: Int,
 ) {
     val ctx = LocalContext.current
-    val top = stack.lastOrNull() ?: return
+    if (stack.isEmpty()) return
 
     // 屏保图库张数(「屏保启动」选项层的提示要分「图库为空」)、隐藏的输入源数(「恢复隐藏的输入源」条件行)、
     // 系统设置快照(「系统屏保」摘要与「动画缩放」条件行)——与旧设置页同一组 key 习惯:盖着的东西关掉时重数,
@@ -347,12 +357,28 @@ fun SettingsShell(
     val groups = settingsGroups(saved, ::update, liveActions, screensaverImages, systemStatus)
 
     // 返回键 = 回上一层(第一层再按 = 关掉设置)。叠在外壳之上的选择器 / 关于页各自的 BackHandler 注册得更晚,先接管。
-    androidx.activity.compose.BackHandler { onPop() }
+    // 淡出中的残影(R108)不收返回键。
+    val shellGhost = LocalPageGhost.current
+    androidx.activity.compose.BackHandler(enabled = !shellGhost) { onPop() }
 
     val settingsTitle = stringResource(R.string.menu_settings_title)
-    val target = top.focus ?: defaultFocus(top.page, groups)
 
-    key(stack.size, top.page) {
+    // **层与层之间交叉淡化(R108)**:改前是 `key(栈深, 页)` 整层重建;现在同一个 key 交给 FadeSwitch——key 变了,
+    // 旧层变残影 150 ms 淡出(输入冻结在它最后那条栈,不可聚焦、不回调),新层是全新的组合、150 ms 淡入,
+    // 它的胶囊列照旧自己把焦点落到目标。同一层里焦点移动(栈顶帧的 focus 变)key 不变,原地更新。
+    FadeSwitch(
+        state = stack,
+        enterMs = GtvLayout.SETTINGS_LAYER_FADE_MS,
+        exitMs = GtvLayout.SETTINGS_LAYER_FADE_MS,
+        contentKey = { s -> s.size to s.last().page },
+    ) { layerStack ->
+        val ghost = LocalPageGhost.current
+        // 残影不改 MainActivity 的任何状态(栈、焦点目标、设置外壳的开关)。
+        val onPush: (String, String?) -> Unit = if (ghost) { _, _ -> } else onPush
+        val onPop: () -> Unit = if (ghost) ({}) else onPop
+        val onFocus: (String) -> Unit = if (ghost) { _ -> } else onFocus
+        val top = layerStack.last()
+        val target = top.focus ?: defaultFocus(top.page, groups)
         val groupId = ShellPages.groupOf(top.page)
         val optionsRow = ShellPages.optionsRow(top.page)
         when {
@@ -448,7 +474,7 @@ fun SettingsShell(
                     left = {
                         ShellTitle(settingsTitle + " · " + stringResource(R.string.settings_group_general), stringResource(R.string.home_settings_title)) {
                             Column(Modifier.width(360.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                CurrentHomeRow(home)
+                                CurrentHomeRow(home, textStep = GtvLayout.SETTINGS_TYPE_STEP)
                                 Spacer(Modifier.height(14.dp))
                                 BasicText(stringResource(R.string.home_settings_note), style = shellBodyStyle.copy(textAlign = TextAlign.Center))
                             }

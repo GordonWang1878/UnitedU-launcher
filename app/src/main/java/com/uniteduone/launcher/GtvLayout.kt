@@ -291,6 +291,34 @@ object GtvLayout {
     const val SETTINGS_TITLE_TEXT = 32f
 
     /**
+     * **Ruling R109(2026-09-27 Gordon:设置类页面的字「小一号」,先看效果)**:我们自己的设置类页面——设置外壳每一层、
+     * 关于页、默认桌面 / 恢复默认确认页、顶栏打开的「应用」页与「输入源」页——**所有文字**按「基准字号 + 这一步」画。
+     * 基准就是 R109 之前的字号(胶囊 16 / 说明 12 / 左栏路径 16 / 大标题 32 / 左栏说明 14 / 关于页 15–11 / 默认桌面卡 15、11 /
+     * 应用页卡片名 14 / 「系统工具」18),要改只改这一个数:「再小一点」改 -2f,「改回去」改 0f。
+     * 胶囊高度、行高常量、卡片尺寸等**布局尺寸不跟着变**;文字的行距(lineHeight)是排版的一部分,同样加这一步。
+     * 长按卡片菜单、编辑页菜单、首次引导、首页不在范围内(它们读的仍是基准常量,与这一步无关)。
+     */
+    const val SETTINGS_TYPE_STEP = -1f
+
+    /** 设置类页面的字号 = 基准 + [SETTINGS_TYPE_STEP](R109)。 */
+    fun settingsSp(base: Float): Float = base + SETTINGS_TYPE_STEP
+
+    /**
+     * 胶囊右端 › 的字号相对标签字号的比例。R71 起是「标签 + 4」(16 + 4 = 20);R109 改成按比例,
+     * 字号整体缩放时 › 跟着等比缩。基准下 16 × 1.25 = 20,与原值逐位相同。
+     */
+    const val CHEVRON_SCALE = 1.25f
+
+    /**
+     * **Ruling R108(2026-09-27 Gordon:设置类页面打开淡入、关闭淡出)**:打开 200 ms、关闭 150 ms;设置外壳里层与层之间
+     * (进下一层 / 返回)150 ms 交叉淡化;曲线一律 `FastOutSlowInEasing`,没有位移。范围与 R109 相同(不含安卓原生设置页)。
+     * 实现与焦点处理见 `SettingsFade.kt`。
+     */
+    const val SETTINGS_FADE_IN_MS = 200
+    const val SETTINGS_FADE_OUT_MS = 150
+    const val SETTINGS_LAYER_FADE_MS = 150
+
+    /**
      * Fix 3(owner 反馈 R2,2026-09-20):「目前 UI 交互没有任何动画……焦点一下子跳到这、一下子跳到
      * 那」。根因是 decision B1 去掉聚焦缩放之后,`gtvFocusStroke` 的描边与 `GearMenu`/`GtvTopBar`
      * 的填色焦点都是瞬间切换(布尔值直接门控 `drawBehind`/`background`,零动画),丢了缩放曾经

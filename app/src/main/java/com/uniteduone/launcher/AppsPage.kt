@@ -28,6 +28,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -273,6 +274,12 @@ fun AppsPage(
     onFocusedApp: (PickerCandidate?) -> Unit,
     onBack: () -> Unit,
 ) {
+    // R108:淡出中的残影(见 SettingsFade.kt)当作被盖住——定位效果与看门狗让路(守卫与 key 同一个合并后的量,铁律 6);
+    // 每张卡 canFocus = false;不收返回键;不再上报焦点(关掉又马上打开时,新页的上报不会被残影的 null 盖掉)。
+    val ghost = LocalPageGhost.current
+    @Suppress("NAME_SHADOWING")
+    val covered = covered || ghost
+    val ghostNow by rememberUpdatedState(ghost)
     val ctx = LocalContext.current
     // R105:有缓存就第一帧画缓存(StateFlow 的当前值同步可读),打开时后台再读一次核对;
     // 之后 revision 变了由 MainActivity 在后台刷新缓存,这里只接结果。
@@ -284,7 +291,7 @@ fun AppsPage(
         if (data != null) { withFrameNanos { }; withFrameNanos { }; kotlinx.coroutines.delay(AppsPageCache.REVALIDATE_DELAY_MS) }
         AppsPageCache.refresh(ctx)
     }
-    androidx.activity.compose.BackHandler { onBack() }
+    androidx.activity.compose.BackHandler(enabled = !ghost) { onBack() }
     val items = data?.items.orEmpty()
     val lines = remember(data) { data?.let { appsPageLines(it.appCount, it.items.size - it.appCount) } ?: listOf(AppsLine.Title) }
 
@@ -349,11 +356,12 @@ fun AppsPage(
     }
     // 上报只派生、不缓存(同首页 onFocusedCard):列表重读后同一格换了应用、没有焦点事件,items 变 → 再报一次。
     LaunchedEffect(holder, items) {
+        if (ghostNow) return@LaunchedEffect
         onFocusedApp(holder?.let { items.getOrNull(it) }?.let { c ->
             c.copy(app = Apps.cachedPickerCard(c.app.packageName)?.copy(label = c.app.label) ?: c.app)
         })
     }
-    DisposableEffect(Unit) { onDispose { onFocusedApp(null) } }
+    DisposableEffect(Unit) { onDispose { if (!ghostNow) onFocusedApp(null) } }
     // 打点:带着卡片的那一次组合之后的下一帧开始时,那一帧已经画出去了(R105 量打开耗时)。
     LaunchedEffect(items.isNotEmpty()) {
         if (items.isEmpty()) return@LaunchedEffect
@@ -361,10 +369,12 @@ fun AppsPage(
         AppsPagePerf.gridShown(items.size)
     }
 
-    val metrics = Theme.gtvCardMetrics(AppsPageLayout.CARD_SIZE)
+    // R109:卡片名与标题按「基准 + SETTINGS_TYPE_STEP」画(卡片名基准 14 = 首页小档同一个数);卡片与行高不变。
+    val baseMetrics = Theme.gtvCardMetrics(AppsPageLayout.CARD_SIZE)
+    val metrics = baseMetrics.copy(titleSize = GtvLayout.settingsSp(baseMetrics.titleSize.value).sp)
     val titleStyle = TextStyle(
         fontFamily = Theme.Sans, fontWeight = FontWeight.Medium, color = Theme.EmphasisText,
-        fontSize = GtvLayout.SETTINGS_TITLE_TEXT.sp,
+        fontSize = GtvLayout.settingsSp(GtvLayout.SETTINGS_TITLE_TEXT).sp,
     )
     Box(Modifier.fillMaxSize().background(GtvTokens.MenuBg)) {
         Column(
@@ -397,7 +407,7 @@ fun AppsPage(
                     ) {
                         BasicText(
                             stringResource(R.string.edit_picker_system_tools),
-                            style = TextStyle(fontFamily = Theme.Sans, fontWeight = FontWeight.Medium, color = Theme.SecondaryText, fontSize = 18.sp),
+                            style = TextStyle(fontFamily = Theme.Sans, fontWeight = FontWeight.Medium, color = Theme.SecondaryText, fontSize = GtvLayout.settingsSp(18f).sp),
                             modifier = Modifier.padding(bottom = 4.dp),
                         )
                     }
@@ -416,7 +426,7 @@ fun AppsPage(
                                 revision = revision,
                                 metrics = metrics,
                                 onClick = { onOpen(c.app) },
-                                modifier = Modifier.focusRequester(reqs[i]),
+                                modifier = Modifier.focusRequester(reqs[i]).focusProperties { if (ghost) canFocus = false },
                                 onFocusChange = { got ->
                                     if (got) {
                                         holder = i
