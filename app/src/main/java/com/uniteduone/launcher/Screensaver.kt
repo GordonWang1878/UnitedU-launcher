@@ -15,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -73,119 +74,254 @@ fun Screensaver(active: Boolean, intervalMs: Long) {
     )
     if (layerAlpha == 0f) return
     Box(Modifier.fillMaxSize().alpha(layerAlpha)) {
-        ScreensaverContent(intervalMs = intervalMs, modifier = Modifier.fillMaxSize())
+        ScreensaverContent(intervalMs = intervalMs, modifier = Modifier.fillMaxSize(), active = active)
     }
 }
 
 /**
- * 轮播层本体(spec §2),桌面自定义屏保 / 系统屏保两处共用:读 [ScreensaverPlayer] 的当前图,
- * 交给 [MotionSlideshow] 做推拉摇移 + 过渡(Ruling R95)。**不画时钟**——时钟由调用方决定要不要叠:
+ * 轮播层本体(spec §2),桌面自定义屏保 / 系统屏保两处共用:读 [ScreensaverPlayer] 的当前项,
+ * 交给 [MotionSlideshow] 做推拉摇移 + 过渡(Ruling R95),视频项静音播放(Ruling R101)。**不画时钟**——时钟由调用方决定要不要叠:
  * 系统屏保([UnitedUDream.DreamContent])在这个组件之外单独叠一行 `ClockWordmark`(R26 起,与首页顶栏同款小字,不再是 R9 的 [HeroClock]);
  * 桌面自定义屏保([Screensaver])**不叠时钟**(Ruling R23,终审 2026-09-20,撤回 Fix R16 曾经补的那份
  * [HeroClock]——见 [Screensaver] 顶部 KDoc)。屏保图库的全屏预览(`ScreensaverPoolViewer`)是在看图,
- * 不走这里,用 [ScreensaverSlot] 的轻微放大。
+ * 不走这里,用 [ScreensaverSlot] 的轻微放大(视频走 `PreviewVideo`)。
  * 以**文件**而不是下标作目标:删图重扫后同一个下标可能换了图,按文件比对才会过渡而不是硬切。
- * 下一张(播放器下标 + 1)提前解码好,换图时直接淡入,不等解码。
+ * 下一项(跳过失败项)提前准备好:照片预解码,视频只 prepare 不播(R102)。
+ * [active] = false(桌面屏保正在淡出)时视频当场截帧、释放播放器,淡出的是那一帧静图(R102)。
  */
 @Composable
-fun ScreensaverContent(intervalMs: Long, modifier: Modifier = Modifier) {
+fun ScreensaverContent(intervalMs: Long, modifier: Modifier = Modifier, active: Boolean = true) {
     val files by ScreensaverPlayer.files.collectAsState()
     val index by ScreensaverPlayer.index.collectAsState()
+    val round by ScreensaverPlayer.round.collectAsState()
     val i = clampIndex(index, files.size)
     val current = files.getOrNull(i)
-    val upcoming = files.getOrNull(nextIndex(i, files.size))?.takeIf { it != current }
-    MotionSlideshow(current, upcoming, intervalMs, modifier)
+    val upcoming = ScreensaverMedia.nextPlayable(i, files.size) { ScreensaverPlayer.isFailed(files[it]) }
+        ?.let { files.getOrNull(it) }?.takeIf { it != current }
+    MotionSlideshow(current, upcoming, round, intervalMs, active, modifier)
 }
 
-/** 画面上的一张照片:解好的位图 + 它这一段的运动 + 出现的那一帧时刻(帧时钟纳秒)。 */
-private class PhotoLayer(val path: String, val bitmap: ImageBitmap, val motion: KenBurns, val startNanos: Long)
-
-/** 预解码的下一张。普通字段而非 State:只在效果协程里读写,不参与绘制。 */
-private class Preload {
-    var path: String? = null
-    var bitmap: ImageBitmap? = null
-
-    fun take(p: String): ImageBitmap? = bitmap.takeIf { path == p }.also { clear() }
-    fun clear() { path = null; bitmap = null }
+/** 画面上的一层(R95 照片 / R101 视频)。 */
+private sealed class SlideLayer {
+    abstract val path: String
 }
 
 /**
- * 推拉摇移 + 过渡(Ruling R95)。
+ * 一张照片:解好的位图 + 它这一段的运动 + 出现的那一帧时刻(帧时钟纳秒)。[motion] = null 是**静图**:
+ * 视频之后接视频时,前一个视频的最后一帧截下来垫底(同一时刻只有一个播放器,R102),不动。
+ */
+private class PhotoLayer(
+    override val path: String,
+    val bitmap: ImageBitmap,
+    val motion: KenBurns?,
+    val startNanos: Long,
+) : SlideLayer()
+
+/**
+ * 一个视频(R101):首帧出来之前 [startNanos] = [HIDDEN](画布已挂上、在后台准备,alpha 0),出来那一帧起淡入。
+ * [round] = 正在播的那一轮([ScreensaverPlayer.round]),报事用;单视频循环时原地换成新一轮。不做推拉摇移。
+ */
+private class VideoLayer(override val path: String, val controller: VideoController, round: Int) : SlideLayer() {
+    var round by mutableIntStateOf(round)
+    var startNanos by mutableLongStateOf(HIDDEN)
+
+    companion object { const val HIDDEN = Long.MAX_VALUE }
+}
+
+/** 预备好的下一项:照片 = 解好的位图,视频 = prepare 好、没 start 的播放器(R102)。只在效果协程里读写。 */
+private class Preload {
+    var path: String? = null
+    var bitmap: ImageBitmap? = null
+    var video: VideoController? = null
+
+    fun takePhoto(p: String): ImageBitmap? = bitmap.takeIf { path == p }.also { if (path == p) bitmap = null; clear() }
+    fun takeVideo(p: String): VideoController? = video.takeIf { path == p }.also { if (path == p) video = null; clear() }
+    fun clearVideo() {
+        video?.release()
+        video = null
+        if (bitmap == null) path = null
+    }
+    fun clear() {
+        video?.release()
+        video = null
+        path = null
+        bitmap = null
+    }
+}
+
+/**
+ * 推拉摇移 + 过渡(Ruling R95)+ 视频项(Ruling R101/R102)。
  *
  * - **动画全在绘制层**:只有一个 `withFrameNanos` 循环往 [clock] 写帧时刻,每张图的缩放 / 平移 / alpha
  *   都在 `graphicsLayer { }` 块里按「(此刻 − 出现时刻) / 时长」现算——读 [clock] 的只有图层块,
  *   每帧只更新 RenderNode 的变换属性,不重组、不重新测量、不重画位图。
- * - **最多两张位图**:稳定时 = 当前 + 预解码的下一张;换图时预解码那张直接变成「进来的」,
- *   旧图是「出去的」,预解码槽此刻是空的;过渡结束撤掉旧图后才开始解下一张。
- * - **过渡**:新图在旧图之上淡入([ScreensaverMotion.TRANSITION_MS]),旧图始终不透明(底层恒 alpha 1),
- *   淡完才撤——不会像两张同时半透明那样中途透出底下的壁纸 / 黑底。第一张(底下没有图)自己淡入。
- * - 解码没完成就不换:旧图继续动,新图解好那一帧才开始淡入(原来 Crossfade 是先开始淡、图还没解出来)。
+ * - **最多两层**:稳定时 = 当前 + 预备的下一项;换项时预备的那一项直接变成「进来的」,
+ *   旧的是「出去的」,预备槽此刻是空的;过渡结束撤掉旧的后才开始预备下一项。
+ * - **过渡**:新项在旧项之上淡入([ScreensaverMotion.TRANSITION_MS]),旧项始终不透明(底层恒 alpha 1),
+ *   淡完才撤——不会像两张同时半透明那样中途透出底下的壁纸 / 黑底。第一项(底下没有东西)自己淡入。
+ *   照片 → 视频、视频 → 照片、视频 → 视频都是这一种(R101)。
+ * - 没准备好就不换:照片解码没完成、视频首帧没出来,旧的继续;好了那一帧才开始淡入。解不出 / 播不了
+ *   → 报 [SlideEvent.Failed],计时器跳过它,画面停在旧的那一项上(不黑屏)。
+ * - **同一时刻一个播放器**(R102):视频之后接视频时,先把前一个的最后一帧截成静图、释放,再准备下一个;
+ *   照片之后是视频才预加载(只 prepare)。[active] 为假或宿主不在前台时,预加载的播放器也放掉。
  */
 @Composable
-internal fun MotionSlideshow(target: File?, upcoming: File?, intervalMs: Long, modifier: Modifier = Modifier) {
+internal fun MotionSlideshow(
+    target: File?,
+    upcoming: File?,
+    round: Int,
+    intervalMs: Long,
+    active: Boolean,
+    modifier: Modifier = Modifier,
+) {
     val ctx = LocalContext.current
     val dm = ctx.resources.displayMetrics
     // 按屏幕尺寸解码,长边封顶 1920(4K 面板的 UI 多半仍是 1080p;两层叠放时各解一张,spec §9)
     val k = min(1f, 1920f / max(dm.widthPixels, dm.heightPixels).coerceAtLeast(1))
     val dstW = (dm.widthPixels * k).toInt().coerceAtLeast(1)
     val dstH = (dm.heightPixels * k).toInt().coerceAtLeast(1)
-    var layers by remember { mutableStateOf(emptyList<PhotoLayer>()) }
+    var layers by remember { mutableStateOf(emptyList<SlideLayer>()) }
     val preload = remember { Preload() }
     val clock = remember { mutableLongStateOf(0L) }
     val latestUpcoming by rememberUpdatedState(upcoming)
     val latestInterval by rememberUpdatedState(intervalMs)
+    val latestRound by rememberUpdatedState(round)
+    val playable = active && rememberHostStarted()
+    val latestPlayable by rememberUpdatedState(playable)
 
+    DisposableEffect(Unit) { onDispose { preload.clear() } }
+    LaunchedEffect(playable) { if (!playable) preload.clearVideo() }
     LaunchedEffect(Unit) { while (true) withFrameNanos { clock.longValue = it } }
-    LaunchedEffect(target?.absolutePath) {
-        val path = target?.absolutePath
+
+    val targetPath = target?.absolutePath
+    val targetIsVideo = target != null && ScreensaverMedia.isVideo(target.name)
+    // 视频按轮次重跑(单视频循环);照片只认文件(只有一张照片时不因轮次重来)
+    LaunchedEffect(targetPath, if (targetIsVideo) round else -1) {
+        // 上一轮没等到首帧就被换掉的视频层:撤掉,不让它当「底下那层」露出空画布
+        layers = layers.filter { it !is VideoLayer || it.startNanos != VideoLayer.HIDDEN }
+        val path = targetPath
         if (path == null) {
             layers = emptyList()
             preload.clear()
             return@LaunchedEffect
         }
-        if (layers.lastOrNull()?.path != path) {
+        val top = layers.lastOrNull()
+        if (top?.path == path) {
+            if (top is VideoLayer && top.round != round) {
+                // 单视频循环(R101):同一个播放器从头再来,不过渡
+                top.round = round
+                top.controller.restart()
+            }
+            if (layers.size > 1) {
+                // 上一段过渡被打断:补完再撤底层
+                delay(ScreensaverMotion.TRANSITION_MS.toLong())
+                layers = listOf(top)
+            }
+        } else if (targetIsVideo) {
+            // 同一时刻一个播放器(R102):底下 / 前一个视频先截成静图、释放
+            layers = layers.mapNotNull { l ->
+                if (l !is VideoLayer) l else l.controller.snapshot()?.let { PhotoLayer(l.path, it, null, l.startNanos) }
+                    .also { l.controller.release() }
+            }
+            val ctrl = preload.takeVideo(path)
+                ?: VideoController(path, looping = false, capMs = ScreensaverMedia.VIDEO_MAX_PLAY_MS)
+            val layer = VideoLayer(path, ctrl, round)
+            if (ctrl.failed) {
+                // 预加载时就失败了(那时还没接上报事的回调)
+                ctrl.release()
+                ScreensaverPlayer.report(SlideEvent.Failed(path, round))
+                return@LaunchedEffect
+            }
+            ctrl.onStarted = { d -> ScreensaverPlayer.report(SlideEvent.Started(path, layer.round, d)) }
+            ctrl.onPlayedOut = { ScreensaverPlayer.report(SlideEvent.Done(path, layer.round)) }
+            ctrl.onFailed = { ScreensaverPlayer.report(SlideEvent.Failed(path, layer.round)) }
+            layers = listOfNotNull(layers.lastOrNull(), layer)
+            try {
+                // 首帧超时由播放器自己计(只在真的在播时计,退到后台不算),失败时它已经报过 Failed
+                if (!ctrl.firstFrame.await()) return@LaunchedEffect
+                val start = withFrameNanos { it }
+                clock.longValue = start
+                layer.startNanos = start
+                delay(ScreensaverMotion.TRANSITION_MS.toLong())
+                layers = listOf(layer)
+            } finally {
+                if (layer.startNanos == VideoLayer.HIDDEN) {
+                    layers = layers - layer
+                    ctrl.release()
+                }
+            }
+        } else {
             // 预解码没命中(删图重扫、跳号)就先扔掉它,保证同时最多两张
-            val bmp = preload.take(path) ?: decodeScreensaverPhoto(path, dstW, dstH) ?: return@LaunchedEffect
+            val bmp = preload.takePhoto(path) ?: decodeScreensaverPhoto(path, dstW, dstH)
+            if (bmp == null) {
+                ScreensaverPlayer.report(SlideEvent.Failed(path, latestRound))
+                return@LaunchedEffect
+            }
             val start = withFrameNanos { it }
             val prev = layers.lastOrNull()
-            val layer = PhotoLayer(path, bmp, ScreensaverMotion.random(Random.Default, prev?.motion), start)
+            val layer = PhotoLayer(path, bmp, ScreensaverMotion.random(Random.Default, (prev as? PhotoLayer)?.motion), start)
             clock.longValue = start
             layers = listOfNotNull(prev, layer)
             delay(ScreensaverMotion.TRANSITION_MS.toLong())
             layers = listOf(layer)
         }
-        // 过渡结束、旧图已撤:预解码下一张
-        val next = latestUpcoming?.absolutePath ?: return@LaunchedEffect
-        if (next == path || preload.path == next) return@LaunchedEffect
-        preload.clear()
-        val bmp = decodeScreensaverPhoto(next, dstW, dstH) ?: return@LaunchedEffect
-        preload.path = next
-        preload.bitmap = bmp
+        // 过渡结束、旧的已撤:预备下一项
+        val next = latestUpcoming ?: return@LaunchedEffect
+        val nextPath = next.absolutePath
+        if (nextPath == path || preload.path == nextPath) return@LaunchedEffect
+        if (ScreensaverMedia.isVideo(next.name)) {
+            // 视频之后是视频:不预加载(同一时刻一个播放器);不在前台也不预加载
+            if (layers.lastOrNull() is VideoLayer || !latestPlayable) return@LaunchedEffect
+            preload.clear()
+            preload.path = nextPath
+            preload.video = VideoController(nextPath, looping = false, capMs = ScreensaverMedia.VIDEO_MAX_PLAY_MS)
+                .also { it.prepare() }
+        } else {
+            preload.clear()
+            val bmp = decodeScreensaverPhoto(nextPath, dstW, dstH) ?: return@LaunchedEffect
+            preload.path = nextPath
+            preload.bitmap = bmp
+        }
     }
 
     Box(modifier.clipToBounds()) {
         val shown = layers
         shown.forEachIndexed { i, layer ->
             val isBottom = i == 0 && shown.size > 1
-            // key:同一张图从「进来的」变成「底下的」时不重建 Image 节点
-            key(layer.path, layer.startNanos) {
-                Image(
-                    bitmap = layer.bitmap,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().graphicsLayer {
-                        val elapsedMs = (clock.longValue - layer.startNanos) / 1_000_000f
-                        val p = (elapsedMs / ScreensaverMotion.durationMs(latestInterval)).coerceIn(0f, 1f)
-                        val fade = (elapsedMs / ScreensaverMotion.TRANSITION_MS).coerceIn(0f, 1f)
-                        val extra = if (isBottom) 1f else ScreensaverMotion.transitionScale(ScreensaverMotion.TRANSITION, fade)
-                        val s = layer.motion.scaleAt(p) * extra
-                        scaleX = s
-                        scaleY = s
-                        translationX = layer.motion.xAt(p) * size.width
-                        translationY = layer.motion.yAt(p) * size.height
-                        alpha = if (isBottom) 1f else fade
-                    },
-                )
+            // key:同一层从「进来的」变成「底下的」时不重建节点(视频层的 TextureView 不能被拆,拆了画布就没了)
+            key(layer) {
+                when (layer) {
+                    is PhotoLayer -> Image(
+                        bitmap = layer.bitmap,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().graphicsLayer {
+                            val elapsedMs = (clock.longValue - layer.startNanos) / 1_000_000f
+                            val fade = (elapsedMs / ScreensaverMotion.TRANSITION_MS).coerceIn(0f, 1f)
+                            alpha = if (isBottom) 1f else fade
+                            val motion = layer.motion ?: return@graphicsLayer
+                            val p = (elapsedMs / ScreensaverMotion.durationMs(latestInterval)).coerceIn(0f, 1f)
+                            val extra = if (isBottom) 1f else ScreensaverMotion.transitionScale(ScreensaverMotion.TRANSITION, fade)
+                            val s = motion.scaleAt(p) * extra
+                            scaleX = s
+                            scaleY = s
+                            translationX = motion.xAt(p) * size.width
+                            translationY = motion.yAt(p) * size.height
+                        },
+                    )
+                    is VideoLayer -> VideoSurface(
+                        controller = layer.controller,
+                        active = playable,
+                        modifier = Modifier.fillMaxSize().graphicsLayer {
+                            val s = layer.startNanos
+                            alpha = when {
+                                isBottom -> 1f
+                                s == VideoLayer.HIDDEN -> 0f
+                                else -> ((clock.longValue - s) / 1_000_000f / ScreensaverMotion.TRANSITION_MS).coerceIn(0f, 1f)
+                            }
+                        },
+                    )
+                }
             }
         }
     }

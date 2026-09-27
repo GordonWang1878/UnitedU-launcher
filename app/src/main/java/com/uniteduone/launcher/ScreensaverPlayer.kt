@@ -6,15 +6,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 
-/** 图片扩展名(小写)。图库扫描与 ImagePicker 的壁纸 / 卡片图列表共用这一份,口径一致。 */
-internal val IMAGE_EXTS = setOf("jpg", "jpeg", "png", "webp")
+/** 图片扩展名(小写)。ImagePicker 的壁纸 / 卡片图列表用这一份;屏保图库另收视频(R100),见 [ScreensaverMedia.ALL_EXTS]。 */
+internal val IMAGE_EXTS = ScreensaverMedia.PHOTO_EXTS
 
 /** 下一张(spec §2):(i + 1) % size;空图库恒为 0。先夹回范围,过期的下标也不会越界。 */
 internal fun nextIndex(i: Int, size: Int): Int = if (size <= 0) 0 else (clampIndex(i, size) + 1) % size
@@ -23,7 +25,8 @@ internal fun nextIndex(i: Int, size: Int): Int = if (size <= 0) 0 else (clampInd
 internal fun clampIndex(i: Int, size: Int): Int = if (size <= 0) 0 else i.coerceIn(0, size - 1)
 
 /**
- * 屏保图库的唯一扫描规则(spec §2「与今天相同」):library/screensavers/ 下 jpg / jpeg / png / webp,按文件名排序。
+ * 屏保图库的唯一扫描规则(spec §2「与今天相同」):library/screensavers/ 下 jpg / jpeg / png / webp 照片
+ * + mp4 / m4v / mov / webm 视频(Ruling R100,[ScreensaverMedia.ALL_EXTS]),按文件名排序、照片视频混排。
  * 播放器、状态机「到点查图库非空」、屏保按钮、设置页计数四处都读它,口径一致。
  * 扫描前先把旧版单张 screensaver.jpg/png 迁进图库(原来在 HomeScreen 的待机重扫里,spec §2 迁到这里)。
  * 外置存储没挂(`baseOrNull == null`)时按空图库处理(spec §9):不走 `Paths.base` 的 internal 回落——
@@ -33,7 +36,7 @@ internal fun scanScreensaverLibrary(ctx: Context): List<File> {
     if (Paths.baseOrNull(ctx) == null) return emptyList()
     migrateOldScreensaver(ctx)
     return Paths.screensaverLibrary(ctx).listFiles()
-        ?.filter { it.isFile && it.extension.lowercase() in IMAGE_EXTS }
+        ?.filter { it.isFile && it.extension.lowercase() in ScreensaverMedia.ALL_EXTS }
         ?.sortedBy { it.name }
         ?: emptyList()
 }
@@ -90,36 +93,74 @@ internal fun safeScan(app: Context): List<File>? =
         .getOrNull()
 
 /**
+ * 画面那一侧报给计时器的事(Ruling R101)。[round] 是报的时候画面正在播的那一轮([ScreensaverPlayer.round]),
+ * 计时器只认「当前这一项、当前这一轮」的事,换过项之后迟到的旧事件直接丢掉。
+ */
+internal sealed class SlideEvent {
+    abstract val path: String
+    abstract val round: Int
+
+    /** 视频首帧出来、开始播(每次 start / 重播 / 从后台回来续播都报一次);[durationMs] 读不到为 0。 */
+    data class Started(override val path: String, override val round: Int, val durationMs: Long) : SlideEvent()
+    /** 视频播完一遍,或到了 [ScreensaverMedia.VIDEO_MAX_PLAY_MS] 上限。 */
+    data class Done(override val path: String, override val round: Int) : SlideEvent()
+    /** 照片解不出来 / 视频解码失败或首帧超时:跳过,本进程内不再轮到它(文件改了再给机会)。 */
+    data class Failed(override val path: String, override val round: Int) : SlideEvent()
+
+    fun isFor(p: String, r: Int): Boolean = path == p && round == r
+}
+
+/**
  * 屏保播放器(spec §2):进程级单例,桌面屏保层([Screensaver])与系统屏保([UnitedUDream])都只读它。
  *
- * - **换图计时只此一份**(一个 `Dispatchers.Main` 协程):两处同时在场也不会双倍推进;
+ * - **换项计时只此一份**(一个 `Dispatchers.Main` 协程):两处同时在场也不会双倍推进;
  *   两处都 attach 时间隔取最后一次 attach 传入的值(两处读同一份设置,正常情况下相等)。
+ * - **照片停「换图间隔」,视频停到播完**(Ruling R101):轮到视频时计时器不按间隔走,等画面那一侧经 [report]
+ *   报 [SlideEvent.Started] / [SlideEvent.Done] / [SlideEvent.Failed];没有任何画面在渲染时(桌面退到后台等)
+ *   等 [ScreensaverMedia.START_WAIT_MS] 自己往下走,报了开始却一直没报完也只多等 [ScreensaverMedia.END_GRACE_MS],不会卡死。
+ * - **[round]** 每换一次项 +1(包括只有一项、下标没变的时候):只有一个视频时靠它让画面从头重播(= 循环)。
+ * - **失败表**:报过失败的文件(路径 + 修改时间)之后换项时跳过([ScreensaverMedia.nextPlayable]);全都失败就原地等。
  * - **引用计数**:第一个 [attach] 在 IO 线程重扫图库、启动计时;最后一个 [detach] 停计时,
  *   [index] 与 [files] **保留**——下次 attach 从同一张接着播。「系统屏保接桌面屏保的班」靠的就是这一条。
- * - [attach] / [detach] 只在主线程调(Compose 效果与 DreamService 回调都在主线程),`refs`([RefCounter])不加锁。
+ * - [attach] / [detach] / [report] 只在主线程调(Compose 效果与 DreamService 回调都在主线程),`refs`([RefCounter])不加锁。
  */
 object ScreensaverPlayer {
     private val _files = MutableStateFlow<List<File>>(emptyList())
     private val _index = MutableStateFlow(0)
+    private val _round = MutableStateFlow(0)
     val files: StateFlow<List<File>> = _files.asStateFlow()
     val index: StateFlow<Int> = _index.asStateFlow()
+    val round: StateFlow<Int> = _round.asStateFlow()
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val refs = RefCounter()
     private var ticker: Job? = null
     private var intervalNow = Theme.ScreensaverIntervalMs
+    private val events = Channel<SlideEvent>(Channel.UNLIMITED)
+    /** 失败过的文件:路径 → 失败时的修改时间。文件被换掉(重新上传同名)修改时间变了,就再给一次机会。 */
+    private val failed = HashMap<String, Long>()
 
     fun attach(ctx: Context, intervalMs: Long) {
         intervalNow = intervalMs
         if (!refs.acquire()) return
         val app = ctx.applicationContext
+        // 上一段留下的旧事件不作数(轮次可能刚好对得上)
+        while (events.tryReceive().isSuccess) Unit
         ticker = scope.launch {
             // 扫描失败不能杀掉这个协程(原来 IO 异常直接冒出去,轮播从此停转)
             withContext(Dispatchers.IO) { safeScan(app) }?.let { publish(it) }
             while (true) {
-                // 每轮重读间隔:另一处 attach 改了它,下一张起就按新值
-                delay(intervalNow)
-                _index.value = nextIndex(_index.value, _files.value.size)
+                val list = _files.value
+                val cur = list.getOrNull(clampIndex(_index.value, list.size))
+                when {
+                    cur == null -> Unit   // 空图库:下面 advance 失败、按间隔再看
+                    isFailed(cur) -> Unit
+                    ScreensaverMedia.isVideo(cur.name) -> awaitVideo(cur.absolutePath, _round.value)
+                    // 照片:停一个间隔;期间画面报「解不出来」就提前走
+                    else -> withTimeoutOrNull(intervalNow) { awaitEvent(cur.absolutePath, _round.value) }
+                        ?.let { if (it is SlideEvent.Failed) markFailed(it.path) }
+                }
+                if (!advance()) delay(intervalNow)
             }
         }
     }
@@ -129,6 +170,49 @@ object ScreensaverPlayer {
             ticker?.cancel()
             ticker = null
         }
+    }
+
+    /** 画面那一侧报事(主线程)。没有计时器在跑时直接丢掉(全屏预览不报;屏保已退出时报的也不作数)。 */
+    internal fun report(event: SlideEvent) {
+        if (ticker == null) return
+        if (event is SlideEvent.Failed) markFailed(event.path)
+        events.trySend(event)
+    }
+
+    /** 这个文件之前失败过、且之后没被换掉。主线程读修改时间:只对失败表里有的路径才读。 */
+    internal fun isFailed(f: File): Boolean = failed[f.absolutePath]?.let { it == f.lastModified() } ?: false
+
+    private fun markFailed(path: String) {
+        failed[path] = File(path).lastModified()
+        android.util.Log.w("UnitedU", "屏保跳过无法播放的一项 $path")
+    }
+
+    /**
+     * 等一个视频播完(R101):先等画面报开始(至多 [ScreensaverMedia.START_WAIT_MS]),再等播完(播放时长 +
+     * [ScreensaverMedia.END_GRACE_MS]);期间再报一次开始(从后台回来续播、系统屏保接班从头播)就按新的时长重新计。
+     */
+    private suspend fun awaitVideo(path: String, round: Int) {
+        var e = withTimeoutOrNull(ScreensaverMedia.START_WAIT_MS) { awaitEvent(path, round) } ?: return
+        while (e is SlideEvent.Started) {
+            e = withTimeoutOrNull(ScreensaverMedia.endWaitMs(e.durationMs)) { awaitEvent(path, round) } ?: return
+        }
+        if (e is SlideEvent.Failed) markFailed(path)
+    }
+
+    private suspend fun awaitEvent(path: String, round: Int): SlideEvent {
+        while (true) {
+            val e = events.receive()
+            if (e.isFor(path, round)) return e
+        }
+    }
+
+    /** 换到下一项能播的([ScreensaverMedia.nextPlayable]);全都失败 → false,原地不动。 */
+    private fun advance(): Boolean {
+        val list = _files.value
+        val next = ScreensaverMedia.nextPlayable(_index.value, list.size) { isFailed(list[it]) } ?: return false
+        _index.value = next
+        _round.value = _round.value + 1
+        return true
     }
 
     /** 删图后调用(spec §5):重扫并把 [index] 夹回范围。计时状态不动;扫描失败保留旧列表。 */
