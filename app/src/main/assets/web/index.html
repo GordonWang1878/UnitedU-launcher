@@ -17,14 +17,16 @@ main{padding:12px 16px 90px}
 .bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;color:var(--dim);font-size:13px}
 .btn{display:inline-block;background:var(--gold);color:#000;border:0;border-radius:8px;padding:10px 16px;font-weight:600;font-size:15px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-.cell{background:var(--card);border-radius:10px;overflow:hidden}
+.cell{background:var(--card);border-radius:10px;overflow:hidden;position:relative}
+.cell .play{position:absolute;right:6px;top:6px;background:rgba(0,0,0,.6);color:#fff;font-size:12px;padding:1px 6px;border-radius:4px;pointer-events:none}
+#hint{color:var(--dim);font-size:13px;margin:0 0 10px;display:none}
 .cell img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#111}
 .cell .n{padding:6px 8px;font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cell .del{width:100%;border:0;background:#2a2a2a;color:var(--fg);padding:8px;font-size:13px}
 .empty{color:var(--dim);text-align:center;padding:40px 0}
 #msg{position:fixed;left:16px;right:16px;bottom:16px;background:#222;color:var(--fg);padding:12px;border-radius:10px;display:none;font-size:14px;white-space:pre-line}
 #view{position:fixed;inset:0;background:#000;display:none;align-items:center;justify-content:center}
-#view img{max-width:100%;max-height:100%}
+#view img,#view video{max-width:100%;max-height:100%}
 #apkpane p{color:var(--dim)}
 input[type=file]{display:none}
 </style>
@@ -34,6 +36,7 @@ input[type=file]{display:none}
 <main>
   <div id="imgpane">
     <div class="bar"><span id="count"></span><label class="btn" for="pick" id="uplabel"></label><input id="pick" type="file" multiple accept="image/*"></div>
+    <p id="hint"></p>
     <div id="grid" class="grid"></div>
     <div id="empty" class="empty"></div>
   </div>
@@ -44,7 +47,7 @@ input[type=file]{display:none}
   </div>
 </main>
 <div id="msg"></div>
-<div id="view"><img id="viewimg" alt=""></div>
+<div id="view"><img id="viewimg" alt=""><video id="viewvid" muted loop playsinline controls style="display:none"></video></div>
 <script>
 const S = __STRINGS__;
 // 非 GET 一律带这个头:服务端只认带它的写请求(见 UploadServer.serve)。fetch + FormData 本来是
@@ -56,6 +59,12 @@ const DEFAULT_TAB = __DEFAULT_TAB__;
 let type = DEFAULT_TAB || "wallpapers";
 const $ = id => document.getElementById(id);
 const q = s => encodeURIComponent(s);
+// 屏保分页收视频(R103):扩展名表、500 MB 上限与服务端 ScreensaverMedia 一致;超限的在手机上就拦下,不白传
+const VIDEO_EXTS = ["mp4", "m4v", "mov", "webm"];
+const MAX_VIDEO = 500 * 1024 * 1024;
+const isVideo = n => VIDEO_EXTS.includes((n.split(".").pop() || "").toLowerCase());
+const ACCEPT_IMG = "image/*";
+const ACCEPT_MEDIA = "image/*,video/mp4,video/quicktime,video/webm,.mp4,.m4v,.mov,.webm";
 function msg(t) { const m = $("msg"); m.textContent = t; m.style.display = "block"; clearTimeout(msg.t); msg.t = setTimeout(() => m.style.display = "none", 5000); }
 function renderTabs() {
   $("tabs").innerHTML = "";
@@ -65,16 +74,25 @@ async function load() {
   const isApk = type === "apk";
   $("imgpane").style.display = isApk ? "none" : ""; $("apkpane").style.display = isApk ? "" : "none";
   if (isApk) return;
+  const ss = type === "screensavers";
+  $("pick").accept = ss ? ACCEPT_MEDIA : ACCEPT_IMG;
+  $("hint").textContent = ss ? S.screensavers_hint : ""; $("hint").style.display = ss ? "block" : "none";
   let d;
   try { d = await (await fetch(`/api/list?type=${type}`)).json(); } catch (e) { msg(S.error); return; }
   if (!d || !Array.isArray(d.files)) { msg(S.error); return; }
   const g = $("grid"); g.innerHTML = "";
   $("count").textContent = d.files.length ? String(d.files.length) : "";
-  $("empty").textContent = d.files.length ? "" : S.empty;
+  $("empty").textContent = d.files.length ? "" : (type === "screensavers" ? S.empty_screensavers : S.empty);
   for (const f of d.files) {
     const c = document.createElement("div"); c.className = "cell";
     const img = document.createElement("img"); img.loading = "lazy"; img.src = `/thumb?type=${type}&name=${q(f.name)}&v=${f.mtime}`;
-    img.onclick = () => { $("viewimg").src = `/file?type=${type}&name=${q(f.name)}`; $("view").style.display = "flex"; };
+    const vid = isVideo(f.name);
+    img.onclick = () => {
+      const src = `/file?type=${type}&name=${q(f.name)}`;
+      $("viewimg").style.display = vid ? "none" : ""; $("viewvid").style.display = vid ? "" : "none";
+      if (vid) { $("viewvid").src = src; $("viewvid").play().catch(() => {}); } else $("viewimg").src = src;
+      $("view").style.display = "flex";
+    };
     const n = document.createElement("div"); n.className = "n"; n.textContent = f.name;
     const del = document.createElement("button"); del.className = "del"; del.textContent = S.delete;
     del.onclick = async () => {
@@ -83,12 +101,48 @@ async function load() {
       try { r = await fetch(`/api/file?type=${type}&name=${q(f.name)}`, { method: "DELETE", headers: H }); } catch (e) { msg(S.error); return; }
       msg(r.ok ? S.done : S.error); load();
     };
-    c.append(img, n, del); g.appendChild(c);
+    c.append(img, n, del);
+    if (vid) { const b = document.createElement("div"); b.className = "play"; b.textContent = "▶"; c.appendChild(b); }
+    g.appendChild(c);
   }
 }
 const uploading = n => (n === 1 ? S.uploading_one : S.uploading_other).replace("%d", n);
+const reasonText = x => (x.reason === "type" && type === "screensavers" ? S.rejected_type_media : S["rejected_" + x.reason]) || x.reason;
+// 一个文件的原始字节上传(R103):body 就是文件,服务端流式落盘;XHR 才有上传进度(几百 MB 的视频要几分钟)
+function sendRaw(f, onProgress) {
+  return new Promise(resolve => {
+    const x = new XMLHttpRequest();
+    x.open("POST", `/api/upload-raw?type=${type}&name=${q(f.name)}`);
+    for (const k in H) x.setRequestHeader(k, H[k]);
+    x.setRequestHeader("Content-Type", "application/octet-stream");
+    x.upload.onprogress = ev => { if (ev.lengthComputable) onProgress(Math.floor(ev.loaded * 100 / ev.total)); };
+    x.onload = () => { let d = null; try { d = JSON.parse(x.responseText); } catch (err) {} resolve(d); };
+    x.onerror = () => resolve(null);
+    x.send(f);
+  });
+}
+// 屏保分页:逐个文件上传(视频可达 500 MB,不拼成一个 multipart 大包)
+async function uploadEach(files) {
+  const saved = [], rejected = [];
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    if (isVideo(f.name) && f.size > MAX_VIDEO) { rejected.push({ name: f.name, reason: "video_size" }); continue; }
+    const head = `${uploading(files.length)} ${i + 1}/${files.length}`;
+    msg(head);
+    const d = await sendRaw(f, p => msg(`${head} · ${p}%`));
+    if (d && Array.isArray(d.saved) && Array.isArray(d.rejected)) { saved.push(...d.saved); rejected.push(...d.rejected); }
+    else rejected.push({ name: f.name, reason: (d && d.reason) || "server" });
+  }
+  return { saved, rejected };
+}
 $("pick").onchange = async e => {
   const files = [...e.target.files]; if (!files.length) return;
+  if (type === "screensavers") {
+    const d = await uploadEach(files);
+    let t = `${S.done} ${d.saved.length}/${files.length}`;
+    for (const x of d.rejected) t += `\n${x.name}: ${reasonText(x) === "server" ? S.error : reasonText(x)}`;
+    msg(t); e.target.value = ""; load(); return;
+  }
   const fd = new FormData(); for (const f of files) fd.append("files", f, f.name);
   msg(uploading(files.length));
   let d;
@@ -107,7 +161,7 @@ $("apkpick").onchange = async e => {
   $("apkstatus").textContent = d.ok ? `${S.done} ${d.package || ""} ${d.version || ""}` : (S["apk_" + d.reason] || S.error);
   e.target.value = "";
 };
-$("view").onclick = () => $("view").style.display = "none";
+$("view").onclick = ev => { if (ev.target.id === "viewvid") return; $("viewvid").pause(); $("viewvid").removeAttribute("src"); $("view").style.display = "none"; };
 $("title").textContent = S.title; document.title = S.title;
 $("uplabel").textContent = S.upload; $("apklabel").textContent = S.apk_install; $("apkhint").textContent = S.apk_hint;
 renderTabs(); load();

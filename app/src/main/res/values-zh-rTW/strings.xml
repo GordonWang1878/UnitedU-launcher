@@ -36,12 +36,12 @@
     <string name="toast_remove_failed">找不到這張卡,可能剛被移出</string>
     <!-- R60(2026-09-23):原「导入图片」改名「手机传输」,从外观组挪到通用组;扫码页本身不变 -->
     <string name="settings_phone_transfer">手機傳輸</string>
-    <string name="settings_phone_transfer_desc">手機掃碼上傳桌布、卡片圖、螢幕保護程式圖片,或安裝 APK</string>
+    <string name="settings_phone_transfer_desc">手機掃碼上傳桌布、卡片圖、螢幕保護程式相片與影片,或安裝 APK</string>
     <!-- import_* : 「匯入圖片」頁(電視端) -->
     <string name="import_title">用手機匯入圖片</string>
     <string name="import_title_wallpapers">用手機新增桌布</string>
     <string name="import_title_cards">用手機新增卡片圖</string>
-    <string name="import_title_screensavers">用手機新增螢幕保護程式圖片</string>
+    <string name="import_title_screensavers">用手機新增螢幕保護程式相片或影片</string>
     <plurals name="import_received">
         <item quantity="one">已收到 %1$d 個檔案</item>
         <item quantity="other">已收到 %1$d 個檔案</item>
@@ -74,6 +74,14 @@
     <string name="web_rejected_decode">圖片解碼失敗</string>
     <string name="web_rejected_name">檔名無效</string>
     <string name="web_rejected_write">電視儲存空間寫入失敗</string>
+    <string name="web_rejected_type_media">只支援 jpg / png / webp 相片,或 mp4 / mov / webm 影片</string>
+    <string name="web_rejected_video_size">影片超過 500 MB</string>
+    <string name="web_rejected_video_decode">電視無法辨識這部影片</string>
+    <string name="web_rejected_space">電視儲存空間不足</string>
+    <string name="web_screensavers_hint">可以上傳相片或短片(mp4 / mov / webm,每部影片不超過 500 MB)。螢幕保護程式裡影片靜音播放,超過 60 秒只播前 60 秒。</string>
+    <string name="web_empty_screensavers">還沒有相片或影片,點右上「上傳」</string>
+    <string name="picker_video_badge">影片</string>
+    <string name="preview_video_failed">無法播放這部影片</string>
     <string name="web_apk_hint">選擇 APK 後,電視會跳出系統安裝程式;第一次需要在電視上允許「安裝未知應用程式」。</string>
     <string name="web_apk_install">選擇 APK 並安裝到電視</string>
     <string name="web_apk_needs_permission">請先在電視上允許安裝未知應用程式,然後重試</string>
@@ -114,11 +122,11 @@
     <string name="picker_back_to_cancel">按返回鍵取消</string>
     <string name="picker_restore_original">恢復原圖</string>
     <string name="picker_add_from_phone">從手機新增</string>
-    <string name="picker_screensaver_pool_title">螢幕保護程式圖庫 · %1$d 張 · 按確定鍵預覽</string>
+    <string name="picker_screensaver_pool_title">螢幕保護程式圖庫 · %1$d 項 · 按確定鍵預覽</string>
     <string name="picker_screensaver_title">螢幕保護程式圖庫</string>
-    <string name="picker_no_screensavers">還沒有螢幕保護程式圖片</string>
+    <string name="picker_no_screensavers">還沒有螢幕保護程式相片或影片</string>
     <!-- pool_delete_* : 螢幕保護圖庫長按刪圖的確認框(M5 spec §5);取消複用 dialog_cancel -->
-    <string name="pool_delete_title">刪除這張圖片?</string>
+    <string name="pool_delete_title">刪除這一項?</string>
     <string name="pool_delete_body">「%1$s」會從螢幕保護圖庫刪除,無法復原</string>
     <string name="pool_delete_ok">刪除</string>
 
@@ -157,7 +165,7 @@
     <string name="settings_screensaver_interval">螢幕保護輪播設定</string>
     <string name="settings_seconds">%1$d 秒</string>
     <string name="settings_screensaver_gallery">螢幕保護圖庫</string>
-    <string name="settings_screensaver_gallery_desc">看圖、長按刪圖</string>
+    <string name="settings_screensaver_gallery_desc">看相片和影片、長按刪除</string>
     <string name="settings_system_screensaver">系統螢幕保護</string>
     <string name="settings_on">開</string>
     <string name="settings_off">關</string>

@@ -15,9 +15,12 @@ import java.net.NetworkInterface
 
 private const val TAG = "UnitedU"
 
+/** [UploadServer] 里 acceptOne 的「通过」前缀(后面跟落盘名);别的返回值都是拒绝理由。 */
+private const val SAVED = "saved:"
+
 /**
  * 手机上传页的 HTTP 服务(spec §1)。只在「导入图片」页打开时活着;每请求一线程(NanoHTTPD 默认)。
- * 路由:GET / | GET /api/list | POST /api/upload | DELETE /api/file | GET /thumb | GET /file | POST /api/apk。
+ * 路由:GET / | GET /api/list | POST /api/upload | DELETE /api/file | GET /thumb | GET /file | POST /api/apk | POST /api/upload-raw(R103)。
  */
 class UploadServer(
     private val ctx: Context,
@@ -92,9 +95,10 @@ class UploadServer(
                 uri == "/" && session.method == Method.GET -> serveIndex()
                 uri == "/api/list" && session.method == Method.GET -> serveList(type)
                 uri == "/api/upload" && session.method == Method.POST -> serveUpload(session, type)
+                uri == "/api/upload-raw" && session.method == Method.POST -> serveRawUpload(session, type, name)
                 uri == "/api/file" && session.method == Method.DELETE -> serveDelete(type, name)
                 uri == "/thumb" && session.method == Method.GET -> serveThumb(type, name)
-                uri == "/file" && session.method == Method.GET -> serveFile(type, name)
+                uri == "/file" && session.method == Method.GET -> serveFile(session, type, name)
                 uri == "/api/apk" && session.method == Method.POST -> serveApk(session)
                 else -> text(Response.Status.NOT_FOUND, "not found")
             }
@@ -122,11 +126,16 @@ class UploadServer(
         val cap = when (uri) {
             "/api/apk" -> MAX_APK_BYTES
             "/api/upload" -> MAX_UPLOAD_BYTES * 8
+            // 原始字节上传一次一个文件,没有 multipart 边界(R103)
+            "/api/upload-raw" -> ScreensaverMedia.MAX_VIDEO_BYTES
             else -> return null
         }
         val declared = session.headers["content-length"]?.toLongOrNull() ?: return null
         if (declared <= cap) return null
-        return closing(json(Response.Status.PAYLOAD_TOO_LARGE, jsonFail("size")))
+        // 原始上传的理由按文件种类细分(网页的文案不同);multipart 那条照旧
+        val rawName = session.parameters["name"]?.firstOrNull() ?: ""
+        val reason = if (uri == "/api/upload-raw" && ScreensaverMedia.isVideo(rawName)) "video_size" else "size"
+        return closing(json(Response.Status.PAYLOAD_TOO_LARGE, jsonFail(reason)))
     }
 
     /** 网页。把 index.html 里的 __STRINGS__ 占位替换成按电视当前语言取的三语 JSON,__DEFAULT_TAB__ 换成默认分页(R63)。 */
@@ -137,16 +146,19 @@ class UploadServer(
         return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html.replace("__STRINGS__", webStringsJson(ctx)).replace("__DEFAULT_TAB__", defaultTabJs(defaultTab)))
     }
 
-    private fun listImages(dir: File): List<File> =
-        dir.listFiles()
-            ?.filter { it.isFile && extensionOf(it.name) in UPLOAD_IMAGE_EXTS }
+    /** 屏保分类照片 + 视频(R100),壁纸 / 卡片图只有照片。 */
+    private fun listMedia(type: String, dir: File): List<File> {
+        val exts = if (type == "screensavers") ScreensaverMedia.ALL_EXTS else UPLOAD_IMAGE_EXTS
+        return dir.listFiles()
+            ?.filter { it.isFile && extensionOf(it.name) in exts }
             ?.sortedBy { it.name }
             ?: emptyList()
+    }
 
     private fun serveList(type: String?): Response {
         val dir = libraryFor(type) ?: return json(Response.Status.BAD_REQUEST, jsonFail("type"))
-        val entries = listImages(dir).map { FileEntry(it.name, it.length(), it.lastModified()) }
-        return json(Response.Status.OK, jsonFileList(type!!, entries))
+        val entries = listMedia(type!!, dir).map { FileEntry(it.name, it.length(), it.lastModified()) }
+        return json(Response.Status.OK, jsonFileList(type, entries))
     }
 
     /**
@@ -173,23 +185,78 @@ class UploadServer(
             val tmpPath = files[key] ?: continue
             val original = session.parameters[key]?.firstOrNull() ?: continue
             val tmp = File(tmpPath)
-            val clean = sanitizeUploadName(original)
-            when {
-                clean == null -> rejected += original to "name"
-                extensionOf(clean) !in UPLOAD_IMAGE_EXTS -> rejected += original to "type"
-                tmp.length() > MAX_UPLOAD_BYTES -> rejected += original to "size"
-                !Apps.isDecodableImage(tmp.absolutePath) -> rejected += original to "decode"
-                else -> {
-                    val finalName = saveIntoLibrary(tmp, dir, clean)
-                    if (finalName != null) {
-                        saved += finalName
-                        main.post { onSaved(type!!, finalName) }
-                    } else rejected += original to "write"
-                }
-            }
+            val result = acceptOne(type!!, dir, sanitizeUploadName(original), tmp)
+            if (result.startsWith(SAVED)) saved += result.removePrefix(SAVED) else rejected += original to result
             tmp.delete()
         }
         return json(Response.Status.OK, jsonUploadResult(saved, rejected))
+    }
+
+    /**
+     * 一个已落进临时文件的上传:校验 → 移进图库。multipart 与原始上传共用(R103)。
+     * 闸的顺序:名字 → 扩展名(按分类)→ 大小 → 文件头([ScreensaverMedia.uploadRejection])→ 能解(照片
+     * `isDecodableImage`、视频 [VideoThumbs.hasVideoTrack])→ [saveIntoLibrary]。
+     * @return 通过时 `SAVED + 落盘名`,否则拒绝理由。
+     */
+    private fun acceptOne(type: String, dir: File, clean: String?, tmp: File): String {
+        val head = runCatching {
+            tmp.inputStream().use { input -> ByteArray(16).let { b -> b.copyOf(input.read(b).coerceAtLeast(0)) } }
+        }.getOrDefault(ByteArray(0))
+        ScreensaverMedia.uploadRejection(type, clean, tmp.length(), head)?.let { return it }
+        val name = clean!!
+        val video = ScreensaverMedia.isVideo(name)
+        if (video && !VideoThumbs.hasVideoTrack(tmp.absolutePath)) return "video_decode"
+        if (!video && !Apps.isDecodableImage(tmp.absolutePath)) return "decode"
+        val finalName = saveIntoLibrary(tmp, dir, name) ?: return "write"
+        main.post { onSaved(type, finalName) }
+        return SAVED + finalName
+    }
+
+    /**
+     * 原始字节上传(Ruling R103):`POST /api/upload-raw?type=&name=`,body 就是文件本身,一次一个。
+     * 视频可达 500 MB:NanoHTTPD 的 multipart 解析先把**整个请求**落进一个临时文件,再 `mmap` 整个文件去找边界
+     * ——32 位进程映射几百 MB 的连续地址很可能失败,而且同一份数据在盘上要占两份。这里直接从 socket 按
+     * Content-Length 流式写进 cache 里的临时文件(与图库同卷,rename 原子),不进内存、不 mmap。
+     * 名字 / 类型 / 大小不合格的在读 body **之前**就拒(`Connection: close`,见 [closing]);空间不够同理。
+     */
+    private fun serveRawUpload(session: IHTTPSession, type: String?, name: String?): Response {
+        val dir = libraryFor(type) ?: return closing(json(Response.Status.BAD_REQUEST, jsonFail("type")))
+        val original = name ?: ""
+        val clean = sanitizeUploadName(name)
+        val declared = session.headers["content-length"]?.toLongOrNull()
+            ?: return closing(json(Response.Status.LENGTH_REQUIRED, jsonFail("size")))
+        ScreensaverMedia.uploadRejection(type!!, clean, declared, null)?.let {
+            return closing(json(Response.Status.OK, jsonUploadResult(emptyList(), listOf(original to it))))
+        }
+        // 留 64 MB 余量:写满存储会连带别的应用出问题
+        if (tmpDir.usableSpace < declared + 64L * 1024 * 1024) {
+            return closing(json(Response.Status.OK, jsonUploadResult(emptyList(), listOf(original to "space"))))
+        }
+        val tmp = File.createTempFile("raw", ".part", tmpDir)
+        try {
+            var left = declared
+            val buf = ByteArray(64 * 1024)
+            tmp.outputStream().use { out ->
+                val input = session.inputStream
+                while (left > 0) {
+                    val n = input.read(buf, 0, minOf(buf.size.toLong(), left).toInt())
+                    if (n < 0) break
+                    out.write(buf, 0, n)
+                    left -= n
+                }
+                out.flush()
+                out.fd.sync()
+            }
+            if (left > 0) {
+                // 手机中途断了:body 没收全,连接也不能再用
+                return closing(json(Response.Status.BAD_REQUEST, jsonUploadResult(emptyList(), listOf(original to "write"))))
+            }
+            val result = acceptOne(type, dir, clean, tmp)
+            return if (result.startsWith(SAVED)) json(Response.Status.OK, jsonUploadResult(listOf(result.removePrefix(SAVED)), emptyList()))
+            else json(Response.Status.OK, jsonUploadResult(emptyList(), listOf(original to result)))
+        } finally {
+            tmp.delete()
+        }
     }
 
     /**
@@ -266,7 +333,9 @@ class UploadServer(
         val key = "${f.name}|${f.lastModified()}"
         val cached = synchronized(thumbs) { thumbs[key] }
         val bytes = cached ?: run {
-            val bmp = Apps.decodeScaled(f.absolutePath, 320, 180) ?: return text(Response.Status.NOT_FOUND, "undecodable")
+            // 视频:首帧(R104,与电视端网格同一个取法与缓存)
+            val bmp = (if (ScreensaverMedia.isVideo(f.name)) VideoThumbs.load(f).frame else Apps.decodeScaled(f.absolutePath, 320, 180))
+                ?: return text(Response.Status.NOT_FOUND, "undecodable")
             val out = ByteArrayOutputStream()
             bmp.compress(Bitmap.CompressFormat.JPEG, 70, out)
             out.toByteArray().also { synchronized(thumbs) { thumbs[key] = it } }
@@ -274,10 +343,35 @@ class UploadServer(
         return newFixedLengthResponse(Response.Status.OK, "image/jpeg", ByteArrayInputStream(bytes), bytes.size.toLong())
     }
 
-    private fun serveFile(type: String?, name: String?): Response {
+    /**
+     * 原文件。视频支持单段 Range(R103):手机浏览器(尤其 iOS Safari)对不支持 Range 的服务端拒绝播放 `<video>`。
+     * 解析是纯函数 [ScreensaverMedia.parseRange];不认的 Range 头当没带、回整个文件。
+     */
+    private fun serveFile(session: IHTTPSession, type: String?, name: String?): Response {
         val f = resolve(type, name) ?: return text(Response.Status.NOT_FOUND, "missing")
-        val mime = when (extensionOf(f.name)) { "png" -> "image/png"; "webp" -> "image/webp"; else -> "image/jpeg" }
-        return newFixedLengthResponse(Response.Status.OK, mime, FileInputStream(f), f.length())
+        val mime = when (extensionOf(f.name)) {
+            "png" -> "image/png"; "webp" -> "image/webp"
+            "mp4", "m4v" -> "video/mp4"; "mov" -> "video/quicktime"; "webm" -> "video/webm"
+            else -> "image/jpeg"
+        }
+        val length = f.length()
+        val range = if (ScreensaverMedia.isVideo(f.name)) ScreensaverMedia.parseRange(session.headers["range"], length) else null
+        if (range == null) {
+            return newFixedLengthResponse(Response.Status.OK, mime, FileInputStream(f), length)
+                .apply { addHeader("Accept-Ranges", "bytes") }
+        }
+        val input = FileInputStream(f)
+        var skip = range.first
+        while (skip > 0) {
+            val n = input.skip(skip)
+            if (n <= 0) break
+            skip -= n
+        }
+        val count = range.last - range.first + 1
+        return newFixedLengthResponse(Response.Status.PARTIAL_CONTENT, mime, input, count).apply {
+            addHeader("Accept-Ranges", "bytes")
+            addHeader("Content-Range", "bytes ${range.first}-${range.last}/$length")
+        }
     }
 
     /** 同卷 rename;跨卷(外置 cache 没挂时)回落到复制 + fsync + 删源。 */
@@ -368,6 +462,12 @@ fun webStringsJson(ctx: Context): String {
         "rejected_decode" to R.string.web_rejected_decode,
         "rejected_name" to R.string.web_rejected_name,
         "rejected_write" to R.string.web_rejected_write,
+        "rejected_type_media" to R.string.web_rejected_type_media,
+        "rejected_video_size" to R.string.web_rejected_video_size,
+        "rejected_video_decode" to R.string.web_rejected_video_decode,
+        "rejected_space" to R.string.web_rejected_space,
+        "screensavers_hint" to R.string.web_screensavers_hint,
+        "empty_screensavers" to R.string.web_empty_screensavers,
         "apk_hint" to R.string.web_apk_hint,
         "apk_install" to R.string.web_apk_install,
         "apk_needs-permission" to R.string.web_apk_needs_permission,

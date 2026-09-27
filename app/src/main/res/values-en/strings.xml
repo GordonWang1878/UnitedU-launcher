@@ -44,12 +44,12 @@
     <string name="toast_remove_failed">Card not found — it may have just been removed</string>
     <!-- R60(2026-09-23):原「导入图片」改名「手机传输」,从外观组挪到通用组;扫码页本身不变 -->
     <string name="settings_phone_transfer">Phone Transfer</string>
-    <string name="settings_phone_transfer_desc">Upload wallpapers, card &amp; screensaver images, or an APK by phone</string>
+    <string name="settings_phone_transfer_desc">Upload wallpapers, card images, screensaver photos &amp; videos, or an APK by phone</string>
     <!-- import_* : Import Images page (TV side) -->
     <string name="import_title">Import images from your phone</string>
     <string name="import_title_wallpapers">Add wallpapers from your phone</string>
     <string name="import_title_cards">Add card images from your phone</string>
-    <string name="import_title_screensavers">Add screensaver images from your phone</string>
+    <string name="import_title_screensavers">Add screensaver photos or videos from your phone</string>
     <plurals name="import_received">
         <item quantity="one">%1$d file received</item>
         <item quantity="other">%1$d files received</item>
@@ -82,6 +82,14 @@
     <string name="web_rejected_decode">Image could not be decoded</string>
     <string name="web_rejected_name">Invalid file name</string>
     <string name="web_rejected_write">Could not write to TV storage</string>
+    <string name="web_rejected_type_media">Only jpg / png / webp photos or mp4 / mov / webm videos are supported</string>
+    <string name="web_rejected_video_size">Video is larger than 500 MB</string>
+    <string name="web_rejected_video_decode">The TV can\'t read this video</string>
+    <string name="web_rejected_space">Not enough storage on the TV</string>
+    <string name="web_screensavers_hint">Upload photos or short videos (mp4 / mov / webm, up to 500 MB each). Videos play muted in the screensaver; only the first 60 seconds of longer ones are shown.</string>
+    <string name="web_empty_screensavers">No photos or videos yet. Tap Upload at the top right</string>
+    <string name="picker_video_badge">Video</string>
+    <string name="preview_video_failed">Can\'t play this video</string>
     <string name="web_apk_hint">After you pick an APK the TV shows the system installer. The first time, allow “Install unknown apps” on the TV.</string>
     <string name="web_apk_install">Pick an APK and install on the TV</string>
     <string name="web_apk_needs_permission">Allow installing unknown apps on the TV first, then retry</string>
@@ -122,11 +130,11 @@
     <string name="picker_back_to_cancel">Press Back to cancel</string>
     <string name="picker_restore_original">Restore Original</string>
     <string name="picker_add_from_phone">Add from Phone</string>
-    <string name="picker_screensaver_pool_title">Screensaver Gallery · %1$d images · Press OK to preview</string>
+    <string name="picker_screensaver_pool_title">Screensaver Gallery · %1$d items · Press OK to preview</string>
     <string name="picker_screensaver_title">Screensaver Gallery</string>
-    <string name="picker_no_screensavers">No screensaver images yet</string>
+    <string name="picker_no_screensavers">No screensaver photos or videos yet</string>
     <!-- pool_delete_* : long-press delete confirm in the screensaver gallery (M5 spec §5); cancel reuses dialog_cancel -->
-    <string name="pool_delete_title">Delete this picture?</string>
+    <string name="pool_delete_title">Delete this item?</string>
     <string name="pool_delete_body">\"%1$s\" will be removed from the gallery for good</string>
     <string name="pool_delete_ok">Delete</string>
 
@@ -165,7 +173,7 @@
     <string name="settings_screensaver_interval">Slideshow Interval</string>
     <string name="settings_seconds">%1$d s</string>
     <string name="settings_screensaver_gallery">Screensaver Gallery</string>
-    <string name="settings_screensaver_gallery_desc">View; hold OK to delete</string>
+    <string name="settings_screensaver_gallery_desc">View photos &amp; videos; hold OK to delete</string>
     <string name="settings_system_screensaver">System Screensaver</string>
     <string name="settings_on">On</string>
     <string name="settings_off">Off</string>

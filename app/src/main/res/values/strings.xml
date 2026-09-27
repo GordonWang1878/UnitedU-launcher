@@ -36,12 +36,12 @@
     <string name="toast_remove_failed">没找到这张卡,可能刚被移出</string>
     <!-- R60(2026-09-23):原「导入图片」改名「手机传输」,从外观组挪到通用组;扫码页本身不变 -->
     <string name="settings_phone_transfer">手机传输</string>
-    <string name="settings_phone_transfer_desc">手机扫码上传壁纸、卡片图、屏保图片,或安装 APK</string>
+    <string name="settings_phone_transfer_desc">手机扫码上传壁纸、卡片图、屏保照片与视频,或安装 APK</string>
     <!-- import_* : 「导入图片」页(电视端) -->
     <string name="import_title">用手机导入图片</string>
     <string name="import_title_wallpapers">用手机添加壁纸</string>
     <string name="import_title_cards">用手机添加卡片图</string>
-    <string name="import_title_screensavers">用手机添加屏保图片</string>
+    <string name="import_title_screensavers">用手机添加屏保照片或视频</string>
     <plurals name="import_received">
         <item quantity="one">已收到 %1$d 个文件</item>
         <item quantity="other">已收到 %1$d 个文件</item>
@@ -74,6 +74,14 @@
     <string name="web_rejected_decode">图片解码失败</string>
     <string name="web_rejected_name">文件名无效</string>
     <string name="web_rejected_write">电视存储写入失败</string>
+    <string name="web_rejected_type_media">只支持 jpg / png / webp 照片,或 mp4 / mov / webm 视频</string>
+    <string name="web_rejected_video_size">视频超过 500 MB</string>
+    <string name="web_rejected_video_decode">电视无法识别这个视频</string>
+    <string name="web_rejected_space">电视存储空间不足</string>
+    <string name="web_screensavers_hint">可以上传照片或短视频(mp4 / mov / webm,每个视频不超过 500 MB)。屏保里视频静音播放,超过 60 秒只播前 60 秒。</string>
+    <string name="web_empty_screensavers">还没有照片或视频,点右上「上传」</string>
+    <string name="picker_video_badge">视频</string>
+    <string name="preview_video_failed">无法播放这个视频</string>
     <string name="web_apk_hint">选择 APK 后,电视会弹出系统安装器;首次需要在电视上允许「安装未知应用」。</string>
     <string name="web_apk_install">选择 APK 并安装到电视</string>
     <string name="web_apk_needs_permission">请先在电视上允许安装未知应用,然后重试</string>
@@ -114,11 +122,11 @@
     <string name="picker_back_to_cancel">按返回键取消</string>
     <string name="picker_restore_original">恢复原图</string>
     <string name="picker_add_from_phone">从手机添加</string>
-    <string name="picker_screensaver_pool_title">屏保图库 · %1$d 张 · 按确定键预览</string>
+    <string name="picker_screensaver_pool_title">屏保图库 · %1$d 项 · 按确定键预览</string>
     <string name="picker_screensaver_title">屏保图库</string>
-    <string name="picker_no_screensavers">还没有屏保图片</string>
+    <string name="picker_no_screensavers">还没有屏保照片或视频</string>
     <!-- pool_delete_* : 屏保图库长按删图的确认框(M5 spec §5);取消复用 dialog_cancel -->
-    <string name="pool_delete_title">删除这张图片?</string>
+    <string name="pool_delete_title">删除这一项?</string>
     <string name="pool_delete_body">「%1$s」会从屏保图库删除,无法恢复</string>
     <string name="pool_delete_ok">删除</string>
 
@@ -157,7 +165,7 @@
     <string name="settings_screensaver_interval">屏保轮播设置</string>
     <string name="settings_seconds">%1$d 秒</string>
     <string name="settings_screensaver_gallery">屏保图库</string>
-    <string name="settings_screensaver_gallery_desc">看图、长按删图</string>
+    <string name="settings_screensaver_gallery_desc">看照片和视频、长按删除</string>
     <string name="settings_system_screensaver">系统屏保</string>
     <string name="settings_on">开</string>
     <string name="settings_off">关</string>
