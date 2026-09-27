@@ -25,6 +25,7 @@ class SettingsModelTest {
             applyLanguage = { lang -> languages += lang },
             openScreensaverGallery = { fired += "openScreensaverGallery" },
             openSystemScreensaver = { fired += "openSystemScreensaver" },
+            startScreensaver = { fired += "startScreensaver" },
             openSystemAnimationSettings = { fired += "openSystemAnimationSettings" },
         )
     }
@@ -48,8 +49,8 @@ class SettingsModelTest {
     @Test fun rowCountsPerGroup() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
         // 布局 1 动作(R69 编辑分栏)+ 2(R92 删掉「输入源行」开关)/ 通用 7(R60 手机传输挪进来)+ 动画缩放条件行(默认 UNKNOWN = 读不到 → 出「查看」)/
-        // 外观 1 动作 + 2 壁纸滑块(自动切换 R61 删掉)+ 2 主题(主题化卡片 R58 删掉)+ 2 卡片淡化滑块(R70)+ 卡片不透明度(R86)/ 屏保 2 控件 + 2 动作
-        assertEquals(listOf(3, 8, 8, 4), g.map { it.rows.size })
+        // 外观 1 动作 + 2 壁纸滑块(自动切换 R61 删掉)+ 2 主题(主题化卡片 R58 删掉)+ 2 卡片淡化滑块(R70)+ 卡片不透明度(R86)/ 屏保 1 动作(R93 立即开始屏保)+ 2 控件 + 2 动作
+        assertEquals(listOf(3, 8, 8, 5), g.map { it.rows.size })
     }
 
     @Test fun rowIdsAreUnique() {
@@ -172,10 +173,11 @@ class SettingsModelTest {
         (row(g, "restoreDefaults") as ActionRow).onActivate()
         (row(g, "screensaverGallery") as ActionRow).onActivate()
         (row(g, "systemScreensaver") as ActionRow).onActivate()
+        (row(g, "startScreensaver") as ActionRow).onActivate()
         assertEquals(
             listOf(
                 "openEdit", "pickWallpaper", "openImport", "setDefaultHome", "restoreDefaults",
-                "openScreensaverGallery", "openSystemScreensaver",
+                "openScreensaverGallery", "openSystemScreensaver", "startScreensaver",
             ),
             r.fired,
         )
@@ -195,11 +197,13 @@ class SettingsModelTest {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
         val ss = g.first { it.id == GroupId.SCREENSAVER }.rows
         assertEquals(
-            listOf("screensaverAfter", "screensaverInterval", "screensaverGallery", "systemScreensaver"),
+            // R93:「立即开始屏保」(原顶栏屏保按钮)放最上面
+            listOf("startScreensaver", "screensaverAfter", "screensaverInterval", "screensaverGallery", "systemScreensaver"),
             ss.map { it.id },
         )
-        assertTrue(ss.take(2).all { it is ControlRow })
-        assertTrue(ss.drop(2).all { it is ActionRow })
+        assertTrue(ss.first() is ActionRow)
+        assertTrue(ss.drop(1).take(2).all { it is ControlRow })
+        assertTrue(ss.drop(3).all { it is ActionRow })
     }
 
     @Test fun screensaverRowsMirrorSettings() {

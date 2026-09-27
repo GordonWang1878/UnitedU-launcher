@@ -65,10 +65,13 @@ fun HomeScreen(
     /** 待机演示(M7 T6,spec §3.2):非 null 时覆盖 [idle]/[idleContent] 驱动的两个淡出动画。 */
     /**
      * 顶栏「设置」药丸按下(R69:打开设置页外壳的第一层,取代原来嵌在首页里的齿轮菜单)。设置外壳住在 MainActivity、
-     * 叠在首页之上,首页由 [previewing] 让路、冻结目标;关掉后按冻结的 `tgtGear` 回到药丸(或 MENU 键打开时回到那张卡)。
+     * 叠在首页之上,首页由 [previewing] 让路、冻结目标;关掉后按冻结的 `tgtPill` 回到药丸(或 MENU 键打开时回到那张卡)。
      */
     onSettings: () -> Unit = {},
-    onScreensaver: () -> Unit = {},
+    /** R89:顶栏「应用」胶囊 = 打开所有应用页(MainActivity 那一层的整屏浮层,同设置外壳走 [previewing] 让路)。 */
+    onApps: () -> Unit = {},
+    /** R89:顶栏「输入源」胶囊 = 打开输入源页(同上)。R89 前这一格是屏保按钮(`onScreensaver`),挪进「设置 → 屏保」。 */
+    onInputs: () -> Unit = {},
     focusNonce: Int,
     revision: Int = 0,
     showDate: Boolean = true,
@@ -139,7 +142,7 @@ fun HomeScreen(
     // 分开写四遍 `cardMenu != null ||` 迟早漏掉一处,而漏掉的那一处就是「菜单开着时看门狗每帧抢焦点,
     // 菜单里一项都不高亮」(铁律 4 的推论)。合成一个量之后,它同时是那两个效果的 key 与守卫(铁律 6)。
     // (R69 起齿轮菜单不再嵌在首页里:设置页外壳是 MainActivity 那一层的整屏浮层,算在 [previewing] 里;
-    //  原来专管「齿轮菜单关了回齿轮」的 gearNonce 随之删掉,回齿轮只靠冻结的 tgtGear,见它的 KDoc。)
+    //  原来专管「齿轮菜单关了回齿轮」的 gearNonce 随之删掉,回齿轮只靠冻结的 tgtPill〔R89 前叫 tgtGear〕,见它的 KDoc。)
     val covered = anyOverlay || previewing
     // 枚举应用 + 解码全部横幅是重活,放到 IO 线程,别拖慢首帧
     // (冷启动实测 2.0–2.3s,Projectivy 是 1.45s)。
@@ -218,8 +221,12 @@ fun HomeScreen(
     }
     var tgtRow by remember { mutableStateOf(0) }
     /**
-     * **目标是齿轮(true)还是那一格卡片(false)**。与 [tgtRow]/[tgtIdx] 同构,是同一条铁律 5
-     * 在齿轮上的应用:「目标」与「当前位置」必须分开,而且从浮层打开(或 `ON_PAUSE`)就冻住。
+     * **目标是顶栏哪一颗胶囊(0 设置 / 1 应用 / 2 输入源),还是那一格卡片(-1)**。与 [tgtRow]/[tgtIdx] 同构,是同一条铁律 5
+     * 在顶栏上的应用:「目标」与「当前位置」必须分开,而且从浮层打开(或 `ON_PAUSE`)就冻住。
+     * **R89(2026-09-27)从布尔 `tgtGear` 扩成列号**:顶栏从「设置 / 屏保」两颗变成「设置 / 应用 / 输入源」三颗,
+     * 其中两颗(应用、输入源)会打开浮层,关掉后要回到**打开它的那一颗**——布尔量只记得「回顶栏」,还原时一律
+     * 送到设置那颗(R89 之前屏保按钮不开浮层,这个差别从来没暴露过)。「每一个分量都要拆」(铁律 5 原话):
+     * 顶栏的列号与卡片的行 / 列同样是目标的一个分量,同样跟着自报的焦点走、同样在还原期间冻结。
      *
      * 为什么不能只靠 `gearNonce`(M7 T4 实测):`gearNonce` 把「关掉之后回齿轮」这个意图
      * **钉在某一个 focusNonce 上**,而浮层链里每一层关掉时都会 `focusNonce++`
@@ -229,12 +236,12 @@ fun HomeScreen(
      * 浮层期间 `restoring` 冻着它,关掉后原样还原,中途 nonce 怎么涨都不影响。
      * 也不是闩(铁律 7):每次焦点落地都是一次全新赋值,没有「只有一条窄路能清」的状态。
      */
-    var tgtGear by remember { mutableStateOf(false) }
+    var tgtPill by remember { mutableStateOf(-1) }
     var restoring by remember { mutableStateOf(false) }
     // **谁持有焦点,只信控件自己的上报。**根节点的 onFocusChanged 在「退到后台再回来」
     // 这条路上不会重发,`hasFocus` 会停在过期的 true —— 实测日志说有焦点,截图里
     // 卡片却没有放大也没有光晕(上边缘 777→812、光晕峰值 142→66)。
-    // (-1, col) 表示焦点在顶栏 pill 组上(col 0 设置 / 1 屏保)。
+    // (-1, col) 表示焦点在顶栏 pill 组上(col 0 设置 / 1 应用 / 2 输入源,R89)。
     var focusedCell by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     // **从 onPause 就开始冻结目标**,而不是等还原效果开始时才冻。实测:从别的应用回来时
     // Compose 会抢在还原效果之前把焦点给第一张卡,那次焦点事件会把目标改写成 (0,0),
@@ -280,7 +287,7 @@ fun HomeScreen(
         // 卡片那两个目标不必判:卡片本身就是数据到了才存在,这条件对它们是隐含成立的。
         // **移动态期间也不更新**(与卡片那两个目标同一条,铁律 5「每一个分量」):那时的目标归 MainActivity 的
         // moving.pos 管,首页自己的记忆冻结,结束时由落点(moveLanding)一次写入。
-        if (got && !restoring && loaded != null && movingNow == null) tgtGear = row == -1
+        if (got && !restoring && loaded != null && movingNow == null) tgtPill = if (row == -1) idx else -1
         // focusedCell 自己的得失顺序保护留着:只有「本格仍是持有者」才作废。导航时若两张卡的
         // 得失顺序颠倒(新卡先报 got、旧卡后报 lost),旧卡那次 lost 不会把新卡抹掉。
         if (got) focusedCell = row to idx
@@ -296,11 +303,11 @@ fun HomeScreen(
     LaunchedEffect(rows, focusedCell) { onFocusedCard(cardAt(focusedCell)) }
     // 配置里的包一个都装不到时,卡片一张都没有,焦点无处可落;而这时唯一能自救的
     // 控件正是齿轮。不能指望框架的隐式 focus-enter——这份代码在别处恰恰拒绝依赖它。
-    val gearFocus = remember { FocusRequester() }
-    // 顶栏屏保按钮自己的 requester(gtv 线新顶栏 GtvTopBar 需要,见其参数 KDoc)。
-    // 目前没有别处主动把焦点送到这一格——「回到顶栏」只认 gearFocus——但 GtvTopBar 的
-    // 接口按两个按钮对称给,留着这颗以防以后要直接把焦点送到屏保按钮。
-    val screensaverFocus = remember { FocusRequester() }
+    // 顶栏三颗胶囊各一个 requester(R89:设置 / 应用 / 输入源),下标 = 焦点账本里的 col。
+    val pillFocus = remember { List(TOP_PILL_COUNT) { FocusRequester() } }
+    val gearFocus = pillFocus[0]
+    /** 冻结的顶栏目标对应的 requester;越界(理论上不会)退回设置那颗。 */
+    fun pillTarget(): FocusRequester = pillFocus.getOrElse(tgtPill) { gearFocus }
     // 哪一行是「当前行」——决定纵向锚定位移;跟着焦点走。Task 9 曾经把 -1 当合法值写进来
     // (药丸组拿到焦点时写入),给 GtvTopBar 的 `collapsed` 参数当「焦点在不在应用行」的信号。
     // Ruling R21(终审 2026-09-20)删掉了顶栏折叠,这个信号没有消费者了——药丸组拿到焦点时
@@ -377,7 +384,7 @@ fun HomeScreen(
         val landing = moveLanding
         if (moveTarget == null && landing != null && landing !== appliedLanding) {
             appliedLanding = landing
-            tgtGear = false
+            tgtPill = -1
             tgtRow = landing.pos.row
             if (landing.pos.row in tgtIdx.indices) tgtIdx[landing.pos.row] = landing.pos.col
         }
@@ -386,16 +393,17 @@ fun HomeScreen(
         // 浮层关掉后 Compose 的默认恢复就在这几帧里把焦点塞给了 (0,0),看门狗看到 `focusedCell != null`
         // 当场让路,于是「换壁纸回来焦点回齿轮」变成了「落在第一张卡」。卡片那条路一直是对的,
         // 正因为它是这里主动请求的;齿轮只是缺了对称的一半。
-        // 目标读 [tgtGear](冻结过的);它是「读的量」不是守卫,与 tgtRow/tgtIdx 同例,不进 key(进了会在每次导航时重跑还原)。
+        // 目标读 [tgtPill](冻结过的);它是「读的量」不是守卫,与 tgtRow/tgtIdx 同例,不进 key(进了会在每次导航时重跑还原)。
         restoring = true
         var frames = 0
         // 移动态下焦点只去被搬的那张卡,不回齿轮
-        if (moveTarget == null && tgtGear) {
-            // 退出条件同样只信控件自报(铁律 2):设置 / 屏保两个 pill 都会 report(-1, col, true),
-            // 两者都算「回到顶栏」——按 focusedCell?.first 判,不钉死某一列(col 0/1 都算数)。
-            while (frames < 60 && focusedCell?.first != -1) {
+        if (moveTarget == null && tgtPill >= 0) {
+            // 退出条件同样只信控件自报(铁律 2),而且要落在**冻结的那一颗**上(R89:三颗里两颗会开浮层,
+            // 关掉要回到打开它的那颗;只判「在顶栏上」的话,Compose 先把焦点给设置那颗就会提前退出)。
+            val want = -1 to tgtPill
+            while (frames < 60 && focusedCell != want) {
                 withFrameNanos { }
-                runCatching { gearFocus.requestFocus() }
+                runCatching { pillTarget().requestFocus() }
                 frames++
             }
             restoring = false
@@ -436,13 +444,13 @@ fun HomeScreen(
         repeat(3) { withFrameNanos {} }
         if (focusedCell != null) return@LaunchedEffect
         // 与还原效果同一判据:冻结过的目标优先。
-        // `tgtGear` 不进 key 也不违反铁律 6:它只在焦点真的落下时才变,而那一下必定同时改写
+        // `tgtPill` 不进 key 也不违反铁律 6:它只在焦点真的落下时才变,而那一下必定同时改写
         // `focusedCell`(已经是 key),本效果照样会以新值重启;而且它不是守卫,只决定送去哪儿。
         // 移动态:目标是被搬的那张卡(moveTarget 只决定送去哪儿、不是守卫;它一变还原效果就重启、
         // restoring 随之置真,本效果以 restoring 这个 key 重启让路,不会拿着旧目标跟还原效果抢)。
-        val useGear = moveTarget == null && tgtGear
+        val usePill = moveTarget == null && tgtPill >= 0
         val target = when {
-            useGear && loaded != null -> gearFocus
+            usePill && loaded != null -> pillTarget()
             // 落点用「那一行记住的那一格」而不是第一行第一张 —— rowFocus 正好挂在那里
             // (upTarget/downTarget 用的就是它)。冷启动时两者是同一个节点,不构成回归。
             rows.isNotEmpty() ->
@@ -607,10 +615,10 @@ fun HomeScreen(
                 )
             }
             // Ruling R43 → R48:哪一行的行图标是「焦点行」近白态(R48 前是行标题大白态)。焦点在顶栏药丸组
-            // (tgtGear)→ 没有焦点行(-1);否则就是 activeRowSafe(整页位移用的同一个量,图标与位移同时变)。
+            // (tgtPill ≥ 0)→ 没有焦点行(-1);否则就是 activeRowSafe(整页位移用的同一个量,图标与位移同时变)。
             // 两者都只在卡片 / 药丸真的拿到焦点时改写、浮层 / ON_PAUSE 期间冻结,所以图标在浮层与退后台时
             // 保持最后状态。纯派生,不写任何状态,不进任何效果的 key 或守卫(铁律 3–7 一处不动)。
-            val iconFocusRow = if (tgtGear) -1 else activeRowSafe
+            val iconFocusRow = if (tgtPill >= 0) -1 else activeRowSafe
             // 「有 N 个新应用」提示在不在(顶栏下那一行小字,见下方顶栏 Column)。在的话 R53 淡出带的零点
             // 下移到提示底边(GtvLayout.NEW_APPS_HINT_BOTTOM),换行动画里扫过去的行不与提示字叠在一起。
             val newAppsShown = (loaded?.third ?: 0) > 0
@@ -692,8 +700,7 @@ fun HomeScreen(
         )
         Column(modifier = Modifier.fillMaxWidth()) {
             GtvTopBar(
-                settingsFocusRequester = gearFocus,
-                screensaverFocusRequester = screensaverFocus,
+                pillFocusRequesters = pillFocus,
                 canFocus = !covered,
                 rowsEmpty = rows.isEmpty(),
                 downTarget = rowFocus.getOrNull(tgtRow.coerceIn(0, rowFocus.lastIndex)),
@@ -706,7 +713,8 @@ fun HomeScreen(
                 // 淡掉多少、阴影就补上多少,进出待机随同一个 tween 渐变,不瞬切;NO_FADE 档渐变不淡,阴影也不出。
                 clockShadowAlpha = 1f - contentAlpha,
                 onSettings = onSettings,
-                onScreensaver = onScreensaver,
+                onApps = onApps,
+                onInputs = onInputs,
                 onFocusChange = { col, got ->
                     report(-1, col, got)
                     // 与下面卡片行「got 时 activeRow = rowIndex」对称的另一半:药丸组拿到焦点也要

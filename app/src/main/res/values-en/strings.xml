@@ -106,7 +106,6 @@
     <!-- home_* : home screen and default-home settings card -->
     <string name="home_empty_apps_hint">No apps to show\nPress Menu on your remote, or select the settings button in the top left, then choose “Layout → Edit Rows” to add some</string>
     <string name="home_new_apps">%1$d new app(s)</string>
-    <string name="home_screensaver_button">Screensaver</string>
     <string name="home_settings_title">Default Home</string>
     <string name="home_settings_current_label">Current</string>
     <string name="home_settings_change_button">Change in System Settings</string>
@@ -244,7 +243,7 @@
     <!-- M4b -->
     <string name="menu_hide_input">Hide</string>
     <string name="menu_hide_input_desc">Hide this input from the home screen</string>
-    <string name="toast_input_hidden">Hid “%1$s” — bring it back in Settings → Layout → Restore Hidden Inputs</string>
+    <string name="toast_input_hidden">Hid “%1$s” — restore it at the end of the Inputs list</string>
     <string name="toast_input_hide_failed">Couldn\'t hide it, try again</string>
     <string name="settings_restore_hidden_inputs">Restore Hidden Inputs</string>
     <string name="settings_hidden_inputs_count">%1$d hidden</string>
@@ -305,4 +304,21 @@
     <string name="shell_slider_card_opacity">Transparency</string>
     <string name="shell_theme_following_wallpaper">Wallpaper</string>
     <string name="shell_preview_hint">Preview: %1$s · OK to save, Back to cancel</string>
+    <!-- R89–R93 (2026-09-27): top bar pills Settings / Apps / Inputs, all-apps page, inputs page, start screensaver -->
+    <string name="apps_page_title">Apps</string>
+    <string name="apps_menu_add_to_home">Add to Home…</string>
+    <string name="apps_add_row_here">%1$s (already here)</string>
+    <string name="toast_added_to_row">Added to “%1$s”</string>
+    <string name="toast_already_in_row">It\'s already in “%1$s”</string>
+    <string name="toast_add_to_row_failed">Couldn\'t add it to Home, try again</string>
+    <string name="inputs_page_title">Inputs</string>
+    <string name="inputs_page_current">Current: %1$s</string>
+    <string name="inputs_page_intro">Switch the TV\'s signal source here</string>
+    <string name="inputs_page_hint">Hold OK or press Menu to rename or hide</string>
+    <string name="inputs_page_empty">This TV has no inputs to switch to</string>
+    <string name="inputs_page_back">Back</string>
+    <string name="input_menu_rename">Rename</string>
+    <string name="toast_cant_switch_input">Couldn\'t switch to “%1$s”</string>
+    <string name="settings_start_screensaver">Start Screensaver</string>
+    <string name="toast_screensaver_gallery_empty">Add pictures to the Screensaver Gallery first</string>
 </resources>

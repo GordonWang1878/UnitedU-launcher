@@ -98,7 +98,6 @@
     <!-- home_* : 首頁與預設桌面設定卡 -->
     <string name="home_empty_apps_hint">沒有可顯示的應用程式\n按遙控器的選單鍵,或選左上角的設定按鈕,再進「版面 → 編輯分欄」新增</string>
     <string name="home_new_apps">有 %1$d 個新應用程式</string>
-    <string name="home_screensaver_button">螢幕保護</string>
     <string name="home_settings_title">預設桌面</string>
     <string name="home_settings_current_label">目前</string>
     <string name="home_settings_change_button">在系統設定中變更</string>
@@ -236,7 +235,7 @@
     <!-- M4b -->
     <string name="menu_hide_input">隱藏</string>
     <string name="menu_hide_input_desc">從桌面隱藏這個輸入源</string>
-    <string name="toast_input_hidden">已隱藏「%1$s」,可在 設定 → 版面 → 恢復隱藏的輸入源 找回</string>
+    <string name="toast_input_hidden">已隱藏「%1$s」,可在輸入源清單末尾恢復</string>
     <string name="toast_input_hide_failed">無法隱藏,請稍後再試</string>
     <string name="settings_restore_hidden_inputs">恢復隱藏的輸入源</string>
     <string name="settings_hidden_inputs_count">%1$d 個</string>
@@ -296,4 +295,21 @@
     <string name="shell_slider_card_opacity">卡片透明度</string>
     <string name="shell_theme_following_wallpaper">跟隨桌布</string>
     <string name="shell_preview_hint">預覽:%1$s · 按確定儲存,按返回不變</string>
+    <!-- R89–R93(2026-09-27):頂欄三顆膠囊(設定 / 應用 / 輸入源)、所有應用頁、輸入源頁、立即啟動螢幕保護 -->
+    <string name="apps_page_title">應用</string>
+    <string name="apps_menu_add_to_home">加到桌面…</string>
+    <string name="apps_add_row_here">%1$s(已在這一行)</string>
+    <string name="toast_added_to_row">已加到「%1$s」</string>
+    <string name="toast_already_in_row">「%1$s」這一行裡已經有它了</string>
+    <string name="toast_add_to_row_failed">沒能加到桌面,請稍後再試</string>
+    <string name="inputs_page_title">輸入源</string>
+    <string name="inputs_page_current">目前:%1$s</string>
+    <string name="inputs_page_intro">從這裡切換電視的訊號源</string>
+    <string name="inputs_page_hint">長按或按選單鍵可以重新命名、隱藏</string>
+    <string name="inputs_page_empty">這台電視沒有可切換的輸入源</string>
+    <string name="inputs_page_back">返回</string>
+    <string name="input_menu_rename">重新命名</string>
+    <string name="toast_cant_switch_input">切換不到「%1$s」</string>
+    <string name="settings_start_screensaver">立即啟動螢幕保護</string>
+    <string name="toast_screensaver_gallery_empty">請先在螢幕保護圖庫裡加入圖片</string>
 </resources>

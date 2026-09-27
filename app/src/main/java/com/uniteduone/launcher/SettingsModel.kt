@@ -115,6 +115,8 @@ class SettingsActions(
     val openScreensaverGallery: () -> Unit,
     /** M5:跳系统屏保设置页;解析不到退到系统设置首页,两个都打不开 toast(spec §3)。 */
     val openSystemScreensaver: () -> Unit,
+    /** R93:屏保组第一行「立即开始屏保」(原顶栏屏保按钮):图库空 → 提示;有图 → 关设置、进自定义屏保。 */
+    val startScreensaver: () -> Unit = {},
     // ~~restoreHiddenInputs~~(R92):布局组「恢复隐藏的输入源」行随首页输入源行一起删掉,挪到「输入源」页列表末尾。
     /** ui-pending #16:「通用」组的动画缩放提示行——跳开发者选项;解析不到退到系统设置首页。 */
     val openSystemAnimationSettings: () -> Unit,
@@ -314,6 +316,10 @@ fun settingsGroups(
         GroupSpec(
             GroupId.SCREENSAVER, R.string.settings_group_screensaver,
             listOf(
+                // R93(2026-09-27 Gordon):顶栏屏保按钮挪到这里,放最上面。按下去当场开始,不进外壳的下一层。
+                ActionRow("startScreensaver", R.string.settings_start_screensaver, hintRes = null) {
+                    actions.startScreensaver()
+                },
                 // M5 spec §3:进入待机后再过多久进自定义屏保;小字说明计时起点 / 图库为空(screensaverAfterNoteRes)。
                 ctl(
                     id = "screensaverAfter", labelRes = R.string.settings_screensaver_after,

@@ -98,7 +98,6 @@
     <!-- home_* : 首页与默认桌面设置卡 -->
     <string name="home_empty_apps_hint">没有可显示的应用\n按遥控器的菜单键,或选左上角的设置按钮,再进「布局 → 编辑分栏」添加</string>
     <string name="home_new_apps">有 %1$d 个新应用</string>
-    <string name="home_screensaver_button">屏保</string>
     <string name="home_settings_title">默认桌面</string>
     <string name="home_settings_current_label">当前</string>
     <string name="home_settings_change_button">在系统设置中更改</string>
@@ -236,7 +235,7 @@
     <!-- M4b -->
     <string name="menu_hide_input">隐藏</string>
     <string name="menu_hide_input_desc">从桌面隐藏这个输入源</string>
-    <string name="toast_input_hidden">已隐藏「%1$s」,可在 设置 → 布局 → 恢复隐藏的输入源 找回</string>
+    <string name="toast_input_hidden">已隐藏「%1$s」,可在输入源列表末尾恢复</string>
     <string name="toast_input_hide_failed">没能隐藏,请稍后再试</string>
     <string name="settings_restore_hidden_inputs">恢复隐藏的输入源</string>
     <string name="settings_hidden_inputs_count">%1$d 个</string>
@@ -297,4 +296,21 @@
     <string name="shell_slider_card_opacity">卡片透明度</string>
     <string name="shell_theme_following_wallpaper">跟随壁纸</string>
     <string name="shell_preview_hint">预览:%1$s · 按确定保存,按返回不改</string>
+    <!-- R89–R93(2026-09-27):顶栏三颗胶囊(设置 / 应用 / 输入源)、所有应用页、输入源页、立即开始屏保 -->
+    <string name="apps_page_title">应用</string>
+    <string name="apps_menu_add_to_home">加到桌面…</string>
+    <string name="apps_add_row_here">%1$s(已在这一行)</string>
+    <string name="toast_added_to_row">已加到「%1$s」</string>
+    <string name="toast_already_in_row">「%1$s」这一行里已经有它了</string>
+    <string name="toast_add_to_row_failed">没能加到桌面,请稍后再试</string>
+    <string name="inputs_page_title">输入源</string>
+    <string name="inputs_page_current">当前:%1$s</string>
+    <string name="inputs_page_intro">从这里切换电视的信号源</string>
+    <string name="inputs_page_hint">长按或按菜单键可以改名、隐藏</string>
+    <string name="inputs_page_empty">这台电视没有可切换的输入源</string>
+    <string name="inputs_page_back">返回</string>
+    <string name="input_menu_rename">改名</string>
+    <string name="toast_cant_switch_input">切换不到「%1$s」</string>
+    <string name="settings_start_screensaver">立即开始屏保</string>
+    <string name="toast_screensaver_gallery_empty">先在屏保图库里添加图片</string>
 </resources>

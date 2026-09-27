@@ -7,8 +7,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.Input
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Slideshow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,7 +40,7 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 /**
- * gtv 线的顶栏(spec §4):左起药丸组(设置 / 屏保,左缘钉在 [GtvLayout.CONTENT_KEYLINE])——
+ * gtv 线的顶栏(spec §4):左起药丸组(**R89 起:设置 / 应用 / 输入源**,原来是设置 / 屏保;左缘钉在 [GtvLayout.CONTENT_KEYLINE])——
  * 大片留白(Google 在这里放搜索 / Home / Apps,spec §9 裁定我们没有对应功能,省略)——
  * 右侧时钟 + 「UnitedU」字标。是旧的 `TopPills` 组件的换皮 + 搬迁(该文件已随 Fix 5〔终审
  * 2026-09-20〕删除——零调用点,`GtvTopBar` 是唯一实现,不再留两份互相漂移):药丸组的焦点契约
@@ -61,8 +62,8 @@ import java.util.Locale
  */
 @Composable
 fun GtvTopBar(
-    settingsFocusRequester: FocusRequester,
-    screensaverFocusRequester: FocusRequester,
+    /** 三颗胶囊各自的 requester,下标 = [onFocusChange] 的 col(0 设置 / 1 应用 / 2 输入源,R89)。 */
+    pillFocusRequesters: List<FocusRequester>,
     /** 浮层开着 / 首页被盖住时为 false(与 `TopPills` 同名同义)。 */
     canFocus: Boolean,
     /** 桌面一张卡都没有时,下键锁 Cancel(与 `TopPills` 同名同义)。 */
@@ -82,8 +83,11 @@ fun GtvTopBar(
      *  对比度只有 1.4:1;阴影随渐变同步淡入淡出,不瞬切。 */
     clockShadowAlpha: Float = 0f,
     onSettings: () -> Unit,
-    onScreensaver: () -> Unit,
-    /** (col, got):col 0 = 设置、1 = 屏保。**两个按钮必须报不同的 col**——HomeScreen 用它去重
+    /** R89:「应用」胶囊 = 打开所有应用页(AppsPage)。 */
+    onApps: () -> Unit,
+    /** R89:「输入源」胶囊 = 打开输入源页(InputsPage)。 */
+    onInputs: () -> Unit,
+    /** (col, got):col 0 = 设置、1 = 应用、2 = 输入源(R89 前 1 = 屏保)。**每颗按钮必须报不同的 col**——HomeScreen 用它去重
      *  (见 HomeScreen.report 的 KDoc),报成同一个值会让「药丸组内部切焦点」被误判成
      *  「整体失焦」,看门狗趁虚而入把焦点抢到别处。 */
     onFocusChange: (Int, Boolean) -> Unit,
@@ -103,17 +107,18 @@ fun GtvTopBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         PillGroup(
-            settingsFocusRequester = settingsFocusRequester,
-            screensaverFocusRequester = screensaverFocusRequester,
+            pillFocusRequesters = pillFocusRequesters,
             canFocus = canFocus,
             rowsEmpty = rowsEmpty,
             downTarget = downTarget,
             onSettings = onSettings,
-            onScreensaver = onScreensaver,
+            onApps = onApps,
+            onInputs = onInputs,
             onFocusChange = onFocusChange,
             modifier = Modifier.alpha(pillAlpha),
         )
-        // Google 在这条留白里放搜索 / Home / Apps 三个 tab;我们没有对应功能,整组省略(spec §9)。
+        // Google 在这条留白里放搜索 / Home / Apps 三个 tab;我们没有搜索与 Home tab(spec §9),
+        // 「应用」R89 起做成药丸组里的一颗(打开所有应用页),不另起一组 tab。
         Spacer(Modifier.weight(1f))
         ClockWordmark(
             showDate = showDate,
@@ -129,20 +134,33 @@ fun GtvTopBar(
  * 药丸组本体:换皮自旧的 `TopPills` 组件(该文件已删,见本文件顶部 KDoc)——底色改 [GtvTokens.PillTrack]、
  * 尺寸改读 [GtvLayout],焦点画法(库默认聚焦反白 + 1.1 倍、未聚焦色 = accent)不变。
  */
+/** 药丸组的三颗(R89,Gordon 2026-09-27 定顺序:设置、应用、输入源)。下标 = 焦点账本里的 col。 */
+private data class TopPill(val icon: ImageVector, val descriptionRes: Int, val glyph: Float)
+
+private val TOP_PILLS = listOf(
+    TopPill(Icons.Filled.Settings, R.string.menu_settings_title, GtvLayout.TOP_BAR_GEAR_GLYPH),
+    TopPill(Icons.Filled.Apps, R.string.apps_page_title, GtvLayout.TOP_BAR_APPS_GLYPH),
+    TopPill(Icons.Filled.Input, R.string.inputs_page_title, GtvLayout.TOP_BAR_INPUTS_GLYPH),
+)
+
+/** 顶栏胶囊个数(焦点账本里 row = -1 那组的 col 取值 0 until 它)。 */
+const val TOP_PILL_COUNT = 3
+
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 private fun PillGroup(
-    settingsFocusRequester: FocusRequester,
-    screensaverFocusRequester: FocusRequester,
+    pillFocusRequesters: List<FocusRequester>,
     canFocus: Boolean,
     rowsEmpty: Boolean,
     downTarget: FocusRequester?,
     onSettings: () -> Unit,
-    onScreensaver: () -> Unit,
+    onApps: () -> Unit,
+    onInputs: () -> Unit,
     onFocusChange: (Int, Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val down = if (rowsEmpty) FocusRequester.Cancel else (downTarget ?: FocusRequester.Default)
+    val actions = listOf(onSettings, onApps, onInputs)
     Row(
         modifier = modifier
             .height(GtvLayout.TOP_BAR_HEIGHT.dp)
@@ -153,27 +171,25 @@ private fun PillGroup(
             .focusProperties { this.canFocus = canFocus },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        TopBarIconButton(
-            icon = Icons.Filled.Settings,
-            descriptionRes = R.string.menu_settings_title,
-            glyphSize = GtvLayout.TOP_BAR_GEAR_GLYPH.dp,
-            onClick = onSettings,
-            onFocusChange = { onFocusChange(0, it) },
-            modifier = Modifier
-                .focusRequester(settingsFocusRequester)
-                .focusProperties { up = FocusRequester.Cancel; left = FocusRequester.Cancel; this.down = down },
-        )
-        Spacer(Modifier.width(GtvLayout.TOP_BAR_ICON_GAP.dp))
-        TopBarIconButton(
-            icon = Icons.Filled.Slideshow,
-            descriptionRes = R.string.home_screensaver_button,
-            glyphSize = GtvLayout.TOP_BAR_SCREENSAVER_GLYPH.dp,
-            onClick = onScreensaver,
-            onFocusChange = { onFocusChange(1, it) },
-            modifier = Modifier
-                .focusRequester(screensaverFocusRequester)
-                .focusProperties { up = FocusRequester.Cancel; right = FocusRequester.Cancel; this.down = down },
-        )
+        TOP_PILLS.forEachIndexed { col, pill ->
+            if (col > 0) Spacer(Modifier.width(GtvLayout.TOP_BAR_ICON_GAP.dp))
+            TopBarIconButton(
+                icon = pill.icon,
+                descriptionRes = pill.descriptionRes,
+                glyphSize = pill.glyph.dp,
+                onClick = actions[col],
+                onFocusChange = { onFocusChange(col, it) },
+                modifier = Modifier
+                    .focusRequester(pillFocusRequesters[col])
+                    .focusProperties {
+                        up = FocusRequester.Cancel
+                        // 组内左右交给几何搜索;两端锁死,焦点出不了药丸组(与 R89 前两颗时同一规则)。
+                        if (col == 0) left = FocusRequester.Cancel
+                        if (col == TOP_PILLS.lastIndex) right = FocusRequester.Cancel
+                        this.down = down
+                    },
+            )
+        }
     }
 }
 
@@ -183,7 +199,7 @@ private fun TopBarIconButton(
     descriptionRes: Int,
     /** 图形本身的绘制大小,与按钮的触控/焦点框([GtvLayout.TOP_BAR_ICON_BOX],下面写死在
      *  `.size()` 里)分开传入——owner 反馈 Round 6 起两者不再共用一个常量,理由见
-     *  [GtvLayout.TOP_BAR_GEAR_GLYPH]/[GtvLayout.TOP_BAR_SCREENSAVER_GLYPH] 的 KDoc。 */
+     *  [GtvLayout.TOP_BAR_GEAR_GLYPH]/[GtvLayout.TOP_BAR_APPS_GLYPH]/[GtvLayout.TOP_BAR_INPUTS_GLYPH] 的 KDoc。 */
     glyphSize: Dp,
     onClick: () -> Unit,
     onFocusChange: (Boolean) -> Unit,
