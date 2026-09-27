@@ -1,7 +1,7 @@
 package com.uniteduone.launcher
 
 import android.graphics.Bitmap
-import androidx.compose.animation.Crossfade
+import android.graphics.BitmapFactory
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -14,17 +14,29 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.random.Random
 
 /**
  * 桌面的自定义屏保层(spec §1.4 第 2 层):[active] 为真时 attach 播放器、淡入 1200 ms,为假时 detach、淡出 400 ms。
@@ -66,34 +78,150 @@ fun Screensaver(active: Boolean, intervalMs: Long) {
 }
 
 /**
- * 轮播层本体(spec §2),桌面自定义屏保 / 系统屏保 / 屏保图库全屏预览三处共用:读 [ScreensaverPlayer]
- * 的当前图,交叉淡入 + Ken Burns。**不画时钟**——时钟由调用方决定要不要叠,三个调用方现在各不相同:
+ * 轮播层本体(spec §2),桌面自定义屏保 / 系统屏保两处共用:读 [ScreensaverPlayer] 的当前图,
+ * 交给 [MotionSlideshow] 做推拉摇移 + 过渡(Ruling R95)。**不画时钟**——时钟由调用方决定要不要叠:
  * 系统屏保([UnitedUDream.DreamContent])在这个组件之外单独叠一行 `ClockWordmark`(R26 起,与首页顶栏同款小字,不再是 R9 的 [HeroClock]);
  * 桌面自定义屏保([Screensaver])**不叠时钟**(Ruling R23,终审 2026-09-20,撤回 Fix R16 曾经补的那份
- * [HeroClock]——见 [Screensaver] 顶部 KDoc);屏保图库的全屏预览([ImagePicker.kt] 的
- * `ScreensaverPoolViewer`)是在看图,不是在展示待机画面,同样不叠时钟。
- * 以**文件**而不是下标作 Crossfade 的目标:删图重扫后同一个下标可能换了图,按文件比对才会淡入而不是硬切。
+ * [HeroClock]——见 [Screensaver] 顶部 KDoc)。屏保图库的全屏预览(`ScreensaverPoolViewer`)是在看图,
+ * 不走这里,用 [ScreensaverSlot] 的轻微放大。
+ * 以**文件**而不是下标作目标:删图重扫后同一个下标可能换了图,按文件比对才会过渡而不是硬切。
+ * 下一张(播放器下标 + 1)提前解码好,换图时直接淡入,不等解码。
  */
 @Composable
 fun ScreensaverContent(intervalMs: Long, modifier: Modifier = Modifier) {
     val files by ScreensaverPlayer.files.collectAsState()
     val index by ScreensaverPlayer.index.collectAsState()
-    val current = files.getOrNull(clampIndex(index, files.size))
-    Box(modifier) {
-        Crossfade(
-            targetState = current,
-            animationSpec = tween(Theme.ScreensaverCrossfadeMs),
-            label = "screensaverCrossfade",
-        ) { file ->
-            ScreensaverSlot(file, intervalMs)
+    val i = clampIndex(index, files.size)
+    val current = files.getOrNull(i)
+    val upcoming = files.getOrNull(nextIndex(i, files.size))?.takeIf { it != current }
+    MotionSlideshow(current, upcoming, intervalMs, modifier)
+}
+
+/** 画面上的一张照片:解好的位图 + 它这一段的运动 + 出现的那一帧时刻(帧时钟纳秒)。 */
+private class PhotoLayer(val path: String, val bitmap: ImageBitmap, val motion: KenBurns, val startNanos: Long)
+
+/** 预解码的下一张。普通字段而非 State:只在效果协程里读写,不参与绘制。 */
+private class Preload {
+    var path: String? = null
+    var bitmap: ImageBitmap? = null
+
+    fun take(p: String): ImageBitmap? = bitmap.takeIf { path == p }.also { clear() }
+    fun clear() { path = null; bitmap = null }
+}
+
+/**
+ * 推拉摇移 + 过渡(Ruling R95)。
+ *
+ * - **动画全在绘制层**:只有一个 `withFrameNanos` 循环往 [clock] 写帧时刻,每张图的缩放 / 平移 / alpha
+ *   都在 `graphicsLayer { }` 块里按「(此刻 − 出现时刻) / 时长」现算——读 [clock] 的只有图层块,
+ *   每帧只更新 RenderNode 的变换属性,不重组、不重新测量、不重画位图。
+ * - **最多两张位图**:稳定时 = 当前 + 预解码的下一张;换图时预解码那张直接变成「进来的」,
+ *   旧图是「出去的」,预解码槽此刻是空的;过渡结束撤掉旧图后才开始解下一张。
+ * - **过渡**:新图在旧图之上淡入([ScreensaverMotion.TRANSITION_MS]),旧图始终不透明(底层恒 alpha 1),
+ *   淡完才撤——不会像两张同时半透明那样中途透出底下的壁纸 / 黑底。第一张(底下没有图)自己淡入。
+ * - 解码没完成就不换:旧图继续动,新图解好那一帧才开始淡入(原来 Crossfade 是先开始淡、图还没解出来)。
+ */
+@Composable
+internal fun MotionSlideshow(target: File?, upcoming: File?, intervalMs: Long, modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current
+    val dm = ctx.resources.displayMetrics
+    // 按屏幕尺寸解码,长边封顶 1920(4K 面板的 UI 多半仍是 1080p;两层叠放时各解一张,spec §9)
+    val k = min(1f, 1920f / max(dm.widthPixels, dm.heightPixels).coerceAtLeast(1))
+    val dstW = (dm.widthPixels * k).toInt().coerceAtLeast(1)
+    val dstH = (dm.heightPixels * k).toInt().coerceAtLeast(1)
+    var layers by remember { mutableStateOf(emptyList<PhotoLayer>()) }
+    val preload = remember { Preload() }
+    val clock = remember { mutableLongStateOf(0L) }
+    val latestUpcoming by rememberUpdatedState(upcoming)
+    val latestInterval by rememberUpdatedState(intervalMs)
+
+    LaunchedEffect(Unit) { while (true) withFrameNanos { clock.longValue = it } }
+    LaunchedEffect(target?.absolutePath) {
+        val path = target?.absolutePath
+        if (path == null) {
+            layers = emptyList()
+            preload.clear()
+            return@LaunchedEffect
+        }
+        if (layers.lastOrNull()?.path != path) {
+            // 预解码没命中(删图重扫、跳号)就先扔掉它,保证同时最多两张
+            val bmp = preload.take(path) ?: decodeScreensaverPhoto(path, dstW, dstH) ?: return@LaunchedEffect
+            val start = withFrameNanos { it }
+            val prev = layers.lastOrNull()
+            val layer = PhotoLayer(path, bmp, ScreensaverMotion.random(Random.Default, prev?.motion), start)
+            clock.longValue = start
+            layers = listOfNotNull(prev, layer)
+            delay(ScreensaverMotion.TRANSITION_MS.toLong())
+            layers = listOf(layer)
+        }
+        // 过渡结束、旧图已撤:预解码下一张
+        val next = latestUpcoming?.absolutePath ?: return@LaunchedEffect
+        if (next == path || preload.path == next) return@LaunchedEffect
+        preload.clear()
+        val bmp = decodeScreensaverPhoto(next, dstW, dstH) ?: return@LaunchedEffect
+        preload.path = next
+        preload.bitmap = bmp
+    }
+
+    Box(modifier.clipToBounds()) {
+        val shown = layers
+        shown.forEachIndexed { i, layer ->
+            val isBottom = i == 0 && shown.size > 1
+            // key:同一张图从「进来的」变成「底下的」时不重建 Image 节点
+            key(layer.path, layer.startNanos) {
+                Image(
+                    bitmap = layer.bitmap,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().graphicsLayer {
+                        val elapsedMs = (clock.longValue - layer.startNanos) / 1_000_000f
+                        val p = (elapsedMs / ScreensaverMotion.durationMs(latestInterval)).coerceIn(0f, 1f)
+                        val fade = (elapsedMs / ScreensaverMotion.TRANSITION_MS).coerceIn(0f, 1f)
+                        val extra = if (isBottom) 1f else ScreensaverMotion.transitionScale(ScreensaverMotion.TRANSITION, fade)
+                        val s = layer.motion.scaleAt(p) * extra
+                        scaleX = s
+                        scaleY = s
+                        translationX = layer.motion.xAt(p) * size.width
+                        translationY = layer.motion.yAt(p) * size.height
+                        alpha = if (isBottom) 1f else fade
+                    },
+                )
+            }
         }
     }
 }
 
 /**
- * 每张图的呈现(spec §2「不变」):RGBA_F16 解码保留 Ultra HDR gain map;解码尺寸封顶 1920×1080
- * ——桌面与系统屏保叠放时两层各解一张,别再放大内存(spec §9)。Ken Burns 放大到 1.08,
- * 时长 = 轮播间隔 + 交叉淡入(原来写死 30 s + 2 s)。屏保图库的全屏预览也用它(间隔传 `Theme.ScreensaverIntervalMs`)。
+ * 屏保照片解码(Ruling R95):RGBA_F16 保留 Ultra HDR gain map(spec §2「不变」);尺寸按
+ * [ScreensaverMotion.decodePlan] 缩到「Crop 铺满屏幕」为止,不再像 [Apps.decodeScaled] 那样只按
+ * 2 的幂采样、可能留下接近两倍屏幕的大图。F16 解不出来回落 ARGB_8888。失败 → null。
+ */
+private suspend fun decodeScreensaverPhoto(path: String, dstW: Int, dstH: Int): ImageBitmap? =
+    withContext(Dispatchers.IO) {
+        runCatching {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(path, bounds)
+            val (sample, density, target) =
+                ScreensaverMotion.decodePlan(bounds.outWidth, bounds.outHeight, dstW, dstH)
+            fun opts(config: Bitmap.Config) = BitmapFactory.Options().apply {
+                inSampleSize = sample
+                inPreferredConfig = config
+                if (density > 0) {
+                    inScaled = true
+                    inDensity = density
+                    inTargetDensity = target
+                }
+            }
+            (BitmapFactory.decodeFile(path, opts(Bitmap.Config.RGBA_F16))
+                ?: BitmapFactory.decodeFile(path, opts(Bitmap.Config.ARGB_8888)))
+                ?.asImageBitmap()
+        }.onFailure { android.util.Log.w("UnitedU", "屏保照片解码失败 $path", it) }.getOrNull()
+    }
+
+/**
+ * 屏保图库全屏预览([ImagePicker.kt] 的 `ScreensaverPoolViewer`)的单张呈现:RGBA_F16 解码保留 Ultra HDR
+ * gain map;解码尺寸封顶 1920×1080。那里是在看图,只保留旧版的轻微放大(1.00 → [Theme.ScreensaverZoom],
+ * 时长 = 间隔 + 过渡);屏保本体的推拉摇移见 [MotionSlideshow]。缩放在 `graphicsLayer` 块里读,不逐帧重组。
  */
 @Composable
 internal fun ScreensaverSlot(file: File?, intervalMs: Long) {
@@ -112,7 +240,7 @@ internal fun ScreensaverSlot(file: File?, intervalMs: Long) {
         scale.animateTo(
             targetValue = Theme.ScreensaverZoom,
             animationSpec = tween(
-                durationMillis = (intervalMs + Theme.ScreensaverCrossfadeMs).toInt(),
+                durationMillis = ScreensaverMotion.durationMs(intervalMs).toInt(),
                 easing = LinearEasing,
             ),
         )
@@ -121,6 +249,9 @@ internal fun ScreensaverSlot(file: File?, intervalMs: Long) {
         bitmap = b.asImageBitmap(),
         contentDescription = null,
         contentScale = ContentScale.Crop,
-        modifier = Modifier.fillMaxSize().scale(scale.value),
+        modifier = Modifier.fillMaxSize().graphicsLayer {
+            scaleX = scale.value
+            scaleY = scale.value
+        },
     )
 }

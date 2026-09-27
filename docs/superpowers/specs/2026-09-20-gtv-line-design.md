@@ -328,3 +328,15 @@ cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的�
   - 判据是纯函数 `fitsAsBanner(宽, 高, 边缘不透明占比)`(`CardColor.kt`,常量 `BANNER_MIN_RATIO/MAX_RATIO/MIN_OPAQUE`),`Apps.entryOf` 里横幅与自定义图共用;比例按**原图尺寸**判(`Apps.imageSize` 读文件头),解码只按比例缩、不裁。单测 `FitsAsBannerTest`(方形、竖图、16:9 不透明、16:9 透明边、2.5:1 超宽、边界值)。
   - **口径一致的地方**:首页卡片、编辑页卡片、长按菜单左侧 banner、「添加应用」列表小卡片都吃同一个 `AppEntry`(`entryOf` / `pickerCard`),自动一致;「换卡片图」网格的缩略图改按卡面画(`PickerGrid(asCard = true)`,只这一个网格,壁纸 / 屏保照旧 16:9 裁满),「恢复原图」那一格改走 `entryOf(useCustom = false)`,与恢复之后首页的卡面同一张。
   - 模拟器对比 `docs/screenshots/custom-card-art-fit.jpg`(方形不透明 / 方形透明底 / 16:9 照片,改前改后 + 换图网格)。
+
+### 2026-09-27 屏保照片动感(R95,Gordon 提出)
+
+- **R95 屏保照片推拉摇移 + 过渡动画**(Gordon:「现在有一点呼吸感,但本质上还是静态照片,要明显的动感,仍是照片」)。取代 M5 spec §2 的「Ken Burns 线性放大到 1.08、Crossfade 2000 ms」。数值全在 `ScreensaverMotion`(`ScreensaverMotion.kt`):
+  - **推拉**:每张照片在 `ZOOM_NEAR` 1.06 与 `ZOOM_FAR` 1.22 之间走(幅度 15%,旧版 1.00 → 1.08 的约两倍),随机推近或拉远。
+  - **摇移**:沿对角线平移画面宽 / 高的 `PAN_MIN`–`PAN_MAX` 5–8%(每张随机),四条对角线随机;推 / 拉 × 四条对角线 = 8 种组合,相邻两张组合不重样。
+  - **不露黑边**:照片先按 Crop 铺满画面再套变换,缩放 s 时每边余量 (s − 1) / 2;`placeOnAxis` 把起点 / 终点摆在两端各自的余量里、尽量以中心对称(近端余量只有 3%,所以路径偏向放大那一端——推近的同时滑向某个角)。缩放与平移都随进度线性变化,可行集是凸的,两端满足即全程满足;单测 1000 组随机参数 + 8 组合 × 3 档平移逐点抽查。
+  - **节奏**:运动时长 = 换图间隔 + 过渡(`durationMs`),匀速(线性)——下一张盖满的那一刻正好走完;30 s 间隔下每张走 31.4 s。
+  - **过渡**:`TRANSITION_MS` 1400 ms;`TRANSITION` 默认 `CROSSFADE`——新图在旧图之上 0 → 1 淡入、旧图保持不透明,淡完才撤(不像 Compose `Crossfade` 两张同时半透明、中途透出底下的壁纸 / 黑底);可切 `ZOOM_FADE`:同样的淡入,新图另外从 1.06 倍缩回 1 倍(乘在 Ken Burns 缩放上,≥ 1 所以同样不露边)。第一张(底下没图)自己淡入。
+  - **性能(A95L 32 位 MTK)**:只有一个 `withFrameNanos` 循环写帧时刻,每张图的缩放 / 平移 / alpha 在 `graphicsLayer { }` 块里现算,每帧只改 RenderNode 变换,不重组、不重画位图(旧版 `Modifier.scale(anim.value)` 在组合期读值,逐帧重组)。同时最多两张位图:稳定时 = 当前 + 预解码的下一张,换图时预解码那张变成「进来的」、旧图「出去的」,过渡结束撤掉旧图后才解下一张;解码没完成不开始淡入(旧版先开淡、图还没解出来)。解码按屏幕尺寸(长边封顶 1920):2 的幂 inSampleSize 之后再用 inDensity / inTargetDensity 精确缩到 Crop 铺满为止(`decodePlan`,3000×2000 的图原来原尺寸 F16 解码 48 MB,现在 1920×1280),仍是 RGBA_F16(Ultra HDR),解不出回落 ARGB_8888。
+  - **范围**:桌面自定义屏保(`Screensaver`)与系统屏保(`UnitedUDream`)都走 `ScreensaverContent` → `MotionSlideshow`,天然一致;屏保图库全屏预览是在看图,仍用 `ScreensaverSlot` 的 1.00 → 1.08 轻微放大(缩放改到 `graphicsLayer` 里读)。
+  - 模拟器验证(`unitedu-tv-3`,mp4 真实 pts + 逐帧反解缩放 / 平移):桌面屏保照片 1 从 1.21× (−2.4%, +2.4%) 经 1.14× (0, 0) 到 1.06× (+2.4%, −2.4%)(拉远 + 往右上,5% 档),过渡 31.9 → 33.3 s 实测 1.4 s,全程逐帧边缘无黑边;系统屏保(到点自动触发,`mCurrentFocus` = DreamActivity)接着播第 2 张,6.1 s 内 1.148× → 1.176×、平移 +0.8% → +2.2%。拼图 `docs/screenshots/screensaver-motion.jpg`,录屏 `docs/screenshots/screensaver-motion.mp4`。
