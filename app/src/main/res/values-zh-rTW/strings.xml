@@ -297,6 +297,7 @@
     <string name="shell_preview_hint">預覽:%1$s · 按確定儲存,按返回不變</string>
     <!-- R89–R93(2026-09-27):頂欄三顆膠囊(設定 / 應用 / 輸入源)、所有應用頁、輸入源頁、立即啟動螢幕保護 -->
     <string name="apps_page_title">應用</string>
+    <string name="apps_page_hint">長按或按選單鍵可以加到桌面</string>
     <string name="apps_menu_add_to_home">加到桌面…</string>
     <string name="apps_add_row_here">%1$s(已在這一行)</string>
     <string name="toast_added_to_row">已加到「%1$s」</string>

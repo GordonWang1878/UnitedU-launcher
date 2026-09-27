@@ -298,6 +298,7 @@
     <string name="shell_preview_hint">预览:%1$s · 按确定保存,按返回不改</string>
     <!-- R89–R93(2026-09-27):顶栏三颗胶囊(设置 / 应用 / 输入源)、所有应用页、输入源页、立即开始屏保 -->
     <string name="apps_page_title">应用</string>
+    <string name="apps_page_hint">长按或按菜单键可以加到桌面</string>
     <string name="apps_menu_add_to_home">加到桌面…</string>
     <string name="apps_add_row_here">%1$s(已在这一行)</string>
     <string name="toast_added_to_row">已加到「%1$s」</string>

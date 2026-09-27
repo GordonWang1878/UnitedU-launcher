@@ -306,6 +306,7 @@
     <string name="shell_preview_hint">Preview: %1$s · OK to save, Back to cancel</string>
     <!-- R89–R93 (2026-09-27): top bar pills Settings / Apps / Inputs, all-apps page, inputs page, start screensaver -->
     <string name="apps_page_title">Apps</string>
+    <string name="apps_page_hint">Hold OK or press Menu to add to Home</string>
     <string name="apps_menu_add_to_home">Add to Home…</string>
     <string name="apps_add_row_here">%1$s (already here)</string>
     <string name="toast_added_to_row">Added to “%1$s”</string>

@@ -119,4 +119,18 @@ class PickerGroupsTest {
         ))
         assertEquals(listOf("a.none", "a.b", "a.y", "t.a", "t.b"), ordered.map { it.app.packageName })
     }
+
+    /**
+     * R90:汉字按拼音排(爱 ai < 斗 dou < 腾 teng < 优 you),拉丁字母不分大小写。汉字组与拉丁组谁在前**不断言**:
+     * JDK 的 zh 规则拉丁在前,Android(ICU)的 zh 规则把汉字重排到拉丁之前(模拟器实测),两边各自一致即可。
+     */
+    @Test fun chineseNamesSortByPinyin() {
+        fun c(pkg: String, label: String) = PickerCandidate(AppEntry(pkg, label, null, isWide = false), PickerGroup.APPS)
+        val ordered = orderPickerCandidates(listOf(
+            c("you", "优酷"), c("net", "netflix"), c("teng", "腾讯视频"), c("ai", "爱奇艺"), c("dou", "斗鱼"), c("bili", "Bilibili"),
+        ), java.util.Locale.CHINA)
+        val ids = ordered.map { it.app.packageName }
+        assertEquals(listOf("ai", "dou", "teng", "you"), ids.filter { it in setOf("ai", "dou", "teng", "you") })
+        assertEquals(listOf("bili", "net"), ids.filter { it in setOf("bili", "net") })
+    }
 }

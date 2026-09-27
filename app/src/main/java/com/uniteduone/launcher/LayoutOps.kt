@@ -40,6 +40,17 @@ internal fun setRowIcon(rows: List<LayoutRow>, index: Int, icon: String): List<L
     return rows.mapIndexed { i, r -> if (i == index) r.copy(icon = icon) else r }
 }
 
+/**
+ * 所有应用页「加到桌面…」(R90):把 [pkg] 加到第 [index] 行末尾。那一行不在、名字对不上 [expectName](菜单打开之后
+ * 别处改过 layout.json:删行 / 换序 / 改名),或那一行里已经有它(一行里一个包只能有一张,`Layout.read` 做 distinct)
+ * → 原样返回**同一个** list,[Layout.update] 据此不写盘。其余行一个字节不动。
+ */
+internal fun addToRow(rows: List<LayoutRow>, index: Int, expectName: String, pkg: String): List<LayoutRow> {
+    val row = rows.getOrNull(index) ?: return rows
+    if (row.name != expectName || pkg in row.apps) return rows
+    return rows.mapIndexed { i, r -> if (i == index) r.copy(apps = r.apps + pkg) else r }
+}
+
 /** 交换两行(上移 / 下移);任一越界或两者相同 → 原样返回。 */
 internal fun swapRows(rows: List<LayoutRow>, a: Int, b: Int): List<LayoutRow> {
     if (a !in rows.indices || b !in rows.indices || a == b) return rows

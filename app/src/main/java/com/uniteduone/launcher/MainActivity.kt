@@ -239,6 +239,19 @@ class MainActivity : ComponentActivity() {
     private var editCarrying = false
 
     /**
+     * **所有应用页**(R90,顶栏「应用」胶囊)开着没有。叠在常驻首页之上的整屏浮层,是 [overlayOpen] 的成员。
+     * 关掉只有 [closeApps] 一条路(返回 / HOME)。打开一个应用再按返回回来时它还开着(同 Google TV)。
+     */
+    private var appsPage by mutableStateOf(false)
+    /** 应用页现在持有焦点的那一张(AppsPage 上报,得失都报);长按 / MENU 据此弹菜单。只在 dispatchKeyEvent 里读,同 [shownRows]。 */
+    private var appsFocused: AppEntry? = null
+    /**
+     * 应用页的长按 / MENU 菜单(R90):null = 没开;`rows == null` = 第一层「打开 / 加到桌面…」;非 null = 第二层「加到哪一行」
+     * (打开第二层时读一次 layout.json 的行名)。每次打开都是一个新对象,关掉只有 [closeAppsMenu] 一条路。
+     */
+    private var appsMenu by mutableStateOf<AppsMenu?>(null)
+
+    /**
      * **输入源页**(R91,顶栏「输入源」胶囊)开着没有。叠在常驻首页之上的整屏浮层,是 [overlayOpen] 的成员
      * (首页让路、不进待机、首页长按不识别)。关掉只有 [closeInputs] 一条路(返回 / MENU 无事可做时不关 / HOME / 切换成功)。
      */
@@ -269,7 +282,7 @@ class MainActivity : ComponentActivity() {
      * 读的全是 `mutableStateOf` 字段,在 `setContent` 里读它照样是响应式的。
      */
     private val overlayOpen: Boolean
-        get() = shellStack.isNotEmpty() || pickerTarget != null || about || onboarding || inputsPage
+        get() = shellStack.isNotEmpty() || pickerTarget != null || about || onboarding || inputsPage || appsPage
 
     /**
      * 装了新应用或卸载了应用后,桌面和「添加应用」列表都要能跟上。
@@ -706,6 +719,25 @@ class MainActivity : ComponentActivity() {
             }
             // 叠在首页 / 外壳之上的那一层(编辑态下同一个 PickerLayer 改为替换编辑页,见上)。
             if (!editing && pt != null) PickerLayer(pt)
+            // **所有应用页**(R90)。叠在常驻首页之上,首页因 previewing(overlayOpen)让路;焦点归它自己的网格。
+            // 长按菜单盖在上面时 covered 让路,菜单关掉 focusNonce++ 后网格把焦点接回那张卡。
+            if (appsPage && !editing) {
+                AppsPage(
+                    nonce = focusNonce,
+                    covered = appsMenu != null,
+                    revision = revision,
+                    onOpen = ::openFromApps,
+                    onFocusedApp = { appsFocused = it },
+                    onBack = ::closeApps,
+                )
+                val am = appsMenu
+                if (am != null) {
+                    // key:两层菜单是两个 GearMenu 实例,各自从第一项起落焦点(第二层不继承第一层的 focusedIdx)。
+                    key(am.rows == null) {
+                        GearMenu(items = appsMenuItems(am), onDismiss = ::closeAppsMenu, nonce = focusNonce, title = am.app.label, app = am.app)
+                    }
+                }
+            }
             // **输入源页**(R91)。叠在常驻首页之上,首页因 previewing(overlayOpen)让路;焦点归它自己的胶囊列。
             // 胶囊菜单 / 改名对话框盖在它上面时 covered 让路,那一层关掉 focusNonce++ 后它把焦点接回同一颗(按 id)。
             if (inputsPage && !editing) {
@@ -915,6 +947,12 @@ class MainActivity : ComponentActivity() {
             // Ruling R76(2026-09-23 交互测试):从设置外壳进来的编辑页按 MENU 整个收回首页(编辑页 + 外壳),
             // 与外壳其他层按 MENU 一致;不是从外壳进来的(shellStack 空)leaveSettings 什么都不做,行为不变。
             if (editing) { if (!editCarrying) { leaveEdit(); leaveSettings() }; return true }
+            // 所有应用页(R90):MENU = 焦点那一张的菜单(打开 / 加到桌面…);菜单开着 = 收掉它。
+            if (appsPage) {
+                if (appsMenu != null) closeAppsMenu()
+                else appsFocused?.let { window.decorView.playSoundEffect(SoundEffectConstants.CLICK); appsMenu = AppsMenu(it) }
+                return true
+            }
             // 输入源页(R91):MENU = 焦点那一颗的胶囊菜单(改名 / 隐藏);菜单 / 对话框开着时 = 收掉它。
             // 焦点在「恢复隐藏」或「返回」上时什么都不做(不关页——关页是返回键的事)。
             if (inputsPage) {
@@ -987,6 +1025,19 @@ class MainActivity : ComponentActivity() {
                 window.decorView.playSoundEffect(SoundEffectConstants.CLICK)
                 poolDeleteTarget = poolFocusedFile
                 return true
+            }
+            // 应用页「光着」(R90):页开着、菜单没开、焦点在某张卡上。满 LONG_PRESS_MS 弹菜单,整下吞掉(UP 落不到卡上,不会顺带打开)。
+            val appsBare = appsPage && appsMenu == null
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount > 0 && appsBare
+                && event.eventTime - event.downTime >= LONG_PRESS_MS
+            ) {
+                val a = appsFocused
+                if (a != null) {
+                    longPressDownTime = event.downTime
+                    window.decorView.playSoundEffect(SoundEffectConstants.CLICK)
+                    appsMenu = AppsMenu(a)
+                    return true
+                }
             }
             // 输入源页「光着」(R91):页开着、菜单 / 改名都没开、焦点在某个输入源胶囊上。满 LONG_PRESS_MS 弹胶囊菜单,
             // 整下吞掉(UP 落不到胶囊上,不会顺带切过去)。与上面两支天然互斥(它们要求 !overlayOpen / 图库开着)。
@@ -1163,6 +1214,7 @@ class MainActivity : ComponentActivity() {
         closeCardMenu()
         closeAbout()
         closeInputs()
+        closeApps()
         renameTarget = null
         // HOME 把所有整屏选择器一起收掉(R75:从设置外壳里打开的换壁纸 / 屏保图库 / 扫码页,以及编辑页里的换卡片图)——
         // HOME 的语义是回桌面初始状态;原来只收扫码页(R63「从扫码页一路关到底」),其余选择器会留在首页上。
@@ -1621,8 +1673,66 @@ class MainActivity : ComponentActivity() {
         focusNonce++
     }
 
-    /** 顶栏「应用」胶囊(R90):所有应用页。下一阶段接上。 */
-    private fun openApps() {}
+    /** 顶栏「应用」胶囊(R90):所有应用页。 */
+    private fun openApps() {
+        if (overlayOpen) return
+        appsMenu = null
+        appsFocused = null
+        appsPage = true
+    }
+
+    /** 关应用页**只有这一条路**(返回、HOME)。`focusNonce++` 让首页按冻结的 `tgtPill` 回到「应用」胶囊。 */
+    private fun closeApps() {
+        if (!appsPage) return
+        appsPage = false
+        appsMenu = null
+        focusNonce++
+    }
+
+    private fun closeAppsMenu() { if (appsMenu != null) { appsMenu = null; focusNonce++ } }
+
+    /** 应用页的确定键 / 菜单「打开应用」:起不来给提示。页面留着(从应用按返回回来仍在这一页,同 Google TV)。 */
+    private fun openFromApps(app: AppEntry) {
+        if (!Apps.launch(this, app.packageName)) toast(getString(R.string.toast_cant_open_app, app.label))
+    }
+
+    /**
+     * 应用页菜单(R90)。第一层:打开应用 / 加到桌面…;第二层:layout.json 的每一行一颗(已经有这个应用的那一行注明)。
+     * 加到桌面走 [Layout.update](锁内读 → [addToRow] → 写,落盘铁律),写完 `revision++` 让首页重读。
+     */
+    private fun appsMenuItems(m: AppsMenu): List<MenuItem> {
+        val rows = m.rows
+        if (rows == null) return listOf(
+            MenuItem(getString(R.string.card_menu_open), getString(R.string.card_menu_open_desc)) {
+                closeAppsMenu(); openFromApps(m.app)
+            },
+            MenuItem(getString(R.string.apps_menu_add_to_home), "") {
+                lifecycleScope.launch {
+                    val layout = withContext(Dispatchers.IO) { Layout.read(this@MainActivity) }
+                    // 读盘期间菜单被关了 / 换成别的应用了:不再弹第二层
+                    if (appsMenu === m) { appsMenu = m.copy(rows = layout); focusNonce++ }
+                }
+            },
+        )
+        return rows.mapIndexed { i, r ->
+            val here = m.app.packageName in r.apps
+            MenuItem(if (here) getString(R.string.apps_add_row_here, r.name) else r.name, "") {
+                closeAppsMenu()
+                if (here) { toast(getString(R.string.toast_already_in_row, r.name)); return@MenuItem }
+                lifecycleScope.launch {
+                    val ok = withContext(Dispatchers.IO) {
+                        Layout.update(this@MainActivity) { addToRow(it, i, r.name, m.app.packageName) }
+                    }
+                    if (ok) {
+                        toast(getString(R.string.toast_added_to_row, r.name))
+                        revision++
+                    } else {
+                        toast(getString(R.string.toast_add_to_row_failed))
+                    }
+                }
+            }
+        }
+    }
 
     /**
      * 设置「屏保」组第一行「立即开始屏保」(R93;R89 前是顶栏的屏保按钮)。图库为空 → 提示、不关设置、不进黑屏
@@ -1766,6 +1876,8 @@ class MainActivity : ComponentActivity() {
                     moving != null -> cancelMove()
                     // 首次引导画在最上层(T10),兜底也最先判(Onboarding 自带的 BackHandler 正常会先接管)。
                     onboarding -> stepBackInOnboarding()
+                    appsMenu != null -> closeAppsMenu()
+                    appsPage -> closeApps()
                     // 输入源页的菜单 / 对话框 / 页面各自带 BackHandler,正常会先接管;兜底同样一层一层退。
                     inputRename != null -> { inputRename = null; focusNonce++ }
                     inputMenu != null -> closeInputMenu()
