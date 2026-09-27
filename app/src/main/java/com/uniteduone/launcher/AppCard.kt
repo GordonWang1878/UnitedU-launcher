@@ -202,7 +202,7 @@ fun AppCard(
  */
 @Composable
 internal fun appCardContainer(app: AppEntry, fallbackColor: Color?): Color = when {
-    fallbackColor != null && app.card != null && !app.isWide -> fallbackColor
+    fallbackColor != null && app.card != null -> fallbackColor  // R107:横幅比例不足 16:9 时的空边也铺边缘色
     app.card != null -> Color.Transparent
     else -> MaterialTheme.colorScheme.surfaceVariant
 }

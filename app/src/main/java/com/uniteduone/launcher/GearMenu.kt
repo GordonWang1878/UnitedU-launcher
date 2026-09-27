@@ -161,7 +161,7 @@ private fun MenuBanner(app: AppEntry?, name: String) {
             // 取图逻辑复用自 AppCard.kt 的 Box 内容分支:有横幅铺满卡、方图标居中留边、
             // 都没有就回落纯色底——**这里不重复画文字**,应用名已经在下面单独一行。
             val container = when {
-                fallback != null && bmp != null && !app.isWide -> Color(fallback)
+                fallback != null && bmp != null -> Color(fallback)  // R107:同 appCardContainer
                 bmp != null -> Color.Transparent
                 else -> scheme.surfaceVariant
             }

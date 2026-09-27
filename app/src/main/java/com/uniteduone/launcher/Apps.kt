@@ -184,7 +184,10 @@ object Apps {
         // (2026-09-16 Gordon 真机指出);边缘色则与图标融为一块。
         // 图标本就透明边(edgeColor 返回 null)/ 取色抛异常时兜底到 Theme.IconPlaceholderBackground:
         // 不能留 null——那样这张卡会透回黑底,和「isWide=true 本就不该铺底」两种情况混在一起分不清。IO 线程(load 本就在 IO)。
-        val fallbackColor = if (bmp != null && !isWide) iconBackdrop(bmp) else null
+        // R107(2026-09-27 Gordon 真机:爱奇艺 1050×630 自定义图左右露灰边):横幅也要底色。判据只要求宽高比在
+        // 1.4–2.2,不要求正好 16:9,等比 Fit 进 16:9 卡片后会空出两条;用图片边缘均色补齐,看起来是一整张卡。
+        // 标准 16:9 横幅没有空边,这层底色看不见。
+        val fallbackColor = if (bmp != null) iconBackdrop(bmp) else null
         val firstInstall = runCatching { pm.getPackageInfo(pkg, 0).firstInstallTime }.getOrDefault(0L)
         return AppEntry(
             packageName = pkg,
