@@ -320,3 +320,4 @@ cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的�
   - **画法**:alpha 挂在 `gtvAppFocusFrame` 的 `graphicsLayer { scaleX; scaleY; alpha }` 上(原来的参数式 `graphicsLayer(scaleX, scaleY)` 顺手改成 block 式,缩放与 alpha 都只在图层阶段读,动画每帧不重组、不改布局)。这一层在 `drawBehind`(柔光 → 描边 → 搬运描边)之内、R49 淡化层之外:整张卡(底色 + 图 + 淡化)一起变透明,描边与柔光不受影响。不进任何焦点账本。
   - **范围**:首页卡片、编辑页卡片(`AppCard` 两处调用点共用,编辑页的「焦点」与首页同义:方向键焦点 + 搬运态恒 1)。不作用于:卡片标题(需求只说图 + 底色;标题本来就 60 % 字色)、编辑页行尾「＋」、长按菜单左侧 banner(它代表的是刚被长按、也就是聚焦中的那张卡,按焦点卡算 = 100 %)、「添加应用」列表的小卡片(找东西用的列表,不在这次范围)。值与饱和度 / 亮度同走 `LocalCardFade`(`CardFade.opacity`),不进颜色矩阵、不影响「恒等则跳过淡化层」的判断。
   - 模拟器拼图 `docs/screenshots/card-opacity.jpg`(外观组滑块中英、首页 100 / 60 / 40、40 % 下左右移焦的 mp4 真实 pts 追踪、编辑页 40 %)。
+- **R87 卡片不透明度改叫「卡片透明度」**(2026-09-27 owner):界面上 0–60%、缺省 0、往右加(与壁纸模糊从 0 往上加一致);存盘键仍是 `cardOpacity`(不迁移),界面值 = 100 − cardOpacity。英文 "Card Transparency" / 聚焦短标签 "Transparency"。

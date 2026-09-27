@@ -321,12 +321,14 @@ fun settingsGroups(
                     sliderMin = CARD_BRIGHTNESS_MIN, sliderStep = CARD_BRIGHTNESS_STEP,
                 ),
                 // R86:卡片不透明度 40–100% 步 10(7 档),缺省 100。只压未聚焦的卡,焦点卡恒 100%(见 AppCard)。
+                // R87(2026-09-27 owner):界面上反过来叫「卡片透明度」0–60%、缺省 0、往右加——更符合直觉。
+                // 存盘仍是 cardOpacity(不迁移),界面值 = 100 − cardOpacity。
                 ctl(
                     id = "cardOpacity", labelRes = R.string.settings_card_opacity,
                     kind = CtrlKind.SLIDER, optionRes = emptyList(),
                     count = (100 - CARD_OPACITY_MIN) / CARD_OPACITY_STEP + 1,
-                    selected = (s.cardOpacity - CARD_OPACITY_MIN) / CARD_OPACITY_STEP,
-                    sliderMin = CARD_OPACITY_MIN, sliderStep = CARD_OPACITY_STEP,
+                    selected = (100 - s.cardOpacity) / CARD_OPACITY_STEP,
+                    sliderMin = 0, sliderStep = CARD_OPACITY_STEP,
                 ),
             ),
         ),
@@ -390,7 +392,7 @@ internal fun optionWrite(rowId: String): ((Settings, Int) -> Settings)? = when (
     "followWallpaper" -> { s, i -> s.copy(followWallpaperColor = i == 1) }
     "cardSaturation" -> { s, i -> s.copy(cardSaturation = CARD_SATURATION_MIN + i * CARD_SATURATION_STEP) }
     "cardBrightness" -> { s, i -> s.copy(cardBrightness = CARD_BRIGHTNESS_MIN + i * CARD_BRIGHTNESS_STEP) }
-    "cardOpacity" -> { s, i -> s.copy(cardOpacity = CARD_OPACITY_MIN + i * CARD_OPACITY_STEP) }
+    "cardOpacity" -> { s, i -> s.copy(cardOpacity = 100 - i * CARD_OPACITY_STEP) }  // R87:档位 = 透明度
     "screensaverAfter" -> { s, i -> s.copy(screensaverAfterMs = VALID_SCREENSAVER_AFTER_MS[i]) }
     "screensaverInterval" -> { s, i -> s.copy(screensaverIntervalMs = VALID_SCREENSAVER_INTERVAL_MS[i]) }
     else -> null

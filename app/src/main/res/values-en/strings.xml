@@ -301,13 +301,13 @@
     <string name="shell_root_screensaver_desc">Screensaver timing, gallery, system screensaver</string>
     <string name="settings_card_saturation">Card Saturation</string>
     <string name="settings_card_brightness">Card Brightness</string>
-    <string name="settings_card_opacity">Card Opacity</string>
+    <string name="settings_card_opacity">Card Transparency</string>
     <!-- focused slider only (~104 dp left for the label): the full name stays on the unfocused capsule -->
     <string name="shell_slider_wallpaper_blur">Blur</string>
     <string name="shell_slider_wallpaper_brightness">Brightness</string>
     <string name="shell_slider_card_saturation">Saturation</string>
     <string name="shell_slider_card_brightness">Brightness</string>
-    <string name="shell_slider_card_opacity">Opacity</string>
+    <string name="shell_slider_card_opacity">Transparency</string>
     <string name="shell_theme_following_wallpaper">Wallpaper</string>
     <string name="shell_preview_hint">Preview: %1$s · OK to save, Back to cancel</string>
 </resources>

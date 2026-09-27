@@ -208,21 +208,21 @@ class ShellModelTest {
         assertEquals(9, sliderStep(bri, -1))
     }
 
-    /** R86:卡片不透明度 7 档 40–100%,两头到头不越界。 */
+    /** R86/R87:卡片透明度 7 档 0–60%(存盘 cardOpacity = 100 − 透明度),缺省 0,两头到头不越界。 */
     @Test fun cardOpacitySliderStepsClampAtBothEnds() {
-        val top = controlRow(groups(Settings()), "cardOpacity")!!
-        assertEquals(7, top.count)
-        assertEquals(6, top.selected)                 // 缺省 100%
-        assertEquals("100%", sliderText(top))
-        assertEquals(6, sliderStep(top, +1))          // 到头不动
-        assertEquals(5, sliderStep(top, -1))
-        assertEquals(90, sliderValue(top, 5))
-        val bottom = controlRow(groups(Settings(cardOpacity = 40)), "cardOpacity")!!
-        assertEquals(0, bottom.selected)
-        assertEquals("40%", sliderText(bottom))
-        assertEquals(0, sliderStep(bottom, -1))       // 到头不动
-        assertEquals(1, sliderStep(bottom, +1))
-        assertEquals(50, sliderValue(bottom, 1))
+        val none = controlRow(groups(Settings()), "cardOpacity")!!
+        assertEquals(7, none.count)
+        assertEquals(0, none.selected)                // 缺省:透明度 0%(不透明度 100)
+        assertEquals("0%", sliderText(none))
+        assertEquals(0, sliderStep(none, -1))         // 到头不动
+        assertEquals(1, sliderStep(none, +1))
+        assertEquals(10, sliderValue(none, 1))
+        val most = controlRow(groups(Settings(cardOpacity = 40)), "cardOpacity")!!
+        assertEquals(6, most.selected)
+        assertEquals("60%", sliderText(most))
+        assertEquals(6, sliderStep(most, +1))         // 到头不动
+        assertEquals(5, sliderStep(most, -1))
+        assertEquals(50, sliderValue(most, 5))
     }
 
     @Test fun sliderValuesAndText() {
@@ -255,7 +255,7 @@ class ShellModelTest {
                     "wallpaperBlur" -> s.wallpaperBlur
                     "wallpaperBrightness" -> s.wallpaperBrightness
                     "cardSaturation" -> s.cardSaturation
-                    "cardOpacity" -> s.cardOpacity
+                    "cardOpacity" -> 100 - s.cardOpacity  // R87:界面显示透明度
                     else -> s.cardBrightness
                 }
                 assertEquals("$id#$i", sliderValue(row, i), v)
