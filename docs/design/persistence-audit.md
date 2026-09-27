@@ -31,6 +31,7 @@
 | 上传 APK `cache/apk/upload.apk` | `UploadServer.serveApk`(请求线程) | 路径固定:两个 APK 上传并发时,后到的会覆盖或删掉先到的文件,而系统安装器可能还在读。只是缓存,不丢用户数据;安装器会显示包信息,装错也看得见 | **没改**(见下面「没改的」) |
 | 更新包 `cache/apk/update-<uuid>.{part,apk}` | `Update.download`(IO) | `UpdateFiles` 已经做到每次独立文件名 + 进程内登记簿 + 锁内 promote 和 sweep | 无需修 |
 | NanoHTTPD multipart 临时文件 `cache/upload/` | NanoHTTPD | 每个请求独立;开服时清掉超过 60 s 的 | 无需修 |
+| 屏保视频原始上传临时文件 `cache/upload/raw*.part`(R103,2026-09-27) | `UploadServer.serveRawUpload`(请求线程) | 每次 `File.createTempFile` 独立命名;按 Content-Length 流式写入、fsync;`finally` 删除;校验过后经 `saveIntoLibrary` 移入(同卷 rename,跨卷回落 `writeFileAtomically`) | 新增即按铁律写;进程被杀留下的由开服 `sweepStale`(> 60 s)清掉。模拟器实测 300 MB 上传 5 s、Java 堆全程 ~7 MB、上传后目录为空 |
 
 ## 没改的,以及理由
 
