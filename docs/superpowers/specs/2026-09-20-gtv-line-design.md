@@ -397,3 +397,4 @@ cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的�
 |---|---|---|---|
 | R108 | 2026-09-27 Gordon | 设置类页面淡入 200 / 淡出 150 ms,层间交叉淡化 150 ms;逻辑当场关、残影不可聚焦;HOME 也淡出 | 现行 |
 | R109 | 同上 | 设置类页面字号 = 基准 + `SETTINGS_TYPE_STEP`(−1),待 Gordon 看图定 | 待确认 |
+- **R112 设置类页面淡入淡出拉长**(2026-09-28 owner「淡入淡出还是不够明显」):打开 200 → 450 ms、关闭 150 → 350 ms、层间交叉淡化 150 → 300 ms(`GtvLayout.SETTINGS_FADE_IN_MS / _OUT_MS / SETTINGS_LAYER_FADE_MS`),曲线仍 FastOutSlowIn;残影随关闭时长延长,焦点照旧同帧落回。

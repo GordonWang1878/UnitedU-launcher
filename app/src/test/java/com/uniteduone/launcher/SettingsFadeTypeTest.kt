@@ -50,9 +50,9 @@ class SettingsFadeTypeTest {
     // ---------- R108 时长 ----------
 
     @Test fun `R108 打开 200 ms、关闭 150 ms、层与层 150 ms`() {
-        assertEquals(200, GtvLayout.SETTINGS_FADE_IN_MS)
-        assertEquals(150, GtvLayout.SETTINGS_FADE_OUT_MS)
-        assertEquals(150, GtvLayout.SETTINGS_LAYER_FADE_MS)
+        assertEquals(450, GtvLayout.SETTINGS_FADE_IN_MS)
+        assertEquals(350, GtvLayout.SETTINGS_FADE_OUT_MS)
+        assertEquals(300, GtvLayout.SETTINGS_LAYER_FADE_MS)
     }
 
     // ---------- FadeBook ----------

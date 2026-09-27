@@ -314,9 +314,9 @@ object GtvLayout {
      * (进下一层 / 返回)150 ms 交叉淡化;曲线一律 `FastOutSlowInEasing`,没有位移。范围与 R109 相同(不含安卓原生设置页)。
      * 实现与焦点处理见 `SettingsFade.kt`。
      */
-    const val SETTINGS_FADE_IN_MS = 200
-    const val SETTINGS_FADE_OUT_MS = 150
-    const val SETTINGS_LAYER_FADE_MS = 150
+    const val SETTINGS_FADE_IN_MS = 450  // R112(2026-09-28 owner「淡入淡出还是不够明显」):原 R108 值见 spec
+    const val SETTINGS_FADE_OUT_MS = 350  // R112(2026-09-28 owner「淡入淡出还是不够明显」):原 R108 值见 spec
+    const val SETTINGS_LAYER_FADE_MS = 300  // R112(2026-09-28 owner「淡入淡出还是不够明显」):原 R108 值见 spec
 
     /**
      * Fix 3(owner 反馈 R2,2026-09-20):「目前 UI 交互没有任何动画……焦点一下子跳到这、一下子跳到
