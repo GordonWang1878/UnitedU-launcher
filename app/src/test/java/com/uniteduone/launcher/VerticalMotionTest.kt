@@ -21,16 +21,12 @@ import org.junit.Test
 class VerticalMotionTest {
     private val sizes = GtvCardSize.values().toList()
 
-    @Test fun `默认 = 现状——纵向曲线是 R38 那根弹簧,行图标同一根,壁纸不逐行插值`() {
-        assertEquals(GtvLayout.HomeVerticalMotion.SPRING_220, GtvLayout.HOME_VERTICAL_MOTION)
-        assertEquals(Theme.browseShiftSpec(), Theme.homeVerticalShiftSpec())
-        assertEquals(Theme.rowIconFocusSpec(), Theme.homeRowIconSpec())
-        assertFalse(GtvLayout.WALLPAPER_DIM_PER_ROW)
-        // 壁纸逐行插值跟着曲线开关走:现状关,换成任何新曲线就开(切推荐方案只改一个常量)
+    @Test fun `R96 默认 = 方案 A——tween 450,壁纸逐行插值随之打开`() {
+        assertEquals(GtvLayout.HomeVerticalMotion.TWEEN_450, GtvLayout.HOME_VERTICAL_MOTION)
+        assertTrue(Theme.homeVerticalShiftSpec() is TweenSpec)
+        assertTrue(GtvLayout.WALLPAPER_DIM_PER_ROW)
+        // 壁纸逐行插值跟着曲线开关走:SPRING_220 关,换成任何新曲线就开(切方案只改一个常量)
         assertEquals(GtvLayout.HOME_VERTICAL_MOTION != GtvLayout.HomeVerticalMotion.SPRING_220, GtvLayout.WALLPAPER_DIM_PER_ROW)
-        for (s in listOf(0f, -40f, -131.0625f, -200f, -262.125f, -600f)) {
-            assertEquals(GtvLayout.wallpaperAlpha(s), GtvLayout.homeWallpaperAlpha(s, 131.0625f), 0f)
-        }
     }
 
     @Test fun `方案 A——tween 450 FastOutSlowIn,位移与行图标同一条`() {

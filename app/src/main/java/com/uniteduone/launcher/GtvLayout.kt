@@ -466,9 +466,9 @@ object GtvLayout {
      */
     enum class HomeVerticalMotion { SPRING_220, TWEEN_450, TWEEN_550_SOFT, SPRING_110 }
 
-    /** 首页上下换行用哪条曲线,见 [HomeVerticalMotion]。**默认 = 现状**;改这一行即可切换方案
+    /** 首页上下换行用哪条曲线,见 [HomeVerticalMotion]。**R96 起默认 = 方案 A(TWEEN_450)**,原现状为 SPRING_220;改这一行即可切换方案
      *  (推荐 [HomeVerticalMotion.TWEEN_450],[WALLPAPER_DIM_PER_ROW] 随之打开)。 */
-    val HOME_VERTICAL_MOTION: HomeVerticalMotion = HomeVerticalMotion.SPRING_220
+    val HOME_VERTICAL_MOTION: HomeVerticalMotion = HomeVerticalMotion.TWEEN_450
 
     /** 方案 A 的时长(ms),曲线 `FastOutSlowInEasing`。 */
     const val VMOTION_A_MS = 450

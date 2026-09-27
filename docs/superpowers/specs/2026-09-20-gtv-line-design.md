@@ -357,3 +357,4 @@ cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的�
 | R91 | 同上 | 输入源页(外壳同款,✓ 当前、改名 / 隐藏 / 恢复) | 现行 |
 | R92 | 同上 | 首页输入源行、`showInputRow`、`RowKind` 删除 | 现行 |
 | R93 | 同上 | 「设置 → 屏保 → 立即开始屏保」,空图库只提示 | 现行 |
+- **R96 首页上下换行改用方案 A**(2026-09-27,Gordon 反馈「上下移动不平滑、突兀、可能太快」;实测是曲线问题不是掉帧,见 `docs/design/vertical-motion/README.md`):纵向位移、行图标颜色改 `tween(450 ms, FastOutSlowInEasing)`(80 ms 时只走 10%,到 95% 仍约 327 ms);壁纸压暗改为逐行插值(`WALLPAPER_DIM_PER_ROW`),与位移同步。开关 `GtvLayout.HOME_VERTICAL_MOTION`,改回 `SPRING_220` 即恢复原样。左右与编辑页不变。已知代价:快速连按两下时第二下从零起步,中间会顿一下——待真机确认。
