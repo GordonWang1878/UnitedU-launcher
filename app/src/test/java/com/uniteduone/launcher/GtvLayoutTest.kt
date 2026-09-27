@@ -426,4 +426,23 @@ class GtvLayoutTest {
         assertEquals(0.4f, red[0], 1e-6f); assertEquals(0.175f, red[1], 1e-6f); assertEquals(0.175f, red[2], 1e-6f)
         assertEquals(listOf(0f, 0f, 0f, 1f, 0f), m.slice(15..19))
     }
+
+    @Test fun `R86 卡片不透明度——未聚焦 = 设置值,聚焦 = 1,中间随焦点动画线性过渡`() {
+        // 未聚焦(进度 0)= 设置值
+        assertEquals(0.6f, GtvLayout.cardFocusAlpha(0.6f, 0f), 1e-6f)
+        assertEquals(0.4f, GtvLayout.cardFocusAlpha(0.4f, 0f), 1e-6f)
+        // 聚焦(进度 1)= 恒 1,不管设置值多少
+        for (rest in listOf(0.4f, 0.5f, 0.6f, 0.9f, 1f)) assertEquals(1f, GtvLayout.cardFocusAlpha(rest, 1f), 1e-6f)
+        // 进焦 / 失焦中途:线性插值(动画曲线由 ringAlpha 自己的 motionSpec 给出)
+        assertEquals(0.8f, GtvLayout.cardFocusAlpha(0.6f, 0.5f), 1e-6f)
+        assertEquals(0.55f, GtvLayout.cardFocusAlpha(0.4f, 0.25f), 1e-6f)
+        // 缺省 100% = 任何进度都是 1(与加这一项之前逐像素相同)
+        for (p in listOf(0f, 0.3f, 1f)) assertEquals(1f, GtvLayout.cardFocusAlpha(1f, p), 1e-6f)
+        // 越界夹紧:进度超出 [0,1](弹簧 / 插值器过冲)不让 alpha 越过 [设置值, 1]
+        assertEquals(1f, GtvLayout.cardFocusAlpha(0.6f, 1.2f), 1e-6f)
+        assertEquals(0.6f, GtvLayout.cardFocusAlpha(0.6f, -0.1f), 1e-6f)
+        // 单调:进度越大越不透明
+        var last = 0f
+        for (i in 0..10) { val a = GtvLayout.cardFocusAlpha(0.4f, i / 10f); assertTrue(a >= last); last = a }
+    }
 }

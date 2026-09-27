@@ -137,7 +137,12 @@ fun AppCard(
                 // 聚焦缩放 + 描边(贴缩放后边缘)+ 移动态高亮描边(固定几何,不缩放),三者都在
                 // gtvAppFocusFrame 里(见其 KDoc 里的绘制顺序说明);R49 的淡化只包卡片内容(容器底色 +
                 // banner / 图标 / 文字回落),挂在它**之内**——顺序由 gtvFocusFrameOverFade 一处固定。
-                .gtvFocusFrameOverFade(focused, accent, metrics.cardCorner, moving, movingColor, afterShift = focusAfterShift, fade = fade)
+                .gtvFocusFrameOverFade(
+                    focused, accent, metrics.cardCorner, moving, movingColor,
+                    afterShift = focusAfterShift, fade = fade,
+                    // R86:未聚焦的卡按设置的不透明度画,焦点卡 / 被搬的卡恒 1(在 gtvAppFocusFrame 里插值)
+                    restAlpha = fade.restAlpha,
+                )
                 .size(metrics.cardWidth, metrics.cardHeight)
                 .focusProperties {
                     if (isRowStart) left = FocusRequester.Cancel
@@ -242,8 +247,19 @@ internal fun AppCardImage(app: AppEntry, metrics: CardMetrics) {
  * [GtvLayout.CARD_FADE_SATURATION] / [GtvLayout.CARD_FADE_BRIGHTNESS],旧 settings.json 没有这两个键时观感零变化。
  * 两项都 100 时是恒等变换,[gtvCardFade] 直接跳过离屏层。
  */
-data class CardFade(val saturation: Int = DEFAULT_CARD_SATURATION, val brightness: Int = DEFAULT_CARD_BRIGHTNESS) {
+data class CardFade(
+    val saturation: Int = DEFAULT_CARD_SATURATION,
+    val brightness: Int = DEFAULT_CARD_BRIGHTNESS,
+    /**
+     * **Ruling R86**:未聚焦卡片的不透明度(%)。与饱和度 / 亮度同一个 [LocalCardFade] 下发,但**不进**颜色矩阵、
+     * 不影响 [isIdentity]:它只由 [AppCard] 经 [gtvFocusFrameOverFade] 的 `restAlpha` 用(焦点卡恒 100%)。
+     * 长按菜单 banner 与「添加应用」列表的小卡片不读它(见 spec R86)。
+     */
+    val opacity: Int = DEFAULT_CARD_OPACITY,
+) {
     val isIdentity: Boolean get() = saturation >= 100 && brightness >= 100
+    /** 未聚焦时的 alpha(0.4–1.0)。 */
+    val restAlpha: Float get() = opacity.coerceIn(0, 100) / 100f
     fun matrix(): FloatArray = GtvLayout.cardFadeMatrix(saturation / 100f, brightness / 100f)
 
     companion object {
@@ -251,8 +267,8 @@ data class CardFade(val saturation: Int = DEFAULT_CARD_SATURATION, val brightnes
     }
 }
 
-/** 设置里的两项 → 淡化参数。 */
-fun Settings.cardFade(): CardFade = CardFade(cardSaturation, cardBrightness)
+/** 设置里的三项 → 淡化参数(R86 起含不透明度)。 */
+fun Settings.cardFade(): CardFade = CardFade(cardSaturation, cardBrightness, cardOpacity)
 
 /**
  * 当前生效的卡片淡化。MainActivity 在 setContent 顶层按**有效设置**(含设置页的实时预览,见
@@ -284,7 +300,8 @@ private class CardFadeNode(private var fade: CardFade) : Modifier.Node(), DrawMo
     private var paint = paintFor(fade)
 
     fun set(f: CardFade) {
-        if (f == fade) return
+        // R86:不透明度不进颜色矩阵,只有它变了就不必换 paint、不必重画
+        if (f.saturation == fade.saturation && f.brightness == fade.brightness) { fade = f; return }
         fade = f
         paint = paintFor(f)
         invalidateDraw()
@@ -318,4 +335,5 @@ internal fun Modifier.gtvFocusFrameOverFade(
     movingColor: Color = Color.Unspecified,
     afterShift: Boolean = false,
     fade: CardFade = CardFade.DEFAULT,
-): Modifier = gtvAppFocusFrame(focused, accentColor, corner, moving, movingColor, afterShift).gtvCardFade(fade)
+    restAlpha: Float = 1f,
+): Modifier = gtvAppFocusFrame(focused, accentColor, corner, moving, movingColor, afterShift, restAlpha).gtvCardFade(fade)

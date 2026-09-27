@@ -222,6 +222,17 @@ object GtvLayout {
         )
     }
 
+    /**
+     * **Ruling R86**:卡片整体(图 + 底色)的不透明度。[restAlpha] = 设置里的「卡片不透明度」(0.4–1.0),
+     * [focusProgress] = 焦点动画进度(0 = 未聚焦,1 = 完全聚焦;即 `gtvAppFocusFrame` 里与描边 / 柔光
+     * 共用同一份 motionSpec 的 `ringAlpha`)。线性插值:未聚焦 = 设置值,聚焦 = 1,进焦 / 失焦随同一条
+     * 曲线过渡,不瞬切。进度越界夹到 [0, 1];restAlpha ≥ 1 恒为 1(缺省值,与加这一项之前逐像素相同)。
+     */
+    fun cardFocusAlpha(restAlpha: Float, focusProgress: Float): Float {
+        val rest = restAlpha.coerceIn(0f, 1f)
+        return rest + (1f - rest) * focusProgress.coerceIn(0f, 1f)
+    }
+
     /** 长按 / 齿轮菜单(GearMenu,Task 8):药丸尺寸,实测报告 §7,268×55 dp,全圆角(h/2)。 */
     const val MENU_ITEM_WIDTH = 268f
     const val MENU_ITEM_HEIGHT = 55f

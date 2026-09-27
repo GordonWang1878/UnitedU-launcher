@@ -336,4 +336,41 @@ class SettingsTest {
         assertEquals(1f, m[0], 1e-6f); assertEquals(0f, m[1], 1e-6f); assertEquals(1f, m[6], 1e-6f)
         assertFalse(CardFade.DEFAULT.isIdentity)
     }
+
+    // ---- R86:卡片不透明度 ----
+
+    /** 旧文件没有这个键 → 100(不透明),观感零变化;CardFade 跟着带上。 */
+    @Test fun cardOpacityMissingKeyDefaultsTo100() {
+        val s = parseSettings("{\"cardsPerRow\": 6, \"cardSaturation\": 30}")
+        assertEquals(100, s.cardOpacity)
+        assertEquals(100, Settings().cardOpacity)
+        assertEquals(1f, s.cardFade().restAlpha, 1e-6f)
+        assertEquals(CardFade.DEFAULT, s.cardFade())
+        assertEquals(100, parseSettings("{}").cardOpacity)
+    }
+
+    @Test fun cardOpacityClampsAndSnaps() {
+        assertEquals(40, parseSettings("{\"cardOpacity\": 44}").cardOpacity)
+        assertEquals(50, parseSettings("{\"cardOpacity\": 45}").cardOpacity)
+        assertEquals(40, parseSettings("{\"cardOpacity\": 0}").cardOpacity)
+        assertEquals(40, parseSettings("{\"cardOpacity\": -30}").cardOpacity)
+        assertEquals(100, parseSettings("{\"cardOpacity\": 250}").cardOpacity)
+        assertEquals(100, parseSettings("{\"cardOpacity\": \"x\"}").cardOpacity)
+        assertEquals(100, parseSettings("{\"cardOpacity\": true}").cardOpacity)
+        assertEquals(70, parseSettings("{\"cardOpacity\": 70}").cardOpacity)
+    }
+
+    @Test fun cardOpacityRoundTripsAndRestores() {
+        for (v in 40..100 step 10) {
+            val s = Settings(cardOpacity = v)
+            assertEquals(s, parseSettings(s.toJson()))
+        }
+        assertTrue(Settings(cardOpacity = 60).toJson().contains("\"cardOpacity\": 60"))
+        assertEquals(100, restoredDefaults(Settings(cardOpacity = 40), 1L).cardOpacity)
+        // 不透明度不进颜色矩阵、不影响「恒等」判断
+        val f = Settings(cardSaturation = 100, cardBrightness = 100, cardOpacity = 40).cardFade()
+        assertTrue(f.isIdentity)
+        assertEquals(0.4f, f.restAlpha, 1e-6f)
+        assertArrayEquals(CardFade(100, 100).matrix(), f.matrix(), 1e-6f)
+    }
 }

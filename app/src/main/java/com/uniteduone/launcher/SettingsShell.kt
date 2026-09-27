@@ -505,6 +505,7 @@ private val SLIDER_SHORT_LABEL = mapOf(
     "wallpaperBrightness" to R.string.shell_slider_wallpaper_brightness,
     "cardSaturation" to R.string.shell_slider_card_saturation,
     "cardBrightness" to R.string.shell_slider_card_brightness,
+    "cardOpacity" to R.string.shell_slider_card_opacity,
 )
 
 /** 分组页的一颗胶囊。 */

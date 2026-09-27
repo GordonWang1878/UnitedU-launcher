@@ -198,6 +198,9 @@ fun Modifier.gtvFocusStroke(focused: Boolean, color: Color, corner: Dp): Modifie
  * (首页在 `CategoryRow` 的焦点回调里判,见那里),这里只认这个布尔。`animateFloatAsState`
  * 在目标值变化那一刻读取 spec,所以位移结束后 `afterShift` 翻回 false 不会打断已经在跑的动画。
  *
+ * @param restAlpha **Ruling R86**:未聚焦时卡片整体(图 + 底色)的不透明度,聚焦 / 搬运中恒 1,
+ *   两者之间按 [GtvLayout.cardFocusAlpha] 随焦点动画过渡。缺省 1 = 不透明(图片网格、编辑页「＋」、
+ *   「添加应用」列表都不传);`AppCard` 传设置里的「卡片不透明度」。
  * @param afterShift 这次进焦是否伴随行位移(纵向切行或横向滑行)。默认 `false`(`RowIconPicker`
  *   不传,立即放大)。编辑页 2026-09-23 起也传(ui-pending #10):`AppCard`/`AddCard`
  *   在编辑页的焦点回调里按「纵向首行会不会变」判定(只算纵向,见 `EditScreen` 的 `landedWithShift`)。
@@ -219,6 +222,7 @@ fun Modifier.gtvAppFocusFrame(
     moving: Boolean = false,
     movingColor: Color = Color.Unspecified,
     afterShift: Boolean = false,
+    restAlpha: Float = 1f,
 ): Modifier = composed {
     // R34:进焦 / 失焦不对称——进焦 FOCUS_SCALE_IN_MS 减速曲线(R34 1200 = focused_frame_animator_duration_ms,R37 起 600),
     // 失焦 R79 起 400 ms AccelerateDecelerate(原 card_unfocus 150)。缩放、描边、柔光三者共用这一份 spec。
@@ -301,5 +305,13 @@ fun Modifier.gtvAppFocusFrame(
                 )
             }
         }
-        .graphicsLayer(scaleX = scale, scaleY = scale)
+        // R86:缩放与卡片不透明度都在 block 形式的 graphicsLayer 里读——只在图层阶段读动画值,
+        // 动画每帧不重组、不改布局。alpha 由 ringAlpha(同一份 motionSpec)在 restAlpha ↔ 1 之间插值;
+        // 搬运中的卡恒 1(焦点每步晚一两帧才追到新位置,那几帧 ringAlpha 可能不是 1)。
+        // 这一层在 drawBehind 之内(链上更靠后),描边与柔光不受 alpha 影响。
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+            alpha = if (moving) 1f else GtvLayout.cardFocusAlpha(restAlpha, ringAlpha)
+        }
 }

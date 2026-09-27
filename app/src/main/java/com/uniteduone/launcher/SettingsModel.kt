@@ -280,7 +280,7 @@ fun settingsGroups(
                 ) { actions.restoreDefaults() },
             ),
         ),
-        // R57:原「壁纸」「主题」两组合成「外观」:先壁纸(换 / 调),再主题色;R70 末尾加卡片淡化两条滑块。
+        // R57:原「壁纸」「主题」两组合成「外观」:先壁纸(换 / 调),再主题色;R70 末尾加卡片淡化两条滑块,R86 再加卡片不透明度。
         GroupSpec(
             GroupId.APPEARANCE, R.string.settings_group_appearance,
             listOf(
@@ -319,6 +319,14 @@ fun settingsGroups(
                     kind = CtrlKind.SLIDER, optionRes = emptyList(),
                     count = 11, selected = (s.cardBrightness - CARD_BRIGHTNESS_MIN) / CARD_BRIGHTNESS_STEP,
                     sliderMin = CARD_BRIGHTNESS_MIN, sliderStep = CARD_BRIGHTNESS_STEP,
+                ),
+                // R86:卡片不透明度 40–100% 步 10(7 档),缺省 100。只压未聚焦的卡,焦点卡恒 100%(见 AppCard)。
+                ctl(
+                    id = "cardOpacity", labelRes = R.string.settings_card_opacity,
+                    kind = CtrlKind.SLIDER, optionRes = emptyList(),
+                    count = (100 - CARD_OPACITY_MIN) / CARD_OPACITY_STEP + 1,
+                    selected = (s.cardOpacity - CARD_OPACITY_MIN) / CARD_OPACITY_STEP,
+                    sliderMin = CARD_OPACITY_MIN, sliderStep = CARD_OPACITY_STEP,
                 ),
             ),
         ),
@@ -382,6 +390,7 @@ internal fun optionWrite(rowId: String): ((Settings, Int) -> Settings)? = when (
     "followWallpaper" -> { s, i -> s.copy(followWallpaperColor = i == 1) }
     "cardSaturation" -> { s, i -> s.copy(cardSaturation = CARD_SATURATION_MIN + i * CARD_SATURATION_STEP) }
     "cardBrightness" -> { s, i -> s.copy(cardBrightness = CARD_BRIGHTNESS_MIN + i * CARD_BRIGHTNESS_STEP) }
+    "cardOpacity" -> { s, i -> s.copy(cardOpacity = CARD_OPACITY_MIN + i * CARD_OPACITY_STEP) }
     "screensaverAfter" -> { s, i -> s.copy(screensaverAfterMs = VALID_SCREENSAVER_AFTER_MS[i]) }
     "screensaverInterval" -> { s, i -> s.copy(screensaverIntervalMs = VALID_SCREENSAVER_INTERVAL_MS[i]) }
     else -> null

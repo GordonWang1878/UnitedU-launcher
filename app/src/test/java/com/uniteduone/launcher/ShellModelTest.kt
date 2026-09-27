@@ -54,7 +54,7 @@ class ShellModelTest {
             ids(g, GroupId.GENERAL),
         )
         assertEquals(
-            listOf("pickWallpaper", "wallpaperBlur", "wallpaperBrightness", "themeColor", "followWallpaper", "cardSaturation", "cardBrightness"),
+            listOf("pickWallpaper", "wallpaperBlur", "wallpaperBrightness", "themeColor", "followWallpaper", "cardSaturation", "cardBrightness", "cardOpacity"),
             ids(g, GroupId.APPEARANCE),
         )
         assertEquals(
@@ -208,6 +208,23 @@ class ShellModelTest {
         assertEquals(9, sliderStep(bri, -1))
     }
 
+    /** R86:卡片不透明度 7 档 40–100%,两头到头不越界。 */
+    @Test fun cardOpacitySliderStepsClampAtBothEnds() {
+        val top = controlRow(groups(Settings()), "cardOpacity")!!
+        assertEquals(7, top.count)
+        assertEquals(6, top.selected)                 // 缺省 100%
+        assertEquals("100%", sliderText(top))
+        assertEquals(6, sliderStep(top, +1))          // 到头不动
+        assertEquals(5, sliderStep(top, -1))
+        assertEquals(90, sliderValue(top, 5))
+        val bottom = controlRow(groups(Settings(cardOpacity = 40)), "cardOpacity")!!
+        assertEquals(0, bottom.selected)
+        assertEquals("40%", sliderText(bottom))
+        assertEquals(0, sliderStep(bottom, -1))       // 到头不动
+        assertEquals(1, sliderStep(bottom, +1))
+        assertEquals(50, sliderValue(bottom, 1))
+    }
+
     @Test fun sliderValuesAndText() {
         val g = groups(Settings(wallpaperBlur = 40, wallpaperBrightness = -20, cardSaturation = 30, cardBrightness = 75))
         val blur = controlRow(g, "wallpaperBlur")!!
@@ -230,7 +247,7 @@ class ShellModelTest {
     @Test fun sliderWriteMatchesDisplayedValue() {
         val base = Settings()
         val g = groups(base)
-        for (id in listOf("wallpaperBlur", "wallpaperBrightness", "cardSaturation", "cardBrightness")) {
+        for (id in listOf("wallpaperBlur", "wallpaperBrightness", "cardSaturation", "cardBrightness", "cardOpacity")) {
             val row = controlRow(g, id)!!
             for (i in 0 until row.count) {
                 val s = row.write!!(base, i)
@@ -238,6 +255,7 @@ class ShellModelTest {
                     "wallpaperBlur" -> s.wallpaperBlur
                     "wallpaperBrightness" -> s.wallpaperBrightness
                     "cardSaturation" -> s.cardSaturation
+                    "cardOpacity" -> s.cardOpacity
                     else -> s.cardBrightness
                 }
                 assertEquals("$id#$i", sliderValue(row, i), v)

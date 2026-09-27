@@ -52,6 +52,11 @@ data class Settings(
     val cardSaturation: Int = DEFAULT_CARD_SATURATION,
     /** 卡片亮度 50–100(%),步 5(R70)。缺省 75 = 原 `GtvLayout.CARD_FADE_BRIGHTNESS`。 */
     val cardBrightness: Int = DEFAULT_CARD_BRIGHTNESS,
+    /**
+     * 卡片不透明度 40–100(%),步 10(R86,2026-09-27 Gordon 定)。只作用于**未聚焦**的卡片,焦点卡恒 100%;
+     * 缺省 100 = 加这一项之前的样子,旧文件没有这个键时观感零变化。
+     */
+    val cardOpacity: Int = DEFAULT_CARD_OPACITY,
     /** 上次打开「添加应用」列表的时刻(epoch ms);firstInstallTime 晚于它的应用算「新」。0 = 未初始化(首启时写成当时)。 */
     val newAppsSeenAt: Long = 0L,
     /** 界面语言;合法值见 [VALID_LANGUAGES]。`"system"` = 跟随系统语言。 */
@@ -82,6 +87,10 @@ internal const val CARD_SATURATION_MIN = 0
 internal const val CARD_SATURATION_STEP = 10
 internal const val CARD_BRIGHTNESS_MIN = 50
 internal const val CARD_BRIGHTNESS_STEP = 5
+// R86:卡片不透明度 40–100 步 10(7 档),缺省 100 = 不透明。下限 40:再低卡片就和壁纸糊在一起,认不出是哪个应用。
+internal const val DEFAULT_CARD_OPACITY = 100
+internal const val CARD_OPACITY_MIN = 40
+internal const val CARD_OPACITY_STEP = 10
 
 /** 0..100 夹取后四舍五入到 10 的倍数(滑块 11 档);解析不出数字 → 该字段的默认值(真机调参后默认可能非零)。 */
 private fun clampPercentStep10(v: Int?, default: Int): Int =
@@ -94,6 +103,10 @@ private fun clampCardSaturation(v: Int?): Int =
 /** 卡片亮度:50..100 夹取后四舍五入到 5 的倍数;解析不出 → 75(R70)。 */
 private fun clampCardBrightness(v: Int?): Int =
     if (v == null) DEFAULT_CARD_BRIGHTNESS else Math.round(v.coerceIn(CARD_BRIGHTNESS_MIN, 100) / 5f) * 5
+
+/** 卡片不透明度:40..100 夹取后四舍五入到 10 的倍数;解析不出(含缺键)→ 100(R86)。 */
+internal fun clampCardOpacity(v: Int?): Int =
+    if (v == null) DEFAULT_CARD_OPACITY else ((v.coerceIn(CARD_OPACITY_MIN, 100) + 5) / 10) * 10
 
 private fun clampEpoch(v: Long?): Long = (v ?: 0L).coerceAtLeast(0L)
 
@@ -195,6 +208,7 @@ fun parseSettings(json: String): Settings {
             ),
             cardSaturation = clampCardSaturation(extractInt(json, "cardSaturation")),
             cardBrightness = clampCardBrightness(extractInt(json, "cardBrightness")),
+            cardOpacity = clampCardOpacity(extractInt(json, "cardOpacity")),
             newAppsSeenAt = clampEpoch(extractLong(json, "newAppsSeenAt")),
             language = extractString(json, "language")
                 ?.takeIf { VALID_LANGUAGES.contains(it) } ?: d.language,
@@ -231,6 +245,7 @@ fun Settings.toJson(): String {
         append("  \"wallpaperBrightness\": $wallpaperBrightness,\n")
         append("  \"cardSaturation\": $cardSaturation,\n")
         append("  \"cardBrightness\": $cardBrightness,\n")
+        append("  \"cardOpacity\": $cardOpacity,\n")
         append("  \"language\": \"${esc(language)}\",\n")
         onboardingDone?.let { append("  \"onboardingDone\": $it,\n") }
         append("  \"newAppsSeenAt\": $newAppsSeenAt\n")
