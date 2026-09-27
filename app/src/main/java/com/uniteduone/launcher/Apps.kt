@@ -127,7 +127,11 @@ object Apps {
                 val group = pickerGroupOf(facts, ctx.packageName) ?: return@runCatching
                 val entry = ri ?: return@runCatching
                 val label = runCatching { entry.loadLabel(pm)?.toString() }.getOrNull().orEmpty()
-                out += PickerCandidate(AppEntry(pkg, label, card = null, isWide = false, firstInstallTime = firstInstall), group)
+                out += PickerCandidate(
+                    AppEntry(pkg, label, card = null, isWide = false, firstInstallTime = firstInstall),
+                    group,
+                    canUninstall = canUninstall(facts.isSystem, facts.isUpdatedSystem),
+                )
             }
         }
         return orderPickerCandidates(out)

@@ -27,6 +27,8 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.withContext
 
 /**
@@ -66,6 +68,8 @@ internal val MOVE_PASSTHROUGH_KEYS = setOf(
  * 首页移动态与编辑页搬运里的「长按确定无反应」共用这一个判据(EditScreen 的搬运按键在本文件之外,所以放顶层)。
  */
 internal const val LONG_PRESS_MS = 600L
+/** 所有应用页缓存预热(R105):主线程第一次空闲之后再等这么久,让首页自己的卡片图先读完。 */
+internal const val APPS_PREWARM_DELAY_MS = 1500L
 
 class MainActivity : ComponentActivity() {
 
@@ -244,7 +248,7 @@ class MainActivity : ComponentActivity() {
      */
     private var appsPage by mutableStateOf(false)
     /** 应用页现在持有焦点的那一张(AppsPage 上报,得失都报);长按 / MENU 据此弹菜单。只在 dispatchKeyEvent 里读,同 [shownRows]。 */
-    private var appsFocused: AppEntry? = null
+    private var appsFocused: PickerCandidate? = null
     /**
      * 应用页的长按 / MENU 菜单(R90):null = 没开;`rows == null` = 第一层「打开 / 加到桌面…」;非 null = 第二层「加到哪一行」
      * (打开第二层时读一次 layout.json 的行名)。每次打开都是一个新对象,关掉只有 [closeAppsMenu] 一条路。
@@ -343,6 +347,7 @@ class MainActivity : ComponentActivity() {
                 addDataScheme("package")
             },
         )
+        warmAppsPage()
         // 「新应用」基线:首启把 newAppsSeenAt 写成现在,之前装的都不算新(design §2)。
         // **先读再判、只在真要改时才 update**:SettingsStore.update 无论闭包返不返回同一个对象
         // 都会走一遍写盘,挂在 onCreate 上就等于每次冷启动重写一次 settings.json。
@@ -950,10 +955,10 @@ class MainActivity : ComponentActivity() {
             // Ruling R76(2026-09-23 交互测试):从设置外壳进来的编辑页按 MENU 整个收回首页(编辑页 + 外壳),
             // 与外壳其他层按 MENU 一致;不是从外壳进来的(shellStack 空)leaveSettings 什么都不做,行为不变。
             if (editing) { if (!editCarrying) { leaveEdit(); leaveSettings() }; return true }
-            // 所有应用页(R90):MENU = 焦点那一张的菜单(打开 / 加到桌面…);菜单开着 = 收掉它。
+            // 所有应用页(R90):MENU = 焦点那一张的菜单(打开 / 卸载 / 加到桌面…);菜单开着 = 收掉它。
             if (appsPage) {
                 if (appsMenu != null) closeAppsMenu()
-                else appsFocused?.let { window.decorView.playSoundEffect(SoundEffectConstants.CLICK); appsMenu = AppsMenu(it) }
+                else appsFocused?.let { window.decorView.playSoundEffect(SoundEffectConstants.CLICK); appsMenu = AppsMenu(it.app, it.canUninstall) }
                 return true
             }
             // 输入源页(R91):MENU = 焦点那一颗的胶囊菜单(改名 / 隐藏);菜单 / 对话框开着时 = 收掉它。
@@ -1038,7 +1043,7 @@ class MainActivity : ComponentActivity() {
                 if (a != null) {
                     longPressDownTime = event.downTime
                     window.decorView.playSoundEffect(SoundEffectConstants.CLICK)
-                    appsMenu = AppsMenu(a)
+                    appsMenu = AppsMenu(a.app, a.canUninstall)
                     return true
                 }
             }
@@ -1455,11 +1460,7 @@ class MainActivity : ComponentActivity() {
                 if (!Apps.launch(this, ref.pkg)) toast(getString(R.string.toast_cant_open_app, ref.label))
             }
             CardAction.UNINSTALL -> MenuItem(getString(R.string.card_menu_uninstall), getString(R.string.card_menu_uninstall_desc)) {
-                closeCardMenu()
-                val ok = runCatching {
-                    startActivity(Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:${ref.pkg}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                }.isSuccess
-                if (!ok) toast(getString(R.string.toast_uninstall_failed))
+                closeCardMenu(); requestUninstall(ref.pkg)
             }
             CardAction.RENAME -> MenuItem(getString(R.string.card_menu_rename), getString(R.string.card_menu_rename_desc)) {
                 closeCardMenu(); renameTarget = ref
@@ -1490,6 +1491,17 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * 走系统卸载确认(首页长按菜单与所有应用页菜单共用,R106)。卸载完成后的事都由包变动广播接:
+     * `PACKAGE_FULLY_REMOVED` → [pruneUninstalled] 清 layout / titles → `revision++` → 首页重读、应用页缓存后台刷新。
+     */
+    private fun requestUninstall(pkg: String) {
+        val ok = runCatching {
+            startActivity(Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$pkg")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }.isSuccess
+        if (!ok) toast(getString(R.string.toast_uninstall_failed))
     }
 
     /** @return 选择器是否真的打开了;false = 存储没就绪(已 toast),调用方不要留任何「回来时用」的状态。 */
@@ -1676,11 +1688,32 @@ class MainActivity : ComponentActivity() {
         focusNonce++
     }
 
+    /**
+     * 所有应用页的缓存(R105,[AppsPageCache]):主线程第一次空闲、再过 [APPS_PREWARM_DELAY_MS](让首页自己的卡片图先读完)后
+     * 在后台预热一次;此后 `revision` 每变一次(装 / 卸 / 更新应用、改名、换卡片图……)后台刷新,打开页面时直接画缓存。
+     * 基线 `r0` 在预热**之前**取:预热期间 revision 变过的,预热读完后还会再刷一次,不会漏。
+     */
+    private fun warmAppsPage() {
+        lifecycleScope.launch {
+            val r0 = revision
+            kotlinx.coroutines.suspendCancellableCoroutine<Unit> { c ->
+                android.os.Looper.myQueue().addIdleHandler { if (c.isActive) c.resumeWith(Result.success(Unit)); false }
+            }
+            delay(APPS_PREWARM_DELAY_MS)
+            AppsPageCache.prewarm(applicationContext)
+            snapshotFlow { revision }
+                .filter { it != r0 }
+                .conflate()
+                .collect { AppsPageCache.refresh(applicationContext) }
+        }
+    }
+
     /** 顶栏「应用」胶囊(R90):所有应用页。 */
     private fun openApps() {
         if (overlayOpen) return
         appsMenu = null
         appsFocused = null
+        AppsPagePerf.opened()
         appsPage = true
     }
 
@@ -1700,23 +1733,30 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * 应用页菜单(R90)。第一层:打开应用 / 加到桌面…;第二层:layout.json 的每一行一颗(已经有这个应用的那一行注明)。
+     * 应用页菜单(R90)。第一层:打开应用 /(能卸载的)卸载应用 / 加到桌面…([appsMenuActions],R106);
+     * 第二层:layout.json 的每一行一颗(已经有这个应用的那一行注明)。
      * 加到桌面走 [Layout.update](锁内读 → [addToRow] → 写,落盘铁律),写完 `revision++` 让首页重读。
+     * 卸载与首页长按菜单同一份实现([requestUninstall]);卸载完成后应用页的列表随缓存刷新,焦点按包名落到同组补上来的那张。
      */
     private fun appsMenuItems(m: AppsMenu): List<MenuItem> {
         val rows = m.rows
-        if (rows == null) return listOf(
-            MenuItem(getString(R.string.card_menu_open), getString(R.string.card_menu_open_desc)) {
-                closeAppsMenu(); openFromApps(m.app)
-            },
-            MenuItem(getString(R.string.apps_menu_add_to_home), "") {
-                lifecycleScope.launch {
-                    val layout = withContext(Dispatchers.IO) { Layout.read(this@MainActivity) }
-                    // 读盘期间菜单被关了 / 换成别的应用了:不再弹第二层
-                    if (appsMenu === m) { appsMenu = m.copy(rows = layout); focusNonce++ }
+        if (rows == null) return appsMenuActions(m.canUninstall).map { action ->
+            when (action) {
+                AppsMenuAction.OPEN -> MenuItem(getString(R.string.card_menu_open), getString(R.string.card_menu_open_desc)) {
+                    closeAppsMenu(); openFromApps(m.app)
                 }
-            },
-        )
+                AppsMenuAction.UNINSTALL -> MenuItem(getString(R.string.card_menu_uninstall), getString(R.string.card_menu_uninstall_desc)) {
+                    closeAppsMenu(); requestUninstall(m.app.packageName)
+                }
+                AppsMenuAction.ADD_TO_HOME -> MenuItem(getString(R.string.apps_menu_add_to_home), "") {
+                    lifecycleScope.launch {
+                        val layout = withContext(Dispatchers.IO) { Layout.read(this@MainActivity) }
+                        // 读盘期间菜单被关了 / 换成别的应用了:不再弹第二层
+                        if (appsMenu === m) { appsMenu = m.copy(rows = layout); focusNonce++ }
+                    }
+                }
+            }
+        }
         return rows.mapIndexed { i, r ->
             val here = m.app.packageName in r.apps
             MenuItem(if (here) getString(R.string.apps_add_row_here, r.name) else r.name, "") {

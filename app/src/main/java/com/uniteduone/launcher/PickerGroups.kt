@@ -68,8 +68,11 @@ fun countNewApps(
         isNewApp(firstInstall, seenAt, onLayout = f.packageName in onLayout)
 }
 
-/** 列表里的一项:应用本身(只有名字与装机时间,位图按需另读)与它的分组。 */
-data class PickerCandidate(val app: AppEntry, val group: PickerGroup)
+/**
+ * 列表里的一项:应用本身(只有名字与装机时间,位图按需另读)与它的分组。
+ * [canUninstall]:能不能走系统卸载(R106,所有应用页菜单据此列不列「卸载应用」;见 [canUninstall] 函数)。
+ */
+data class PickerCandidate(val app: AppEntry, val group: PickerGroup, val canUninstall: Boolean = false)
 
 /**
  * 列表顺序:应用在上、系统工具在下,两组各按名字排(名字读不到时按包名)。

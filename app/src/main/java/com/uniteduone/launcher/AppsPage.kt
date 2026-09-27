@@ -18,9 +18,9 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
@@ -57,6 +58,8 @@ import kotlinx.coroutines.withContext
  * - 定位效果 key `(nonce, covered, requesters)`,退出判据是目标自报(铁律 2);`holder == null` 看门狗(3 帧宽限、60 帧封顶,
  *   守卫 `covered` / `restoring` / `holder == null` 全在 key 里,铁律 6);
  * - [covered]:长按菜单盖在上面时让路,菜单关掉 `focusNonce++` 后接回同一张卡。
+ * - **数据来自进程级缓存 [AppsPageCache]**(R105):打开时有缓存就同一帧画出来;后台刷新回来内容不同才替换,
+ *   包的清单变了(装 / 卸)时目标按包名重算([appsPageSwap] / [appsPageRetarget]),被卸载的那张 → 同组原位置补上来的下一张。
  */
 
 /** 网格里的一行。标题 / 分组标题不可聚焦,只占高度。 */
@@ -165,6 +168,99 @@ internal fun loadAppsPage(ctx: Context): AppsPageData = appsPageData(
 )
 
 /**
+ * 包变动 / 刷新之后,原来的焦点目标 [target](旧表里的下标)在新表里落哪(纯函数,R105):
+ * - 那个包还在 → 它的新下标(焦点按包名跟着走,铁律 5:目标与当前位置分开);
+ * - 没了(卸载)→ **同一组里**原位置之后第一张还在的(= 网格上补进那一格的那张)→ 同组之前最近一张 → 0(页首)。
+ *   按组找:「应用」组最后一张被卸载时,平铺表的下一张是「系统工具」第一张,但它在网格上不是那一格,落上一张才对。
+ */
+internal fun appsPageRetarget(old: AppsPageData, new: AppsPageData, target: Int): Int {
+    if (new.items.isEmpty()) return 0
+    val oldPkgs = old.items.map { it.app.packageName }
+    val newIdx = new.items.withIndex().associate { (i, c) -> c.app.packageName to i }
+    val t = oldPkgs.getOrNull(target) ?: return target.coerceIn(0, new.items.lastIndex)
+    newIdx[t]?.let { return it }
+    val group = if (target < old.appCount) 0 until old.appCount else old.appCount until old.items.size
+    for (k in target + 1 until group.last + 1) newIdx[oldPkgs[k]]?.let { return it }
+    for (k in target - 1 downTo group.first) newIdx[oldPkgs[k]]?.let { return it }
+    return 0
+}
+
+/** 一次替换:新数据、新目标;[reposition] = 包的清单变了(不只是改了名),要按新目标重新落焦点。 */
+internal data class AppsPageSwap(val data: AppsPageData, val target: Int, val reposition: Boolean)
+
+/**
+ * 缓存刷新回来的 [fresh] 要不要替换正在画的 [shown](纯函数,R105 stale-while-revalidate):
+ * 没数据 / 内容相同 → null(不替换,不重组、焦点不动);不同 → 替换,目标按包名重算([appsPageRetarget])。
+ */
+internal fun appsPageSwap(shown: AppsPageData?, fresh: AppsPageData?, target: Int): AppsPageSwap? {
+    if (fresh == null || fresh == shown) return null
+    if (shown == null) return AppsPageSwap(fresh, target.coerceIn(0, (fresh.items.size - 1).coerceAtLeast(0)), reposition = true)
+    val samePkgs = shown.items.map { it.app.packageName } == fresh.items.map { it.app.packageName }
+    return AppsPageSwap(fresh, if (samePkgs) target else appsPageRetarget(shown, fresh, target), reposition = !samePkgs)
+}
+
+/**
+ * **应用页的进程级缓存**(R105,Gordon 2026-09-27 真机:点「应用」卡一下、页面弹出慢)。原来每次打开都在 IO 线程重跑
+ * [Apps.pickerCandidates](查全部包的启动入口、标签、系统标记),数据回来前网格是空的——模拟器实测按下到网格首帧
+ * 1.4–1.8 s。现在:
+ * - 桌面起来、主线程第一次空闲后在后台**预热**一次([prewarm]:列表 + 前 [PREWARM_CARDS] 张卡片图进 [Apps.pickerCard] 的 LRU);
+ * - 此后 `revision` 每变一次(装 / 卸 / 更新应用、改名、换卡片图……)MainActivity 在后台 [refresh];
+ * - 打开页面时**有缓存就同一帧画出来**,再在后台重读一次核对,内容不同才替换([appsPageSwap])。
+ * 读写串行(一把锁),读的时候又有人要刷新的,跑完再读一遍;更早的请求已被更晚开始的一次读覆盖的,直接跳过。
+ */
+object AppsPageCache {
+    /** 预热时顺带解码的卡片图张数:前三行(一行 [AppsPageLayout.COLUMNS] 张),打开时第一屏就有图。 */
+    const val PREWARM_CARDS = 3 * AppsPageLayout.COLUMNS
+    /** 打开页面画出缓存之后,等这么久再在后台核对(列表与每张已缓存的卡片图),不跟开页那几帧抢 CPU。 */
+    const val REVALIDATE_DELAY_MS = 600L
+
+    private val state = kotlinx.coroutines.flow.MutableStateFlow<AppsPageData?>(null)
+    /** 最近一次读到的列表;null = 还没读过。StateFlow 自己按 equals 去重:内容相同的刷新不会通知任何人。 */
+    val data: kotlinx.coroutines.flow.StateFlow<AppsPageData?> = state
+
+    private val lock = kotlinx.coroutines.sync.Mutex()
+    private val requested = java.util.concurrent.atomic.AtomicLong(0)
+    /** 已完成的那次读开始时,请求计数是多少——不小于某个请求的号,说明那次读是在这个请求之后开始的,已经覆盖它。 */
+    @Volatile private var covered = 0L
+
+    /** 后台重读一次(IO 线程跑,任意线程调)。 */
+    suspend fun refresh(ctx: Context) {
+        val ticket = requested.incrementAndGet()
+        lock.withLock {
+            if (covered >= ticket) return
+            val start = requested.get()
+            val t0 = android.os.SystemClock.uptimeMillis()
+            val fresh = withContext(Dispatchers.IO) { loadAppsPage(ctx.applicationContext) }
+            android.util.Log.i("UnitedU", "appsPage list loaded ${fresh.items.size} items in ${android.os.SystemClock.uptimeMillis() - t0} ms")
+            covered = start
+            state.value = fresh
+        }
+    }
+
+    /** 预热:读列表,再把前 [PREWARM_CARDS] 张卡片图解码进 LRU(已在缓存里、版本戳对得上的不重解)。 */
+    suspend fun prewarm(ctx: Context) {
+        refresh(ctx)
+        val app = ctx.applicationContext
+        val pkgs = state.value?.items.orEmpty().take(PREWARM_CARDS).map { it.app.packageName }
+        withContext(Dispatchers.IO) { for (p in pkgs) runCatching { Apps.pickerCard(app, p) } }
+    }
+}
+
+/** 应用页长按 / MENU 菜单第一层的项(R90 起「打开 / 加到桌面…」,R106 在「打开」下面加「卸载」)。 */
+enum class AppsMenuAction { OPEN, UNINSTALL, ADD_TO_HOME }
+
+/** 第一层菜单(纯函数):卸载不了的(系统预装、没更新过)不列「卸载应用」。 */
+fun appsMenuActions(canUninstall: Boolean): List<AppsMenuAction> =
+    if (canUninstall) listOf(AppsMenuAction.OPEN, AppsMenuAction.UNINSTALL, AppsMenuAction.ADD_TO_HOME)
+    else listOf(AppsMenuAction.OPEN, AppsMenuAction.ADD_TO_HOME)
+
+/**
+ * 能不能走系统卸载(纯函数):非系统应用能;系统预装但更新过的也能(系统卸载页给的是「卸载更新」);
+ * 系统预装、没更新过的不能——`ACTION_DELETE` 对它只会报错或什么都不做。
+ */
+fun canUninstall(isSystem: Boolean, isUpdatedSystem: Boolean): Boolean = !isSystem || isUpdatedSystem
+
+/**
  * @param onFocusedApp 现在持有焦点的那一张(得到报、失去报 null;离开组合报 null)——MainActivity 长按 / MENU 据此弹菜单。
  *   报的卡片图取进程内缓存([Apps.cachedPickerCard]),菜单左半 banner 用。
  */
@@ -174,25 +270,42 @@ fun AppsPage(
     covered: Boolean,
     revision: Int,
     onOpen: (AppEntry) -> Unit,
-    onFocusedApp: (AppEntry?) -> Unit,
+    onFocusedApp: (PickerCandidate?) -> Unit,
     onBack: () -> Unit,
 ) {
     val ctx = LocalContext.current
-    val data by produceState<AppsPageData?>(null, revision) {
-        value = withContext(Dispatchers.IO) { loadAppsPage(ctx) }
+    // R105:有缓存就第一帧画缓存(StateFlow 的当前值同步可读),打开时后台再读一次核对;
+    // 之后 revision 变了由 MainActivity 在后台刷新缓存,这里只接结果。
+    val fresh by AppsPageCache.data.collectAsState()
+    var data by remember { mutableStateOf(AppsPageCache.data.value) }
+    // 核对放在开页之后:有缓存时先让带卡片的头几帧画出去,再在后台重读(IO 线程与主线程抢 CPU,A95L 只有几个慢核);
+    // 没有缓存(预热还没跑完)时立刻读,和原来一样。
+    LaunchedEffect(Unit) {
+        if (data != null) { withFrameNanos { }; withFrameNanos { }; kotlinx.coroutines.delay(AppsPageCache.REVALIDATE_DELAY_MS) }
+        AppsPageCache.refresh(ctx)
     }
     androidx.activity.compose.BackHandler { onBack() }
     val items = data?.items.orEmpty()
     val lines = remember(data) { data?.let { appsPageLines(it.appCount, it.items.size - it.appCount) } ?: listOf(AppsLine.Title) }
 
-    val reqs = remember(items.size) { List(items.size) { FocusRequester() } }
+    // requester 表按**包的清单**换(不是按张数):同样张数、换了应用(卸一个装一个)也要换表,定位效果据此重跑、按包名落到目标。
+    val pkgs = remember(items) { items.map { it.app.packageName } }
+    val reqs = remember(pkgs) { List(items.size) { FocusRequester() } }
     val requesters by rememberUpdatedState(reqs)
-    /** 目标:回来时落哪(铁律 5,与 [holder] 分开)。只在不还原时跟着自报的焦点走。 */
+    /** 目标:回来时落哪(铁律 5,与 [holder] 分开)。只在不还原时跟着自报的焦点走;换数据时按包名重算。 */
     var focusedIdx by remember { mutableStateOf(0) }
     /** 现在持有焦点的那一张(只信控件自报,铁律 4);null = 网格里没有。 */
     var holder by remember { mutableStateOf<Int?>(null) }
     // 初值 true:第一帧 Compose 若自己把焦点给了某一张,那次上报不能改写目标;定位效果落地后放开。
     var restoring by remember { mutableStateOf(true) }
+    // **换数据**(R105):内容不同才换。包的清单变了时先冻结目标(restoring)再换表——被卸载的那一格节点一拆,
+    // 系统当场把焦点派给别的卡,那次上报不能改写刚按包名算好的目标(铁律 5);定位效果随 requester 表换新重跑、落地后放开。
+    LaunchedEffect(fresh) {
+        val swap = appsPageSwap(data, fresh, focusedIdx) ?: return@LaunchedEffect
+        if (swap.reposition) restoring = true
+        focusedIdx = swap.target
+        data = swap.data
+    }
     val target = focusedIdx.coerceIn(0, (items.size - 1).coerceAtLeast(0))
     val targetNow by rememberUpdatedState(target)
 
@@ -236,9 +349,17 @@ fun AppsPage(
     }
     // 上报只派生、不缓存(同首页 onFocusedCard):列表重读后同一格换了应用、没有焦点事件,items 变 → 再报一次。
     LaunchedEffect(holder, items) {
-        onFocusedApp(holder?.let { items.getOrNull(it) }?.app?.let { a -> Apps.cachedPickerCard(a.packageName)?.copy(label = a.label) ?: a })
+        onFocusedApp(holder?.let { items.getOrNull(it) }?.let { c ->
+            c.copy(app = Apps.cachedPickerCard(c.app.packageName)?.copy(label = c.app.label) ?: c.app)
+        })
     }
     DisposableEffect(Unit) { onDispose { onFocusedApp(null) } }
+    // 打点:带着卡片的那一次组合之后的下一帧开始时,那一帧已经画出去了(R105 量打开耗时)。
+    LaunchedEffect(items.isNotEmpty()) {
+        if (items.isEmpty()) return@LaunchedEffect
+        withFrameNanos { }
+        AppsPagePerf.gridShown(items.size)
+    }
 
     val metrics = Theme.gtvCardMetrics(AppsPageLayout.CARD_SIZE)
     val titleStyle = TextStyle(
@@ -332,9 +453,15 @@ private fun AppsPageCard(
 ) {
     val ctx = LocalContext.current
     val pkg = candidate.app.packageName
+    // **图的状态按包名记**(R105):卡片是按格子位置组合的(没有 key,焦点节点才稳),列表一变(卸掉一个、后面整体前移)
+    // 同一格就换了应用。原来用 produceState——它的值不随 key 重置,新应用的图读回来之前这一格一直画着上一个应用的图,
+    // 读不到(null)就永远画着(模拟器实测:卸掉 United UI 后 YouTube 那一格显示成前一格 UnitedU GTV 的横幅)。
     // revision:换了卡片图 / 应用更新后重读(pickerCard 按版本戳自己判断要不要真的重解码)。
-    val card by produceState(Apps.cachedPickerCard(pkg), pkg, revision) {
-        value = withContext(Dispatchers.IO) { Apps.pickerCard(ctx, pkg) } ?: value
+    // 已有缓存图的格子晚一点再核对版本戳(同上,不跟开页那几帧抢 CPU);没有图的立刻读。
+    var card by remember(pkg) { mutableStateOf(Apps.cachedPickerCard(pkg)) }
+    LaunchedEffect(pkg, revision) {
+        if (card != null) kotlinx.coroutines.delay(AppsPageCache.REVALIDATE_DELAY_MS)
+        card = withContext(Dispatchers.IO) { Apps.pickerCard(ctx, pkg) } ?: card
     }
     val app = card?.copy(label = candidate.app.label) ?: candidate.app
     AppCard(
@@ -352,5 +479,23 @@ private fun AppsPageCard(
     )
 }
 
-/** 应用页的长按 / MENU 菜单状态(R90):[rows] == null 是第一层,非 null 是「加到哪一行」那一层(layout.json 的行)。 */
-data class AppsMenu(val app: AppEntry, val rows: List<LayoutRow>? = null)
+/**
+ * 打开耗时打点(R105):顶栏「应用」按下(`openApps`)到网格第一次带着卡片画出来的那一帧,写一行 logcat
+ * (`adb logcat -s UnitedU`)。只记每次打开的第一帧,之后的刷新不再报。主线程读写。
+ */
+internal object AppsPagePerf {
+    private var openedAt = 0L
+    fun opened() { openedAt = android.os.SystemClock.uptimeMillis() }
+    fun gridShown(items: Int) {
+        val t = openedAt
+        if (t == 0L) return
+        openedAt = 0L
+        android.util.Log.i("UnitedU", "appsPage grid shown +${android.os.SystemClock.uptimeMillis() - t} ms ($items items)")
+    }
+}
+
+/**
+ * 应用页的长按 / MENU 菜单状态(R90):[rows] == null 是第一层,非 null 是「加到哪一行」那一层(layout.json 的行)。
+ * [canUninstall]:第一层列不列「卸载应用」(R106,[appsMenuActions])。
+ */
+data class AppsMenu(val app: AppEntry, val canUninstall: Boolean = false, val rows: List<LayoutRow>? = null)

@@ -1,6 +1,8 @@
 package com.uniteduone.launcher
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -101,5 +103,80 @@ class AppsPageTest {
         assertSame(rows, addToRow(rows, 5, "VIDEO", "c"))
         // 在别的行里有它不影响:一个包可以在两行各有一张
         assertEquals(listOf("a"), addToRow(rows, 1, "MUSIC", "a")[1].apps)
+    }
+
+    // ---- R105 缓存刷新合并 + 菜单 ----
+
+    private fun data(apps: List<String>, tools: List<String> = emptyList()) = AppsPageData(
+        apps.map { cand(it, it) } + tools.map { cand(it, it, PickerGroup.SYSTEM_TOOLS) },
+        apps.size,
+    )
+
+    @Test fun sameContentIsNotReplaced() {
+        val d = data(listOf("a", "b", "c"), listOf("t"))
+        // 内容相同(另一份相等的对象也一样)→ 不替换,不重组、焦点不动
+        assertNull(appsPageSwap(d, data(listOf("a", "b", "c"), listOf("t")), target = 2))
+        assertNull(appsPageSwap(d, null, target = 2))
+    }
+
+    @Test fun renameOnlyReplacesWithoutMovingFocus() {
+        val shown = data(listOf("a", "b", "c"))
+        val renamed = AppsPageData(shown.items.map { if (it.app.packageName == "b") it.copy(app = it.app.copy(label = "B2")) else it }, 3)
+        val swap = appsPageSwap(shown, renamed, target = 1)!!
+        assertEquals(1, swap.target)
+        assertFalse(swap.reposition)
+        assertSame(renamed, swap.data)
+    }
+
+    @Test fun firstDataArrivalRepositionsAndClampsTarget() {
+        val swap = appsPageSwap(null, data(listOf("a", "b")), target = 5)!!
+        assertEquals(1, swap.target)
+        assertTrue(swap.reposition)
+    }
+
+    @Test fun focusFollowsThePackageWhenOthersAreAddedOrRemoved() {
+        // 焦点在 c(下标 2);前面装了一个 aa、b 被卸了 → c 仍是目标,下标按新表算
+        val swap = appsPageSwap(data(listOf("a", "b", "c", "d")), data(listOf("a", "aa", "c", "d")), target = 2)!!
+        assertEquals(2, swap.target)
+        assertTrue(swap.reposition)
+        assertEquals(1, appsPageSwap(data(listOf("a", "b", "c", "d")), data(listOf("a", "c", "d")), target = 2)!!.target)
+        assertEquals(4, appsPageSwap(data(listOf("a", "b", "c")), data(listOf("0", "1", "a", "b", "c")), target = 2)!!.target)
+    }
+
+    @Test fun uninstalledTargetLandsOnTheNextCardInItsSlot() {
+        // 卸掉 b(下标 1)→ 补进那一格的 c(新下标 1)
+        assertEquals(1, appsPageRetarget(data(listOf("a", "b", "c", "d")), data(listOf("a", "c", "d")), target = 1))
+        // 下一张也同时没了 → 再往后找
+        assertEquals(1, appsPageRetarget(data(listOf("a", "b", "c", "d")), data(listOf("a", "d")), target = 1))
+    }
+
+    @Test fun uninstalledLastAppFallsBackToPreviousInSameGroupNotToSystemTools() {
+        // 「应用」组最后一张 c 被卸:平铺表下一张是系统工具 t,但网格上那一格空了 → 落上一张 b
+        val old = data(listOf("a", "b", "c"), listOf("t", "u"))
+        val new = data(listOf("a", "b"), listOf("t", "u"))
+        assertEquals(1, appsPageRetarget(old, new, target = 2))
+        // 系统工具组里同理:卸掉 u(组内最后)→ t
+        assertEquals(3, appsPageRetarget(old, data(listOf("a", "b", "c"), listOf("t")), target = 4))
+    }
+
+    @Test fun uninstalledOnlyAppInGroupFallsBackToPageStart() {
+        assertEquals(0, appsPageRetarget(data(listOf("a"), listOf("t")), data(emptyList(), listOf("t")), target = 0))
+        assertEquals(0, appsPageRetarget(data(listOf("a")), data(emptyList()), target = 0))
+        // 目标下标本身越界(旧表比目标短)→ 夹到新表里
+        assertEquals(1, appsPageRetarget(data(listOf("a")), data(listOf("a", "b")), target = 7))
+    }
+
+    @Test fun menuListsUninstallUnderOpenOnlyWhenUninstallable() {
+        assertEquals(
+            listOf(AppsMenuAction.OPEN, AppsMenuAction.UNINSTALL, AppsMenuAction.ADD_TO_HOME),
+            appsMenuActions(canUninstall = true),
+        )
+        assertEquals(listOf(AppsMenuAction.OPEN, AppsMenuAction.ADD_TO_HOME), appsMenuActions(canUninstall = false))
+    }
+
+    @Test fun systemAppsAreNotUninstallableUnlessUpdated() {
+        assertTrue(canUninstall(isSystem = false, isUpdatedSystem = false))
+        assertTrue(canUninstall(isSystem = true, isUpdatedSystem = true))   // 系统卸载页给「卸载更新」
+        assertFalse(canUninstall(isSystem = true, isUpdatedSystem = false))
     }
 }
