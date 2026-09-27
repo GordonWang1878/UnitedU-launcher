@@ -37,12 +37,12 @@ const val INPUTS_RESTORE_ID = "__restoreHiddenInputs__"
 data class InputsPageData(val visible: List<InputEntry>, val hiddenCount: Int)
 
 /**
- * 输入源页的列表(纯函数,JVM 可测):HDMI-CEC 父子去重 → 多调谐器合并 → 去掉隐藏的、换上改过的名字(同 R92 前的首页输入源行)。
+ * 输入源页的列表(纯函数,JVM 可测):按电视输入菜单的顺序排(R97)→ HDMI-CEC 父子去重 → 多调谐器合并 → 去掉隐藏的、换上改过的名字(同 R92 前的首页输入源行)。
  * [hiddenCount] 只数**这台电视现在还列得出来**的输入里被隐藏的——hidden-inputs.json 里残留的旧 id 不算,
  * 否则「恢复隐藏的输入源 2 个」按下去什么都没回来。
  */
 internal fun inputsPageData(all: List<InputEntry>, hidden: Set<String>, names: Map<String, String>): InputsPageData {
-    val merged = mergeTuners(dedupeCec(all))
+    val merged = mergeTuners(dedupeCec(orderInputs(all)))
     return InputsPageData(applyInputPrefs(merged, hidden, names), merged.count { it.id in hidden })
 }
 

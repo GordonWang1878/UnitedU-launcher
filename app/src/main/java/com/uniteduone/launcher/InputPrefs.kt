@@ -4,6 +4,27 @@ import android.content.Context
 import android.util.Log
 
 /**
+ * 输入源的显示顺序(R97,2026-09-27 A95L 实测):系统 `tvInputList` 的顺序来自一张哈希表,A95L 上是
+ * HDMI 3、HDMI 4、HDMI 1、HDMI 2、电视——不能直接用。规则照电视自己的输入菜单:调谐器(电视)在前,
+ * 透传输入按端口号升序;端口号取系统标签里的数字(「HDMI 1」→ 1),HDMI-CEC 子设备(「PlayStation 5」)
+ * 没有端口号,取它父输入的端口号、排在父输入之后;都取不到的排最后,再按标签、id 稳定排序。
+ * 必须在 [dedupeCec] 之前调用(去重会拿掉父输入,子设备就查不到端口号了),且用的是系统标签,不是用户改过的名字。
+ */
+internal fun orderInputs(entries: List<InputEntry>): List<InputEntry> {
+    val byId = entries.associateBy { it.id }
+    fun port(e: InputEntry): Int? = Regex("""(\d+)""").find(e.label)?.groupValues?.get(1)?.toIntOrNull()
+    fun key(e: InputEntry): Int {
+        if (!e.isPassthrough) return -1
+        // CEC 子设备只认父输入的端口号:它自己的名字里的数字(「PlayStation 5」的 5)不是端口
+        val own = if (e.parentId != null) e.parentId.let { byId[it] }?.let { port(it) } else port(e)
+        return own ?: Int.MAX_VALUE
+    }
+    return entries.sortedWith(
+        compareBy<InputEntry>({ key(it) }, { if (it.parentId != null) 1 else 0 }, { it.label }, { it.id }),
+    )
+}
+
+/**
  * HDMI-CEC 父子去重(M4b spec §1.3 / Ruling M):某个输入若是任何其它输入的 parentId,就不列它,
  * 只列它下面的子设备(「PlayStation 5」比「HDMI 1」有用)。只看一层;顺序不变。
  */
