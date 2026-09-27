@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalConfiguration
@@ -128,6 +129,13 @@ fun HomeScreen(
      * MainActivity 自己把它归 0。
      */
     onPageShift: (Dp) -> Unit = {},
+    /**
+     * **R110**:这一帧 R85 渐变是否已画进 MainActivity 的背景图层(见 [HomeBackdropBridge])。为 true 时首页自己
+     * 不画渐变(节点仍在,绘制阶段读,不重组)。默认 false = 原样由首页画。
+     */
+    gradientInBackdrop: () -> Boolean = { false },
+    /** **R110**:每次组合后上报 `contentAlpha`(离开组合时报 0),MainActivity 据此判断渐变能不能进背景图层。 */
+    onContentAlpha: (Float) -> Unit = {},
 ) {
     val ctx = LocalContext.current
     // gtv 线:卡片尺寸不再由「每行几张」反推,而是旧的 5/6/8 存量档位映射到三个固定尺寸
@@ -488,6 +496,9 @@ fun HomeScreen(
             animationSpec = tween(if (effectiveIdle) 1200 else 400),
             label = "contentAlpha",
         )
+        // R110:同一帧里背景图层读到的必须是这一帧的值——SideEffect 在本帧组合落地之后、绘制之前跑。
+        SideEffect { onContentAlpha(contentAlpha) }
+        DisposableEffect(Unit) { onDispose { onContentAlpha(0f) } }
         val surface = androidx.tv.material3.MaterialTheme.colorScheme.surface
         // 首页提示文字的字样:空桌面求救那句与移动态底部提示共用一份(M4b spec §0-10「沿用现有提示文字样式」)
         val hintStyle = TextStyle(
@@ -515,19 +526,16 @@ fun HomeScreen(
         // (一半高度 12.5%、四分之三 42%、底边 100%):上面的英雄区基本是原壁纸,越往下暗得越快,卡片行落在深色底上。
         // Compose 渐变在相邻 stop 之间线性插值,用 [GtvTokens.HOME_FADE_STOPS] 个等分 stop 逼近曲线(R85 起三段,见 homeFadeAlpha)。
         // 与 R24 一样固定在屏幕坐标、随 contentAlpha 淡出(待机 / 屏保时消失)。
+        // R110:笔刷与 MainActivity 背景图层共用 homeFadeBrush();背景图层画了渐变的那些帧(contentAlpha 恰为 1、
+        // 屏保 / 黑层都没在画)这里跳过,由 gradientInBackdrop 在绘制阶段判,两边同一帧读同一份状态。
         if (GtvTokens.HOME_FADE_ENABLED) {
+            val fadeBrush = remember { homeFadeBrush() }
             Box(
                 Modifier
                     .fillMaxSize()
                     .alpha(contentAlpha)
-                    .background(
-                        androidx.compose.ui.graphics.Brush.verticalGradient(
-                            *Array(GtvTokens.HOME_FADE_STOPS + 1) { i ->
-                                val t = i.toFloat() / GtvTokens.HOME_FADE_STOPS
-                                t to GtvTokens.MenuBg.copy(alpha = GtvTokens.homeFadeAlpha(t))
-                            },
-                        ),
-                    ),
+                    .drawWithContent { if (!gradientInBackdrop()) drawContent() }
+                    .background(fadeBrush),
             )
         }
         if (GtvTokens.HERO_GRADIENT_ENABLED) {

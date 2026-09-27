@@ -465,6 +465,8 @@ class MainActivity : ComponentActivity() {
             // 同一根曲线,只能把动画值举到这里再喂给 Wallpaper。编辑页替换首页时首页不在组合里、没人
             // 上报,这里归 0——编辑页本来就该看到完整壁纸(静止态)。
             var pageShift by remember { mutableStateOf(0.dp) }
+            // R110:壁纸缓存图层与首页之间「渐变这一帧归谁画」的共享状态(见 HomeBackdropBridge)。
+            val backdrop = remember { HomeBackdropBridge() }
             LaunchedEffect(editing) { if (editing) pageShift = 0.dp }
             // 首页行距(dp),只给 WALLPAPER_DIM_PER_ROW 的逐行插值用。
             val homePitch = GtvLayout.rowPitch(cardsPerRowToGtvSize(homeSettings.cardsPerRow), homeSettings.showTitles)
@@ -598,12 +600,29 @@ class MainActivity : ComponentActivity() {
             // 是在此之前读的;不重读的话,从 M2 升上来、开着「跟随壁纸主色」的用户整个首次会话
             // 都看不到壁纸主色(见 Wallpapers.prepare 的 KDoc)。
             // R45:壁纸单层、不位移,只有 alpha 随整页位移变暗;以 lambda 传入,绘制阶段读,动画每帧不重组它。
+            // (黑层的动画状态提到壁纸之前声明:R110 的 gradientBaked 要读它;画的位置不变,仍在屏保之上。)
+            val blackAlpha = animateFloatAsState(
+                // 进自定义屏保时黑层淡出、照片亮出来(M5 spec §1.4 第 3 层)——「全黑」只管待机。
+                targetValue = if (idle && homeSettings.idleContent == IdleContent.BLACK && !screensaverActive) 1f else 0f,
+                animationSpec = tween(if (idle) 1200 else 400),
+                label = "blackAlpha",
+            )
+            // **R110**:R85 渐变这一帧能不能画进壁纸的缓存图层——只在首页全亮(contentAlpha 恰为 1)、屏保与黑层都没在画、
+            // 壁纸确实走图层画法时。否则屏保 / 黑层夹在壁纸与首页之间,渐变挪下去会改叠放顺序。绘制阶段读(两边同一帧同一份)。
+            val gradientBaked = remember(backdrop, blackAlpha) {
+                {
+                    backdrop.wallpaperLayered && backdrop.homeContentAlpha == 1f &&
+                        !screensaverActive && blackAlpha.value == 0f
+                }
+            }
             Wallpaper(
                 this@MainActivity,
                 wallpaperSpec,
                 onSettingsChanged = { settingsRevision++ },
                 // vertical-motion(2026-09-27):WALLPAPER_DIM_PER_ROW 默认关 = 仍是 wallpaperAlpha(pageShift)。
                 alpha = { GtvLayout.homeWallpaperAlpha(pageShift.value, homePitch) },
+                bridge = backdrop,
+                gradientBaked = gradientBaked,
             )
             // 自定义屏保层(M5 spec §1.4 第 2 层):只看 screensaverActive。不再因「不淡出」不组合——
             // 待机显示只管待机,「不淡出」时屏保照样会来(spec §0);没进屏保时 alpha 为 0,一张图都不画。
@@ -621,12 +640,6 @@ class MainActivity : ComponentActivity() {
             // 平滑过去(淡入 0 → 1、淡出 1 → 0 都完整),Box 等淡出真的走到 0 才离开组合。
             // 两处读 alpha 都不在组合阶段逐帧发生:`derivedStateOf` 只在「是否 > 0」翻转时让这里重组,
             // 透明度在 drawBehind(绘制阶段)里读——淡入淡出的 1.2 s 里不会每帧重组整层。
-            val blackAlpha = animateFloatAsState(
-                // 进自定义屏保时黑层淡出、照片亮出来(M5 spec §1.4 第 3 层)——「全黑」只管待机。
-                targetValue = if (idle && homeSettings.idleContent == IdleContent.BLACK && !screensaverActive) 1f else 0f,
-                animationSpec = tween(if (idle) 1200 else 400),
-                label = "blackAlpha",
-            )
             val blackShown by remember(blackAlpha) { derivedStateOf { blackAlpha.value > 0f } }
             if (blackShown) {
                 Box(
@@ -698,6 +711,8 @@ class MainActivity : ComponentActivity() {
                     moveLanding = moveLanding,
                     onRowsShown = { shownRows = it },
                     onPageShift = { pageShift = it },
+                    gradientInBackdrop = gradientBaked,
+                    onContentAlpha = { backdrop.homeContentAlpha = it },
                 )
             }
             }

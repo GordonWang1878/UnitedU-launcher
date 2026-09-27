@@ -11,8 +11,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -395,6 +398,13 @@ fun Wallpaper(
     spec: WallpaperSpec,
     onSettingsChanged: () -> Unit = {},
     alpha: () -> Float = { 1f },
+    /**
+     * R110:非 null 时走两张缓存图层的画法(见 [HomeBackdropBridge]),并把「此刻走没走」写回它。
+     * null(没有别的调用点,留给将来)= 原来的单层画法。
+     */
+    bridge: HomeBackdropBridge? = null,
+    /** R110:这一帧 R85 渐变画进背景图层(true)还是由首页自己画(false)。绘制阶段读。 */
+    gradientBaked: () -> Boolean = { false },
 ) {
     // produceState 的 remember 不带 key:spec 变时只重启生产者,旧值留着 → 不闪黑
     val bmp by produceState<Bitmap?>(initialValue = null, spec) {
@@ -408,7 +418,13 @@ fun Wallpaper(
     // R61:没有壁纸(或首张还在解码)时画纯深色底——用 Google「黑」的那个 surface 色 [GtvTokens.MenuBg](R24 的
     // 衰减终值也是它),不新造颜色。不乘 [alpha]:没有图就没有「浏览态变暗」这回事,整页始终同一个深色。
     val b = bmp ?: run {
+        if (bridge != null) SideEffect { bridge.wallpaperLayered = false }
         Box(Modifier.fillMaxSize().background(GtvTokens.MenuBg))
+        return
+    }
+    if (bridge != null) {
+        SideEffect { bridge.wallpaperLayered = true }
+        LayeredWallpaper(b, alpha, gradientBaked)
         return
     }
     Crossfade(
@@ -426,6 +442,62 @@ fun Wallpaper(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer { this.alpha = alpha() },
+        )
+    }
+}
+
+/**
+ * **R110**:壁纸(+ 进图层时的 R85 渐变)画成两张 [CompositingStrategy.Offscreen] 缓存图层,按 [backdropLerp] 合成。
+ * 推导与取舍见 [HomeBackdropBridge]。每层里是**与原来同一套**画法——Crossfade 换图、`ContentScale.Crop`、
+ * 下层给每张图套 alpha [GtvLayout.WALLPAPER_BROWSE_ALPHA] 的 `graphicsLayer`(原来套的是动画中的 alpha),
+ * 所以换图的交叉淡入在两层里同步进行,与单层时一样。
+ * **浏览态 alpha 只在图层的合成参数里读**(`graphicsLayer {}` 块):位移动画每帧只改两张纹理的合成 alpha,
+ * 图层内容不失效、不重画——这正是省下来的那两道全屏着色。
+ */
+@Composable
+private fun LayeredWallpaper(b: Bitmap, alpha: () -> Float, gradientBaked: () -> Boolean) {
+    val brush = remember { homeFadeBrush() }
+    // 下层 P_B:t 到 1(静止在首行)时整层被上层完全盖住,alpha 置 0 让 HWUI 直接跳过它。
+    Box(
+        Modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                compositingStrategy = CompositingStrategy.Offscreen
+                this.alpha = if (backdropLerp(alpha()) >= 1f) 0f else 1f
+            },
+    ) {
+        WallpaperImages(b, GtvLayout.WALLPAPER_BROWSE_ALPHA)
+        if (GtvTokens.HOME_FADE_ENABLED) HomeFadeGradient(brush, gradientBaked)
+    }
+    // 上层 P_1:以 t 合成(t = 0 时 alpha 0,同样被跳过)。
+    Box(
+        Modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                compositingStrategy = CompositingStrategy.Offscreen
+                this.alpha = backdropLerp(alpha())
+            },
+    ) {
+        WallpaperImages(b, 1f)
+        if (GtvTokens.HOME_FADE_ENABLED) HomeFadeGradient(brush, gradientBaked)
+    }
+}
+
+/** 图层里的壁纸本体:与 [Wallpaper] 单层画法同一个 Crossfade,每张图套一个固定 alpha [imageAlpha] 的图层。 */
+@Composable
+private fun WallpaperImages(b: Bitmap, imageAlpha: Float) {
+    Crossfade(
+        targetState = b,
+        animationSpec = tween(Theme.WallpaperCrossfadeMs),
+        label = "wallpaperCrossfade",
+    ) { bitmap ->
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { this.alpha = imageAlpha },
         )
     }
 }
