@@ -569,9 +569,13 @@ class MainActivity : ComponentActivity() {
             // **设置页外壳**(R69)。编辑页开着时外壳不在组合里(编辑页独占整屏;外壳的栈留着,退出编辑页后按栈重建)。
             val shellShown = shellStack.isNotEmpty() && !editing
             val shellPreview = shellShown && pageHasPreview(shellStack.last().page)
+            // **R108 淡入淡出**:底色、首页那一层(透明 / 缩进预览框)、外壳内容三样一起动,由 ShellMotion 的 a / v / z
+            // 三个量驱动(见 SettingsFade.kt 的推导);逻辑状态(shellStack)照旧当场变,画面另外淡出。
+            val shellMotion = rememberShellMotion(shellShown, shellPreview)
+            val shellVisible = rememberShellVisible(shellMotion, shellShown)
             // 外壳的底色铺在首页那一层**之下**(R73):外壳内容透明,有预览的页里预览框之外露出的就是这块 MenuBg,
             // 预览框里是缩小进去的真首页;没有预览的页首页那一层整层透明,只剩这块底色。
-            if (shellShown) Box(Modifier.fillMaxSize().background(GtvTokens.MenuBg))
+            if (shellVisible) Box(Modifier.fillMaxSize().graphicsLayer { alpha = shellMotion.a.value }.background(GtvTokens.MenuBg))
             // **首页那一层**:壁纸 + 自定义屏保 + 全黑待机层 + 首页(或编辑页)。外壳开在带预览的页时整层按比例缩进
             // 预览框(R73:预览就是常驻的这一份首页本身,不另画一份;它在 previewing 下本来就不可聚焦、看门狗让路、
             // 不收按键,焦点账本零新增)。几何读 previewRect,与外壳画描边的是同一个函数。
@@ -581,16 +585,18 @@ class MainActivity : ComponentActivity() {
                 Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        if (!shellShown) return@graphicsLayer
-                        if (!shellPreview) { alpha = 0f; return@graphicsLayer }
-                        val scale = pr.width.dp.toPx() / size.width
+                        // 不透明度与几何都在绘制阶段读动画值,淡入淡出每帧只改 RenderNode,不重组首页(R108)。
+                        alpha = homeLayerAlpha(shellMotion.a.value, shellMotion.v.value)
+                        val zoom = shellMotion.z.value
+                        if (zoom <= 0f) return@graphicsLayer
+                        val scale = 1f + (pr.width.dp.toPx() / size.width - 1f) * zoom
                         transformOrigin = TransformOrigin(0f, 0f)
                         scaleX = scale
                         scaleY = scale
-                        translationX = pr.x.dp.toPx()
-                        translationY = pr.y.dp.toPx()
-                        // 圆角在本地(未缩放)坐标里给:8 dp ÷ 缩放,缩下来正好 8 dp,与卡片同一个圆角。
-                        shape = RoundedCornerShape(GtvLayout.CARD_CORNER.dp.toPx() / scale)
+                        translationX = pr.x.dp.toPx() * zoom
+                        translationY = pr.y.dp.toPx() * zoom
+                        // 圆角在本地(未缩放)坐标里给:8 dp ÷ 缩放,缩下来正好 8 dp,与卡片同一个圆角(z 从 0 到 1 时从 0 长到 8)。
+                        shape = RoundedCornerShape(GtvLayout.CARD_CORNER.dp.toPx() * zoom / scale)
                         clip = true
                     },
             ) {
@@ -703,33 +709,47 @@ class MainActivity : ComponentActivity() {
             }
             // **设置页外壳**(R69)叠在首页那一层之上。选择器 / 扫码页 / 关于页 / 引导盖在它上面时它让路(`covered`,铁律 3),
             // 那一层关掉(`focusNonce++`)后它把焦点接回进入时那颗胶囊。
-            if (shellShown) {
-                SettingsShell(
-                    stack = shellStack,
-                    saved = homeSaved,
-                    actions = settingsActions,
-                    onPush = { page, focus -> shellStack = shellPush(shellStack, page, focus) },
-                    onPop = ::popShell,
-                    onFocus = { id -> shellStack = shellSetFocus(shellStack, id) },
-                    onOpenSystemSettings = {
-                        // `open()` 失败时已经会 toast(`toast_open_failed`,带异常信息)。
-                        open(Intent(Settings.ACTION_SETTINGS))
-                    },
-                    onOpenAbout = { about = true },
-                    onConfirmRestore = ::confirmRestoreDefaults,
-                    onChangeHome = ::switchHome,
-                    onWritten = { settingsRevision++ },
-                    focusNonce = focusNonce,
-                    covered = pt != null || about || onboarding,
-                    galleryVersion = galleryVersion,
-                    revision = revision,
-                )
+            // R108:关掉之后(shellStack 已空、焦点已回首页)还画 150 ms 残影——栈冻结在关掉前最后那一份,
+            // LocalPageGhost 让它不可聚焦、不收返回键,回调一律不接(见 SettingsFade.kt)。
+            val shellLast = remember { arrayOf<List<ShellFrame>>(emptyList()) }
+            if (shellShown) shellLast[0] = shellStack
+            if (shellVisible && shellLast[0].isNotEmpty()) {
+                val live = shellShown
+                Box(Modifier.fillMaxSize().graphicsLayer { alpha = shellMotion.a.value }) {
+                    CompositionLocalProvider(LocalPageGhost provides !live) {
+                        SettingsShell(
+                            stack = if (live) shellStack else shellLast[0],
+                            saved = homeSaved,
+                            actions = settingsActions,
+                            onPush = { page, focus -> if (live) shellStack = shellPush(shellStack, page, focus) },
+                            onPop = { if (live) popShell() },
+                            onFocus = { id -> if (live) shellStack = shellSetFocus(shellStack, id) },
+                            onOpenSystemSettings = {
+                                // `open()` 失败时已经会 toast(`toast_open_failed`,带异常信息)。
+                                if (live) open(Intent(Settings.ACTION_SETTINGS))
+                            },
+                            onOpenAbout = { if (live) about = true },
+                            onConfirmRestore = { if (live) confirmRestoreDefaults() },
+                            onChangeHome = { if (live) switchHome() },
+                            onWritten = { settingsRevision++ },
+                            focusNonce = focusNonce,
+                            covered = pt != null || about || onboarding,
+                            galleryVersion = galleryVersion,
+                            revision = revision,
+                        )
+                    }
+                }
             }
             // 叠在首页 / 外壳之上的那一层(编辑态下同一个 PickerLayer 改为替换编辑页,见上)。
             if (!editing && pt != null) PickerLayer(pt)
             // **所有应用页**(R90)。叠在常驻首页之上,首页因 previewing(overlayOpen)让路;焦点归它自己的网格。
             // 长按菜单盖在上面时 covered 让路,菜单关掉 focusNonce++ 后网格把焦点接回那张卡。
-            if (appsPage && !editing) {
+            // R108:打开淡入 200 ms、关掉淡出 150 ms(FadeSwitch;残影不可聚焦、不收返回键,见 SettingsFade.kt)。
+            FadeSwitch(
+                state = if (appsPage && !editing) Unit else null,
+                enterMs = GtvLayout.SETTINGS_FADE_IN_MS,
+                exitMs = GtvLayout.SETTINGS_FADE_OUT_MS,
+            ) {
                 AppsPage(
                     nonce = focusNonce,
                     covered = appsMenu != null,
@@ -738,6 +758,8 @@ class MainActivity : ComponentActivity() {
                     onFocusedApp = { appsFocused = it },
                     onBack = ::closeApps,
                 )
+            }
+            if (appsPage && !editing) {
                 val am = appsMenu
                 if (am != null) {
                     // key:两层菜单是两个 GearMenu 实例,各自从第一项起落焦点(第二层不继承第一层的 focusedIdx)。
@@ -748,19 +770,26 @@ class MainActivity : ComponentActivity() {
             }
             // **输入源页**(R91)。叠在常驻首页之上,首页因 previewing(overlayOpen)让路;焦点归它自己的胶囊列。
             // 胶囊菜单 / 改名对话框盖在它上面时 covered 让路,那一层关掉 focusNonce++ 后它把焦点接回同一颗(按 id)。
-            if (inputsPage && !editing) {
+            FadeSwitch(
+                state = if (inputsPage && !editing) Unit else null,
+                enterMs = GtvLayout.SETTINGS_FADE_IN_MS,
+                exitMs = GtvLayout.SETTINGS_FADE_OUT_MS,
+            ) {
+                val live = !LocalPageGhost.current
                 InputsPage(
                     nonce = focusNonce,
                     covered = inputMenu != null || inputRename != null,
                     revision = revision,
                     target = inputsFocus,
-                    onTarget = { inputsFocus = it },
+                    onTarget = { if (live) inputsFocus = it },
                     current = lastSwitchedInput,
-                    onSwitch = ::switchInput,
-                    onRestoreHidden = ::restoreHiddenInputs,
-                    onLoaded = { shownInputs = it },
+                    onSwitch = { if (live) switchInput(it) },
+                    onRestoreHidden = { if (live) restoreHiddenInputs() },
+                    onLoaded = { if (live) shownInputs = it },
                     onBack = ::closeInputs,
                 )
+            }
+            if (inputsPage && !editing) {
                 val im = inputMenu
                 if (im != null) {
                     GearMenu(items = inputMenuItems(im), onDismiss = ::closeInputMenu, nonce = focusNonce, title = im.label)
@@ -782,11 +811,16 @@ class MainActivity : ComponentActivity() {
             // 外壳第一层「关于」(spec §1、§7)。画在最后 = 叠在外壳 / 选择器之上,
             // 与它们同属 [overlayOpen] 的整屏浮层家族,首页早已因 previewing 让路;
             // 焦点由页面自己的胶囊列负责(铁律 3)。状态机在 aboutFlow 里,这里只接线。
-            if (about) {
+            // R108:淡入 200 / 淡出 150 ms;残影冻结在关掉前最后那个状态(关页时 aboutFlow.reset() 已把它清回 Idle)。
+            FadeSwitch(
+                state = if (about) aboutFlow.state else null,
+                enterMs = GtvLayout.SETTINGS_FADE_IN_MS,
+                exitMs = GtvLayout.SETTINGS_FADE_OUT_MS,
+            ) { aboutState ->
                 AboutScreen(
                     versionName = BuildConfig.VERSION_NAME,
                     versionCode = BuildConfig.VERSION_CODE,
-                    state = aboutFlow.state,
+                    state = aboutState,
                     onCheck = aboutFlow::check,
                     onDownload = aboutFlow::downloadAndInstall,
                     onInstall = aboutFlow::installReady,

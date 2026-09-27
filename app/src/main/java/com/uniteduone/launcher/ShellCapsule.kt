@@ -109,7 +109,13 @@ fun MenuPill(
     onStep: ((Int) -> Unit)? = null,
     /** 标签前的色点(主题色选项层:每一档画自己的预设色)。 */
     leadingDot: Color? = null,
+    /**
+     * 字号在基准([GtvLayout.MENU_ITEM_TEXT] / [GtvLayout.MENU_ITEM_HINT_TEXT])上加多少 sp(R109):设置类页面的胶囊列
+     * ([CapsuleColumn])传 [GtvLayout.SETTINGS_TYPE_STEP];长按 / 编辑页菜单不传,仍是基准。胶囊高度不变。
+     */
+    textStep: Float = 0f,
 ) {
+    val type = PillType(textStep)
     var focused by remember { mutableStateOf(false) }
     val accent = LocalThemeColors.current.accent
     // Fix 3(owner 反馈 R2,2026-09-20):填色 150 ms 过渡,时长与曲线与卡片焦点共用(见 GtvLayout.FOCUS_FADE_IN_MS)。
@@ -132,8 +138,8 @@ fun MenuPill(
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
     val valueWraps = trailing is Trailing.Value && hint.isNullOrBlank() && slider == null &&
-        remember(label, trailing, density) {
-            val style = TextStyle(fontFamily = Theme.Sans, fontSize = GtvLayout.MENU_ITEM_TEXT.sp)
+        remember(label, trailing, density, type) {
+            val style = TextStyle(fontFamily = Theme.Sans, fontSize = type.text.sp)
             val labelW = measurer.measure(label, style.copy(fontWeight = FontWeight.Medium)).size.width
             val valueW = measurer.measure(trailing.text, style).size.width
             with(density) {
@@ -177,7 +183,7 @@ fun MenuPill(
         contentAlignment = Alignment.CenterStart,
     ) {
         if (focused && slider != null) {
-            SliderContent(slider.label ?: label, slider, textColor)
+            SliderContent(slider.label ?: label, slider, textColor, type)
         } else Row(verticalAlignment = Alignment.CenterVertically) {
             if (leadingDot != null) {
                 // 细描边:聚焦时胶囊填的就是主题色,光标停在某个预设上时它的色点与底色同色,没有这圈描边就看不见了。
@@ -193,7 +199,7 @@ fun MenuPill(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(GtvLayout.MENU_ITEM_HINT_GAP.dp),
                 ) {
-                    MenuPillLabel(label, focused, textColor)
+                    MenuPillLabel(label, focused, textColor, type)
                     BasicText(
                         text = hint!!,
                         maxLines = 2,
@@ -203,17 +209,17 @@ fun MenuPill(
                             fontWeight = FontWeight.Normal,
                             // 从属于标题的次要文字(R17):同一个文字色减透明度,两态都算得出更淡的版本。
                             color = textColor.copy(alpha = 0.7f),
-                            fontSize = GtvLayout.MENU_ITEM_HINT_TEXT.sp,
+                            fontSize = type.hint.sp,
                         ),
                     )
                 }
                 if (trailing != Trailing.None) {
                     Spacer(Modifier.width(12.dp))
-                    TrailingContent(trailing, focused, textColor, accent)
+                    TrailingContent(trailing, focused, textColor, accent, type)
                 }
             } else {
                 if (trailing == Trailing.None) {
-                    MenuPillLabel(label, focused, textColor)
+                    MenuPillLabel(label, focused, textColor, type)
                 } else {
                     // 右端的值先量(上限 VALUE_MAX_WIDTH,再长才省略),标签拿剩下的宽度、放不下就省略号。
                     // 交互测试 2026-09-23:原先标签先量、值拿剩下的,英文长标签(System Animation Scale、
@@ -223,12 +229,12 @@ fun MenuPill(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        MenuPillLabel(label, focused, textColor, Modifier.weight(1f, fill = false))
+                        MenuPillLabel(label, focused, textColor, type, Modifier.weight(1f, fill = false))
                         Box(
                             Modifier.padding(start = 12.dp).widthIn(max = VALUE_MAX_WIDTH.dp),
                             contentAlignment = Alignment.CenterEnd,
                         ) {
-                            TrailingContent(trailing, focused, textColor, accent)
+                            TrailingContent(trailing, focused, textColor, accent, type)
                         }
                     }
                 }
@@ -238,12 +244,12 @@ fun MenuPill(
 }
 
 @Composable
-private fun TrailingContent(trailing: Trailing, focused: Boolean, textColor: Color, accent: Color) {
+private fun TrailingContent(trailing: Trailing, focused: Boolean, textColor: Color, accent: Color, type: PillType) {
     val faded = textColor.copy(alpha = 0.55f)
-    val style = TextStyle(fontFamily = Theme.Sans, fontSize = GtvLayout.MENU_ITEM_TEXT.sp, color = faded)
+    val style = TextStyle(fontFamily = Theme.Sans, fontSize = type.text.sp, color = faded)
     when (trailing) {
         Trailing.None -> Unit
-        Trailing.Chevron -> BasicText("›", style = style.copy(fontSize = (GtvLayout.MENU_ITEM_TEXT + 4).sp))
+        Trailing.Chevron -> BasicText("›", style = style.copy(fontSize = type.chevron.sp))
         Trailing.Check -> BasicText(
             "✓",
             style = style.copy(color = if (focused) textColor else accent, fontWeight = FontWeight.Medium),
@@ -262,7 +268,7 @@ private fun TrailingContent(trailing: Trailing, focused: Boolean, textColor: Col
             )
             if (trailing.chevron) {
                 Spacer(Modifier.width(8.dp))
-                BasicText("›", style = style.copy(fontSize = (GtvLayout.MENU_ITEM_TEXT + 4).sp))
+                BasicText("›", style = style.copy(fontSize = type.chevron.sp))
             }
         }
     }
@@ -270,7 +276,7 @@ private fun TrailingContent(trailing: Trailing, focused: Boolean, textColor: Col
 
 /** 聚焦的滑块胶囊:标签 · 轨道 + 把手 · `‹ 值 ›`。标签过长(英文)时省略,轨道至少留 28 dp。 */
 @Composable
-private fun SliderContent(label: String, look: SliderLook, textColor: Color) {
+private fun SliderContent(label: String, look: SliderLook, textColor: Color, type: PillType) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         BasicText(
             text = label,
@@ -281,13 +287,13 @@ private fun SliderContent(label: String, look: SliderLook, textColor: Color) {
                 fontFamily = Theme.Sans,
                 fontWeight = FontWeight.Medium,
                 color = textColor,
-                fontSize = GtvLayout.MENU_ITEM_TEXT.sp,
+                fontSize = type.text.sp,
             ),
         )
         Spacer(Modifier.width(10.dp))
         SliderTrack(look, textColor, Modifier.weight(1f).widthIn(min = 28.dp))
         Spacer(Modifier.width(8.dp))
-        val arrow = TextStyle(fontFamily = Theme.Sans, fontSize = GtvLayout.MENU_ITEM_TEXT.sp)
+        val arrow = TextStyle(fontFamily = Theme.Sans, fontSize = type.text.sp)
         // 到头的那一侧箭头更淡:告诉人这个方向已经按不动了。
         BasicText("‹", style = arrow.copy(color = textColor.copy(alpha = if (look.canDecrease) 0.45f else 0.15f)))
         Spacer(Modifier.width(4.dp))
@@ -298,7 +304,7 @@ private fun SliderContent(label: String, look: SliderLook, textColor: Color) {
                 fontFamily = Theme.Sans,
                 fontWeight = FontWeight.Medium,
                 color = textColor,
-                fontSize = GtvLayout.MENU_ITEM_TEXT.sp,
+                fontSize = type.text.sp,
             ),
         )
         Spacer(Modifier.width(4.dp))
@@ -341,7 +347,7 @@ private const val VALUE_MAX_WIDTH = 110f
 
 /** [MenuPill] 的标题行,单行/两行两种布局共用,避免样式在两处漂移。 */
 @Composable
-private fun MenuPillLabel(label: String, focused: Boolean, textColor: Color, modifier: Modifier = Modifier) {
+private fun MenuPillLabel(label: String, focused: Boolean, textColor: Color, type: PillType, modifier: Modifier = Modifier) {
     BasicText(
         text = label,
         modifier = modifier,
@@ -351,9 +357,19 @@ private fun MenuPillLabel(label: String, focused: Boolean, textColor: Color, mod
             fontFamily = Theme.Sans,
             fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
             color = textColor,
-            fontSize = GtvLayout.MENU_ITEM_TEXT.sp,
+            fontSize = type.text.sp,
         ),
     )
+}
+
+/**
+ * 一颗胶囊里各处文字的字号(sp,R109):标签 / 值 / ✓ / 滑块数值与 ‹ › = [text],第二行说明 = [hint],右端 › = [chevron]
+ * (标签 × [GtvLayout.CHEVRON_SCALE],按比例)。[step] = 0 时与 R109 之前逐位相同(16 / 12 / 20)。
+ */
+data class PillType(val step: Float = 0f) {
+    val text: Float get() = GtvLayout.MENU_ITEM_TEXT + step
+    val hint: Float get() = GtvLayout.MENU_ITEM_HINT_TEXT + step
+    val chevron: Float get() = text * GtvLayout.CHEVRON_SCALE
 }
 
 /** 按 WCAG 相对亮度选深/浅文字色,不写死一种——accent 是用户选的,白/黑两端都可能出现。 */

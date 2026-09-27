@@ -85,7 +85,8 @@ fun InputsPage(
     val data by produceState<InputsPageData?>(null, revision) {
         value = withContext(Dispatchers.IO) { loadInputsPage(ctx) }
     }
-    androidx.activity.compose.BackHandler { onBack() }
+    // 淡出中的残影(R108)不收返回键;胶囊列自己读 LocalPageGhost 让路、不可聚焦。
+    androidx.activity.compose.BackHandler(enabled = !LocalPageGhost.current) { onBack() }
     val d = data
     androidx.compose.runtime.SideEffect { d?.let { onLoaded(it.visible) } }
     val currentLabel = d?.visible?.firstOrNull { it.id == current }?.label

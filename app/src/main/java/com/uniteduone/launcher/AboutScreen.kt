@@ -360,7 +360,8 @@ fun AboutScreen(
 ) {
     val highlight = LocalThemeColors.current.highlight
 
-    androidx.activity.compose.BackHandler { onBack() }
+    // 淡出中的残影(R108)不收返回键;胶囊列自己读 LocalPageGhost 让路、不可聚焦。
+    androidx.activity.compose.BackHandler(enabled = !LocalPageGhost.current) { onBack() }
 
     val items = listOf(
         Capsule(
@@ -387,7 +388,7 @@ fun AboutScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         BasicText(
                             text = stringResource(R.string.about_version, versionName, versionCode),
-                            style = TextStyle(fontFamily = Theme.Sans, color = Theme.EmphasisText, fontSize = 15.sp),
+                            style = TextStyle(fontFamily = Theme.Sans, color = Theme.EmphasisText, fontSize = GtvLayout.settingsSp(15f).sp),
                         )
                         // 结果区。第一行始终占位(空白态也留一行高),下面的许可声明不会因为「检查中 → 已是最新」上下跳。
                         Spacer(Modifier.height(10.dp))
@@ -399,7 +400,7 @@ fun AboutScreen(
                                 fontFamily = Theme.Sans,
                                 fontWeight = FontWeight.Medium,
                                 color = headline?.second?.color(highlight) ?: Theme.EmphasisText,
-                                fontSize = 14.sp,
+                                fontSize = GtvLayout.settingsSp(14f).sp,
                                 textAlign = TextAlign.Center,
                             ),
                             modifier = Modifier.heightIn(min = 22.dp),
@@ -410,7 +411,7 @@ fun AboutScreen(
                             BasicText(
                                 text = outcome.first,
                                 style = TextStyle(
-                                    fontFamily = Theme.Sans, color = outcome.second.color(highlight), fontSize = 13.sp,
+                                    fontFamily = Theme.Sans, color = outcome.second.color(highlight), fontSize = GtvLayout.settingsSp(13f).sp,
                                     textAlign = TextAlign.Center,
                                 ),
                             )
@@ -422,8 +423,8 @@ fun AboutScreen(
                                 style = TextStyle(
                                     fontFamily = Theme.Sans,
                                     color = Theme.SecondaryText,
-                                    fontSize = 12.sp,
-                                    lineHeight = 17.sp,
+                                    fontSize = GtvLayout.settingsSp(12f).sp,
+                                    lineHeight = GtvLayout.settingsSp(17f).sp,
                                     textAlign = TextAlign.Center,
                                 ),
                                 maxLines = 4,
@@ -437,21 +438,21 @@ fun AboutScreen(
                                 fontFamily = Theme.Sans,
                                 fontWeight = FontWeight.Medium,
                                 color = Theme.HintText,
-                                fontSize = 11.sp,
+                                fontSize = GtvLayout.settingsSp(11f).sp,
                             ),
                         )
                         Spacer(Modifier.height(4.dp))
                         BasicText(
                             text = stringResource(R.string.about_license),
                             style = TextStyle(
-                                fontFamily = Theme.Sans, color = Theme.FootnoteText, fontSize = 11.sp, lineHeight = 16.sp,
+                                fontFamily = Theme.Sans, color = Theme.FootnoteText, fontSize = GtvLayout.settingsSp(11f).sp, lineHeight = GtvLayout.settingsSp(16f).sp,
                                 textAlign = TextAlign.Center,
                             ),
                         )
                         Spacer(Modifier.height(8.dp))
                         BasicText(
                             text = stringResource(R.string.about_repo),
-                            style = TextStyle(fontFamily = Theme.Sans, color = Theme.FootnoteText, fontSize = 11.sp),
+                            style = TextStyle(fontFamily = Theme.Sans, color = Theme.FootnoteText, fontSize = GtvLayout.settingsSp(11f).sp),
                         )
                     }
                 }
