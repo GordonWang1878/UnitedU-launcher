@@ -530,6 +530,30 @@ private fun PickerGrid(
     }
 }
 
+/** 缩略图读好的结果,连同产出它的 [item](见 ThumbCard 里 R5 的说明)。[videoMs] 只有视频格有(读不到时长为 0)。 */
+private class ThumbData(val item: PickerItem, val bitmap: Bitmap?, val backdrop: Int?, val videoMs: Long?)
+
+/**
+ * 视频格的角标(Ruling R104):「▶ 0:08」;时长读不到写「▶ 视频」。半透明黑底圆角,贴右下角,
+ * 画在缩略图框里,随聚焦放大。不可聚焦。
+ */
+@Composable
+private fun VideoBadge(durationMs: Long?, modifier: Modifier = Modifier) {
+    val text = ScreensaverMedia.formatDuration(durationMs ?: 0) ?: stringResource(R.string.picker_video_badge)
+    Box(
+        modifier = modifier
+            .padding(4.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(Color.Black.copy(alpha = 0.6f))
+            .padding(horizontal = 5.dp, vertical = 1.dp),
+    ) {
+        BasicText(
+            text = "▶ $text",
+            style = TextStyle(fontFamily = Theme.Sans, color = Color.White, fontSize = 10.sp),
+        )
+    }
+}
+
 @Composable
 private fun ThumbCard(
     item: PickerItem,
@@ -550,13 +574,18 @@ private fun ThumbCard(
     // 把状态连同产出它的 item 一起存;渲染时只认「item 与当前一致」那一份,过期的那份自然被滤掉,
     // 不需要手动清零——效果与「换 key 就重置」等价,但不用在协程开头多写一次 value = null。
     // 第三项 = 卡面底色(R88,只在 asCard 时算):null = 当横幅裁满,非 null = 当图标居中、铺这个底色。
-    val thumb by produceState<Triple<PickerItem, Bitmap?, Int?>?>(null, item, asCard) {
+    val isVideo = item is PickerItem.Library && ScreensaverMedia.isVideo(item.file.name)
+    val thumb by produceState<ThumbData?>(null, item, asCard) {
         value = withContext(Dispatchers.IO) {
             var srcW = 0; var srcH = 0
+            var videoMs: Long? = null
             val bmp = when (item) {
                 PickerItem.AddFromPhone -> null
                 is PickerItem.Original -> item.bitmap.also { srcW = it.width; srcH = it.height }
-                is PickerItem.Library -> runCatching {
+                // 视频(R104):首帧缩略图 + 时长,MediaMetadataRetriever,带缓存
+                is PickerItem.Library -> if (isVideo) {
+                    VideoThumbs.load(item.file).also { videoMs = it.durationMs }.frame
+                } else runCatching {
                     val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                     BitmapFactory.decodeFile(item.file.absolutePath, opts)
                     val w = opts.outWidth; val h = opts.outHeight
@@ -570,7 +599,7 @@ private fun ThumbCard(
             val backdrop = if (asCard && bmp != null) {
                 runCatching { Apps.cardBackdropFor(bmp, srcW, srcH) }.getOrNull()
             } else null
-            Triple(item, bmp, backdrop)
+            ThumbData(item, bmp, backdrop, videoMs)
         }
     }
 
@@ -588,9 +617,9 @@ private fun ThumbCard(
         verticalArrangement = Arrangement.spacedBy(thumbLabelGap(thumbHeight)),
     ) {
         // PickerItem.Library 是 data class,按 file 判等:只认还没被换下去的那一份。
-        val current = thumb?.takeIf { it.first == item }
-        val bmp = current?.second
-        val backdrop = current?.third
+        val current = thumb?.takeIf { it.item == item }
+        val bmp = current?.bitmap
+        val backdrop = current?.backdrop
         if (bmp != null && backdrop != null) {
             // R88:当图标画——与首页 AppCardImage 的非横幅分支同一个画法(卡高见方的框里 Fit 居中 + 边缘色底)
             Box(
@@ -609,7 +638,7 @@ private fun ThumbCard(
                     modifier = Modifier.size(thumbHeight),
                 )
             }
-        } else if (bmp != null) {
+        } else if (bmp != null && !isVideo) {
             Image(
                 bitmap = bmp.asImageBitmap(),
                 contentDescription = label,
@@ -621,12 +650,23 @@ private fun ThumbCard(
                     .clip(RoundedCornerShape(THUMB_CORNER)),
             )
         } else {
+            // 视频格(R104)与「还在读」的占位共用这个框:视频有首帧就铺满,右下角标「▶ 时长」随格子一起放大
             Box(
                 modifier = Modifier.gtvAppFocusFrame(focused, accent, THUMB_CORNER).fillMaxWidth().height(thumbHeight)
                     .clip(RoundedCornerShape(THUMB_CORNER)).background(Theme.ThumbPlaceholderBackground),
                 contentAlignment = Alignment.Center,
             ) {
-                BasicText("...", style = TextStyle(color = Theme.ThumbLoadingText, fontSize = 12.sp))
+                if (bmp != null) {
+                    Image(
+                        bitmap = bmp.asImageBitmap(),
+                        contentDescription = label,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else if (current == null) {
+                    BasicText("...", style = TextStyle(color = Theme.ThumbLoadingText, fontSize = 12.sp))
+                }
+                if (isVideo && current != null) VideoBadge(current.videoMs, Modifier.align(Alignment.BottomEnd))
             }
         }
 
@@ -836,7 +876,10 @@ private fun ScreensaverPreview(
             animationSpec = tween(500),
             label = "previewCrossfade",
         ) { idx ->
-            ScreensaverSlot(files.getOrNull(idx), Theme.ScreensaverIntervalMs)
+            val f = files.getOrNull(idx)
+            // 视频(R104):循环静音播放;淡出去的那一个 active = false,当场截帧释放(同一时刻一个播放器,R102)
+            if (f != null && ScreensaverMedia.isVideo(f.name)) PreviewVideo(f, active = idx == index)
+            else ScreensaverSlot(f, Theme.ScreensaverIntervalMs)
         }
 
         var showInfo by remember { mutableStateOf(true) }
@@ -868,6 +911,34 @@ private fun ScreensaverPreview(
             withFrameNanos { }
             runCatching { fr.requestFocus() }
             frames++
+        }
+    }
+}
+
+/**
+ * 屏保图库全屏预览里的一个视频(Ruling R104):循环、静音;首帧出来之前垫网格那张首帧缩略图,
+ * 播不了就在画面中央写一行「无法播放这个视频」(屏保里是静默跳过,这里是在看它,得说一声)。
+ * 不可聚焦——按键仍由 [ScreensaverPreview] 的 Box 收,焦点机制一行没变。
+ */
+@Composable
+private fun PreviewVideo(file: File, active: Boolean) {
+    var failed by remember(file.absolutePath) { mutableStateOf(false) }
+    val controller = remember(file.absolutePath) {
+        VideoController(file.absolutePath, looping = true, capMs = null).also { it.onFailed = { failed = true } }
+    }
+    LaunchedEffect(controller) {
+        val poster = withContext(Dispatchers.IO) { VideoThumbs.load(file).frame }
+        if (poster != null && controller.still == null && !controller.showingFrame) controller.still = poster.asImageBitmap()
+    }
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        VideoSurface(controller, active, Modifier.fillMaxSize())
+        if (failed) {
+            BasicText(
+                text = stringResource(R.string.preview_video_failed),
+                style = TextStyle(fontFamily = Theme.Sans, color = Color.White.copy(alpha = 0.85f), fontSize = 16.sp),
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Color.Black.copy(alpha = 0.6f))
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            )
         }
     }
 }
