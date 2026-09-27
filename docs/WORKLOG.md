@@ -1589,3 +1589,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 动态屏保:给了成本(照片动感约 2–3 小时低风险;视频约 1 天中风险),Gordon「成本不高就两个都做」。照片动感在 `feat/screensaver-motion`(5558)进行,视频随后。
 - 上下移动不顺:上下与左右共用临界阻尼弹簧(stiffness 220),弹簧起步即最大速度,整页 140 dp 位移显得突兀;另可能是 A95L 掉帧。已 reset A95L 的 gfxinfo,等 Gordon 按几下上下键后读 janky frames 区分「曲线」与「掉帧」。
 - 同日续:屏保照片动感合入 main(`be4f4db`/`22ed745`,R95,451 测试绿):推拉 1.06↔1.22、对角平移 5–8%、8 种组合随机且相邻不重样、不露黑边约束、交叉淡化 1.4 s、每帧只在 graphicsLayer 算、同时最多两张位图、解码长边封顶 1920;桌面屏保与系统屏保同一实现。录屏 `docs/screenshots/screensaver-motion.mp4`。**未装电视**(Gordon 家人在看)。视频屏保在 `feat/video-screensaver`(5558)开工。
+- 同日续:顶栏改造合入 main(`608e174`,R89–R93,462 测试绿,未装电视):顶栏 设置 / 应用 / 输入源;所有应用页 `AppsPage`(自算位移网格,确定打开,长按 / MENU「加到桌面…」);输入源页 `InputsPage`(切换、改名、隐藏、恢复;系统无接口读当前输入源,只记本次运行经 UnitedU 切过去的那个);首页输入源行与 `showInputRow`、`RowKind` 删除;「设置 → 屏保」首行「立即开始屏保」空图库只提示;名字排序改为按界面语言的 Collator(简体拼音)。事故:并行代理共用 scratchpad 根目录同名脚本,顶栏代理 12:37 误对视频代理的 emulator-5558 装包 + 按键;已通知对方重装重测,规则进 memory `parallel-agents-isolation`。
