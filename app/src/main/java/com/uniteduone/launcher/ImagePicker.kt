@@ -172,6 +172,7 @@ fun IconPicker(
             nonce = nonce,
             onSelectFile = onSelect,
             onRestoreOriginal = onRestoreOriginal,
+            asCard = true,
             onDismiss = onDismiss,
             emptyHint = stringResource(R.string.picker_no_images),
             onAddFromPhone = onAddFromPhone,
@@ -228,6 +229,11 @@ private fun PickerGrid(
      * **只在挂载那一刻读一次**(同编辑页的 editTarget 种子)。null = 普通打开,落第 0 格。
      */
     landing: List<String>? = null,
+    /**
+     * 缩略图按**卡面**画(R88,只有「换卡片图」网格传 true):不像横幅的图([fitsAsBanner] 不过)居中、铺边缘色底,
+     * 与换上去之后首页那张卡同一个样子;false(壁纸 / 屏保)照旧按 16:9 裁满。
+     */
+    asCard: Boolean = false,
 ) {
     // 格子 = 「＋」(有的话)+ 图片。下面 focusedIdx / holderIdx / focusRequesters / interactionSources 全用格子下标,
     // 只有 onFocusedFile 上报、落点种子这两处要认「是不是图片」,换算见 cellOfImage / imageOfCell。
@@ -474,6 +480,7 @@ private fun PickerGrid(
                         focused = focused,
                         thumbWidth = thumbWidth,
                         thumbHeight = thumbHeight,
+                        asCard = asCard,
                         cellModifier = Modifier
                             .focusRequester(focusRequesters[idx])
                             .focusProperties {
@@ -529,6 +536,7 @@ private fun ThumbCard(
     focused: Boolean,
     thumbWidth: Dp,
     thumbHeight: Dp,
+    asCard: Boolean = false,
     cellModifier: Modifier = Modifier,
 ) {
     if (item is PickerItem.AddFromPhone) {
@@ -541,23 +549,29 @@ private fun ThumbCard(
     // 解码完成前的这几帧会显示上一个占用者的缩略图(标题与 onFocusedFile 那时已经是新文件了)。
     // 把状态连同产出它的 item 一起存;渲染时只认「item 与当前一致」那一份,过期的那份自然被滤掉,
     // 不需要手动清零——效果与「换 key 就重置」等价,但不用在协程开头多写一次 value = null。
-    val thumb by produceState<Pair<PickerItem, Bitmap?>?>(null, item) {
-        val bmp = when (item) {
-            PickerItem.AddFromPhone -> null
-            is PickerItem.Original -> item.bitmap
-            is PickerItem.Library -> withContext(Dispatchers.IO) {
-                runCatching {
+    // 第三项 = 卡面底色(R88,只在 asCard 时算):null = 当横幅裁满,非 null = 当图标居中、铺这个底色。
+    val thumb by produceState<Triple<PickerItem, Bitmap?, Int?>?>(null, item, asCard) {
+        value = withContext(Dispatchers.IO) {
+            var srcW = 0; var srcH = 0
+            val bmp = when (item) {
+                PickerItem.AddFromPhone -> null
+                is PickerItem.Original -> item.bitmap.also { srcW = it.width; srcH = it.height }
+                is PickerItem.Library -> runCatching {
                     val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                     BitmapFactory.decodeFile(item.file.absolutePath, opts)
                     val w = opts.outWidth; val h = opts.outHeight
                     if (w <= 0 || h <= 0) return@runCatching null
+                    srcW = w; srcH = h
                     val sample = maxOf(1, minOf(w / 240, h / 135))
                     val decOpts = BitmapFactory.Options().apply { inSampleSize = sample }
                     BitmapFactory.decodeFile(item.file.absolutePath, decOpts)
                 }.getOrNull()
             }
+            val backdrop = if (asCard && bmp != null) {
+                runCatching { Apps.cardBackdropFor(bmp, srcW, srcH) }.getOrNull()
+            } else null
+            Triple(item, bmp, backdrop)
         }
-        value = item to bmp
     }
 
     val label = when (item) {
@@ -574,8 +588,28 @@ private fun ThumbCard(
         verticalArrangement = Arrangement.spacedBy(thumbLabelGap(thumbHeight)),
     ) {
         // PickerItem.Library 是 data class,按 file 判等:只认还没被换下去的那一份。
-        val bmp = thumb?.takeIf { it.first == item }?.second
-        if (bmp != null) {
+        val current = thumb?.takeIf { it.first == item }
+        val bmp = current?.second
+        val backdrop = current?.third
+        if (bmp != null && backdrop != null) {
+            // R88:当图标画——与首页 AppCardImage 的非横幅分支同一个画法(卡高见方的框里 Fit 居中 + 边缘色底)
+            Box(
+                modifier = Modifier
+                    .gtvAppFocusFrame(focused, accent, THUMB_CORNER)
+                    .fillMaxWidth()
+                    .height(thumbHeight)
+                    .clip(RoundedCornerShape(THUMB_CORNER))
+                    .background(Color(backdrop)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    bitmap = bmp.asImageBitmap(),
+                    contentDescription = label,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(thumbHeight),
+                )
+            }
+        } else if (bmp != null) {
             Image(
                 bitmap = bmp.asImageBitmap(),
                 contentDescription = label,

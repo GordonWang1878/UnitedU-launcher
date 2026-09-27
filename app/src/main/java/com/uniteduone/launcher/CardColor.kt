@@ -80,3 +80,20 @@ fun opaqueFraction(edgePixels: IntArray): Float {
     for (p in edgePixels) if ((p ushr 24 and 0xFF) >= 128) opaque++
     return opaque.toFloat() / edgePixels.size
 }
+
+/**
+ * **Ruling R88**:一张卡片图能不能「当横幅铺满 16:9 卡」的唯一判据——应用自带横幅与用户换的自定义图**共用**。
+ * 宽高比在 [BANNER_MIN_RATIO]..[BANNER_MAX_RATIO] **且**四边不透明占比([opaqueFraction])≥ [BANNER_MIN_OPAQUE]
+ * → 横幅;否则当图标处理:居中、按卡高的方框缩放,底色 = 边缘色([edgeColor]),取不到兜底占位底(design §2.3)。
+ * [width]/[height] 要用**原图**的尺寸(解码只按比例缩、不裁,缩后比例与原图一致;不要先裁成 16:9 再判)。
+ * 纯函数,单测在 [CardColorTest] 的 FitsAsBannerTest。
+ */
+fun fitsAsBanner(width: Int, height: Int, edgeOpaqueFraction: Float): Boolean {
+    if (width <= 0 || height <= 0) return false
+    val ratio = width.toFloat() / height
+    return ratio in BANNER_MIN_RATIO..BANNER_MAX_RATIO && edgeOpaqueFraction >= BANNER_MIN_OPAQUE
+}
+
+const val BANNER_MIN_RATIO = 1.4f
+const val BANNER_MAX_RATIO = 2.2f
+const val BANNER_MIN_OPAQUE = 0.8f

@@ -133,6 +133,10 @@ object Apps {
         return orderPickerCandidates(out)
     }
 
+    /**
+     * @param useCustom false = 只看应用自带的图(横幅 / 图标),不读用户换的自定义图——「换卡片图」网格里
+     *   「恢复原图」那一格的预览用([originalIcon]),与首页恢复之后的卡面同一份。
+     */
     private fun entryOf(
         ctx: Context,
         pm: PackageManager,
@@ -140,6 +144,7 @@ object Apps {
         ri: ResolveInfo,
         withBitmaps: Set<String>?,
         withLabels: Set<String>?,
+        useCustom: Boolean = true,
     ): AppEntry {
         val label = if (withLabels == null || pkg in withLabels) {
             runCatching { ri.loadLabel(pm)?.toString() }.getOrNull().orEmpty()
@@ -150,36 +155,53 @@ object Apps {
                 firstInstallTime = runCatching { pm.getPackageInfo(pkg, 0).firstInstallTime }.getOrDefault(0L),
             )
         }
-        val custom = Paths.iconFor(ctx, pkg).takeIf { it.exists() }
-            ?.let { runCatching { decodeScaled(it.absolutePath, CARD_W, CARD_H) }.getOrNull() }
-            ?.let { shrink(it, CARD_W, CARD_H) }
+        // 自定义图(R88,Gordon 2026-09-27 真机:把爱奇艺的方形图标换成卡片图,卡片没补底):与应用横幅**同一条判据**
+        // [fitsAsBanner] ——过了才当横幅铺满,否则当图标处理、补边缘色底。原来自定义图一律 isWide = true,
+        // 方图被当横幅画成卡片左侧一块方形、右边透出壁纸。比例按**原图尺寸**判:解码([decodeScaled] 只按 2 的幂采样)
+        // 与 [shrink] 都保持比例、不裁,但原图尺寸最准,读一次 bounds 很便宜。
+        val custom = if (!useCustom) null else Paths.iconFor(ctx, pkg).takeIf { it.exists() }?.let { f ->
+            val b = runCatching { decodeScaled(f.absolutePath, CARD_W, CARD_H) }.getOrNull()
+                ?.let { shrink(it, CARD_W, CARD_H) } ?: return@let null
+            val (w, h) = imageSize(f.absolutePath) ?: (b.width to b.height)
+            b to fitsAsBanner(w, h, opaqueFraction(edgePixelsOf(b)))
+        }
         // 横幅只有在接近 16:9 **且真的铺满(边缘基本不透明)**时才当横幅铺满;比例不对的(如咪咕)、
         // 或四周透明的 logo(如网易云的 loadLogo,宽高比过关但边是透明的)一律当图标处理,补一块边缘色底——
         // 否则那种「透明边 logo」会被原样画成浮在壁纸上的一块、留一圈透明,不是连续的卡(2026-09-16 Gordon 真机指出)。
-        val banner = runCatching {
+        // 有自定义图时不读(用不上)。
+        val banner = if (custom != null) null else runCatching {
             drawableOf(ri.activityInfo.loadBanner(pm) ?: ri.activityInfo.loadLogo(pm))
         }.getOrNull()
-            ?.takeIf { it.width.toFloat() / it.height.coerceAtLeast(1) in 1.4f..2.2f }
-            ?.takeIf { opaqueFraction(edgePixelsOf(it)) >= 0.8f }
-        val bmp = custom ?: banner ?: runCatching { drawableOf(ri.loadIcon(pm)) }.getOrNull()
-        val icon = if (custom == null && banner == null) bmp else null
-        // 无横幅回落:铺 16:9 底(design §2.3)。底色用**图标最外一圈的均色**(edgeColor),不是整图 Palette 主色——
-        // 主色常挑到 logo 图形色,铺成底和图标边缘割裂、像硬包一圈(2026-09-16 Gordon 真机指出);边缘色则与图标融为一块。
+            ?.takeIf { fitsAsBanner(it.width, it.height, opaqueFraction(edgePixelsOf(it))) }
+        val bmp = custom?.first ?: banner ?: runCatching { drawableOf(ri.loadIcon(pm)) }.getOrNull()
+        val isWide = custom?.second ?: (banner != null)
+        // 当图标画的卡(应用图标回落,或不像横幅的自定义图):铺 16:9 底(design §2.3)。底色用**图标最外一圈的均色**
+        // (edgeColor),不是整图 Palette 主色——主色常挑到 logo 图形色,铺成底和图标边缘割裂、像硬包一圈
+        // (2026-09-16 Gordon 真机指出);边缘色则与图标融为一块。
         // 图标本就透明边(edgeColor 返回 null)/ 取色抛异常时兜底到 Theme.IconPlaceholderBackground:
         // 不能留 null——那样这张卡会透回黑底,和「isWide=true 本就不该铺底」两种情况混在一起分不清。IO 线程(load 本就在 IO)。
-        val fallbackColor = icon?.let { b ->
-            runCatching { edgeColor(edgePixelsOf(b)) }.getOrNull() ?: Theme.IconPlaceholderBackground.toArgb()
-        }
+        val fallbackColor = if (bmp != null && !isWide) iconBackdrop(bmp) else null
         val firstInstall = runCatching { pm.getPackageInfo(pkg, 0).firstInstallTime }.getOrDefault(0L)
         return AppEntry(
             packageName = pkg,
             label = label,
             card = bmp,
-            isWide = custom != null || banner != null,
+            isWide = isWide,
             fallbackColor = fallbackColor,
             firstInstallTime = firstInstall,
         )
     }
+
+    /** 当图标画时的卡片底色:边缘色,取不到兜底占位底。ARGB,满 alpha。 */
+    private fun iconBackdrop(b: Bitmap): Int =
+        runCatching { edgeColor(edgePixelsOf(b)) }.getOrNull() ?: Theme.IconPlaceholderBackground.toArgb()
+
+    /**
+     * 「换卡片图」网格的缩略图按卡面画(R88):这张图换上去之后当横幅铺满(null),还是当图标、铺这个底色(非 null)。
+     * 与 [entryOf] 同一条判据([fitsAsBanner])、同一个取色。[srcW]/[srcH] 传原图尺寸(缩略图是采样过的)。
+     */
+    fun cardBackdropFor(b: Bitmap, srcW: Int = b.width, srcH: Int = b.height): Int? =
+        if (fitsAsBanner(srcW, srcH, opaqueFraction(edgePixelsOf(b)))) null else iconBackdrop(b)
 
     /** @return 是否真的起来了;起不来时调用方要给提示,别让用户以为遥控器坏了。 */
     fun launch(ctx: Context, pkg: String): Boolean {
@@ -296,22 +318,28 @@ object Apps {
             (value.second.card?.allocationByteCount ?: 0).coerceAtLeast(1)
     }
 
+    /**
+     * 「换卡片图」网格里「恢复原图」那一格的图:与 [entryOf] 同一套选图(去掉自定义图)——R88 前这里另读
+     * 应用级 banner、不过横幅判据,预览和恢复后的卡面可能不是同一张。
+     */
     fun originalIcon(ctx: Context, pkg: String): Bitmap? = runCatching {
         val pm = ctx.packageManager
-        val info = pm.getApplicationInfo(pkg, 0)
-        val banner = info.loadBanner(pm)?.let { drawableOf(it) }
-        banner ?: drawableOf(pm.getApplicationIcon(info))
+        val ri = launcherEntryOf(pm, pkg) ?: exportedMain(pm, pkg) ?: return@runCatching null
+        entryOf(ctx, pm, pkg, ri, withBitmaps = null, withLabels = emptySet(), useCustom = false).card
     }.getOrNull()
 
-    /** 只读尺寸判断是不是能解的图片,不真的解码——用于校验用户选的文件。 */
     /** 包是否已安装(有 QUERY_ALL_PACKAGES,看得见所有包)。IO 线程调用。 */
     fun isInstalled(ctx: Context, pkg: String): Boolean =
         runCatching { ctx.packageManager.getPackageInfo(pkg, 0) }.isSuccess
 
-    fun isDecodableImage(path: String): Boolean {
+    /** 只读尺寸判断是不是能解的图片,不真的解码——用于校验用户选的文件。 */
+    fun isDecodableImage(path: String): Boolean = imageSize(path) != null
+
+    /** 只读文件头拿原图宽高;读不出 → null。 */
+    fun imageSize(path: String): Pair<Int, Int>? {
         val b = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(path, b)
-        return b.outWidth > 0 && b.outHeight > 0
+        return if (b.outWidth > 0 && b.outHeight > 0) b.outWidth to b.outHeight else null
     }
 
     /** 先读尺寸再按 inSampleSize 解码,避免把大图整张读进内存。 */

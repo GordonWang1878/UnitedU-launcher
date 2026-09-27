@@ -321,3 +321,10 @@ cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的�
   - **范围**:首页卡片、编辑页卡片(`AppCard` 两处调用点共用,编辑页的「焦点」与首页同义:方向键焦点 + 搬运态恒 1)。不作用于:卡片标题(需求只说图 + 底色;标题本来就 60 % 字色)、编辑页行尾「＋」、长按菜单左侧 banner(它代表的是刚被长按、也就是聚焦中的那张卡,按焦点卡算 = 100 %)、「添加应用」列表的小卡片(找东西用的列表,不在这次范围)。值与饱和度 / 亮度同走 `LocalCardFade`(`CardFade.opacity`),不进颜色矩阵、不影响「恒等则跳过淡化层」的判断。
   - 模拟器拼图 `docs/screenshots/card-opacity.jpg`(外观组滑块中英、首页 100 / 60 / 40、40 % 下左右移焦的 mp4 真实 pts 追踪、编辑页 40 %)。
 - **R87 卡片不透明度改叫「卡片透明度」**(2026-09-27 owner):界面上 0–60%、缺省 0、往右加(与壁纸模糊从 0 往上加一致);存盘键仍是 `cardOpacity`(不迁移),界面值 = 100 − cardOpacity。英文 "Card Transparency" / 聚焦短标签 "Transparency"。
+
+### 2026-09-27 自定义卡片图按比例铺底(R88,Gordon 真机提出)
+
+- **R88 自定义卡片图与应用横幅同一条判据**:宽高比在 1.4–2.2 **且**四边不透明占比 ≥ 0.8 → 当横幅铺满卡;否则当图标画——居中、卡高见方的框里等比缩放(与应用图标回落同一套画法与留白),底色 = 图标最外一圈的边缘色(`edgeColor`),取不到(透明底 logo)兜底 `Theme.IconPlaceholderBackground`。起因:长按 → 换卡片图选了方形图标(爱奇艺),卡片没有补底铺成 16:9——R88 之前自定义图一律 `isWide = true`,design §2.3 的无横幅回落只作用于应用自带图标。
+  - 判据是纯函数 `fitsAsBanner(宽, 高, 边缘不透明占比)`(`CardColor.kt`,常量 `BANNER_MIN_RATIO/MAX_RATIO/MIN_OPAQUE`),`Apps.entryOf` 里横幅与自定义图共用;比例按**原图尺寸**判(`Apps.imageSize` 读文件头),解码只按比例缩、不裁。单测 `FitsAsBannerTest`(方形、竖图、16:9 不透明、16:9 透明边、2.5:1 超宽、边界值)。
+  - **口径一致的地方**:首页卡片、编辑页卡片、长按菜单左侧 banner、「添加应用」列表小卡片都吃同一个 `AppEntry`(`entryOf` / `pickerCard`),自动一致;「换卡片图」网格的缩略图改按卡面画(`PickerGrid(asCard = true)`,只这一个网格,壁纸 / 屏保照旧 16:9 裁满),「恢复原图」那一格改走 `entryOf(useCustom = false)`,与恢复之后首页的卡面同一张。
+  - 模拟器对比 `docs/screenshots/custom-card-art-fit.jpg`(方形不透明 / 方形透明底 / 16:9 照片,改前改后 + 换图网格)。

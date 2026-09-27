@@ -7,9 +7,12 @@ data class AppEntry(
     val packageName: String,
     val label: String,
     val card: Bitmap?,
-    /** true = 接近 16:9 的横幅,铺满卡片;false = 方形图标,居中留边(Projectivy 也是这么摆的)。 */
+    /**
+     * true = 接近 16:9 且四边不透明的横幅,铺满卡片;false = 当图标画,居中留边(Projectivy 也是这么摆的)。
+     * 应用横幅与自定义卡片图同一条判据 [fitsAsBanner](R88)。
+     */
     val isWide: Boolean,
-    /** 无横幅回落卡的底色(图标主色,ARGB);有横幅/自定义图时 null。 */
+    /** 当图标画的卡([isWide] = false 且有图)的底色(图标边缘色,ARGB);铺满的横幅 / 无图时 null。 */
     val fallbackColor: Int? = null,
     /** 装机时间(epoch ms),给「新应用」判据用;查不到为 0。 */
     val firstInstallTime: Long = 0L,

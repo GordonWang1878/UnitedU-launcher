@@ -126,3 +126,42 @@ class OpaqueFractionTest {
         org.junit.Assert.assertEquals(0f, opaqueFraction(IntArray(0)), 1e-6f)
     }
 }
+
+/** R88:横幅判据,应用横幅与自定义卡片图共用。 */
+class FitsAsBannerTest {
+    @Test fun squareOpaqueIconIsNotBanner() {
+        // Gordon 2026-09-27 真机:爱奇艺方形图标换成卡片图,应当补边缘色底,不是当横幅
+        org.junit.Assert.assertFalse(fitsAsBanner(512, 512, 1f))
+    }
+
+    @Test fun portraitIsNotBanner() {
+        org.junit.Assert.assertFalse(fitsAsBanner(720, 1280, 1f))
+    }
+
+    @Test fun opaque16by9IsBanner() {
+        org.junit.Assert.assertTrue(fitsAsBanner(1280, 720, 1f))
+        org.junit.Assert.assertTrue(fitsAsBanner(320, 180, 0.8f))   // 边界值 0.8 算过
+    }
+
+    @Test fun transparentEdged16by9IsNotBanner() {
+        // 网易云 loadLogo 那种:比例过关、四边透明
+        org.junit.Assert.assertFalse(fitsAsBanner(1280, 720, 0.3f))
+        org.junit.Assert.assertFalse(fitsAsBanner(1280, 720, 0.79f))
+    }
+
+    @Test fun ultraWideIsNotBanner() {
+        org.junit.Assert.assertFalse(fitsAsBanner(1250, 500, 1f))   // 2.5:1
+    }
+
+    @Test fun ratioBoundsAreInclusive() {
+        org.junit.Assert.assertTrue(fitsAsBanner(140, 100, 1f))
+        org.junit.Assert.assertTrue(fitsAsBanner(220, 100, 1f))
+        org.junit.Assert.assertFalse(fitsAsBanner(139, 100, 1f))
+        org.junit.Assert.assertFalse(fitsAsBanner(221, 100, 1f))
+    }
+
+    @Test fun degenerateSizeIsNotBanner() {
+        org.junit.Assert.assertFalse(fitsAsBanner(0, 0, 1f))
+        org.junit.Assert.assertFalse(fitsAsBanner(100, 0, 1f))
+    }
+}

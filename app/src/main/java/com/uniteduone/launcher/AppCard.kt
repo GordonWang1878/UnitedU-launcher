@@ -208,7 +208,7 @@ internal fun appCardContainer(app: AppEntry, fallbackColor: Color?): Color = whe
 }
 
 /**
- * 卡面内容:横幅(自定义图也算)铺满、方图标按卡高居中留边、都没有就居中写应用名。
+ * 卡面内容:横幅铺满、方图标按卡高居中留边、都没有就居中写应用名。自定义图按同一条判据归入前两类(R88,[fitsAsBanner])。
  * [AppCard] 与「添加应用」列表的小卡片(R83)共用——选图逻辑在 `Apps.entryOf`,画法在这里,两处都只有一份。
  */
 @Composable
