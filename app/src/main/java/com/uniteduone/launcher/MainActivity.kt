@@ -464,10 +464,10 @@ class MainActivity : ComponentActivity() {
             // 不在首页被位移的 Column 里(刻意的:进出编辑页不重解 1920×1080、不闪黑),要让它跟着行走
             // 同一根曲线,只能把动画值举到这里再喂给 Wallpaper。编辑页替换首页时首页不在组合里、没人
             // 上报,这里归 0——编辑页本来就该看到完整壁纸(静止态)。
-            var pageShift by remember { mutableStateOf(0.dp) }
+            // R111:首页交上来的位移动画 State(不再是每帧组合后报一次的值);null = 首页不在组合里(编辑页),按 0 算。
+            var pageShiftState by remember { mutableStateOf<androidx.compose.runtime.State<androidx.compose.ui.unit.Dp>?>(null) }
             // R110:壁纸缓存图层与首页之间「渐变这一帧归谁画」的共享状态(见 HomeBackdropBridge)。
             val backdrop = remember { HomeBackdropBridge() }
-            LaunchedEffect(editing) { if (editing) pageShift = 0.dp }
             // 首页行距(dp),只给 WALLPAPER_DIM_PER_ROW 的逐行插值用。
             val homePitch = GtvLayout.rowPitch(cardsPerRowToGtvSize(homeSettings.cardsPerRow), homeSettings.showTitles)
             val touched = lastInput
@@ -620,7 +620,7 @@ class MainActivity : ComponentActivity() {
                 wallpaperSpec,
                 onSettingsChanged = { settingsRevision++ },
                 // vertical-motion(2026-09-27):WALLPAPER_DIM_PER_ROW 默认关 = 仍是 wallpaperAlpha(pageShift)。
-                alpha = { GtvLayout.homeWallpaperAlpha(pageShift.value, homePitch) },
+                alpha = { GtvLayout.homeWallpaperAlpha(pageShiftState?.value?.value ?: 0f, homePitch) },
                 bridge = backdrop,
                 gradientBaked = gradientBaked,
             )
@@ -710,7 +710,7 @@ class MainActivity : ComponentActivity() {
                     moving = moving,
                     moveLanding = moveLanding,
                     onRowsShown = { shownRows = it },
-                    onPageShift = { pageShift = it },
+                    onPageShiftState = { pageShiftState = it },
                     gradientInBackdrop = gradientBaked,
                     onContentAlpha = { backdrop.homeContentAlpha = it },
                 )

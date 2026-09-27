@@ -123,12 +123,13 @@ fun HomeScreen(
     /** 这一次组合画出来的行。MainActivity 进移动态时拿最近一份当工作副本。 */
     onRowsShown: (List<Row>) -> Unit = {},
     /**
-     * **Ruling R35**:整页位移的**每帧动画值**(dp,≤ 0 表示上移,= 下面 `shift`)上报给 MainActivity,
+     * **Ruling R35**:整页位移的**每帧动画值**(dp,≤ 0 表示上移,= 下面 `shift`)交给 MainActivity,
      * 由它喂给住在 setContent 顶层的壁纸层——壁纸不在这里被位移的 Column 里,要和行走同一根曲线,
-     * 只能把动画值举上去。报的是动画的当前值不是目标值,每一帧都报;首页不在组合里时(编辑页替换首页)
-     * MainActivity 自己把它归 0。
+     * 只能把动画值举上去。
+     * **R111 起交的是动画的 State 本身**(不再每帧组合后报一次值):壁纸在绘制阶段读它,位移动画期间首页不必每帧重组;
+     * 同一帧里行的位置与壁纸的变暗读的是同一个值。离开组合时(编辑页替换首页)交 null,MainActivity 按 0 算。
      */
-    onPageShift: (Dp) -> Unit = {},
+    onPageShiftState: (State<Dp>?) -> Unit = {},
     /**
      * **R110**:这一帧 R85 渐变是否已画进 MainActivity 的背景图层(见 [HomeBackdropBridge])。为 true 时首页自己
      * 不画渐变(节点仍在,绘制阶段读,不重组)。默认 false = 原样由首页画。
@@ -333,7 +334,7 @@ fun HomeScreen(
     val screenHeightDp = LocalConfiguration.current.screenHeightDp.toFloat()
     val anchorTop = GtvLayout.rowsTop(cardSize, showTitles, screenHeightDp).dp
     val shiftTarget = GtvLayout.rowShiftY(activeRowSafe, cardSize, showTitles)
-    val shift by animateDpAsState(
+    val shiftState = animateDpAsState(
         // R32 → R42 → R52:曾钉锚点 120dp(R32)、改最小位移(R42),现在是焦点线(R52)。hero 的空位
         // (现在就是行 0 上方到顶栏之间的壁纸区)仍是下面 Column 的 padding(top)、在 offset 之内,随 shift 一起走。
         targetValue = shiftTarget.dp,
@@ -344,10 +345,13 @@ fun HomeScreen(
         animationSpec = Theme.homeVerticalShiftSpec(),
         label = "rowShift",
     )
-    // R35:每帧把动画的当前值举给 MainActivity(壁纸层住在那里)。这里的 shift 本来就在组合阶段被
-    // 下面 Column 的 offset(y = shift) 读取,动画期间每帧都重组,SideEffect 每次重组后跑一遍;
-    // 值没变时 MainActivity 那颗 mutableStateOf 写入相同值不会触发任何失效。
-    SideEffect { onPageShift(shift) }
+    val shift by shiftState
+    // R35 → R111:把位移动画的 State 交给 MainActivity(壁纸层住在那里,绘制阶段读)。**组合阶段不读 shift**:
+    // 下面 Column 的位移改用 offset {} 在布局阶段读、行的 R53 淡出在图层阶段读——位移动画期间首页不再每帧重组
+    // (A95L 上每帧省下整个 HomeScreen 函数体的重组,原来动画的 ~30 帧里帧帧都跑)。每次写入的是同一个对象,
+    // 不触发任何失效。
+    SideEffect { onPageShiftState(shiftState) }
+    DisposableEffect(Unit) { onDispose { onPageShiftState(null) } }
     // **焦点看门狗。**判据取自真机日志:根节点的 onFocusChanged 里
     //   hasFocus=true && !isFocused  → 某个子节点持有焦点(正常)
     //   hasFocus=true &&  isFocused  → 焦点停在根上,即**没有任何卡片持有**(要补)
@@ -602,7 +606,9 @@ fun HomeScreen(
                 .focusProperties { canFocus = !covered }
                 // R32:offset 在 padding 之外——padding(top = rowsTop,R52 焦点线)就是 hero 的空间,它必须
                 // 随 shift 一起走(整页位移),两者顺序不能对调。
-                .offset(y = shift)
+                // R111:布局阶段读 shift(原 `offset(y = shift)` 在组合阶段读,动画每帧重组整个首页)。
+                // 同样按 roundToPx 取整放置,位置逐像素相同;offset {} 以图层放置,位移只改图层平移、不重录内容。
+                .offset { androidx.compose.ui.unit.IntOffset(0, shift.roundToPx()) }
                 .padding(top = anchorTop),
             // gtv 线:行外间距改读 GtvLayout(Task 9b)——之前留读 HomeLayout.ROW_GAP(20dp)是
             // 每行 26.5dp 纵向漂移的来源之一(与 rowPitch() 假设的 ROW_GAP 对不上,见 GtvLayoutTest)。
@@ -881,6 +887,10 @@ private fun CategoryRow(
         // + 屏幕本身的绘制裁切自然露出一截、仍可聚焦(行尾 peeking,见下面 Row 的注释)。
         // 行可能变短(卸载了应用),索引留在旧值上会让 rowShiftX 按一个不存在的列数左移
         val focused = focusedIndex.coerceIn(0, row.apps.lastIndex.coerceAtLeast(0))
+        // R111:卡片的焦点回调在回调时刻读这两个量的**最新组合值**(与原来每次重组捕获进新 lambda 的是同一个值),
+        // 回调本身因此不随它们变——左右移一格不再让本行每张卡都重组,只有得失焦点的那两张(和挂 requester 的那张)重组。
+        val focusedNow by rememberUpdatedState(focused)
+        val landingShiftsPageNow by rememberUpdatedState(landingShiftsPage)
         val screenWidthDp = LocalConfiguration.current.screenWidthDp.toFloat()
         val xShift by animateDpAsState(
             targetValue = GtvLayout.rowShiftX(focused, cardSize, screenWidthDp).dp,
@@ -911,7 +921,9 @@ private fun CategoryRow(
                     title = if (showTitles) (titles[app.packageName] ?: app.label) else null,
                     fallbackColor = app.fallbackColor?.let { Color(it) },
                     moving = index == carried,
-                    focusAfterShift = landedWithShift,
+                    // R111:只有本行的焦点卡读这个量(gtvAppFocusFrame 只在 focused 为真时用它选进焦曲线),
+                    // 其余卡恒传 false——值与原来在它们身上「用不到」的那个等价,它变时就不必连带整行重组。
+                    focusAfterShift = landedWithShift && index == focused,
                     onClick = {
                         if (!Apps.launch(ctx, app.packageName)) {
                             android.widget.Toast.makeText(
@@ -930,13 +942,13 @@ private fun CategoryRow(
                         },
                     onFocusChange = { got ->
                         if (got) {
-                            // R30:判「这次落焦会不会让行动」——lambda 捕获的 focused / landingShiftsPage /
+                            // R30:判「这次落焦会不会让行动」——focusedNow / landingShiftsPageNow(R111 起经 rememberUpdatedState)/
                             // screenWidthDp 都是上一次重组的值,正好是这次焦点变化**之前**的状态。
                             // 纵向:落上来整页位移目标会变(R42);横向:目标 rowShiftX 变了才算滑行
                             // (行放得下时左右移不动,与 R20 的规则一致,不延迟)。
-                            val xBefore = GtvLayout.rowShiftX(focused, cardSize, screenWidthDp)
+                            val xBefore = GtvLayout.rowShiftX(focusedNow, cardSize, screenWidthDp)
                             val xAfter = GtvLayout.rowShiftX(index, cardSize, screenWidthDp)
-                            landedWithShift = landingShiftsPage || xAfter != xBefore
+                            landedWithShift = landingShiftsPageNow || xAfter != xBefore
                             focusedIndex = index
                         }
                         onFocusChange(index, got)
