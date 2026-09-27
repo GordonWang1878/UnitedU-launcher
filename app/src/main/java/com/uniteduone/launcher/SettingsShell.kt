@@ -314,9 +314,6 @@ fun SettingsShell(
     val screensaverImages by produceState(-1, galleryVersion, covered) {
         value = withContext(Dispatchers.IO) { safeScan(ctx)?.size ?: 0 }
     }
-    val hiddenInputs by produceState(-1, revision, covered) {
-        value = withContext(Dispatchers.IO) { HiddenInputs.read(ctx).size }
-    }
     val systemStatus = remember(focusNonce, covered) { readSystemUiStatus(ctx) }
 
     val written by rememberUpdatedState(onWritten)
@@ -343,11 +340,10 @@ fun SettingsShell(
             applyLanguage = { lang -> actions.applyLanguage(lang); written() },
             openScreensaverGallery = actions.openScreensaverGallery,
             openSystemScreensaver = actions.openSystemScreensaver,
-            restoreHiddenInputs = actions.restoreHiddenInputs,
             openSystemAnimationSettings = actions.openSystemAnimationSettings,
         )
     }
-    val groups = settingsGroups(saved, ::update, liveActions, screensaverImages, hiddenInputs, systemStatus)
+    val groups = settingsGroups(saved, ::update, liveActions, screensaverImages, systemStatus)
 
     // 返回键 = 回上一层(第一层再按 = 关掉设置)。叠在外壳之上的选择器 / 关于页各自的 BackHandler 注册得更晚,先接管。
     androidx.activity.compose.BackHandler { onPop() }
@@ -492,9 +488,9 @@ private fun optionLabel(row: ControlRow, i: Int): String {
 
 /**
  * 右端不画 › 的动作行:跳安卓原生设置页的(不进外壳的下一层,Gordon 定案第 1 条的例外),
- * 以及按下去当场生效、不打开任何界面的(「恢复隐藏的输入源」)。› 只表示「会进到另一个界面」。
+ * 以及按下去当场生效、不打开任何界面的。› 只表示「会进到另一个界面」。
  */
-private val JUMP_ROWS = setOf("systemScreensaver", "systemAnimationScale", "restoreHiddenInputs")
+private val JUMP_ROWS = setOf("systemScreensaver", "systemAnimationScale")
 
 /**
  * 滑块展开时的短标签(交互测试 2026-09-23):聚焦的滑块胶囊里标签只剩约 104 dp,英文

@@ -25,7 +25,6 @@ class SettingsModelTest {
             applyLanguage = { lang -> languages += lang },
             openScreensaverGallery = { fired += "openScreensaverGallery" },
             openSystemScreensaver = { fired += "openSystemScreensaver" },
-            restoreHiddenInputs = { fired += "restoreHiddenInputs" },
             openSystemAnimationSettings = { fired += "openSystemAnimationSettings" },
         )
     }
@@ -48,9 +47,9 @@ class SettingsModelTest {
 
     @Test fun rowCountsPerGroup() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
-        // 布局 1 动作(R69 编辑分栏)+ 3 / 通用 7(R60 手机传输挪进来)+ 动画缩放条件行(默认 UNKNOWN = 读不到 → 出「查看」)/
+        // 布局 1 动作(R69 编辑分栏)+ 2(R92 删掉「输入源行」开关)/ 通用 7(R60 手机传输挪进来)+ 动画缩放条件行(默认 UNKNOWN = 读不到 → 出「查看」)/
         // 外观 1 动作 + 2 壁纸滑块(自动切换 R61 删掉)+ 2 主题(主题化卡片 R58 删掉)+ 2 卡片淡化滑块(R70)+ 卡片不透明度(R86)/ 屏保 2 控件 + 2 动作
-        assertEquals(listOf(4, 8, 8, 4), g.map { it.rows.size })
+        assertEquals(listOf(3, 8, 8, 4), g.map { it.rows.size })
     }
 
     @Test fun rowIdsAreUnique() {
@@ -259,37 +258,13 @@ class SettingsModelTest {
         )
     }
 
-    // ---- M4b「恢复隐藏的输入源」(布局组第四行,只在有隐藏项时出现)----
+    // ---- R92:布局组没有「输入源行」开关与「恢复隐藏的输入源」了 ----
 
-    /** hiddenInputs 有默认值 0,不传时与「今天」(没有这一行)完全一致——这条顺带钉住那个默认值。 */
-    @Test fun hiddenInputsZeroKeepsLayoutGroupUnchanged() {
-        fun layoutRowIds(hiddenInputs: Int?) = (
-            if (hiddenInputs == null) {
-                settingsGroups(Settings(), {}, Recorder().actions, someImages)
-            } else {
-                settingsGroups(Settings(), {}, Recorder().actions, someImages, hiddenInputs = hiddenInputs)
-            }
-            ).first { it.id == GroupId.LAYOUT }.rows.map { it.id }
-        val expected = listOf("editLayout", "cardsPerRow", "showTitles", "showInputRow")
-        assertEquals(expected, layoutRowIds(0))
-        // 不传第五个参数(19 处既有调用全是这样)必须等价于显式传 0。
-        assertEquals(expected, layoutRowIds(null))
-    }
-
-    @Test fun hiddenInputsPositiveAddsRestoreRowAfterShowInputRow() {
-        val r = Recorder()
-        val g = settingsGroups(Settings(), {}, r.actions, someImages, hiddenInputs = 2)
-        val layout = g.first { it.id == GroupId.LAYOUT }.rows
-        assertEquals(
-            listOf("editLayout", "cardsPerRow", "showTitles", "showInputRow", "restoreHiddenInputs"),
-            layout.map { it.id },
-        )
-        val row = layout.last() as ActionRow
-        assertEquals(R.string.settings_restore_hidden_inputs, row.labelRes)
-        assertEquals(R.string.settings_hidden_inputs_count, row.hintRes)
-        assertEquals(listOf<Any>(2), row.hintArgs)
-        row.onActivate()
-        assertEquals(listOf("restoreHiddenInputs"), r.fired)
+    @Test fun layoutGroupHasNoInputRows() {
+        val ids = settingsGroups(Settings(), {}, Recorder().actions, someImages)
+            .first { it.id == GroupId.LAYOUT }.rows.map { it.id }
+        assertEquals(listOf("editLayout", "cardsPerRow", "showTitles"), ids)
+        assertEquals(null, optionWrite("showInputRow"))
     }
 
     // ---- ui-pending #16:系统屏保摘要(R56)与动画缩放提示行(R57 在通用组)----

@@ -99,7 +99,6 @@
     <string name="home_empty_apps_hint">沒有可顯示的應用程式\n按遙控器的選單鍵,或選左上角的設定按鈕,再進「版面 → 編輯分欄」新增</string>
     <string name="home_new_apps">有 %1$d 個新應用程式</string>
     <string name="home_screensaver_button">螢幕保護</string>
-    <string name="home_input_row_title">輸入源</string>
     <string name="home_settings_title">預設桌面</string>
     <string name="home_settings_current_label">目前</string>
     <string name="home_settings_change_button">在系統設定中變更</string>
@@ -139,7 +138,6 @@
     <string name="settings_card_medium">中</string>
     <string name="settings_card_small">小</string>
     <string name="settings_show_titles">卡片標題</string>
-    <string name="settings_show_input_row">輸入源行</string>
     <string name="settings_theme_color">主題色</string>
     <string name="settings_follow_wallpaper">跟隨桌布主色</string>
     <string name="settings_idle_after">待機時間</string>
@@ -243,9 +241,6 @@
     <string name="settings_restore_hidden_inputs">恢復隱藏的輸入源</string>
     <string name="settings_hidden_inputs_count">%1$d 個</string>
     <string name="toast_inputs_restored">已恢復全部輸入源</string>
-    <string name="card_menu_open_input">打開輸入源</string>
-    <string name="card_menu_open_input_desc">切到這個輸入源</string>
-    <string name="card_menu_rename_input_desc">改卡片上顯示的名字,清空恢復系統名稱</string>
     <string name="title_dialog_hint_input">確定儲存 · 返回取消 · 清空恢復系統名稱</string>
     <!-- edit_row_* / row_icon_* : 編輯頁行選單(行尾「+」)、行改名、行圖示選擇器、刪行確認框(M4b Task 4) -->
     <string name="edit_row_add_app">新增應用程式</string>
@@ -287,7 +282,7 @@
     <!-- edit_move_desc : 編輯頁搬運模式(M4b 真機驗收補丁 Task 2) -->
     <string name="edit_move_desc">在編輯頁裡用方向鍵挪這張卡,空行也能去</string>
     <!-- settings shell:設定頁膠囊外殼(R69–R72,2026-09-23) -->
-    <string name="shell_root_layout_desc">編輯分欄、卡片大小與標題、輸入源</string>
+    <string name="shell_root_layout_desc">編輯分欄、卡片大小與標題</string>
     <string name="shell_root_general_desc">語言、預設桌面、手機傳輸、待機、時鐘</string>
     <string name="shell_root_appearance_desc">桌布、主題色、卡片色彩</string>
     <string name="shell_root_screensaver_desc">螢幕保護時間、圖庫、系統螢幕保護</string>

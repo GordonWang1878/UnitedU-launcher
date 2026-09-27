@@ -9,14 +9,7 @@ class CardMenuTest {
     @Test fun appCardsGetSixActionsInDesignOrder() {
         assertEquals(
             listOf(CardAction.OPEN, CardAction.UNINSTALL, CardAction.RENAME, CardAction.CHANGE_ICON, CardAction.MOVE, CardAction.REMOVE),
-            cardMenuActions(RowKind.APPS),
-        )
-    }
-
-    @Test fun inputCardsGetThreeActions() {
-        assertEquals(
-            listOf(CardAction.OPEN, CardAction.RENAME, CardAction.HIDE),
-            cardMenuActions(RowKind.INPUTS),
+            cardMenuActions(),
         )
     }
 

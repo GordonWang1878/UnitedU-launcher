@@ -372,8 +372,6 @@ class MainActivity : ComponentActivity() {
                     // M5:屏保图库与换壁纸同一套(只置 pickerTarget,叠在设置页上),关掉后设置页把焦点接回这一行。
                     openScreensaverGallery = { openScreensaverPool() },
                     openSystemScreensaver = { openSystemScreensaverSettings() },
-                    // M4b:布局组「恢复隐藏的输入源」行,只在 hiddenInputs > 0 时存在。
-                    restoreHiddenInputs = ::restoreHiddenInputs,
                     // ui-pending #16:「系统」组动画缩放提示行 → 开发者选项(同一套候选链 + 弹回检测)。
                     openSystemAnimationSettings = {
                         openSystemPage(ANIMATION_SETTINGS_PAGES, R.string.toast_system_settings_unavailable)
@@ -641,7 +639,6 @@ class MainActivity : ComponentActivity() {
                     showDate = homeSettings.showDate,
                     cardsPerRow = homeSettings.cardsPerRow,
                     showTitles = homeSettings.showTitles,
-                    showInputRow = homeSettings.showInputRow,
                     newAppsSeenAt = homeSettings.newAppsSeenAt,
                     onFocusedCard = { focusedCard = it },
                     cardMenu = cardMenu,
@@ -902,13 +899,10 @@ class MainActivity : ComponentActivity() {
             ) {
                 val ref = focusedCard
                 if (ref != null) {
-                    // **只要站在卡片上,长按就整下吞掉**(design §1:输入源卡「按压照常吞掉、不启动」)。
-                    // 没有这一半的话,输入源卡上长按会走到下面「重复事件照吞」、可 UP 仍然落到界面上,
-                    // 而 clickable 正是在 UP 触发 —— 用户长按只想看看有没有菜单,结果切了信号源。
+                    // 长按整下吞掉(同一次按压之后的事件含 UP 都吞):clickable 在 UP 触发,不吞会顺带启动应用。
                     longPressDownTime = event.downTime
                     window.decorView.playSoundEffect(SoundEffectConstants.CLICK)
-                    // 有菜单的种类才弹菜单;输入源行的菜单归 M4b,现在只是「什么都不发生」。
-                    if (cardMenuActions(ref.kind).isNotEmpty()) cardMenu = ref
+                    cardMenu = ref
                     return true
                 }
             }
@@ -1011,7 +1005,7 @@ class MainActivity : ComponentActivity() {
     private fun startMove(ref: CardRef) {
         if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
         val rows = shownRows
-        val r = rows.indexOfFirst { it.kind == RowKind.APPS && it.layoutRow == ref.layoutRow }
+        val r = rows.indexOfFirst { it.layoutRow == ref.layoutRow }
         val c = rows.getOrNull(r)?.apps?.indexOfFirst { it.packageName == ref.pkg } ?: -1
         if (c < 0) return
         val at = MovePos(r, c)
@@ -1037,9 +1031,7 @@ class MainActivity : ComponentActivity() {
                     // **original 与工作副本一起滤**:mergeMove 按「可见顺序变没变」决定一行要不要改写,
                     // 只滤一边的话,没搬到、却恰好少了个被卸载包的那一行会被当成「变了」,未安装的包被挪到行尾。
                     val onDisk = disk.flatMapTo(HashSet()) { it.apps }
-                    fun List<Row>.onlyOnDisk() = map { r ->
-                        if (r.kind == RowKind.APPS) r.copy(apps = r.apps.filter { it.packageName in onDisk }) else r
-                    }
+                    fun List<Row>.onlyOnDisk() = map { r -> r.copy(apps = r.apps.filter { it.packageName in onDisk }) }
                     mergeMove(disk, st.original.onlyOnDisk(), st.rows.onlyOnDisk())
                 }
             }
@@ -1314,30 +1306,14 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * 长按菜单项:哪几项由 [cardMenuActions] 按 `ref.kind` 定(应用行六项见 design §2,
-     * 输入源行三项见 M4b spec §0-11);这里只管每一项按下去做什么。OPEN/RENAME 的文案与动作
-     * 都会再按 `ref.kind` 二次分流(应用 vs 输入源不共用同一套「应用」措辞,也不共用启动方式)。
+     * 长按菜单项:六项见 design §2([cardMenuActions]);这里只管每一项按下去做什么。
+     * (R92 起首页没有输入源行,输入源卡的文案分流与 HIDE 一项随之删掉,输入源的改名 / 隐藏在「输入源」页。)
      */
-    private fun cardMenuItems(ref: CardRef): List<MenuItem> = cardMenuActions(ref.kind).mapNotNull { action ->
+    private fun cardMenuItems(ref: CardRef): List<MenuItem> = cardMenuActions().map { action ->
         when (action) {
-            // 文案按 ref.kind 分流(M4b 跟进复审):card_menu_open(_desc) 写死「应用」,
-            // 输入源卡不能借用——换成不提「应用」两个字的 card_menu_open_input(_desc)。
-            CardAction.OPEN -> {
-                val (labelRes, descRes) = if (ref.kind == RowKind.INPUTS) {
-                    R.string.card_menu_open_input to R.string.card_menu_open_input_desc
-                } else {
-                    R.string.card_menu_open to R.string.card_menu_open_desc
-                }
-                MenuItem(getString(labelRes), getString(descRes)) {
-                    closeCardMenu()
-                    // 按 ref.kind 分流:输入源卡的 pkg 存的是输入 id,不是包名——同 HomeScreen
-                    // 卡片本身点击时的分流(CategoryRow.onClick)一样,不能一律走 Apps.launch。
-                    val ok = when (ref.kind) {
-                        RowKind.INPUTS -> Inputs.launch(this, ref.pkg)
-                        RowKind.APPS -> Apps.launch(this, ref.pkg)
-                    }
-                    if (!ok) toast(getString(R.string.toast_cant_open_app, ref.label))
-                }
+            CardAction.OPEN -> MenuItem(getString(R.string.card_menu_open), getString(R.string.card_menu_open_desc)) {
+                closeCardMenu()
+                if (!Apps.launch(this, ref.pkg)) toast(getString(R.string.toast_cant_open_app, ref.label))
             }
             CardAction.UNINSTALL -> MenuItem(getString(R.string.card_menu_uninstall), getString(R.string.card_menu_uninstall_desc)) {
                 closeCardMenu()
@@ -1346,12 +1322,7 @@ class MainActivity : ComponentActivity() {
                 }.isSuccess
                 if (!ok) toast(getString(R.string.toast_uninstall_failed))
             }
-            // 标题(card_menu_rename「修改标题」/「Rename Card」)三种语言都不提「应用」,两种行共用；
-            // 说明文字原句提到「应用」,输入源卡换 card_menu_rename_input_desc(M4b 跟进复审)。
-            CardAction.RENAME -> MenuItem(
-                getString(R.string.card_menu_rename),
-                getString(if (ref.kind == RowKind.INPUTS) R.string.card_menu_rename_input_desc else R.string.card_menu_rename_desc),
-            ) {
+            CardAction.RENAME -> MenuItem(getString(R.string.card_menu_rename), getString(R.string.card_menu_rename_desc)) {
                 closeCardMenu(); renameTarget = ref
             }
             CardAction.CHANGE_ICON -> MenuItem(getString(R.string.card_menu_icon), getString(R.string.card_menu_icon_desc)) {
@@ -1377,24 +1348,6 @@ class MainActivity : ComponentActivity() {
                     // 失败只有一种原因:那一行/那个包已经不在盘上了(别处刚改过 layout.json)。
                     // 不能再报「顺序没能存下来」—— 那是写盘失败的文案,会把人引到错误的方向。
                     else toast(getString(R.string.toast_remove_failed))
-                }
-            }
-            // 输入源行专属(M4b spec §0-11)。从桌面隐藏这个输入源,能在设置页「布局 → 恢复隐藏的
-            // 输入源」一键找回。写盘(tmp → fsync → rename)放 IO 线程,与 REMOVE 同构;时序也同构——
-            // 先关菜单让还原效果把焦点落回这张卡(它此刻还在),写完 revision++ 才让那一行变短、
-            // 焦点按夹过的列号送到同行邻卡(design §1「行变短时索引夹取」,与卸载/移除同一套机制)。
-            // **不能挂 settingsRevision**:那颗只重读 settings.json、明确不重建首页行(见其字段 KDoc),
-            // 挂它的话卡片写完盘也不会消失。
-            CardAction.HIDE -> MenuItem(getString(R.string.menu_hide_input), getString(R.string.menu_hide_input_desc)) {
-                closeCardMenu()
-                lifecycleScope.launch {
-                    val ok = withContext(Dispatchers.IO) { HiddenInputs.set(this@MainActivity, ref.pkg, true) }
-                    if (ok) {
-                        toast(getString(R.string.toast_input_hidden, ref.label))
-                        revision++
-                    } else {
-                        toast(getString(R.string.toast_input_hide_failed))
-                    }
                 }
             }
         }

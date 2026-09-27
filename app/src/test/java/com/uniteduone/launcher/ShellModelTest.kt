@@ -15,7 +15,7 @@ class ShellModelTest {
 
     private val noActions = SettingsActions(
         pickWallpaper = {}, openImport = {}, setDefaultHome = {}, restoreDefaults = {}, applyLanguage = {},
-        openScreensaverGallery = {}, openSystemScreensaver = {}, restoreHiddenInputs = {}, openSystemAnimationSettings = {},
+        openScreensaverGallery = {}, openSystemScreensaver = {}, openSystemAnimationSettings = {},
     )
     private val normalSystem = SystemUiStatus(
         screensaverEnabled = true,
@@ -24,8 +24,8 @@ class ShellModelTest {
         animatorScale = 1f, transitionScale = 1f, windowScale = 1f,
     )
 
-    private fun groups(s: Settings = Settings(), hidden: Int = 0, sys: SystemUiStatus = normalSystem) =
-        settingsGroups(s, {}, noActions, 3, hiddenInputs = hidden, system = sys)
+    private fun groups(s: Settings = Settings(), sys: SystemUiStatus = normalSystem) =
+        settingsGroups(s, {}, noActions, 3, system = sys)
 
     private fun ids(g: List<GroupSpec>, id: GroupId) = g.first { it.id == id }.rows.map { it.id }
 
@@ -48,7 +48,7 @@ class ShellModelTest {
     /** Gordon 定案第 3 条:四个第二层的内容与顺序(条件行不在时)。 */
     @Test fun secondLevelPages() {
         val g = groups()
-        assertEquals(listOf("editLayout", "cardsPerRow", "showTitles", "showInputRow"), ids(g, GroupId.LAYOUT))
+        assertEquals(listOf("editLayout", "cardsPerRow", "showTitles"), ids(g, GroupId.LAYOUT))
         assertEquals(
             listOf("language", "setDefaultHome", "openImport", "idleAfter", "idleContent", "clockDisplay", "restoreDefaults"),
             ids(g, GroupId.GENERAL),
@@ -63,9 +63,8 @@ class ShellModelTest {
         )
     }
 
-    /** 条件行:恢复隐藏的输入源(布局末行)、动画缩放(通用「恢复默认」之前)。 */
+    /** 条件行:动画缩放(通用「恢复默认」之前)。(「恢复隐藏的输入源」R92 起不在设置里了,在「输入源」页。) */
     @Test fun conditionalRows() {
-        assertEquals("restoreHiddenInputs", ids(groups(hidden = 2), GroupId.LAYOUT).last())
         val general = ids(groups(sys = normalSystem.copy(animatorScale = 2f)), GroupId.GENERAL)
         assertEquals(listOf("systemAnimationScale", "restoreDefaults"), general.takeLast(2))
         assertEquals(8, general.size)
@@ -100,7 +99,7 @@ class ShellModelTest {
         assertFalse(pageHasPreview(ShellPages.ROOT))
         assertFalse(pageHasPreview(ShellPages.RESTORE))
         assertFalse(pageHasPreview(ShellPages.HOME))
-        for (r in listOf("cardsPerRow", "showTitles", "showInputRow", "themeColor", "followWallpaper")) {
+        for (r in listOf("cardsPerRow", "showTitles", "themeColor", "followWallpaper")) {
             assertTrue(r, pageHasPreview(ShellPages.options(r)))
         }
         for (r in listOf("language", "idleAfter", "idleContent", "clockDisplay", "screensaverAfter", "screensaverInterval")) {
@@ -193,7 +192,6 @@ class ShellModelTest {
         val saved = Settings(showTitles = false, followWallpaperColor = false)
         assertTrue(effectiveSettings(saved, listOf(ShellFrame("o:showTitles", optionId(1)))).showTitles)
         assertTrue(effectiveSettings(saved, listOf(ShellFrame("o:followWallpaper", optionId(1)))).followWallpaperColor)
-        assertTrue(effectiveSettings(saved, listOf(ShellFrame("o:showInputRow", optionId(1)))).showInputRow)
     }
 
     // ---- 滑块 ----

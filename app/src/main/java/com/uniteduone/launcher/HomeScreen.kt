@@ -77,9 +77,7 @@ fun HomeScreen(
      *  (见 GtvLayout.titleHeight;main 线的编辑页等未换皮界面走 HomeLayout.titleHeight 同一套公式),
      *  纵向位移沿用同一套自算逻辑。 */
     showTitles: Boolean = false,
-    /** 输入源行开关(design §2,默认关)。开着且真机枚举到硬件输入时,在应用行**上方**
-     *  多渲染一行输入源;它以普通行的身份加进纵向焦点账本,种类差异只影响点击行为与行图标。 */
-    showInputRow: Boolean = false,
+    // ~~showInputRow~~(R92,2026-09-27 Gordon):首页不再有输入源行,输入源搬到顶栏「输入源」胶囊打开的页面(InputsPage)。
     /** 上次打开「添加应用」列表的时刻(design §4);默认「什么都不算新」,未接线的调用点零回归。 */
     newAppsSeenAt: Long = Long.MAX_VALUE,
     /** 当前聚焦的卡(得到时上报,失去时报 null)——MainActivity 长按时据此弹菜单。 */
@@ -118,7 +116,7 @@ fun HomeScreen(
     moving: MoveState? = null,
     /** 移动态结束时焦点该落的那一格(见 [MoveLanding]):还原效果把它写进 `tgtRow`/`tgtIdx`,每个落点只写一次。 */
     moveLanding: MoveLanding? = null,
-    /** 这一次组合画出来的行(含置顶的输入源行)。MainActivity 进移动态时拿最近一份当工作副本。 */
+    /** 这一次组合画出来的行。MainActivity 进移动态时拿最近一份当工作副本。 */
     onRowsShown: (List<Row>) -> Unit = {},
     /**
      * **Ruling R35**:整页位移的**每帧动画值**(dp,≤ 0 表示上移,= 下面 `shift`)上报给 MainActivity,
@@ -148,8 +146,6 @@ fun HomeScreen(
     // 用 null 区分「还在加载」和「真的空」,否则每次冷启动和每次退出编辑都会闪一句求救文案
     // revision 变化(换了卡片图、装/卸了应用)时重跑,但 produceState 的 remember 不带 key,
     // 新数据到达前**旧画面原样留着**——不会像 key(revision) 那样先黑一下再重建。
-    // showInputRow 也作 key:设置页改了这个开关后 leaveSettings() 会 revision++,
-    // 这里本就会重跑;带上它是白纸黑字,不依赖「revision 一定跟着变」这条间接约束。
     // titles.json 与 rows 同一趟 IO 读出,配成一对:标题开关关着时 titles 仍会被读到但不渲染
     // (显示与否只由 showTitles 决定,不进 key——开关切换不必重读数据,只是换一种渲不渲染)。
     // 「手上这份数据是为哪个 revision 算的」。**移除 / 卸载后焦点能不能留在同一行,全靠它**:
@@ -159,25 +155,17 @@ fun HomeScreen(
     // 与 EditScreen 的 allFresh 同构:数据不新鲜时冻结目标,新鲜之后再由还原效果送回去。
     var loadedRevision by remember { mutableStateOf(-1) }
     val loaded by produceState<Triple<List<Row>, Map<String, String>, Int>?>(
-        initialValue = null, ctx, revision, showInputRow, newAppsSeenAt,
+        initialValue = null, ctx, revision, newAppsSeenAt,
     ) {
         value = withContext(Dispatchers.IO) {
-            val appRows = runCatching { buildRows(ctx) }.getOrDefault(emptyList())
-            // titles 要在输入源行之前读出:buildInputRow 用它给改过名的输入源换标签(applyInputPrefs)。
+            val rows = runCatching { buildRows(ctx) }.getOrDefault(emptyList())
             val titles = runCatching { Titles.read(ctx) }.getOrDefault(emptyMap())
-            // 输入源行放**最上面**:design §2 把「输入源」当独立顶层类目,置顶与之相符;
-            // 且置顶后应用行的相对次序、以及「开机焦点落在最上一行」的直觉都不变。
-            // 枚举为空(非电视 / 没有硬件输入 / 全部隐藏)时返回 null,这一行干脆不存在 —— 焦点账本
-            // 只认非空行,不会挂空 requester(见 buildRows 结尾那条不变量)。
-            val inputRow = if (showInputRow) runCatching { buildInputRow(ctx, titles) }.getOrNull() else null
-            val rows = if (inputRow != null) listOf(inputRow) + appRows else appRows
-            // 「新应用」计数:与首页同一趟 IO 算(应用已经枚举过一次),onLayout 只看应用行
-            // ——输入源行的 packageName 存的是输入 id,不是真的包名。
+            // 「新应用」计数:与首页同一趟 IO 算(应用已经枚举过一次)。
             // 基线还没建立(newAppsSeenAt == 0:onCreate 那次基线写盘失败,比如外置存储开机时还没挂上)
             // 就什么都不算新——否则 countNew(ctx, 0, …) 会把整机几十个应用全算成「新」,整个会话都挂着计数
             // (终审 Minor #5)。isNewApp 的纯语义不动(仍是「装机时间 > seenAt 且不在桌面上」),只是不喂 0 进去。
             val newCount = if (newAppsSeenAt == 0L) 0 else runCatching {
-                Apps.countNew(ctx, newAppsSeenAt, appRows.flatMap { r -> r.apps.map { it.packageName } }.toSet())
+                Apps.countNew(ctx, newAppsSeenAt, rows.flatMap { r -> r.apps.map { it.packageName } }.toSet())
             }.getOrDefault(0)
             Triple(rows, titles, newCount)
         }
@@ -279,7 +267,7 @@ fun HomeScreen(
         if (row < 0) return null                       // (-1, col) = 顶栏 pill:它不是卡,长按不该出菜单
         val r = rows.getOrNull(row) ?: return null
         val app = r.apps.getOrNull(idx) ?: return null
-        return CardRef(row, idx, r.layoutRow, r.kind, app.packageName, app.label)
+        return CardRef(row, idx, r.layoutRow, app.packageName, app.label)
     }
     fun report(row: Int, idx: Int, got: Boolean) {
         // 目标跟着「焦点真的落在哪」走,**还原过程中不更新**——理由与下面卡片那两个目标完全相同:
@@ -785,10 +773,7 @@ fun HomeScreen(
                 key = rt.pkg,
                 current = titles[rt.pkg] ?: "",
                 heading = stringResource(R.string.title_dialog_title),
-                // 输入源卡:清空恢复系统名(title_dialog_hint_input);应用卡:清空恢复应用名。
-                hint = stringResource(
-                    if (rt.kind == RowKind.INPUTS) R.string.title_dialog_hint_input else R.string.title_dialog_hint,
-                ),
+                hint = stringResource(R.string.title_dialog_hint),
                 onSave = { onRenameSave(rt, it) },
                 onCancel = onRenameCancel,
                 nonce = focusNonce,
@@ -804,7 +789,7 @@ private fun CategoryRow(
     metrics: CardMetrics,
     /** gtv 线的卡片档位(Task 3);横向位移公式 [GtvLayout.rowShiftX] 按它算 pitch。 */
     cardSize: GtvCardSize,
-    /** 卡片标题全局开关 + 自定义标题表(design §2);输入源行不受它影响,见下方 AppCard 调用。 */
+    /** 卡片标题全局开关 + 自定义标题表(design §2)。 */
     showTitles: Boolean,
     titles: Map<String, String>,
     firstCard: FocusRequester?,
@@ -855,7 +840,7 @@ private fun CategoryRow(
         // 卡片标题开着时标题在卡下方,不参与居中——效果图 A2 对齐的是卡片本身)。
         // 行名由 RowIcon 的 contentDescription 带给无障碍服务。图标不随 xShift 走。
         RowIcon(
-            row.name, row.kind, row.icon,
+            row.name, row.icon,
             tint = iconColor,
             boxSize = GtvLayout.ROW_ICON_SIZE.dp,
             modifier = Modifier.padding(
@@ -904,21 +889,13 @@ private fun CategoryRow(
                 AppCard(
                     app = app,
                     metrics = metrics,
-                    // 标题开关为全局(design §2.2):输入源行不显示,自定义标题也一样受它约束。
-                    title = if (showTitles && row.kind == RowKind.APPS) (titles[app.packageName] ?: app.label) else null,
-                    // 输入源行不画标题但照样占住那一行,行距与应用行一致(应用行 title 非空,走不到这一支)
-                    reserveTitleSpace = showTitles,
+                    // 标题开关为全局(design §2.2),自定义标题也一样受它约束。
+                    title = if (showTitles) (titles[app.packageName] ?: app.label) else null,
                     fallbackColor = app.fallbackColor?.let { Color(it) },
                     moving = index == carried,
                     focusAfterShift = landedWithShift,
                     onClick = {
-                        // 唯一按种类分流的地方:应用行启动包,输入源行切信号源
-                        //(packageName 里存的是输入 id)。其余焦点/渲染全部与种类无关。
-                        val ok = when (row.kind) {
-                            RowKind.INPUTS -> Inputs.launch(ctx, app.packageName)
-                            RowKind.APPS -> Apps.launch(ctx, app.packageName)
-                        }
-                        if (!ok) {
+                        if (!Apps.launch(ctx, app.packageName)) {
                             android.widget.Toast.makeText(
                                 ctx, ctx.getString(R.string.toast_cant_open_app, app.label), android.widget.Toast.LENGTH_SHORT,
                             ).show()
@@ -955,25 +932,6 @@ private fun CategoryRow(
             }
         }
     }
-}
-
-/**
- * 输入源行。把每个硬件输入伪装成 [AppEntry](packageName 存输入 id、card=null 走文字回退),
- * 从而与应用行**共用** AppCard / CategoryRow / 整套纵向焦点账本。
- * 枚举为空(非电视、或没有硬件输入、或全部被隐藏)时返回 null —— 这一行不渲染,焦点账本只挂非空行,
- * 与 buildRows 结尾那条不变量同源。标题走本地化字符串;ctx.getString 在 IO 线程可安全调用。
- * HDMI-CEC 父子去重见 [dedupeCec];隐藏 / 改名见 [applyInputPrefs]——[titles] 与卡片标题共用
- * titles.json(key = 输入 id),名字只换卡上文字,不受「卡片标题」开关影响。
- * 多个调谐器只留一张,见 [mergeTuners]。
- */
-private fun buildInputRow(ctx: Context, titles: Map<String, String>): Row? {
-    val inputs = applyInputPrefs(mergeTuners(dedupeCec(Inputs.load(ctx))), HiddenInputs.read(ctx), titles)
-    if (inputs.isEmpty()) return null
-    return Row(
-        name = ctx.getString(R.string.home_input_row_title),
-        apps = inputs.map { AppEntry(packageName = it.id, label = it.label, card = null, isWide = false) },
-        kind = RowKind.INPUTS,
-    )
 }
 
 private fun buildRows(ctx: Context): List<Row> {
