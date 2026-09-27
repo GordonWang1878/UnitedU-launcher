@@ -199,6 +199,49 @@ object Theme {
             visibilityThreshold = GtvLayout.BROWSE_SPRING_THRESHOLD_DP.dp,
         )
 
+    /** vertical-motion 方案 B 的缓动:比 `FastOutSlowInEasing`(0.4, 0, 0.2, 1)起步更慢、收尾更长。 */
+    val HomeVerticalSoftEasing = androidx.compose.animation.core.CubicBezierEasing(0.35f, 0f, 0.15f, 1f)
+
+    /**
+     * 首页**上下换行**整页位移的动画规格,按 [GtvLayout.HOME_VERTICAL_MOTION] 选(见那里)。
+     * 默认 [GtvLayout.HomeVerticalMotion.SPRING_220] 时返回的就是 [browseShiftSpec]——与左右同一根弹簧,行为不变。
+     */
+    fun homeVerticalShiftSpec(
+        motion: GtvLayout.HomeVerticalMotion = GtvLayout.HOME_VERTICAL_MOTION,
+    ): androidx.compose.animation.core.FiniteAnimationSpec<Dp> = when (motion) {
+        GtvLayout.HomeVerticalMotion.SPRING_220 -> browseShiftSpec()
+        GtvLayout.HomeVerticalMotion.TWEEN_450 -> androidx.compose.animation.core.tween(
+            GtvLayout.VMOTION_A_MS, easing = androidx.compose.animation.core.FastOutSlowInEasing,
+        )
+        GtvLayout.HomeVerticalMotion.TWEEN_550_SOFT ->
+            androidx.compose.animation.core.tween(GtvLayout.VMOTION_B_MS, easing = HomeVerticalSoftEasing)
+        GtvLayout.HomeVerticalMotion.SPRING_110 -> androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+            stiffness = GtvLayout.VMOTION_C_STIFFNESS,
+            visibilityThreshold = GtvLayout.BROWSE_SPRING_THRESHOLD_DP.dp,
+        )
+    }
+
+    /**
+     * 首页行图标焦点色(0→1 进度)的规格:与 [homeVerticalShiftSpec] 同一条曲线、同起同止(R47 的约定)。
+     * 默认时返回的就是 [rowIconFocusSpec]。
+     */
+    fun homeRowIconSpec(
+        motion: GtvLayout.HomeVerticalMotion = GtvLayout.HOME_VERTICAL_MOTION,
+    ): androidx.compose.animation.core.FiniteAnimationSpec<Float> = when (motion) {
+        GtvLayout.HomeVerticalMotion.SPRING_220 -> rowIconFocusSpec()
+        GtvLayout.HomeVerticalMotion.TWEEN_450 -> androidx.compose.animation.core.tween(
+            GtvLayout.VMOTION_A_MS, easing = androidx.compose.animation.core.FastOutSlowInEasing,
+        )
+        GtvLayout.HomeVerticalMotion.TWEEN_550_SOFT ->
+            androidx.compose.animation.core.tween(GtvLayout.VMOTION_B_MS, easing = HomeVerticalSoftEasing)
+        GtvLayout.HomeVerticalMotion.SPRING_110 -> androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+            stiffness = GtvLayout.VMOTION_C_STIFFNESS,
+            visibilityThreshold = 0.002f,
+        )
+    }
+
     /**
      * **Ruling R47(2026-09-22)**:首页行标题焦点态(放大 + 灰→白)的进度 0→1 走与整页位移**同一根**
      * 临界阻尼弹簧(stiffness = [GtvLayout.BROWSE_SPRING_STIFFNESS]),标题与位移同起同止——Google

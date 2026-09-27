@@ -337,7 +337,8 @@ fun HomeScreen(
         // Ruling R29(owner 反馈 Round 8):换行时整块内容的纵向平移 = Google TV 的 browse 手势,
         // 逐帧实测是先加速后减速的临界阻尼弹簧(R27 的 tv_easing_browse 是纯硬减速,对不上),
         // 四处位移共用 Theme.browseShiftSpec,依据见 GtvLayout.BROWSE_SPRING_STIFFNESS。
-        animationSpec = Theme.browseShiftSpec(),
+        // vertical-motion(2026-09-27):上下换行这一处改读 homeVerticalShiftSpec,默认仍返回 browseShiftSpec。
+        animationSpec = Theme.homeVerticalShiftSpec(),
         label = "rowShift",
     )
     // R35:每帧把动画的当前值举给 MainActivity(壁纸层住在那里)。这里的 shift 本来就在组合阶段被
@@ -831,7 +832,8 @@ private fun CategoryRow(
     // 不改布局;不进焦点账本、不碰任何 FocusRequester / 看门狗(铁律 3–7)。
     val iconFocus by animateFloatAsState(
         targetValue = if (isFocusRow) 1f else 0f,
-        animationSpec = Theme.rowIconFocusSpec(),
+        // vertical-motion(2026-09-27):与整页纵向位移同一条曲线,默认仍返回 rowIconFocusSpec。
+        animationSpec = Theme.homeRowIconSpec(),
         label = "rowIconFocus",
     )
     // R80(2026-09-24 owner):行图标跟主题色走——焦点行 = accent,其余行 = accent 的 55% 透明(暗底上压暗),

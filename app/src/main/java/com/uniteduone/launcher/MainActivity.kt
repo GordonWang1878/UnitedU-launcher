@@ -425,6 +425,8 @@ class MainActivity : ComponentActivity() {
             // 上报,这里归 0——编辑页本来就该看到完整壁纸(静止态)。
             var pageShift by remember { mutableStateOf(0.dp) }
             LaunchedEffect(editing) { if (editing) pageShift = 0.dp }
+            // 首页行距(dp),只给 WALLPAPER_DIM_PER_ROW 的逐行插值用。
+            val homePitch = GtvLayout.rowPitch(cardsPerRowToGtvSize(homeSettings.cardsPerRow), homeSettings.showTitles)
             val touched = lastInput
             // **编辑界面和菜单开着时不进入待机。**淡出只做在首页那一层,而吞掉唤醒键是
             // Activity 级的 —— 两头不占的结果是:编辑界面画面全亮(看着醒着),
@@ -559,7 +561,8 @@ class MainActivity : ComponentActivity() {
                 this@MainActivity,
                 wallpaperSpec,
                 onSettingsChanged = { settingsRevision++ },
-                alpha = { GtvLayout.wallpaperAlpha(pageShift.value) },
+                // vertical-motion(2026-09-27):WALLPAPER_DIM_PER_ROW 默认关 = 仍是 wallpaperAlpha(pageShift)。
+                alpha = { GtvLayout.homeWallpaperAlpha(pageShift.value, homePitch) },
             )
             // 自定义屏保层(M5 spec §1.4 第 2 层):只看 screensaverActive。不再因「不淡出」不组合——
             // 待机显示只管待机,「不淡出」时屏保照样会来(spec §0);没进屏保时 alpha 为 0,一张图都不画。

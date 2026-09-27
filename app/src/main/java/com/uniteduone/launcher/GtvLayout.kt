@@ -456,6 +456,46 @@ object GtvLayout {
     const val BROWSE_SPRING_THRESHOLD_DP = 0.5f
 
     /**
+     * **vertical-motion 研究(2026-09-27,分支 `try/vertical-motion`,未经 owner 裁定)**:首页**上下换行**
+     * 整页位移(连同行图标的焦点色,两者同起同止)用哪条曲线。左右位移、编辑页不受影响,仍读
+     * [Theme.browseShiftSpec]。测量数据、录像与推荐见 `docs/design/vertical-motion/README.md`。
+     *
+     * - [SPRING_220]:现状(R38),与左右同一根临界阻尼弹簧。t = 0 加速度最大,
+     *   80 ms 已走 33%、峰速 ≈ 715 dp/s 出现在 67 ms(一个中档行距 131 dp)。
+     * - [TWEEN_450]:方案 A,`tween(450, FastOutSlowInEasing)`。起步柔和(80 ms 10%),到 95% 用时与现状
+     *   几乎相同(327 vs 320 ms),峰速略高(≈ 796 dp/s,在 136 ms)。
+     * - [TWEEN_550_SOFT]:方案 B,`tween(550, CubicBezier(0.35, 0, 0.15, 1))`。起步更慢,95% 在 390 ms。
+     * - [SPRING_110]:方案 C,刚度减半的临界阻尼弹簧。起步加速度减半,但尾巴拖到 ~760 ms 才停稳。
+     *
+     * **tween 的已知代价**:`animateDpAsState` 在动画中途换目标(连按两下)时,tween 从当前位置以
+     * **零速度**重新起步,弹簧会带着当前速度接着走——A/B 连按时有一下「刹停再起步」。
+     */
+    enum class HomeVerticalMotion { SPRING_220, TWEEN_450, TWEEN_550_SOFT, SPRING_110 }
+
+    /** 首页上下换行用哪条曲线,见 [HomeVerticalMotion]。**默认 = 现状**;改这一行即可切换方案
+     *  (推荐 [HomeVerticalMotion.TWEEN_450],[WALLPAPER_DIM_PER_ROW] 随之打开)。 */
+    val HOME_VERTICAL_MOTION: HomeVerticalMotion = HomeVerticalMotion.SPRING_220
+
+    /** 方案 A 的时长(ms),曲线 `FastOutSlowInEasing`。 */
+    const val VMOTION_A_MS = 450
+    /** 方案 B 的时长(ms),曲线 [Theme.HomeVerticalSoftEasing]。 */
+    const val VMOTION_B_MS = 550
+    /** 方案 C 的刚度(临界阻尼,ω ≈ 10.5 rad/s)。 */
+    const val VMOTION_C_STIFFNESS = 110f
+
+    /**
+     * **vertical-motion 研究(2026-09-27)发现的「不同步」**:壁纸压暗按 [WALLPAPER_FADE_OVER_DP](192)
+     * 线性、到头夹住,而每换一行走 [rowPitch](中档无标题 131)。行 0 → 1 时两者同步;**行 1 → 2** 时
+     * 壁纸在位移走到 47% 就暗到底(弹簧上 ≈ 110 ms),卡片还要再走 400 ms;**行 2 → 1** 反过来,壁纸
+     * 前 53% 一动不动、在位移尾巴里才亮起来。打开后改按「行进度」逐行线性插值([wallpaperAlphaPerRow]),
+     * 每次换行壁纸的变化都与这次位移同进度;各行静止时的 alpha 与现状逐值相同。
+     *
+     * **跟着 [HOME_VERTICAL_MOTION] 走**:现状([HomeVerticalMotion.SPRING_220])时关 = 行为不变;选了任何新曲线就一并
+     * 打开——所以切到推荐方案只改 [HOME_VERTICAL_MOTION] 那一行。想单独对比时把这里写成字面量。
+     */
+    val WALLPAPER_DIM_PER_ROW: Boolean = HOME_VERTICAL_MOTION != HomeVerticalMotion.SPRING_220
+
+    /**
      * owner 反馈 Round 4:Google 对 **app tile**(不是 content card)的聚焦处理——放大,不是外扩
      * 静态描边。
      *
@@ -995,4 +1035,22 @@ object GtvLayout {
      */
     fun wallpaperAlpha(shiftDp: Float): Float =
         1f - (1f - WALLPAPER_BROWSE_ALPHA) * (kotlin.math.abs(shiftDp) / WALLPAPER_FADE_OVER_DP).coerceIn(0f, 1f)
+
+    /**
+     * [WALLPAPER_DIM_PER_ROW] 的实现:整页位移 [shiftDp] 折成「第几行 + 行内进度」,在相邻两行的静止 alpha
+     * (都取 [wallpaperAlpha])之间线性插值。整数行上与 [wallpaperAlpha] 逐值相同;每次换行,壁纸的变化量
+     * 按这次位移的进度匀速分摊,不会在前半程就暗到底、或后半程才开始亮。[pitchDp] ≤ 0 时退回 [wallpaperAlpha]。
+     */
+    fun wallpaperAlphaPerRow(shiftDp: Float, pitchDp: Float): Float {
+        if (pitchDp <= 0f) return wallpaperAlpha(shiftDp)
+        val pos = kotlin.math.abs(shiftDp) / pitchDp
+        val n = kotlin.math.floor(pos)
+        val a0 = wallpaperAlpha(n * pitchDp)
+        val a1 = wallpaperAlpha((n + 1f) * pitchDp)
+        return a0 + (a1 - a0) * (pos - n)
+    }
+
+    /** 首页壁纸层实际用的 alpha:按 [perRow](默认 [WALLPAPER_DIM_PER_ROW])在两种算法间选。 */
+    fun homeWallpaperAlpha(shiftDp: Float, pitchDp: Float, perRow: Boolean = WALLPAPER_DIM_PER_ROW): Float =
+        if (perRow) wallpaperAlphaPerRow(shiftDp, pitchDp) else wallpaperAlpha(shiftDp)
 }
