@@ -62,6 +62,8 @@ class UnitedUDream : DreamService(), SavedStateRegistryOwner {
         // savedstate 规定:performRestore 必须在 owner 离开 INITIALIZED 之前调,之后调会抛。
         savedStateController.performRestore(null)
         lifecycleRegistry.currentState = Lifecycle.State.CREATED
+        // 冷进程时 MainActivity 没跑过:内置屏保图(R117)要从 assets 读,先记下 AssetManager
+        BuiltinImages.init(this)
     }
 
     override fun onAttachedToWindow() {

@@ -123,6 +123,12 @@
     <string name="picker_screensaver_pool_title">屏保图库 · %1$d 项 · 按确定键预览</string>
     <string name="picker_screensaver_title">屏保图库</string>
     <string name="picker_no_screensavers">还没有屏保照片或视频</string>
+    <!-- R115:选图页「内置 / 我的」两块的分组标题;内置屏保图关掉之后的角标与胶囊菜单(R117) -->
+    <string name="picker_section_builtin">内置</string>
+    <string name="picker_section_mine">我的</string>
+    <string name="picker_builtin_off_badge">已关</string>
+    <string name="pool_builtin_exclude">不参与轮播</string>
+    <string name="pool_builtin_include">加入轮播</string>
     <!-- pool_delete_* : 屏保图库长按删图的确认框(M5 spec §5);取消复用 dialog_cancel -->
     <string name="pool_delete_title">删除这一项?</string>
     <string name="pool_delete_body">「%1$s」会从屏保图库删除,无法恢复</string>
@@ -156,7 +162,7 @@
     <string name="settings_idle_nofade">不淡出</string>
     <!-- M5「待机与屏保」组新增的四行(spec §3、§6);分钟档复用 settings_idle_minutes,「关」复用 settings_idle_off -->
     <string name="settings_screensaver_after">屏保启动</string>
-    <string name="settings_screensaver_note_empty">图库为空,不会进入</string>
+    <string name="settings_screensaver_note_empty">轮播为空,不会进入</string>
     <string name="settings_screensaver_note_from_input">从最后一次按键算</string>
     <string name="settings_screensaver_note_after_standby">从进入待机算</string>
     <string name="settings_screensaver_interval">屏保轮播设置</string>
@@ -321,6 +327,6 @@
     <string name="input_menu_rename">改名</string>
     <string name="toast_cant_switch_input">切换不到「%1$s」</string>
     <string name="settings_start_screensaver">立即开始屏保</string>
-    <string name="toast_screensaver_gallery_empty">先在屏保图库里添加照片或视频</string>
+    <string name="toast_screensaver_gallery_empty">屏保轮播是空的,先在屏保图库里添加照片或视频</string>
     <string name="input_label_tv">电视</string>
 </resources>

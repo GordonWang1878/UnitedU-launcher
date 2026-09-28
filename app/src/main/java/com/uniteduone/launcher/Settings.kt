@@ -36,9 +36,17 @@ data class Settings(
     val screensaverAfterMs: Long = 300_000L,
     /** 屏保换图间隔(「屏保轮播设置」,桌面与系统屏保共用)。合法值见 [VALID_SCREENSAVER_INTERVAL_MS]。 */
     val screensaverIntervalMs: Long = 30_000L,
+    /**
+     * 不参与轮播的内置屏保图(R117):一组内置 ID(去掉扩展名的文件名)。旧文件没有这个键 = 空 = 全部参与。
+     * 清单里已经没有的 ID 留着不清(Gordon 以后把那张加回来,用户的选择还在)。「恢复默认」不动它(见 [restoredDefaults])。
+     */
+    val excludedBuiltinScreensavers: Set<String> = emptySet(),
     // ---- M3 壁纸(spec §1)。默认全零/空 ⇒ 首页观感与 M2 逐位一致 ----
     // (「主题化壁纸」开关 wallpaperThemed 2026-09-16 整个删掉:壁纸不再染色;旧文件里的键按未知键忽略。)
-    /** library/wallpapers/ 里的文件名;空 = 未指定(解析顺序见 Wallpapers.resolveSource)。 */
+    /**
+     * 选中的壁纸:library/wallpapers/ 里的文件名,或 `builtin:<ID>` = 内置那张(R116,编码见 [decodeImageChoice]);
+     * 空 = 未指定 → 默认内置清单第一张(解析顺序见 [resolveWallpaperChoice] / Wallpapers.resolveSource)。
+     */
     val wallpaperFile: String = "",
     // (「壁纸自动切换」wallpaperRotateMs / wallpaperRotatedAt 2026-09-23 删掉,gtv spec R61;旧文件里的键按未知键忽略。)
     /** 模糊 0–100,步 10。 */
@@ -161,6 +169,18 @@ private fun extractString(json: String, key: String): String? {
     return m.groupValues[1].replace("\\\"", "\"").replace("\\\\", "\\")
 }
 
+/**
+ * 字符串数组 `"key": ["a", "b"]`(R117 `excludedBuiltinScreensavers`,扁平 tokenizer 里唯一的数组键)。
+ * 缺键 / 不是数组 → null;数组里不是字符串的元素忽略。
+ */
+private fun extractStringArray(json: String, key: String): List<String>? {
+    val m = Regex("\"" + Regex.escape(key) + "\"\\s*:\\s*\\[((?:[^\\]\"]|\"(?:[^\"\\\\]|\\\\.)*\")*)\\]").find(json)
+        ?: return null
+    return Regex("\"((?:[^\"\\\\]|\\\\.)*)\"").findAll(m.groupValues[1])
+        .map { it.groupValues[1].replace("\\\"", "\"").replace("\\\\", "\\") }
+        .toList()
+}
+
 private fun extractInt(json: String, key: String): Int? = extractRaw(json, key)?.toIntOrNull()
 private fun extractLong(json: String, key: String): Long? = extractRaw(json, key)?.toLongOrNull()
 private fun extractBoolean(json: String, key: String): Boolean? = when (extractRaw(json, key)) {
@@ -195,6 +215,8 @@ fun parseSettings(json: String): Settings {
                 ?: d.idleContent,
             screensaverAfterMs = snapScreensaverAfterMs(extractLong(json, "screensaverAfterMs")),
             screensaverIntervalMs = snapScreensaverIntervalMs(extractLong(json, "screensaverIntervalMs")),
+            excludedBuiltinScreensavers = extractStringArray(json, "excludedBuiltinScreensavers")
+                ?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSet() ?: d.excludedBuiltinScreensavers,
             wallpaperFile = sanitizeWallpaperFileName(extractString(json, "wallpaperFile")),
             // 旧文件里可能还有 "wallpaperThemed"(2026-09-16 删掉的开关)、"themedCards"(R58)、
             // "wallpaperRotateMs" / "wallpaperRotatedAt"(R61)、"showInputRow"(R92):这里不读它们,扁平 tokenizer 只认列出的键,
@@ -238,6 +260,10 @@ fun Settings.toJson(): String {
         append("  \"idleContent\": \"${idleContent.name}\",\n")
         append("  \"screensaverAfterMs\": $screensaverAfterMs,\n")
         append("  \"screensaverIntervalMs\": $screensaverIntervalMs,\n")
+        // 排序后写:同一组 ID 每次写出来逐字相同,adb pull 下来好 diff
+        append("  \"excludedBuiltinScreensavers\": [")
+        append(excludedBuiltinScreensavers.sorted().joinToString(", ") { "\"${esc(it)}\"" })
+        append("],\n")
         append("  \"wallpaperFile\": \"${esc(wallpaperFile)}\",\n")
         append("  \"wallpaperBlur\": $wallpaperBlur,\n")
         append("  \"wallpaperBrightness\": $wallpaperBrightness,\n")
@@ -253,11 +279,16 @@ fun Settings.toJson(): String {
 
 /**
  * 「恢复默认」纯函数:除了 `newAppsSeenAt`(传入 [nowMs],否则「新应用」判定会把恢复前
- * 装的所有应用瞬间打成"新")和 `onboardingDone`(引导流程不是外观设置,恢复默认不该让
- * 老用户重新走一遍引导)之外,其余字段全部回落到 [Settings] 的构造默认值。
+ * 装的所有应用瞬间打成"新")、`onboardingDone`(引导流程不是外观设置,恢复默认不该让
+ * 老用户重新走一遍引导)和 `excludedBuiltinScreensavers`(R117:哪几张内置图参不参与轮播是图库的取舍,
+ * 确认框写着「图片库都不会变」)之外,其余字段全部回落到 [Settings] 的构造默认值。
  */
 fun restoredDefaults(current: Settings, nowMs: Long): Settings =
-    Settings().copy(newAppsSeenAt = nowMs, onboardingDone = current.onboardingDone)
+    Settings().copy(
+        newAppsSeenAt = nowMs,
+        onboardingDone = current.onboardingDone,
+        excludedBuiltinScreensavers = current.excludedBuiltinScreensavers,
+    )
 
 /**
  * 粗略判断一段文本是不是"至少语法完整、且只有一个"的 JSON 对象(花括号/引号配平,

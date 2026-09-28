@@ -42,11 +42,26 @@ internal fun scanScreensaverLibrary(ctx: Context): List<File> {
 }
 
 /**
- * 状态机与屏保按钮的「图库非空」判据(spec §1.1 / §1.3)。**必须在 IO 线程调用。**
- * 扫描失败(外置存储被拔、权限变化)按空图库处理;调用方都在 LaunchedEffect 里,
- * 异常冒出去就是在主线程崩掉整个桌面。失败时由 [safeScan] 记录日志。
+ * **屏保轮播**(Ruling R117):参与轮播的内置屏保图(清单顺序,去掉 settings.json `excludedBuiltinScreensavers`
+ * 里的 ID)+ 用户图库([scanScreensaverLibrary],照片与视频,R100–R104 规则不变)。内置图是伪路径文件
+ * (见 [BUILTIN_PSEUDO_ROOT]),播放器 / 过渡 / 失败表照 `File` 处理,解码时 [decodeImagePath] 改读 assets。
+ * 播放器、状态机「到点查轮播非空」、「立即开始屏保」、设置页计数都读它;图库网格按两块分开读(内置 + [safeScan])。
+ * 外置存储没挂时用户图库那一半为空、排除集合按默认(全部参与)——内置图不靠外置存储,照样能播。
+ * **必须在 IO 线程调用。**
  */
-internal fun hasScreensaverImages(ctx: Context): Boolean = safeScan(ctx)?.isNotEmpty() ?: false
+internal fun scanScreensaverPlaylist(ctx: Context): List<File> {
+    val builtins = BuiltinImages.list(ctx, BuiltinKind.SCREENSAVERS)
+    val excluded = if (builtins.isEmpty()) emptySet() else SettingsStore.read(ctx).excludedBuiltinScreensavers
+    return screensaverPlaylist(builtins.map { it.file }, { builtinIdOf(it.name) }, excluded, scanScreensaverLibrary(ctx))
+}
+
+/**
+ * 状态机与屏保按钮的「轮播非空」判据(spec §1.1 / §1.3;R117 起是轮播,不是图库——内置图全关掉、图库又空
+ * 就算空)。**必须在 IO 线程调用。**
+ * 扫描失败(外置存储被拔、权限变化)按空处理;调用方都在 LaunchedEffect 里,
+ * 异常冒出去就是在主线程崩掉整个桌面。失败时由 [safePlaylist] 记录日志。
+ */
+internal fun hasScreensaverImages(ctx: Context): Boolean = safePlaylist(ctx)?.isNotEmpty() ?: false
 
 /** 把旧版单张 screensaver.jpg/png 迁移到图库目录。只在图库为空时迁移一次。 */
 private fun migrateOldScreensaver(ctx: Context) {
@@ -92,6 +107,12 @@ internal fun safeScan(app: Context): List<File>? =
         .onFailure { android.util.Log.w("UnitedU", "屏保图库扫描失败", it) }
         .getOrNull()
 
+/** [scanScreensaverPlaylist] 的「失败记日志、退回 null」版(同 [safeScan] 的口径)。播放器与「轮播非空」判据用它。 */
+internal fun safePlaylist(app: Context): List<File>? =
+    runCatching { scanScreensaverPlaylist(app) }
+        .onFailure { android.util.Log.w("UnitedU", "屏保轮播扫描失败", it) }
+        .getOrNull()
+
 /**
  * 画面那一侧报给计时器的事(Ruling R101)。[round] 是报的时候画面正在播的那一轮([ScreensaverPlayer.round]),
  * 计时器只认「当前这一项、当前这一轮」的事,换过项之后迟到的旧事件直接丢掉。
@@ -120,7 +141,8 @@ internal sealed class SlideEvent {
  *   等 [ScreensaverMedia.START_WAIT_MS] 自己往下走,报了开始却一直没报完也只多等 [ScreensaverMedia.END_GRACE_MS],不会卡死。
  * - **[round]** 每换一次项 +1(包括只有一项、下标没变的时候):只有一个视频时靠它让画面从头重播(= 循环)。
  * - **失败表**:报过失败的文件(路径 + 修改时间)之后换项时跳过([ScreensaverMedia.nextPlayable]);全都失败就原地等。
- * - **引用计数**:第一个 [attach] 在 IO 线程重扫图库、启动计时;最后一个 [detach] 停计时,
+ * - **轮播**([files])= 参与的内置屏保图 + 用户图库(R117,[scanScreensaverPlaylist])。
+ * - **引用计数**:第一个 [attach] 在 IO 线程重扫轮播、启动计时;最后一个 [detach] 停计时,
  *   [index] 与 [files] **保留**——下次 attach 从同一张接着播。「系统屏保接桌面屏保的班」靠的就是这一条。
  * - [attach] / [detach] / [report] 只在主线程调(Compose 效果与 DreamService 回调都在主线程),`refs`([RefCounter])不加锁。
  */
@@ -148,7 +170,7 @@ object ScreensaverPlayer {
         while (events.tryReceive().isSuccess) Unit
         ticker = scope.launch {
             // 扫描失败不能杀掉这个协程(原来 IO 异常直接冒出去,轮播从此停转)
-            withContext(Dispatchers.IO) { safeScan(app) }?.let { publish(it) }
+            withContext(Dispatchers.IO) { safePlaylist(app) }?.let { publish(it) }
             while (true) {
                 val list = _files.value
                 val cur = list.getOrNull(clampIndex(_index.value, list.size))
@@ -215,10 +237,13 @@ object ScreensaverPlayer {
         return true
     }
 
-    /** 删图后调用(spec §5):重扫并把 [index] 夹回范围。计时状态不动;扫描失败保留旧列表。 */
+    /**
+     * 删图后调用(spec §5),R117 起内置图「不参与 / 加入轮播」后也调:重扫轮播并把 [index] 夹回范围。
+     * 计时状态不动;扫描失败保留旧列表。
+     */
     fun rescan(ctx: Context) {
         val app = ctx.applicationContext
-        scope.launch { withContext(Dispatchers.IO) { safeScan(app) }?.let { publish(it) } }
+        scope.launch { withContext(Dispatchers.IO) { safePlaylist(app) }?.let { publish(it) } }
     }
 
     private fun publish(list: List<File>) {

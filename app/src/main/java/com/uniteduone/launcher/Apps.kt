@@ -342,14 +342,17 @@ object Apps {
     /** 只读尺寸判断是不是能解的图片,不真的解码——用于校验用户选的文件。 */
     fun isDecodableImage(path: String): Boolean = imageSize(path) != null
 
-    /** 只读文件头拿原图宽高;读不出 → null。 */
+    /** 只读文件头拿原图宽高;读不出 → null。[path] 可以是内置图的伪路径(R115,经 [decodeImagePath] 读 assets)。 */
     fun imageSize(path: String): Pair<Int, Int>? {
         val b = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(path, b)
+        decodeImagePath(path, b)
         return if (b.outWidth > 0 && b.outHeight > 0) b.outWidth to b.outHeight else null
     }
 
-    /** 先读尺寸再按 inSampleSize 解码,避免把大图整张读进内存。 */
+    /**
+     * 先读尺寸再按 inSampleSize 解码,避免把大图整张读进内存。
+     * [path] 可以是内置图的伪路径(R115):读字节一律经 [decodeImagePath],内置图从 assets 读。
+     */
     fun decodeScaled(
         path: String,
         maxW: Int,
@@ -357,7 +360,7 @@ object Apps {
         config: Bitmap.Config = Bitmap.Config.ARGB_8888,
     ): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(path, bounds)
+        decodeImagePath(path, bounds)
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
         var sample = 1
         while (bounds.outWidth / (sample * 2) >= maxW && bounds.outHeight / (sample * 2) >= maxH) {
@@ -367,13 +370,13 @@ object Apps {
             inSampleSize = sample
             inPreferredConfig = config
         }
-        val bmp = BitmapFactory.decodeFile(path, opts)
+        val bmp = decodeImagePath(path, opts)
         if (bmp == null && config == Bitmap.Config.RGBA_F16) {
             val fallback = BitmapFactory.Options().apply {
                 inSampleSize = sample
                 inPreferredConfig = Bitmap.Config.ARGB_8888
             }
-            return BitmapFactory.decodeFile(path, fallback)
+            return decodeImagePath(path, fallback)
         }
         return bmp
     }

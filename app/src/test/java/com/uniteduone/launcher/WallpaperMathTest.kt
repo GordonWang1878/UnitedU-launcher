@@ -4,7 +4,6 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -12,14 +11,14 @@ class WallpaperMathTest {
 
     // (nextWallpaper / rotationDelayMs 的三条随「壁纸自动切换」删掉,R61。)
 
-    // ---- R61:旧内置图清理 + 播种钩子 ----
+    // ---- R61:旧内置图清理 ----
 
     @Test fun legacySeededWallpapersAreExactlyTheSixOldBuiltins() {
         assertEquals(6, LEGACY_SEEDED_WALLPAPERS.size)
         assertTrue(LEGACY_SEEDED_WALLPAPERS.all { it.startsWith("unitedu-") && it.endsWith(".jpg") })
         assertTrue("unitedu-00-neutral.jpg" in LEGACY_SEEDED_WALLPAPERS)
         assertTrue("unitedu-05-green.jpg" in LEGACY_SEEDED_WALLPAPERS)
-        // 按完整文件名认,不按前缀:以后同前缀的新内置图、用户的图都不算
+        // 按完整文件名认,不按前缀:同前缀的用户图不算
         assertFalse("unitedu-06-sunrise.jpg" in LEGACY_SEEDED_WALLPAPERS)
         assertFalse("legacy-wallpaper.jpg" in LEGACY_SEEDED_WALLPAPERS)
     }
@@ -32,20 +31,8 @@ class WallpaperMathTest {
         assertEquals("", wallpaperFileAfterLegacyCleanup(""))
     }
 
-    @Test fun seedPlanSkipsAlreadySeededAndKeepsOrder() {
-        assertEquals(emptyList<String>(), seedPlan(emptyList(), emptySet()))
-        assertEquals(listOf("a", "b"), seedPlan(listOf("a", "b"), emptySet()))
-        // 铺过的(哪怕被用户删了)不再铺;清单新加的补铺
-        assertEquals(listOf("c"), seedPlan(listOf("a", "b", "c"), setOf("a", "b")))
-    }
-
-    @Test fun defaultSeedPickIsRandomAmongSeededAndNullWhenEmpty() {
-        assertNull(pickDefaultSeed(emptyList(), kotlin.random.Random(1)))
-        assertEquals("only.jpg", pickDefaultSeed(listOf("only.jpg"), kotlin.random.Random(1)))
-        val files = listOf("a.jpg", "b.jpg", "c.jpg")
-        val picks = (0 until 200).map { pickDefaultSeed(files, kotlin.random.Random(it))!! }.toSet()
-        assertEquals(files.toSet(), picks)   // 三张都选得到,不是恒取第一张
-    }
+    // (seedPlan / pickDefaultSeed 的两条随 R61 播种机制删掉,R116:内置壁纸直接从 assets 读、默认固定第一张,
+    //  见 BuiltinCatalogTest。)
 
     @Test fun blurTargetWidthIsMonotonicAndDistinctAcrossElevenSteps() {
         val widths = (0..100 step 10).map { blurTargetWidth(it) }

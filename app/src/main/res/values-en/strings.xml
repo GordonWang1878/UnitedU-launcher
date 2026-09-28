@@ -131,6 +131,12 @@
     <string name="picker_screensaver_pool_title">Screensaver Gallery · %1$d items · Press OK to preview</string>
     <string name="picker_screensaver_title">Screensaver Gallery</string>
     <string name="picker_no_screensavers">No screensaver photos or videos yet</string>
+    <!-- R115: section titles of the "Built-in / Mine" blocks in the image pickers; off badge and capsule menu for built-in screensaver images (R117) -->
+    <string name="picker_section_builtin">Built-in</string>
+    <string name="picker_section_mine">Mine</string>
+    <string name="picker_builtin_off_badge">Off</string>
+    <string name="pool_builtin_exclude">Remove from Slideshow</string>
+    <string name="pool_builtin_include">Add to Slideshow</string>
     <!-- pool_delete_* : long-press delete confirm in the screensaver gallery (M5 spec §5); cancel reuses dialog_cancel -->
     <string name="pool_delete_title">Delete this item?</string>
     <string name="pool_delete_body">\"%1$s\" will be removed from the gallery for good</string>
@@ -164,7 +170,7 @@
     <string name="settings_idle_nofade">No Fade</string>
     <!-- M5 "Standby & Screensaver" group, four new rows (spec §3, §6); minutes reuse settings_idle_minutes, "Off" reuses settings_idle_off -->
     <string name="settings_screensaver_after">Screensaver Starts</string>
-    <string name="settings_screensaver_note_empty">Gallery empty, won\'t start</string>
+    <string name="settings_screensaver_note_empty">Slideshow empty, won\'t start</string>
     <string name="settings_screensaver_note_from_input">From the last key press</string>
     <string name="settings_screensaver_note_after_standby">After standby begins</string>
     <string name="settings_screensaver_interval">Slideshow Interval</string>
@@ -329,6 +335,6 @@
     <string name="input_menu_rename">Rename</string>
     <string name="toast_cant_switch_input">Couldn\'t switch to “%1$s”</string>
     <string name="settings_start_screensaver">Start Screensaver</string>
-    <string name="toast_screensaver_gallery_empty">Add photos or videos to the Screensaver Gallery first</string>
+    <string name="toast_screensaver_gallery_empty">The screensaver slideshow is empty. Add photos or videos in the Screensaver Gallery first</string>
     <string name="input_label_tv">TV</string>
 </resources>

@@ -160,17 +160,23 @@ class MainActivity : ComponentActivity() {
      */
     private var galleryVersion by mutableStateOf(0)
     /**
-     * 屏保图库网格当前聚焦的那张图(PickerGrid 上报:得到报文件、失去报 null)。长按确定键据此弹删除确认框。
+     * 屏保图库网格当前聚焦的那张图(PickerGrid 上报:得到报是哪一张、失去 / 「＋」报 null)。长按确定键据此分流:
+     * 「我的」→ 删除确认框;内置(R117)→ 「不参与 / 加入轮播」胶囊菜单(MENU 键同)。
      * 只在 [pickerTarget] == [VIEW_SCREENSAVER_POOL] 时有意义(长按那一支先判它);网格离开组合时报 null,
      * [openScreensaverPool] 打开时再清一次——下一次会话在第一次焦点上报之前也读不到上一次的旧文件。
      */
-    private var poolFocusedFile by mutableStateOf<java.io.File?>(null)
+    private var poolFocused by mutableStateOf<PoolFocus?>(null)
     /**
      * 删除确认框开着的那张图;null = 没开(M5 spec §5)。确定([deletePoolImage] 删完才清)、取消 / 返回
      * (onCancelDelete)各自清它,[openScreensaverPool] 打开时再兜底清一次:不会有「上次没清掉、下次一打开图库
      * 就蹦出确认框」的路(铁律 7)。
      */
     private var poolDeleteTarget by mutableStateOf<java.io.File?>(null)
+    /**
+     * 屏保图库里胶囊菜单开着的那张内置图(R117);null = 没开。选了([toggleBuiltinScreensaver] 写完才清)、
+     * 返回 / MENU(关菜单)各自清它,[openScreensaverPool] 打开时与 HOME([onNewIntent])再兜底清一次(铁律 7)。
+     */
+    private var poolBuiltinMenu by mutableStateOf<BuiltinImage?>(null)
     /**
      * 唤醒那一下按键的 downTime:整下(down/repeat/up)都要吞掉,别让它落到界面上。
      * 用 downTime 不用 keyCode:同一次按压的三种事件 downTime 相同,是唯一标识;
@@ -348,6 +354,10 @@ class MainActivity : ComponentActivity() {
             },
         )
         warmAppsPage()
+        // 内置图(R115):记下 AssetManager,IO 线程把三个分类的清单预热进进程内缓存——打开选图页时同一帧就有,
+        // 网格不用等;壁纸管线第一次解析默认壁纸时也不必现列目录。
+        BuiltinImages.init(this)
+        lifecycleScope.launch(Dispatchers.IO) { BuiltinImages.prewarm(applicationContext) }
         // 「新应用」基线:首启把 newAppsSeenAt 写成现在,之前装的都不算新(design §2)。
         // **先读再判、只在真要改时才 update**:SettingsStore.update 无论闭包返不返回同一个对象
         // 都会走一遍写盘,挂在 onCreate 上就等于每次冷启动重写一次 settings.json。
@@ -902,13 +912,21 @@ class MainActivity : ComponentActivity() {
             // 网格上报聚焦的文件、确认框的目标与两个按钮。确认框自己负责焦点;关掉后(删除 / 取消都 focusNonce++)
             // deleteTarget 变 null 让 PickerGrid 的 covered 翻回 false,由它 (nonce, covered, focusRequesters)
             // 那条定位效果重新跑一轮接回原位置;万一没接上,还有 holderIdx == null 的看门狗兜底。
+            // R117:内置图长按 / MENU → 胶囊菜单「不参与 / 加入轮播」,画在查看器里、状态在这里(同删图确认框)。
+            // 排除集合在主线程读盘(同 homeSaved 的读法),settingsRevision 一变就重读——切换写完会 ++。
             VIEW_SCREENSAVER_POOL -> ScreensaverPoolViewer(
                 nonce = focusNonce,
                 refresh = galleryVersion,
-                onFocusedFile = { poolFocusedFile = it },
+                onFocusedItem = { poolFocused = it },
                 deleteTarget = poolDeleteTarget,
                 onConfirmDelete = ::deletePoolImage,
                 onCancelDelete = { poolDeleteTarget = null; focusNonce++ },
+                builtinMenu = poolBuiltinMenu,
+                excludedBuiltins = remember(settingsRevision) {
+                    SettingsStore.read(this@MainActivity).excludedBuiltinScreensavers
+                },
+                onToggleBuiltin = ::toggleBuiltinScreensaver,
+                onCloseBuiltinMenu = ::closePoolBuiltinMenu,
                 onDismiss = { pickerTarget = null; focusNonce++ },
                 onAddFromPhone = { openImportFrom(VIEW_SCREENSAVER_POOL) },
                 landing = pickerLanding,
@@ -1006,7 +1024,20 @@ class MainActivity : ComponentActivity() {
             // 选择器开着(叠在首页 / 设置页上,或替换了编辑页)时 MENU 什么都不做:排在 editing /
             // settings 之前,否则会把底下那页收掉、选择器留在首页上(终审 C1)。关掉选择器之后
             // pickerTarget 回到 null,MENU 在编辑页上照常 = 退出编辑。
-            if (pickerTarget != null) return true
+            // 唯一例外(R117):屏保图库里焦点在内置图上 → MENU = 胶囊菜单「不参与 / 加入轮播」(同长按);菜单开着 = 收掉它。
+            if (pickerTarget != null) {
+                if (pickerTarget == VIEW_SCREENSAVER_POOL) {
+                    val f = poolFocused
+                    when {
+                        poolBuiltinMenu != null -> closePoolBuiltinMenu()
+                        poolDeleteTarget == null && f is PoolFocus.Builtin -> {
+                            window.decorView.playSoundEffect(SoundEffectConstants.CLICK)
+                            poolBuiltinMenu = f.image
+                        }
+                    }
+                }
+                return true
+            }
             // 编辑页搬运中 MENU 什么都不做(M4b spec §0-18,同首页移动态「其余键按下去什么都不发生」);
             // 要走先按返回取消,或确定放下。
             // Ruling R76(2026-09-23 交互测试):从设置外壳进来的编辑页按 MENU 整个收回首页(编辑页 + 外壳),
@@ -1081,14 +1112,20 @@ class MainActivity : ComponentActivity() {
             // 屏保图库「光着」(M5 spec §5):图库开着、确认框没开、网格上有聚焦的缩略图。满 LONG_PRESS_MS 弹删除
             // 确认框,整下吞掉(同 longPressDownTime 手法:UP 落不到缩略图上,不会顺带打开全屏预览)。
             // 与上面的 homeBare 天然互斥:homeBare 要求 !overlayOpen,而图库开着时 pickerTarget != null。
-            // 全屏预览开着时网格失焦、poolFocusedFile 已报 null,这一支不成立 = 预览里长按无效。
-            val poolBare = pickerTarget == VIEW_SCREENSAVER_POOL && poolDeleteTarget == null && poolFocusedFile != null
+            // 全屏预览开着时网格失焦、poolFocused 已报 null,这一支不成立 = 预览里长按无效。
+            // R117:聚焦的是内置图 → 胶囊菜单「不参与 / 加入轮播」(内置图删不掉,不弹删图框)。
+            val poolBare = pickerTarget == VIEW_SCREENSAVER_POOL && poolDeleteTarget == null && poolBuiltinMenu == null &&
+                poolFocused != null
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount > 0 && poolBare
                 && event.eventTime - event.downTime >= LONG_PRESS_MS
             ) {
                 longPressDownTime = event.downTime
                 window.decorView.playSoundEffect(SoundEffectConstants.CLICK)
-                poolDeleteTarget = poolFocusedFile
+                when (val f = poolFocused) {
+                    is PoolFocus.Mine -> poolDeleteTarget = f.file
+                    is PoolFocus.Builtin -> poolBuiltinMenu = f.image
+                    null -> Unit
+                }
                 return true
             }
             // 应用页「光着」(R90):页开着、菜单没开、焦点在某张卡上。满 LONG_PRESS_MS 弹菜单,整下吞掉(UP 落不到卡上,不会顺带打开)。
@@ -1287,6 +1324,7 @@ class MainActivity : ComponentActivity() {
             pickerTarget = null
             importOrigin = null
             poolDeleteTarget = null
+            poolBuiltinMenu = null
             focusNonce++
         }
     }
@@ -1643,7 +1681,7 @@ class MainActivity : ComponentActivity() {
 
     /**
      * 图片网格首格「＋ 从手机添加」(Ruling R63)。[returnTo] 是当前的 pickerTarget(换壁纸 / 屏保图库 / 某张卡的包名),
-     * 分类由它推出。扫码页替换网格;网格离开组合时自己报 null(屏保图库的 poolFocusedFile),不用这里清。
+     * 分类由它推出。扫码页替换网格;网格离开组合时自己报 null(屏保图库的 poolFocused),不用这里清。
      */
     private fun openImportFrom(returnTo: String) {
         if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
@@ -1683,7 +1721,8 @@ class MainActivity : ComponentActivity() {
     private fun openScreensaverPool() {
         if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
         poolDeleteTarget = null
-        poolFocusedFile = null
+        poolBuiltinMenu = null
+        poolFocused = null
         pickerLanding = null
         pickerTarget = VIEW_SCREENSAVER_POOL
     }
@@ -1714,6 +1753,32 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** 关掉内置图的胶囊菜单(返回键 / MENU / 兜底);没开着就什么都不做。`focusNonce++`:网格按冻结的目标接回那张图。 */
+    private fun closePoolBuiltinMenu() {
+        if (poolBuiltinMenu != null) { poolBuiltinMenu = null; focusNonce++ }
+    }
+
+    /**
+     * 内置屏保图「不参与轮播 / 加入轮播」(R117)。开头比对目标:过期的调用直接忽略。IO 线程持锁读改写
+     * settings.json(落盘铁律:`SettingsStore.update`)→ 播放器重扫轮播 → `settingsRevision++`(查看器重读排除集合,
+     * 那一格变暗 / 复原)→ 收菜单 → `focusNonce++`(网格接回同一张)。写失败 toast,菜单照样收(集合没变,画面也不变)。
+     */
+    private fun toggleBuiltinScreensaver(image: BuiltinImage) {
+        if (poolBuiltinMenu != image) return
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                SettingsStore.update(this@MainActivity) {
+                    it.copy(excludedBuiltinScreensavers = toggleExcluded(it.excludedBuiltinScreensavers, image.id))
+                } != null
+            }
+            if (!ok) toast(getString(R.string.toast_storage_not_ready))
+            ScreensaverPlayer.rescan(this@MainActivity)
+            settingsRevision++
+            poolBuiltinMenu = null
+            focusNonce++
+        }
+    }
+
 
     private fun handlePick(file: java.io.File) {
         val target = pickerTarget ?: return
@@ -1725,10 +1790,11 @@ class MainActivity : ComponentActivity() {
             if (ok) settingsRevision++
         } else {
             val dest = Paths.iconFor(this, target)
-            // 独立临时文件 → 校验可解码 → rename;rename 失败不删现有的自定义图(见 writeFileAtomically)
+            // 独立临时文件 → 校验可解码 → rename;rename 失败不删现有的自定义图(见 writeFileAtomically)。
+            // 内置装饰图(R118)是伪路径文件:BuiltinImages.open 从 assets 读,复制的是它的内容(不往卡片图库里铺一份)。
             val ok = runCatching {
                 writeFileAtomically(dest, verify = { Apps.isDecodableImage(it.absolutePath) }) { out ->
-                    file.inputStream().use { it.copyTo(out) }
+                    BuiltinImages.open(file).use { it.copyTo(out) }
                 }
             }.getOrDefault(false)
             toast(getString(if (ok) R.string.toast_card_image_changed else R.string.toast_invalid_image))
@@ -1995,6 +2061,8 @@ class MainActivity : ComponentActivity() {
                     // 同理:每个选择器 / 导入页 / 默认桌面卡都自带 BackHandler,正常会先接管。
                     // 必须排在 editing / settings 之前(终审 C1):选择器盖在(或替换了)这两页上,
                     // 万一漏接,落到下面那两支就会把底下那页整个收掉、选择器却还留在首页上。
+                    // R117 屏保图库的内置图胶囊菜单(GearMenu 自带 BackHandler,正常会先接管):先关它,不整个关掉图库。
+                    poolBuiltinMenu != null -> closePoolBuiltinMenu()
                     pickerTarget != null -> { pickerTarget = null; focusNonce++ }
                     editing -> leaveEdit()
                     // 设置外壳自带的 BackHandler 正常会先接管;兜底同样是「回上一层」,不是整个关掉。

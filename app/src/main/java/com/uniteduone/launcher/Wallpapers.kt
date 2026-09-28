@@ -27,26 +27,20 @@ private const val TAG = "UnitedU"
 private val WALLPAPER_IMAGE_EXTS = setOf("jpg", "jpeg", "png", "webp")
 
 /**
- * 「系统默认随机赠送」的内置壁纸(assets/wallpapers/<name>.jpg,不带扩展名);铺进 library 时加 [BUILTIN_PREFIX]。
- *
- * **R61(2026-09-23 傍晚)**:原来的 6 张染色图(00-neutral … 05-green)删了,升级时从用户图库清掉(见
- * [LEGACY_SEEDED_WALLPAPERS])。Gordon 之后会给几张图当「系统默认随机赠送」——**在那之前清单为空**,
- * 播种整段什么都不做(连标记都不写),无壁纸时首页背景是纯深色([GtvTokens.MenuBg])。
- * 加图:把 jpg 放进 `app/src/main/assets/wallpapers/`,名字(不带扩展名)填进这里;**不许复用旧的 6 个名字**
- * (否则会被升级清理当成旧图删掉)。首次播种时从铺成功的图里随机选一张当默认([pickDefaultSeed]),
- * 只在用户还没选壁纸时生效。
+ * R61 之前的播种标记文件(library/wallpapers/.seeded)。**R116 起不再播种**——内置壁纸直接从 assets 读、不复制进
+ * 用户图库(见 [BuiltinImages]);升级清理时顺手删掉这个标记(点开头,网格与上传页本来就看不见它)。
  */
-private val BUILTIN_WALLPAPERS: List<String> = emptyList()
-private const val BUILTIN_PREFIX = "unitedu-"
-/**
- * 铺过的内置图记在这个标记文件里(每行一个名字):铺过的即使被用户删掉也不复活(M6 上传页能删);
- * 清单以后加了新图,老用户也会补铺新的那几张。M3 时代的标记是个空文件,读出来是空集,不影响。
- */
-private const val SEED_MARKER = ".seeded"
+private const val LEGACY_SEED_MARKER = ".seeded"
 
 /**
- * 壁纸的文件侧:当前壁纸不再是复制出来的 wallpaper.jpg,而是 settings.json 里的一个文件名,
- * 指向 library/wallpapers/。选图 / 轮播只改字段,不复制、不 recreate。
+ * 壁纸的文件侧:当前壁纸不再是复制出来的 wallpaper.jpg,而是 settings.json 里的一个选中值——
+ * library/wallpapers/ 里的文件名,或 `builtin:<ID>` = 内置那张(R116)。选图只改字段,不复制、不 recreate。
+ *
+ * **内置壁纸(R116,2026-09-28 Gordon 定)**:Gordon 放进 `app/src/main/assets/builtin/wallpapers/` 的图,
+ * 按目录自动发现([BuiltinImages.list],按文件名排序),直接从 assets 读、不复制进用户图库(永远在、删不掉)。
+ * **默认壁纸固定用清单第一张**(不随机):没选过 / 选中的那张没了 → 它([resolveWallpaperChoice])。
+ * 清单为空(正式包现在就是)时回落用户图库第一张;都没有 → 纯深色([GtvTokens.MenuBg])。
+ * R61 的「复制进库 + 首次随机选一张当默认」播种机制整条删掉;R61 清理 6 张旧染色图副本的规则照旧。
  */
 object Wallpapers {
 
@@ -56,30 +50,40 @@ object Wallpapers {
             ?.sortedBy { it.name }
             ?: emptyList()
 
-    /** 当前壁纸源文件:设置指定的 → library 按名排序第一张 → null(没有任何壁纸:调用方画纯深色底,R61)。 */
-    fun resolveSource(ctx: Context, fileName: String): File? {
-        if (fileName.isNotEmpty()) {
-            val f = File(Paths.wallpaperLibrary(ctx), fileName)
-            if (f.isFile) return f
+    /**
+     * 当前壁纸源文件(R116,规则见 [resolveWallpaperChoice]):选中的还在 → 它;否则默认内置清单第一张;
+     * 清单为空 → library 按名排序第一张;都没有 → null(调用方画纯深色底,R61)。
+     * 内置那张返回伪路径文件(见 [BUILTIN_PSEUDO_ROOT]),解码经 [decodeImagePath] 读 assets。IO 线程。
+     */
+    fun resolveSource(ctx: Context, value: String): File? {
+        val builtins = BuiltinImages.list(ctx, BuiltinKind.WALLPAPERS)
+        val lib = Paths.wallpaperLibrary(ctx)
+        val choice = resolveWallpaperChoice(
+            value = value,
+            builtinIds = builtins.map { it.id },
+            mineExists = { name -> sanitizeWallpaperFileName(name).isNotEmpty() && File(lib, name).isFile },
+            firstMine = { libraryImages(ctx).firstOrNull()?.name },
+        )
+        return when (choice) {
+            is ImageChoice.Builtin -> builtins.firstOrNull { it.id == choice.id }?.file
+            is ImageChoice.Mine -> File(lib, choice.fileName)
+            null -> null
         }
-        return libraryImages(ctx).firstOrNull()
     }
 
     /**
-     * 一次性准备:迁移旧根目录壁纸 + 清掉 R61 删掉的 6 张旧内置图 + 铺入内置图(清单目前为空)。
-     * IO 线程;外置没挂整段跳过。每次 [load] 都会跑,三步都幂等、没事可做时只是几次 `exists` 检查。
-     * @return **是否真的往 settings.json 写进了 wallpaperFile**。首次启动 / 从 M2 升级
-     *   这一步会写,而 `MainActivity.homeSettings` 是在此之前读的、已经过期——跟随壁纸主色
-     *   的用户整个首次会话都会看到预设色。调用方据此 `settingsRevision++` 让它重读。
-     *   幂等:标记文件 + rename,写过一次之后 `wallpaperFile` 非空,transform 不再改动,返回 false。
-     *   R61 起清理旧内置图时若把 `wallpaperFile` 置空,同样返回 true(首页要重读、回落到图库第一张或纯深色)。
+     * 一次性准备:迁移旧根目录壁纸 + 清掉 R61 删掉的 6 张旧内置图(连同 R61 之前的播种标记)。
+     * **R116 起不再播种**:内置壁纸直接从 assets 读,默认那张靠 [resolveSource] 解析,不写 settings.json。
+     * IO 线程;外置没挂整段跳过。每次 [load] 都会跑,两步都幂等、没事可做时只是几次 `exists` 检查。
+     * @return **是否真的往 settings.json 写了 wallpaperFile**。从 M2 升级(迁移旧壁纸)这一步会写,
+     *   而 `MainActivity.homeSettings` 是在此之前读的、已经过期——跟随壁纸主色的用户整个首次会话都会看到预设色。
+     *   调用方据此 `settingsRevision++` 让它重读。R61 清理旧内置图时若把 `wallpaperFile` 置空,同样返回 true。
      */
     fun prepare(ctx: Context): Boolean {
         if (Paths.baseOrNull(ctx) == null) return false
         val migrated = migrateLegacy(ctx)
         val cleaned = removeLegacySeeds(ctx)
-        val seeded = seedBuiltins(ctx)
-        return migrated || cleaned || seeded
+        return migrated || cleaned
     }
 
     /**
@@ -94,6 +98,8 @@ object Wallpapers {
             val f = File(dir, name)
             if (f.exists() && f.delete()) Log.i(TAG, "清掉旧内置壁纸 $name(R61)")
         }
+        // R116:播种整条删了,标记文件没用了(R61 之后清单一直为空,不会有别的 unitedu- 副本)
+        File(dir, LEGACY_SEED_MARKER).takeIf { it.exists() }?.delete()
         val current = SettingsStore.read(ctx).wallpaperFile
         if (wallpaperFileAfterLegacyCleanup(current) == current) return false
         var changed = false
@@ -130,43 +136,13 @@ object Wallpapers {
     }
 
     /**
-     * 铺入内置图(R61 起清单为空,见 [BUILTIN_WALLPAPERS]):只铺标记里还没记过的([seedPlan]),铺成功的记进标记;
-     * 这一趟真的铺进了图,且用户还没选壁纸,就从中随机挑一张当默认([pickDefaultSeed] → [pointAtIfUnset])。
-     * **清单为空时直接返回、不写标记**——以后加了图,老用户下次启动照样会补铺。
-     * @return 是否把 `wallpaperFile` 从空改成了某张内置图。
+     * 选择器选中:只记选中值——用户图库的文件名,或内置那张的 `builtin:<ID>`(R116,[file] 是内置图的伪路径时)。
      */
-    private fun seedBuiltins(ctx: Context): Boolean {
-        if (BUILTIN_WALLPAPERS.isEmpty()) return false
-        val dir = Paths.wallpaperLibrary(ctx)
-        val marker = File(dir, SEED_MARKER)
-        val done = runCatching { marker.readLines().map { it.trim() }.filter { it.isNotEmpty() }.toSet() }
-            .getOrDefault(emptySet())
-        val todo = seedPlan(BUILTIN_WALLPAPERS, done)
-        if (todo.isEmpty()) return false
-        val landed = mutableListOf<String>()
-        for (name in todo) {
-            val dst = File(dir, "$BUILTIN_PREFIX$name.jpg")
-            if (!dst.exists()) {
-                // 独立临时文件 → 校验可解码 → rename:复制到一半被杀不能留下半截文件(与 M1 ensureDefaultWallpaper 同理)
-                runCatching {
-                    check(writeFileAtomically(dst, verify = { Apps.isDecodableImage(it.absolutePath) }) { out ->
-                        ctx.assets.open("wallpapers/$name.jpg").use { it.copyTo(out) }
-                    })
-                }.onFailure { Log.w(TAG, "内置壁纸铺入失败 $name: ${it.message}") }
-            }
-            // 只记真正落地的:被杀 / 失败的那几张不进标记,下次 prepare 还会补铺。
-            if (dst.isFile) landed += name
-        }
-        if (landed.isNotEmpty()) runCatching { marker.writeText((done + landed).joinToString("\n")) }
-        val pick = pickDefaultSeed(landed.map { "$BUILTIN_PREFIX$it.jpg" }, kotlin.random.Random.Default) ?: return false
-        return pointAtIfUnset(ctx, File(dir, pick))
-    }
-
-    /** 选择器选中:只记文件名。 */
     fun select(ctx: Context, file: File): Boolean {
-        val name = sanitizeWallpaperFileName(file.name)
-        if (name.isEmpty() || !Apps.isDecodableImage(file.absolutePath)) return false
-        return SettingsStore.update(ctx) { it.copy(wallpaperFile = name) } != null
+        val builtin = builtinImageOf(file)?.takeIf { it.kind == BuiltinKind.WALLPAPERS }
+        val value = if (builtin != null) encodeBuiltinChoice(builtin.id) else sanitizeWallpaperFileName(file.name)
+        if (value.isEmpty() || !Apps.isDecodableImage(file.absolutePath)) return false
+        return SettingsStore.update(ctx) { it.copy(wallpaperFile = value) } != null
     }
 
     /**
@@ -180,9 +156,9 @@ object Wallpapers {
     }
 
     /**
-     * 任何路径都失败时的最后一道回落。~~APK 内置默认底 `wallpapers/00-neutral.jpg`~~——**R61 起没有内置图,恒为 null**:
-     * 调用方([load] → [Wallpaper])把「没有壁纸」画成纯深色底 [GtvTokens.MenuBg]。以后 Gordon 给的默认图走播种
-     * 进图库([BUILTIN_WALLPAPERS]),不走这里;保留这个函数只是让回落点只有一处。
+     * 任何路径都失败时的最后一道回落。~~APK 内置默认底 `wallpapers/00-neutral.jpg`~~——**R61 起恒为 null**:
+     * 调用方([load] → [Wallpaper])把「没有壁纸」画成纯深色底 [GtvTokens.MenuBg]。R116 的内置壁纸是 [resolveSource]
+     * 正常解析出来的一张(默认 = 清单第一张),不走这里;保留这个函数只是让回落点只有一处。
      */
     @Suppress("UNUSED_PARAMETER")
     fun builtinDefault(ctx: Context): Bitmap? = null
@@ -212,7 +188,10 @@ object Wallpapers {
 
     /** 处理后的位图:先查缓存,没有就渲染并写缓存。任何一步失败返回 null,调用方退回原图。IO 线程。 */
     fun processed(ctx: Context, src: File, spec: WallpaperSpec): Bitmap? {
-        val key = wallpaperCacheKey(src.absolutePath, src.lastModified(), src.length(), spec.blur, spec.brightness)
+        // 内置壁纸(R116)是伪路径,lastModified / length 恒为 0:用 APK 更新时刻当「修改时间」,新版换了同名图不会错配旧缓存
+        val builtin = builtinAssetPathOf(src.path) != null
+        val mtime = if (builtin) BuiltinImages.apkStamp(ctx) else src.lastModified()
+        val key = wallpaperCacheKey(src.absolutePath, mtime, src.length(), spec.blur, spec.brightness)
         val dir = Paths.wallpaperCacheDir(ctx)
         val cached = File(dir, "$key.jpg")
         if (cached.isFile) {

@@ -342,7 +342,8 @@ private suspend fun decodeScreensaverPhoto(path: String, dstW: Int, dstH: Int): 
     withContext(Dispatchers.IO) {
         runCatching {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeFile(path, bounds)
+            // 内置屏保图(R117)是伪路径,decodeImagePath 认出来改读 assets
+            decodeImagePath(path, bounds)
             val (sample, density, target) =
                 ScreensaverMotion.decodePlan(bounds.outWidth, bounds.outHeight, dstW, dstH)
             fun opts(config: Bitmap.Config) = BitmapFactory.Options().apply {
@@ -354,8 +355,8 @@ private suspend fun decodeScreensaverPhoto(path: String, dstW: Int, dstH: Int): 
                     inTargetDensity = target
                 }
             }
-            (BitmapFactory.decodeFile(path, opts(Bitmap.Config.RGBA_F16))
-                ?: BitmapFactory.decodeFile(path, opts(Bitmap.Config.ARGB_8888)))
+            (decodeImagePath(path, opts(Bitmap.Config.RGBA_F16))
+                ?: decodeImagePath(path, opts(Bitmap.Config.ARGB_8888)))
                 ?.asImageBitmap()
         }.onFailure { android.util.Log.w("UnitedU", "屏保照片解码失败 $path", it) }.getOrNull()
     }

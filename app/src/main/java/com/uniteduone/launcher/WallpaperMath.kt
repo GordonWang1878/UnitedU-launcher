@@ -35,8 +35,8 @@ fun wallpaperSpecOf(s: Settings): WallpaperSpec = WallpaperSpec(
 /**
  * **R61(2026-09-23 傍晚)**:M3 起铺进用户图库的 6 张内置染色图的文件名。这些是**我们播种的**(`Wallpapers`
  * 的 seedBuiltins 用固定前缀 `unitedu-` + 内置名复制过去,用户上传 / adb 推的图不会叫这几个名字),R61 把它们从 APK
- * 里删了,升级时从图库里清掉。按**完整文件名**认,不按前缀:以后 Gordon 给的「系统默认随机赠送」图也用 `unitedu-`
- * 前缀播种,不能被这份清单误删——**新的内置图不许复用下面这几个名字**。
+ * 里删了,升级时从图库里清掉。按**完整文件名**认,不按前缀(用户自己也可能传一张 `unitedu-` 开头的图)。
+ * R116 起内置壁纸直接从 assets 读、不再播种进图库,这份清单只剩升级清理这一个用处。
  */
 internal val LEGACY_SEEDED_WALLPAPERS: Set<String> = setOf(
     "unitedu-00-neutral.jpg", "unitedu-01-gold.jpg", "unitedu-02-champagne.jpg",
@@ -47,16 +47,8 @@ internal val LEGACY_SEEDED_WALLPAPERS: Set<String> = setOf(
 internal fun wallpaperFileAfterLegacyCleanup(current: String): String =
     if (current in LEGACY_SEEDED_WALLPAPERS) "" else current
 
-/** 这次该往图库里铺哪些内置图:清单里还没铺过的(铺过的即使被用户删了也不复活)。保持清单顺序。 */
-internal fun seedPlan(builtins: List<String>, alreadySeeded: Set<String>): List<String> =
-    builtins.filter { it !in alreadySeeded }
-
-/**
- * 「首次播种时随机选一张当默认」(R61 的钩子):从这次真正铺成功的文件里随机挑一张;一张都没有 → null(什么都不做)。
- * 只在 `wallpaperFile` 还没指定时才会被采用(调用方走 pointAtIfUnset),不会顶掉用户自己选的壁纸。
- */
-internal fun pickDefaultSeed(seededFiles: List<String>, random: kotlin.random.Random): String? =
-    if (seededFiles.isEmpty()) null else seededFiles[random.nextInt(seededFiles.size)]
+// (R61 的播种 seedPlan / 「首次随机选一张当默认」pickDefaultSeed 随 R116 删掉:内置壁纸直接从 assets 读,
+//  默认固定用清单第一张,见 BuiltinCatalog.kt 的 resolveWallpaperChoice。)
 
 /**
  * 模糊档位 → 缩小到的工作宽度。模糊 = 缩小再放大(spec §3.2),这里定「缩到多宽」:

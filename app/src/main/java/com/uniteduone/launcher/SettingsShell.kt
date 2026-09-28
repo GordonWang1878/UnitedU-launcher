@@ -321,8 +321,9 @@ fun SettingsShell(
     // 屏保图库张数(「屏保启动」选项层的提示要分「图库为空」)、隐藏的输入源数(「恢复隐藏的输入源」条件行)、
     // 系统设置快照(「系统屏保」摘要与「动画缩放」条件行)——与旧设置页同一组 key 习惯:盖着的东西关掉时重数,
     // 回到前台(focusNonce)重读系统快照。−1 = 还没数完,模型按「非空 / 不露出」处理。
+    // R117 起数的是**轮播**(参与的内置图 + 用户图库),不是图库:内置图全关掉、图库又空,「屏保启动」同样提示为空。
     val screensaverImages by produceState(-1, galleryVersion, covered) {
-        value = withContext(Dispatchers.IO) { safeScan(ctx)?.size ?: 0 }
+        value = withContext(Dispatchers.IO) { safePlaylist(ctx)?.size ?: 0 }
     }
     val systemStatus = remember(focusNonce, covered) { readSystemUiStatus(ctx) }
 

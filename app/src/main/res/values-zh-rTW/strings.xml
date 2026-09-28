@@ -123,6 +123,12 @@
     <string name="picker_screensaver_pool_title">螢幕保護程式圖庫 · %1$d 項 · 按確定鍵預覽</string>
     <string name="picker_screensaver_title">螢幕保護程式圖庫</string>
     <string name="picker_no_screensavers">還沒有螢幕保護程式相片或影片</string>
+    <!-- R115:選圖頁「內建 / 我的」兩塊的分組標題;內建螢幕保護圖關掉之後的角標與膠囊選單(R117) -->
+    <string name="picker_section_builtin">內建</string>
+    <string name="picker_section_mine">我的</string>
+    <string name="picker_builtin_off_badge">已關</string>
+    <string name="pool_builtin_exclude">不參與輪播</string>
+    <string name="pool_builtin_include">加入輪播</string>
     <!-- pool_delete_* : 螢幕保護圖庫長按刪圖的確認框(M5 spec §5);取消複用 dialog_cancel -->
     <string name="pool_delete_title">刪除這一項?</string>
     <string name="pool_delete_body">「%1$s」會從螢幕保護圖庫刪除,無法復原</string>
@@ -156,7 +162,7 @@
     <string name="settings_idle_nofade">不淡出</string>
     <!-- M5「待機與螢幕保護」組新增的四行(spec §3、§6);分鐘檔複用 settings_idle_minutes,「關」複用 settings_idle_off -->
     <string name="settings_screensaver_after">螢幕保護啟動</string>
-    <string name="settings_screensaver_note_empty">圖庫是空的,不會進入</string>
+    <string name="settings_screensaver_note_empty">輪播是空的,不會進入</string>
     <string name="settings_screensaver_note_from_input">從最後一次按鍵算起</string>
     <string name="settings_screensaver_note_after_standby">從進入待機算起</string>
     <string name="settings_screensaver_interval">螢幕保護輪播設定</string>
@@ -320,6 +326,6 @@
     <string name="input_menu_rename">重新命名</string>
     <string name="toast_cant_switch_input">切換不到「%1$s」</string>
     <string name="settings_start_screensaver">立即啟動螢幕保護</string>
-    <string name="toast_screensaver_gallery_empty">請先在螢幕保護圖庫裡加入相片或影片</string>
+    <string name="toast_screensaver_gallery_empty">螢幕保護輪播是空的,請先在螢幕保護圖庫裡加入相片或影片</string>
     <string name="input_label_tv">電視</string>
 </resources>

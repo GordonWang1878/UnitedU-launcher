@@ -292,6 +292,47 @@ class SettingsTest {
         assertEquals(30_000L, r.screensaverIntervalMs)
     }
 
+    // ---- R116 / R117:内置图 ----
+
+    @Test fun builtinWallpaperChoiceSurvivesParsing() {
+        // `builtin:<ID>` 不含路径分隔符,sanitizeWallpaperFileName 放行;旧的纯文件名照旧
+        assertEquals("builtin:01-dusk-city", parseSettings("""{"wallpaperFile": "builtin:01-dusk-city"}""").wallpaperFile)
+        val s = Settings(wallpaperFile = "builtin:01-dusk-city")
+        assertEquals(s, parseSettings(s.toJson()))
+    }
+
+    @Test fun excludedBuiltinScreensaversDefaultsToEmptyWhenAbsent() {
+        // 旧文件没有这个键 = 全部参与轮播
+        assertEquals(emptySet<String>(), parseSettings("""{"idleAfterMs": 180000}""").excludedBuiltinScreensavers)
+        assertEquals(emptySet<String>(), Settings().excludedBuiltinScreensavers)
+        // 不是数组 → 当没写
+        assertEquals(emptySet<String>(), parseSettings("""{"excludedBuiltinScreensavers": "01-a"}""").excludedBuiltinScreensavers)
+    }
+
+    @Test fun excludedBuiltinScreensaversRoundTripSortedAndDoesNotDisturbOtherKeys() {
+        val s = Settings(excludedBuiltinScreensavers = setOf("03-c", "01-a"), screensaverIntervalMs = 60_000L, language = "en")
+        val json = s.toJson()
+        assertTrue(json.contains("\"excludedBuiltinScreensavers\": [\"01-a\", \"03-c\"]"))
+        assertEquals(s, parseSettings(json))
+        assertTrue(isWellFormedJsonObject(json))
+        // 空集合写成空数组,读回来还是空
+        assertTrue(Settings().toJson().contains("\"excludedBuiltinScreensavers\": []"))
+        assertEquals(Settings(), parseSettings(Settings().toJson()))
+    }
+
+    @Test fun excludedBuiltinScreensaversToleratesSpacingEscapesAndBlanks() {
+        val s = parseSettings("""{"excludedBuiltinScreensavers":[ "01-a" ,"q\"uote", "" ,"  02-b  "],"language":"en"}""")
+        assertEquals(setOf("01-a", "q\"uote", "02-b"), s.excludedBuiltinScreensavers)
+        assertEquals("en", s.language)
+    }
+
+    @Test fun restoredDefaultsKeepsExcludedBuiltinScreensavers() {
+        // 「恢复默认」确认框写着「图片库都不会变」:哪几张内置图参不参与轮播是图库的取舍
+        val r = restoredDefaults(Settings(excludedBuiltinScreensavers = setOf("02-b"), wallpaperFile = "builtin:01-a"), 1L)
+        assertEquals(setOf("02-b"), r.excludedBuiltinScreensavers)
+        assertEquals("", r.wallpaperFile)   // 壁纸选中值照旧回到默认(= 内置清单第一张)
+    }
+
     @Test fun strictParseThrowsOnBrokenSyntaxButAcceptsPartialObjects() {
         assertTrue(runCatching { parseSettingsStrict("{\"rowCount\":5}{\"cardsPerRow\":8}") }.isFailure)
         assertTrue(runCatching { parseSettingsStrict("{半截") }.isFailure)
