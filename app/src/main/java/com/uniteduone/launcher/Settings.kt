@@ -104,6 +104,15 @@ internal const val CARD_OPACITY_STEP = 10
 private fun clampPercentStep10(v: Int?, default: Int): Int =
     if (v == null) default else ((v.coerceIn(0, 100) + 5) / 10) * 10
 
+/**
+ * 壁纸模糊(R119,2026-09-28 Gordon:后面几档太糊、用户不会选):0..[WALLPAPER_BLUR_MAX] 步 [WALLPAPER_BLUR_STEP],
+ * 仍 11 档;旧文件里 55–100 的值夹到 50,其余四舍五入到 5 的倍数。
+ */
+internal const val WALLPAPER_BLUR_MAX = 50
+internal const val WALLPAPER_BLUR_STEP = 5
+internal fun clampWallpaperBlur(v: Int?, default: Int): Int =
+    if (v == null) default else ((v.coerceIn(0, WALLPAPER_BLUR_MAX) + WALLPAPER_BLUR_STEP / 2) / WALLPAPER_BLUR_STEP) * WALLPAPER_BLUR_STEP
+
 /** 卡片饱和度:0..100 夹取后四舍五入到 10 的倍数;解析不出 → 30(R70)。 */
 private fun clampCardSaturation(v: Int?): Int =
     if (v == null) DEFAULT_CARD_SATURATION else ((v.coerceIn(0, 100) + 5) / 10) * 10
@@ -221,7 +230,7 @@ fun parseSettings(json: String): Settings {
             // 旧文件里可能还有 "wallpaperThemed"(2026-09-16 删掉的开关)、"themedCards"(R58)、
             // "wallpaperRotateMs" / "wallpaperRotatedAt"(R61)、"showInputRow"(R92):这里不读它们,扁平 tokenizer 只认列出的键,
             // 未知键自然被忽略(SettingsTest 的 legacy*KeyIsIgnored 钉住这一点)。
-            wallpaperBlur = clampPercentStep10(extractInt(json, "wallpaperBlur"), d.wallpaperBlur),
+            wallpaperBlur = clampWallpaperBlur(extractInt(json, "wallpaperBlur"), d.wallpaperBlur),
             // 旧文件只有 wallpaperDim(0–100 压暗)时换算成负亮度(超过 50 的压暗夹到 −50);新键在场以新键为准。
             wallpaperBrightness = clampBrightnessStep10(
                 extractInt(json, "wallpaperBrightness") ?: extractInt(json, "wallpaperDim")?.let { -it },

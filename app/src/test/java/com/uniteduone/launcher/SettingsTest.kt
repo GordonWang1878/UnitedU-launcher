@@ -170,9 +170,11 @@ class SettingsTest {
 
     @Test fun blurAndDimClampAndSnapToTens() {
         assertEquals(0, parseSettings("""{"wallpaperBlur": -20}""").wallpaperBlur)
-        assertEquals(100, parseSettings("""{"wallpaperBlur": 250}""").wallpaperBlur)
+        assertEquals(50, parseSettings("""{"wallpaperBlur": 250}""").wallpaperBlur)  // R119 上限 50
+        assertEquals(50, parseSettings("""{"wallpaperBlur": 80}""").wallpaperBlur)
+        assertEquals(35, parseSettings("""{"wallpaperBlur": 34}""").wallpaperBlur)
         assertEquals(50, parseSettings("""{"wallpaperBlur": 54}""").wallpaperBlur)
-        assertEquals(60, parseSettings("""{"wallpaperBlur": 55}""").wallpaperBlur)
+        assertEquals(50, parseSettings("""{"wallpaperBlur": 55}""").wallpaperBlur)  // R119:超过 50 一律夹到 50
         assertEquals(50, parseSettings("""{"wallpaperBrightness": 96}""").wallpaperBrightness)
         assertEquals(-50, parseSettings("""{"wallpaperBrightness": -70}""").wallpaperBrightness)
         assertEquals(-20, parseSettings("""{"wallpaperBrightness": -24}""").wallpaperBrightness)

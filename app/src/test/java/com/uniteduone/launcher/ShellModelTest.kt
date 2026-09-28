@@ -227,7 +227,8 @@ class ShellModelTest {
         val g = groups(Settings(wallpaperBlur = 40, wallpaperBrightness = -20, cardSaturation = 30, cardBrightness = 75))
         val blur = controlRow(g, "wallpaperBlur")!!
         assertEquals("40%", sliderText(blur))
-        assertEquals("100%", sliderText(blur, 10))
+        assertEquals("50%", sliderText(blur, 10))   // R119:第 10 档 = 50%
+        assertEquals("5%", sliderText(blur, 1))
         val wb = controlRow(g, "wallpaperBrightness")!!
         assertEquals("-20%", sliderText(wb))
         assertEquals("0%", sliderText(wb, 5))

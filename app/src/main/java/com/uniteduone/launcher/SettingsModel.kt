@@ -273,7 +273,9 @@ fun settingsGroups(
                 ctl(
                     id = "wallpaperBlur", labelRes = R.string.settings_wallpaper_blur,
                     kind = CtrlKind.SLIDER, optionRes = emptyList(),
-                    count = 11, selected = s.wallpaperBlur / 10,
+                    // R119:0–50% 步 5,仍 11 档
+                    count = WALLPAPER_BLUR_MAX / WALLPAPER_BLUR_STEP + 1, selected = s.wallpaperBlur / WALLPAPER_BLUR_STEP,
+                    sliderStep = WALLPAPER_BLUR_STEP,
                 ),
                 ctl(
                     id = "wallpaperBrightness", labelRes = R.string.settings_wallpaper_brightness,
@@ -370,7 +372,7 @@ internal fun optionWrite(rowId: String): ((Settings, Int) -> Settings)? = when (
     "idleAfter" -> { s, i -> s.copy(idleAfterMs = VALID_IDLE_AFTER_MS[i]) }
     "idleContent" -> { s, i -> s.copy(idleContent = IdleContent.entries[i]) }
     "clockDisplay" -> { s, i -> s.copy(showDate = i == 1) }
-    "wallpaperBlur" -> { s, i -> s.copy(wallpaperBlur = i * 10) }
+    "wallpaperBlur" -> { s, i -> s.copy(wallpaperBlur = i * WALLPAPER_BLUR_STEP) }
     "wallpaperBrightness" -> { s, i -> s.copy(wallpaperBrightness = i * 10 - 50) }
     "themeColor" -> { s, i -> s.copy(themePresetId = ThemePresets.all[i].id) }
     "followWallpaper" -> { s, i -> s.copy(followWallpaperColor = i == 1) }

@@ -420,3 +420,4 @@ cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的�
 | R117 | 同上 | 内置屏保默认进轮播、长按 / MENU 逐张关掉 / 加回(变暗 + 角标);`excludedBuiltinScreensavers`;空判据改「轮播为空」 | 现行 |
 | R118 | 同上 | 内置卡片装饰图,任何应用可选,照原图 + R88 / R107;选用复制内容 | 现行 |
 
+- **R119 壁纸模糊改 0–50% 步 5**(2026-09-28 Gordon:后面几档太糊,用户不会选):仍 11 档;模糊算法(缩小再放大,`blurTargetWidth`)不变,50% 即原来的第 5 档;旧设置 55–100 夹到 50。常量 `WALLPAPER_BLUR_MAX` / `WALLPAPER_BLUR_STEP`。
