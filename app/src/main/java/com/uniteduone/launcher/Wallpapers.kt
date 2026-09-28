@@ -2,7 +2,10 @@ package com.uniteduone.launcher
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Gainmap
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -11,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -19,6 +23,7 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -180,55 +185,106 @@ object Wallpapers {
         rgb and 0xFFFFFF
     }.getOrNull()
 
-    private const val OUT_W = 1920
-    private const val OUT_H = 1080
     // 留 12 个:当年是为了「6 张内置 + 1 张迁移的 legacy 被轮播挨个访问」时 LRU 仍能命中;轮播(R61)删了,
     // 数值不变——来回换几张壁纸、调几次滑块仍能命中缓存。
     private const val CACHE_KEEP = 12
 
-    /** 处理后的位图:先查缓存,没有就渲染并写缓存。任何一步失败返回 null,调用方退回原图。IO 线程。 */
-    fun processed(ctx: Context, src: File, spec: WallpaperSpec): Bitmap? {
+    /**
+     * **R122**:壁纸输出尺寸 = 当前窗口像素尺寸(长边封顶 3840,见 [screenDecodeSize]),取代写死的 1920×1080。
+     * [ctx] 用 Activity(它的 displayMetrics 跟着窗口走;`wm size` 改了之后随配置变化更新)。
+     */
+    fun outputSize(ctx: Context): Pair<Int, Int> =
+        ctx.resources.displayMetrics.let { screenDecodeSize(it.widthPixels, it.heightPixels) }
+
+    /**
+     * 处理后的位图:先查缓存,没有就渲染并写缓存。任何一步失败返回 null,调用方退回原图。IO 线程。
+     * [outW]×[outH] = [outputSize]。**R123**:API 34+ 源图带增益图时输出也带(见 [render]),缓存文件是
+     * Ultra HDR JPEG(`Bitmap.compress(JPEG)` 遇到带增益图的位图自动写 XMP `hdrgm` + 第二帧),命中时解出来同样带增益图。
+     */
+    fun processed(ctx: Context, src: File, spec: WallpaperSpec, outW: Int, outH: Int): Bitmap? {
         // 内置壁纸(R116)是伪路径,lastModified / length 恒为 0:用 APK 更新时刻当「修改时间」,新版换了同名图不会错配旧缓存
         val builtin = builtinAssetPathOf(src.path) != null
         val mtime = if (builtin) BuiltinImages.apkStamp(ctx) else src.lastModified()
-        val key = wallpaperCacheKey(src.absolutePath, mtime, src.length(), spec.blur, spec.brightness)
+        val key = wallpaperCacheKey(
+            src.absolutePath, mtime, src.length(), spec.blur, spec.brightness,
+            outW = outW, outH = outH, gainmaps = HdrGainmaps.supported,
+        )
         val dir = Paths.wallpaperCacheDir(ctx)
         val cached = File(dir, "$key.jpg")
         if (cached.isFile) {
-            runCatching { Apps.decodeScaled(cached.absolutePath, OUT_W, OUT_H) }.getOrNull()?.let {
+            runCatching { Apps.decodeScaled(cached.absolutePath, outW, outH) }.getOrNull()?.let {
                 // 命中即续命:prune 按 mtime 淘汰最旧的,命中不刷新 mtime 的话这就是 FIFO 不是 LRU——
                 // 常读的那张反而会被一串不相关的新渲染挤掉。
                 cached.setLastModified(System.currentTimeMillis())
+                Log.i(TAG, "壁纸缓存命中 ${src.name} blur=${spec.blur} brightness=${spec.brightness} 目标 ${outW}x$outH → ${HdrGainmaps.describe(it)}")
                 return it
             }
             cached.delete()   // 缓存文件坏了:删掉重做
         }
         val t0 = System.currentTimeMillis()
-        val bmp = runCatching { render(src, spec) }
+        val bmp = runCatching { render(src, spec, outW, outH) }
             .onFailure { Log.w(TAG, "壁纸处理失败 ${src.name}: ${it.message}") }
             .getOrNull() ?: return null
         // 日志放在 writeCache 之后:压缩 + fsync + 清理也在这条阻塞路径上,漏掉就低估了真实耗时。
         writeCache(dir, cached, bmp)
-        Log.i(TAG, "壁纸处理 ${src.name} blur=${spec.blur} brightness=${spec.brightness} 用时 ${System.currentTimeMillis() - t0}ms")
+        Log.i(TAG, "壁纸处理 ${src.name} blur=${spec.blur} brightness=${spec.brightness} 目标 ${outW}x$outH → ${HdrGainmaps.describe(bmp)} 用时 ${System.currentTimeMillis() - t0}ms")
         return bmp
     }
 
     /**
      * 缩小 → 套 ColorMatrix → 放大。颜色运算与模糊都是线性算子、顺序可交换,
-     * 所以矩阵作用在缩小后的小图上,几乎免费;blur=0 时矩阵直接作用于 1920×1080
+     * 所以矩阵作用在缩小后的小图上,几乎免费;blur=0 时矩阵直接作用于输出尺寸的图
      * (且与裁剪缩放合并成一次 draw,见 [cropScale])。
+     *
+     * **R123(API 34+,源图带增益图时)**:增益图先从解出来的位图上摘下([HdrGainmaps.detach],为什么必须摘见那里),
+     * 底图照旧走上面这一套(与 R123 之前逐像素相同);增益图单独走**同一套几何**:同一个中心裁剪区(换算到增益图坐标,
+     * [gainmapRectFor])、同比例缩放、模糊时缩到同一比例的宽度([gainmapBlurWidth])再放大,最后带着源图的全部
+     * 参数挂回输出。**亮度只作用于底图**:增益图记的是「HDR 比 SDR 亮多少倍」,不动它,HDR 画面就随底图按同一个
+     * 倍数变暗 / 变亮(压暗时高光与画面等比压暗;提亮时底图里被截到 255 的区域失去纹理,HDR 高光在那里只剩增益图
+     * 自己那一层起伏——提亮本来就会丢高光层次,HDR 下更明显)。增益图处理失败只丢增益图、不丢壁纸。
      */
-    private fun render(src: File, spec: WallpaperSpec): Bitmap? {
-        val decoded = Apps.decodeScaled(src.absolutePath, OUT_W, OUT_H)
+    private fun render(src: File, spec: WallpaperSpec, outW: Int, outH: Int): Bitmap? {
+        val decoded = Apps.decodeScaled(src.absolutePath, outW, outH)
         if (decoded == null) { Log.w(TAG, "壁纸源图解不出来 ${src.name}"); return null }
-        val targetW = blurTargetWidth(spec.blur, OUT_W)
+        val gain = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) HdrGainmaps.detach(decoded) else null
+        val crop = centerCropRect(decoded.width, decoded.height, outW, outH)
+        val targetW = blurTargetWidth(spec.blur, outW)
         val matrix = wallpaperColorMatrix(spec.brightness)
-        // blur=0:裁剪 + 缩放 + 上色一次 draw 完事,decoded 之外只多分配这一张 1920×1080。
-        if (targetW >= OUT_W) return cropScale(decoded, OUT_W, OUT_H, matrix)
-        val full = cropScale(decoded, OUT_W, OUT_H, null)
-        val small = downscale(full, targetW)
-        val colored = applyMatrix(small, matrix)
-        return if (colored.width == OUT_W && colored.height == OUT_H) colored else upscale(colored, OUT_W, OUT_H)
+        // blur=0:裁剪 + 缩放 + 上色一次 draw 完事,decoded 之外只多分配这一张输出尺寸的图。
+        val out = if (targetW >= outW) {
+            cropScale(decoded, crop, outW, outH, matrix)
+        } else {
+            val full = cropScale(decoded, crop, outW, outH, null)
+            val small = downscale(full, targetW)
+            val colored = applyMatrix(small, matrix)
+            if (colored.width == outW && colored.height == outH) colored else upscale(colored, outW, outH)
+        }
+        if (gain != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            runCatching { transformGainmap(gain, decoded.width, decoded.height, crop, outW, outH, targetW) }
+                .onFailure { Log.w(TAG, "增益图处理失败 ${src.name}(只显示 SDR): ${it.message}") }
+                .getOrNull()
+                ?.let { out.gainmap = it }
+        }
+        return out
+    }
+
+    /**
+     * R123:增益图走与底图同一套几何(见 [render])。[baseW]×[baseH] = 解出来的底图尺寸(增益图坐标按它换算),
+     * [targetW] = 底图的模糊工作宽度(≥ [outW] 表示不模糊)。
+     */
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    private fun transformGainmap(
+        gm: Gainmap, baseW: Int, baseH: Int, crop: PixelRect, outW: Int, outH: Int, targetW: Int,
+    ): Gainmap {
+        val contents = gm.gainmapContents
+        val (gw, gh) = gainmapSizeFor(outW, outH, baseW, baseH, contents.width, contents.height)
+        val region = gainmapRectFor(crop, baseW, baseH, contents.width, contents.height)
+        var g = HdrGainmaps.drawRegion(contents, region, gw, gh)
+        if (targetW < outW) {
+            val small = downscale(g, gainmapBlurWidth(targetW, outW, gw).coerceAtMost(gw))
+            g = if (small.width == gw && small.height == gh) small else upscale(small, gw, gh)
+        }
+        return HdrGainmaps.copyWithContents(gm, g)
     }
 
     /**
@@ -236,55 +292,60 @@ object Wallpapers {
      * 换成 Canvas 画而不是先前 `Bitmap.createBitmap(src,x,y,w,h)` 取子图再 `createScaledBitmap`:
      * 这两个 API 在「裁剪/缩放是无操作」时可能直接返回入参本身(别名同一个对象)——
      * pipeline 里任何位图都不能 recycle(),否则一旦命中别名会把上游(甚至刚解出来的源图)一起废掉。
+     * [crop] = [centerCropRect](R123 抽成纯函数,算术不变)。[src] 此时已不带增益图(R123)。
      */
-    private fun cropScale(src: Bitmap, w: Int, h: Int, matrix: FloatArray?): Bitmap {
-        val scale = maxOf(w.toFloat() / src.width, h.toFloat() / src.height)
-        val sw = (w / scale).toInt().coerceIn(1, src.width)
-        val sh = (h / scale).toInt().coerceIn(1, src.height)
-        val sx = (src.width - sw) / 2
-        val sy = (src.height - sh) / 2
+    private fun cropScale(src: Bitmap, crop: PixelRect, w: Int, h: Int, matrix: FloatArray?): Bitmap {
         val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG).apply {
             if (matrix != null) colorFilter = android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix(matrix))
         }
         android.graphics.Canvas(out).drawBitmap(
             src,
-            android.graphics.Rect(sx, sy, sx + sw, sy + sh),
+            android.graphics.Rect(crop.x, crop.y, crop.x + crop.w, crop.y + crop.h),
             android.graphics.Rect(0, 0, w, h),
             paint,
         )
         return out
     }
 
-    /** 反复减半到 ≤ 2× 目标,再一步缩到目标宽;每次减半都是一次 2×2 均值,叠起来就是一块便宜的低通滤波。 */
+    /**
+     * 反复减半到 ≤ 2× 目标,再一步缩到目标宽;每次减半都是一次 2×2 均值,叠起来就是一块便宜的低通滤波。
+     * 高按 [b] 自己的宽高比(底图就是输出尺寸,1080p 时与 R123 之前按 1920×1080 算的逐位相同;增益图按它自己的尺寸)。
+     * `ALPHA_8` 的增益图缩放后仍是 `ALPHA_8`(`createScaledBitmap` 保留该格式)。
+     */
     private fun downscale(b: Bitmap, targetW: Int): Bitmap {
         var cur = b
         while (cur.width / 2 >= targetW * 2) {
             cur = Bitmap.createScaledBitmap(cur, cur.width / 2, cur.height / 2, true)
         }
-        val targetH = maxOf(1, Math.round(targetW * OUT_H.toFloat() / OUT_W))
+        val targetH = maxOf(1, Math.round(targetW * b.height.toFloat() / b.width))
         cur = Bitmap.createScaledBitmap(cur, targetW, targetH, true)
         return boxBlur3(cur)
     }
 
-    /** 3×3 均值:小图上的最后一道低通,消掉减半链留下的锯齿。小图最多 1920 宽,像素循环可接受。 */
+    /**
+     * 3×3 均值:小图上的最后一道低通,消掉减半链留下的锯齿。小图最多是输出宽,像素循环可接受。
+     * 四个通道都平均(R123:`ALPHA_8` 增益图的值在 alpha 里;底图 alpha 恒 255,平均完仍是 255,与之前逐位相同),
+     * 输出格式跟输入走。
+     */
     private fun boxBlur3(b: Bitmap): Bitmap {
         val w = b.width
         val h = b.height
         val src = IntArray(w * h).also { b.getPixels(it, 0, w, 0, 0, w, h) }
         val out = IntArray(w * h)
         for (y in 0 until h) for (x in 0 until w) {
-            var r = 0; var g = 0; var bl = 0; var n = 0
+            var a = 0; var r = 0; var g = 0; var bl = 0; var n = 0
             for (dy in -1..1) for (dx in -1..1) {
                 val yy = y + dy
                 val xx = x + dx
                 if (yy < 0 || yy >= h || xx < 0 || xx >= w) continue
                 val p = src[yy * w + xx]
-                r += (p shr 16) and 0xFF; g += (p shr 8) and 0xFF; bl += p and 0xFF; n++
+                a += p ushr 24; r += (p shr 16) and 0xFF; g += (p shr 8) and 0xFF; bl += p and 0xFF; n++
             }
-            out[y * w + x] = (0xFF shl 24) or ((r / n) shl 16) or ((g / n) shl 8) or (bl / n)
+            out[y * w + x] = ((a / n) shl 24) or ((r / n) shl 16) or ((g / n) shl 8) or (bl / n)
         }
-        return Bitmap.createBitmap(out, w, h, Bitmap.Config.ARGB_8888)
+        val config = if (b.config == Bitmap.Config.ALPHA_8) Bitmap.Config.ALPHA_8 else Bitmap.Config.ARGB_8888
+        return Bitmap.createBitmap(out, w, h, config)
     }
 
     private fun applyMatrix(b: Bitmap, m: FloatArray): Bitmap {
@@ -333,31 +394,35 @@ object Wallpapers {
      */
     data class Loaded(val bitmap: Bitmap?, val settingsChanged: Boolean, val empty: Boolean = false)
 
-    /** 显示用位图。IO 线程。解不出来回落 [builtinDefault](R61 起为 null);调用方只在非 null 时换图,[Loaded.empty] 时清空。 */
-    fun load(ctx: Context, spec: WallpaperSpec): Loaded {
+    /**
+     * 显示用位图。IO 线程。解不出来回落 [builtinDefault](R61 起为 null);调用方只在非 null 时换图,[Loaded.empty] 时清空。
+     * [outW]×[outH] = [outputSize](R122)。
+     */
+    fun load(ctx: Context, spec: WallpaperSpec, outW: Int, outH: Int): Loaded {
         val settingsChanged = prepare(ctx)
         // prepare 可能刚把 wallpaperFile 写进 settings(或 R61 清理时置空),而 spec 是拿旧 settings 组装的;补读一次。
         val name = if (settingsChanged) SettingsStore.read(ctx).wallpaperFile else spec.file.ifEmpty { SettingsStore.read(ctx).wallpaperFile }
         val src = resolveSource(ctx, name)
             ?: return Loaded(builtinDefault(ctx), settingsChanged, empty = builtinDefault(ctx) == null)
-        // 参数全零完全绕开管线:不解码两次、不写缓存、保留 F16(零回归路径)。
+        // 参数全零完全绕开管线:不解码两次、不写缓存(零回归路径)。
         // 处理失败退回原图而不是黑屏。
         if (!spec.isIdentity) {
-            processed(ctx, src, spec)?.let { return Loaded(it, settingsChanged) }
+            processed(ctx, src, spec, outW, outH)?.let { return Loaded(it, settingsChanged) }
         }
-        // RGBA_F16 保留 Ultra HDR gain map(与 M1 同);decodeScaled 在 F16 失败时自动回落 8888。
-        val bmp = runCatching { Apps.decodeScaled(src.absolutePath, OUT_W, OUT_H, Bitmap.Config.RGBA_F16) }
+        // **R125**:ARGB_8888(R125 之前是 RGBA_F16)。HDR 只靠增益图:BitmapFactory 不论底图格式都把增益图挂上,
+        // 底图里存的永远是 8 位 JPEG 的 SDR 画面,F16 只是把它加宽,内存翻倍、多不出一点 HDR(A95L 消融:GPU 量不出差别)。
+        val bmp = runCatching { Apps.decodeScaled(src.absolutePath, outW, outH) }
             .onFailure { Log.w(TAG, "壁纸解码失败 ${src.name}: ${it.message}") }
             .getOrNull()
-            ?: builtinDefault(ctx)
-        return Loaded(bmp, settingsChanged)
+        if (bmp != null) Log.i(TAG, "壁纸原图 ${src.name} 目标 ${outW}x$outH → ${HdrGainmaps.describe(bmp)}")
+        return Loaded(bmp ?: builtinDefault(ctx), settingsChanged)
     }
 }
 
 /**
  * 壁纸层。**住在 MainActivity 的 setContent 顶层,不在 HomeScreen 里**:进出编辑页/设置页会把
- * 那一层整棵拆掉重建,壁纸若跟着走就要每次重解一张 1920×1080,期间纯黑——退出时黑闪一下。
- * key 只有 spec:换图 / 改参数 / 轮播都只换位图;新图就绪前旧图原样留着,再交叉淡入过去。
+ * 那一层整棵拆掉重建,壁纸若跟着走就要每次重解一张全屏图,期间纯黑——退出时黑闪一下。
+ * key 只有 spec(+ R122 的窗口尺寸):换图 / 改参数 / 轮播都只换位图;新图就绪前旧图原样留着,再交叉淡入过去。
  *
  * **Ruling R45(2026-09-22,取代 R35 的「壁纸随整页上移」与 R36 的两层方案)**:壁纸**单层、原地不动**,
  * 只随首页整页位移变暗。owner 真机:「右边的壁纸有双重的残影,这很恐怖:我移上去的时候,龙猫会向上移,
@@ -385,9 +450,13 @@ fun Wallpaper(
     /** R110:这一帧 R85 渐变画进背景图层(true)还是由首页自己画(false)。绘制阶段读。 */
     gradientBaked: () -> Boolean = { false },
 ) {
-    // produceState 的 remember 不带 key:spec 变时只重启生产者,旧值留着 → 不闪黑
-    val bmp by produceState<Bitmap?>(initialValue = null, spec) {
-        val loaded = withContext(Dispatchers.IO) { Wallpapers.load(ctx, spec) }
+    // R122:输出尺寸跟着窗口走。读 LocalConfiguration 是为了订阅配置变化(清单里 screenSize 由应用自己处理、
+    // 不重建 Activity):`wm size` / 换分辨率之后按新尺寸重解。
+    val configuration = LocalConfiguration.current
+    val outSize = remember(configuration) { Wallpapers.outputSize(ctx) }
+    // produceState 的 remember 不带 key:spec / 尺寸变时只重启生产者,旧值留着 → 不闪黑
+    val bmp by produceState<Bitmap?>(initialValue = null, spec, outSize) {
+        val loaded = withContext(Dispatchers.IO) { Wallpapers.load(ctx, spec, outSize.first, outSize.second) }
         // withContext 回到主线程之后再通知:调用方要改的是 Compose 状态。
         // prepare 只有首启/升级那一趟会写,写完 wallpaperFile 非空(或 R61 清理后已不再指向旧图),不会自激。
         if (loaded.settingsChanged) onSettingsChanged()
@@ -403,7 +472,9 @@ fun Wallpaper(
     }
     if (bridge != null) {
         SideEffect { bridge.wallpaperLayered = true }
-        LayeredWallpaper(b, alpha, gradientBaked)
+        // R124:带增益图的壁纸,显示器 HDR/SDR 比例跨档时整组缓存图层重建(推导见 HomeBackdrop.kt 的 R124 一节)
+        val hdrBucket = rememberHdrRatioBucket(active = HdrGainmaps.has(b))
+        key(hdrBucket) { LayeredWallpaper(b, alpha, gradientBaked) }
         return
     }
     Crossfade(

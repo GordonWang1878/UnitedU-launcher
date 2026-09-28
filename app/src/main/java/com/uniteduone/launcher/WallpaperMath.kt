@@ -53,6 +53,7 @@ internal fun wallpaperFileAfterLegacyCleanup(current: String): String =
 /**
  * 模糊档位 → 缩小到的工作宽度。模糊 = 缩小再放大(spec §3.2),这里定「缩到多宽」:
  * 0 → 1920(不缩),10 → 768,50 → 226,100 → 120;11 档单调递减、无重复。
+ * [fullWidth] = 输出宽(R122 起跟窗口走;4K 界面时工作宽度同比例翻倍,模糊掉的是画面上同样比例的细节)。
  */
 fun blurTargetWidth(blur: Int, fullWidth: Int = 1920): Int {
     val b = blur.coerceIn(0, 100) / 100f
@@ -74,11 +75,19 @@ fun wallpaperColorMatrix(brightness: Int): FloatArray {
     )
 }
 
-/** 缓存文件名:源文件身份(路径 + mtime + 大小)+ 全部参数 + 算法版本号,任一变则键变。 */
-fun wallpaperCacheKey(path: String, mtime: Long, size: Long, blur: Int, brightness: Int): String {
+/**
+ * 缓存文件名:源文件身份(路径 + mtime + 大小)+ 全部参数 + 输出尺寸 + 带不带增益图 + 算法版本号,任一变则键变。
+ * [outW]×[outH] = 处理输出尺寸(R122 起跟窗口走:1080p 与 4K 各一份,`wm size` 来回切不会错配)。
+ * [gainmaps] = 这台设备的处理链会不会保留增益图(API 34+,R123):系统从 13 升到 14 之后,旧的纯 SDR 缓存不能再命中。
+ */
+fun wallpaperCacheKey(
+    path: String, mtime: Long, size: Long, blur: Int, brightness: Int,
+    outW: Int, outH: Int, gainmaps: Boolean,
+): String {
     // v2:第 7 段从「压暗 0–100」改成「亮度 −50…+50」,同一个数字含义相反,版本号必须变,否则旧缓存被错配。
     // v3:删掉 themed / accent 两段,键的形状变了,再升一版——旧的 v2 缓存文件从此永不命中,由 LRU 自然淘汰。
-    val raw = "$path|$mtime|$size|$blur|$brightness|v3"
+    // v4(R122 / R123):加输出尺寸与增益图两段。v3 的缓存都是 1920×1080、不带增益图,从此不再命中。
+    val raw = "$path|$mtime|$size|$blur|$brightness|${outW}x$outH|gm=${if (gainmaps) 1 else 0}|v4"
     val digest = MessageDigest.getInstance("SHA-1").digest(raw.toByteArray())
     return digest.joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
 }

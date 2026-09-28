@@ -71,7 +71,7 @@ class UnitedUDream : DreamService(), SavedStateRegistryOwner {
         isInteractive = false
         isFullscreen = true
         isScreenBright = true
-        // 与 MainActivity 同:RGBA_F16 解码的 Ultra HDR 图要 HDR 窗口才亮得出来(画面一致,spec §4)。
+        // 与 MainActivity 同:Ultra HDR 图的增益图要 HDR 窗口才会被用上(画面一致,spec §4;R125 起底图是 ARGB_8888)。
         window.colorMode = ActivityInfo.COLOR_MODE_HDR
         // 冷进程时 MainActivity.attachBaseContext 没跑过:AppLocale 还是 null,日期的星期会跟系统语言走。
         val settings = SettingsStore.read(this)

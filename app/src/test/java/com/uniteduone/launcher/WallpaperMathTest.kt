@@ -66,19 +66,39 @@ class WallpaperMathTest {
         assertEquals(1.5f, wallpaperColorMatrix(brightness = 90)[0], 1e-6f)   // 夹到 +50
     }
 
+    private fun key(
+        path: String = "/a.jpg", mtime: Long = 1L, size: Long = 2L, blur: Int = 0, brightness: Int = 0,
+        outW: Int = 1920, outH: Int = 1080, gainmaps: Boolean = true,
+    ) = wallpaperCacheKey(path, mtime, size, blur, brightness, outW, outH, gainmaps)
+
     @Test fun cacheKeyChangesWhenAnyParamChanges() {
-        val base = wallpaperCacheKey("/a.jpg", 1L, 2L, 0, 0)
+        val base = key()
         assertEquals(40, base.length)
-        assertEquals(base, wallpaperCacheKey("/a.jpg", 1L, 2L, 0, 0))
+        assertEquals(base, key())
         val variants = listOf(
-            wallpaperCacheKey("/b.jpg", 1L, 2L, 0, 0),
-            wallpaperCacheKey("/a.jpg", 9L, 2L, 0, 0),
-            wallpaperCacheKey("/a.jpg", 1L, 3L, 0, 0),
-            wallpaperCacheKey("/a.jpg", 1L, 2L, 10, 0),
-            wallpaperCacheKey("/a.jpg", 1L, 2L, 0, 10),
-            wallpaperCacheKey("/a.jpg", 1L, 2L, 0, -10),
+            key(path = "/b.jpg"),
+            key(mtime = 9L),
+            key(size = 3L),
+            key(blur = 10),
+            key(brightness = 10),
+            key(brightness = -10),
+            // R122:1080p 与 4K 界面各一份缓存,`wm size` 来回切不会把 1080p 的图拉到 4K 上显示
+            key(outW = 3840, outH = 2160),
+            key(outW = 1080, outH = 1920),
+            // R123:同一台机器从 Android 13 升到 14,旧的纯 SDR 缓存不能再命中
+            key(gainmaps = false),
         )
         for (k in variants) assertNotEquals(base, k)
+        assertEquals("每个变体都互不相同", variants.size, variants.toSet().size)
+    }
+
+    /** v4(R122 / R123)换了键的形状:同样的参数不能撞上 v3 那个键(v3 的缓存都是 1920×1080、不带增益图)。 */
+    @Test fun cacheKeyV4NeverMatchesTheV3Shape() {
+        val raw = "/a.jpg|1|2|0|0|v3"
+        val v3 = java.security.MessageDigest.getInstance("SHA-1").digest(raw.toByteArray())
+            .joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
+        assertNotEquals(v3, key(gainmaps = false))
+        assertNotEquals(v3, key(gainmaps = true))
     }
 
     /**

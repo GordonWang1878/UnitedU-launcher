@@ -60,4 +60,30 @@
 
 ### 验证记录(2026-09-28)
 - Android 14 模拟器上 `BitmapFactory.decodeFile(...).hasGainmap()`:原图(只有 ISO)= false;转换后(XMP + ISO)= true,`ratioMax` = 4.935,增益图宽 3840。
-- 显示 HDR 还需要:应用窗口 `COLOR_MODE_HDR`(主界面与系统屏保已开)、绘制链不丢增益图(屏保 RGBA_F16 解码保留;**首页壁纸处理链目前会丢**,见 WORKLOG 2026-09-28)、电视界面层支持 HDR 输出(A95L 待 Gordon 真机看)。
+- 显示 HDR 还需要:应用窗口 `COLOR_MODE_HDR`(主界面与系统屏保已开)、绘制链不丢增益图、电视界面层支持 HDR 输出。~~首页壁纸处理链目前会丢~~ → 2026-09-28 R122–R125 补齐(裁定全文见 `docs/superpowers/specs/2026-09-20-gtv-line-design.md` 的「HDR 壁纸 / 屏保显示链」一节),结论如下。
+
+### 验证记录(2026-09-28 · 显示链,R122–R125)
+
+| 显示路径 | 增益图是否保留 | 证据(`unitedu-tv` 模拟器,Android 14) |
+|---|---|---|
+| 首页壁纸 · 原图(模糊 / 亮度都为 0) | 保留 | 日志 `壁纸原图 01-夏日数码门.jpg 目标 1920x1080 → 1920x1080 ARGB_8888 增益图 1920x1080 ALPHA_8 ratioMax 4.94`;R125 起底图 ARGB_8888(原 F16),SDR 画面与改前 0 差 |
+| 首页壁纸 · 模糊 / 亮度处理后 | 保留(R123) | 日志 `壁纸处理 … → … 增益图 1920x1080 ALPHA_8`;缓存文件含 `hdrgm` XMP + MPF 第二帧;4:3 测试图的增益图裁剪 / 模糊与期望平均差 < 1 级 |
+| 首页壁纸 · 缓存命中 | 保留 | 日志 `壁纸缓存命中 … → … 增益图 …` |
+| 首页壁纸 · R110 缓存图层 | 保留;比例变了靠 R124 重建 | HWUI 探针:比例 4 时图层画与直接画峰值同为 3.86 × SDR 白;比例 1 建的图层切到 4 后 0.95(丢),重建后 3.86 |
+| 设置页预览(外观 / 布局) | 同首页 | 预览就是首页那一层缩进预览框,同一张位图、同一组图层 |
+| 自定义屏保 / 系统屏保 | 保留 | 日志 `屏保照片 01-云海天光.jpg 目标 1920x1080 → 1920x1080 ARGB_8888 增益图 1920x1080 ALPHA_8`;推拉摇移 / 淡入是每帧的 `graphicsLayer` 变换与临时 saveLayer(每帧按当前比例重画),不是缓存图层;系统屏保走同一个 `MotionSlideshow` |
+| 屏保图库全屏预览 | 保留 | 同屏保日志(R122 起与屏保同一个解码) |
+
+- **模拟器上读不到「HDR 比例」**:这台 AVD 的显示器 `hdrSdrRatio not_available`、只支持色彩模式 0,系统把 HDR 窗口降成默认 sRGB(SurfaceFlinger 图层 `dataspace=V0_SRGB`),增益图永远不被用上;而且 Android 14 的 SurfaceFlinger 文字 dump 本来就不打印 desired / current HDR 比例,desired 比例也与画面内容无关(HDR 模式恒 5)。所以上表用「位图带不带增益图」的日志 + HWUI 探针 + 源码路径论证。
+- **上电视时读这几项**(装包后被动读取,不按键):
+  ```bash
+  # 1. 电视界面层给不给 HDR 余量:not_available = 系统不报比例 → 应用的 HDR 窗口会被降级,任何应用内的增益图都不会亮
+  adb -s <电视序列号> shell dumpsys display | grep -o "hdrSdrRatio [^,]*" | sort -u
+  # 2. UnitedU 窗口实际的色彩模式:Display P3 + 扩展范围(RANGE_EXTENDED)= HDR 模式生效;V0_SRGB = 默认;Display P3 = 广色域
+  adb -s <电视序列号> shell dumpsys SurfaceFlinger | grep -A 12 "^\* Layer.*com.uniteduone.launcher/com.uniteduone.launcher.MainActivity#" | grep -o "dataspace=[^)]*)"
+  # 3. 当前实际用上的比例:whitePointNits ÷ SDR 白点;dimmingRatio < 1 表示系统在给 HDR 让余量
+  adb -s <电视序列号> shell dumpsys SurfaceFlinger | grep -A 16 "Output Layer.*com.uniteduone.launcher" | grep -o "dataspace=[^)]*) whitePointNits=[^ ]* dimmingRatio=[^ ]*"
+  # 4. 位图带不带增益图(换一次壁纸 / 等一张屏保照片后)
+  adb -s <电视序列号> logcat -d -s UnitedU | grep -E "壁纸原图|壁纸处理|壁纸缓存命中|屏保照片"
+  ```
+  判读:1 是数字且 > 1、2 是扩展范围 → HDR 显示链全通,肉眼看高光(灯、月亮)应比界面白更亮;1 是 `not_available` → 电视界面层不支持 HDR,这台电视上壁纸 / 屏保只能显示 SDR(不是我们的链路问题)。

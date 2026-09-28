@@ -333,6 +333,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // HDR 窗口:Ultra HDR 壁纸 / 屏保的增益图只在 HDR 模式下被用上。Android 14 的语义(AOSP ViewRootImpl /
+        // CanvasContext):HDR 模式向系统要的余量恒为 `debug.hwui.max_hdr_headroom_on_8bit`(默认 5),与画面内容无关;
+        // 显示器不报 HDR/SDR 比例时系统把它降成广色域,不是广色域屏再降成默认——都不会报错(gtv spec「HDR 壁纸 / 屏保显示链」一节)。
         window.colorMode = ActivityInfo.COLOR_MODE_HDR
         // P1(交互测试 2026-09-23 第二轮):改名对话框要在输入法弹出时避让。窗口不再自己适配系统边衬,
         // 配合清单里的 adjustResize,系统不平移 / 不缩窗口,而是把输入法高度作为 WindowInsets.ime 交给

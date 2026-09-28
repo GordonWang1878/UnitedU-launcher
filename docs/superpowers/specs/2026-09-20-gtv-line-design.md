@@ -339,7 +339,7 @@ cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的�
   - **不露黑边**:照片先按 Crop 铺满画面再套变换,缩放 s 时每边余量 (s − 1) / 2;`placeOnAxis` 把起点 / 终点摆在两端各自的余量里、尽量以中心对称(近端余量只有 3%,所以路径偏向放大那一端——推近的同时滑向某个角)。缩放与平移都随进度线性变化,可行集是凸的,两端满足即全程满足;单测 1000 组随机参数 + 8 组合 × 3 档平移逐点抽查。
   - **节奏**:运动时长 = 换图间隔 + 过渡(`durationMs`),匀速(线性)——下一张盖满的那一刻正好走完;30 s 间隔下每张走 31.4 s。
   - **过渡**:`TRANSITION_MS` 1400 ms;`TRANSITION` 默认 `CROSSFADE`——新图在旧图之上 0 → 1 淡入、旧图保持不透明,淡完才撤(不像 Compose `Crossfade` 两张同时半透明、中途透出底下的壁纸 / 黑底);可切 `ZOOM_FADE`:同样的淡入,新图另外从 1.06 倍缩回 1 倍(乘在 Ken Burns 缩放上,≥ 1 所以同样不露边)。第一张(底下没图)自己淡入。
-  - **性能(A95L 32 位 MTK)**:只有一个 `withFrameNanos` 循环写帧时刻,每张图的缩放 / 平移 / alpha 在 `graphicsLayer { }` 块里现算,每帧只改 RenderNode 变换,不重组、不重画位图(旧版 `Modifier.scale(anim.value)` 在组合期读值,逐帧重组)。同时最多两张位图:稳定时 = 当前 + 预解码的下一张,换图时预解码那张变成「进来的」、旧图「出去的」,过渡结束撤掉旧图后才解下一张;解码没完成不开始淡入(旧版先开淡、图还没解出来)。解码按屏幕尺寸(长边封顶 1920):2 的幂 inSampleSize 之后再用 inDensity / inTargetDensity 精确缩到 Crop 铺满为止(`decodePlan`,3000×2000 的图原来原尺寸 F16 解码 48 MB,现在 1920×1280),仍是 RGBA_F16(Ultra HDR),解不出回落 ARGB_8888。
+  - **性能(A95L 32 位 MTK)**:只有一个 `withFrameNanos` 循环写帧时刻,每张图的缩放 / 平移 / alpha 在 `graphicsLayer { }` 块里现算,每帧只改 RenderNode 变换,不重组、不重画位图(旧版 `Modifier.scale(anim.value)` 在组合期读值,逐帧重组)。同时最多两张位图:稳定时 = 当前 + 预解码的下一张,换图时预解码那张变成「进来的」、旧图「出去的」,过渡结束撤掉旧图后才解下一张;解码没完成不开始淡入(旧版先开淡、图还没解出来)。解码按屏幕尺寸(~~长边封顶 1920~~ → **R122 起按窗口像素尺寸、长边封顶 3840**):2 的幂 inSampleSize 之后再用 inDensity / inTargetDensity 精确缩到 Crop 铺满为止(`decodePlan`,3000×2000 的图原来原尺寸 F16 解码 48 MB,现在 1920×1280),~~仍是 RGBA_F16(Ultra HDR),解不出回落 ARGB_8888~~ → **R125 起 ARGB_8888 + 增益图**(HDR 只靠增益图,F16 底图多不出 HDR)。
   - **范围**:桌面自定义屏保(`Screensaver`)与系统屏保(`UnitedUDream`)都走 `ScreensaverContent` → `MotionSlideshow`,天然一致;屏保图库全屏预览是在看图,仍用 `ScreensaverSlot` 的 1.00 → 1.08 轻微放大(缩放改到 `graphicsLayer` 里读)。
   - 模拟器验证(`unitedu-tv-3`,mp4 真实 pts + 逐帧反解缩放 / 平移):桌面屏保照片 1 从 1.21× (−2.4%, +2.4%) 经 1.14× (0, 0) 到 1.06× (+2.4%, −2.4%)(拉远 + 往右上,5% 档),过渡 31.9 → 33.3 s 实测 1.4 s,全程逐帧边缘无黑边;系统屏保(到点自动触发,`mCurrentFocus` = DreamActivity)接着播第 2 张,6.1 s 内 1.148× → 1.176×、平移 +0.8% → +2.2%。拼图 `docs/screenshots/screensaver-motion.jpg`,录屏 `docs/screenshots/screensaver-motion.mp4`。
 
@@ -421,3 +421,30 @@ cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的�
 | R118 | 同上 | 内置卡片装饰图,任何应用可选,照原图 + R88 / R107;选用复制内容 | 现行 |
 
 - **R119 壁纸模糊改 0–50% 步 5**(2026-09-28 Gordon:后面几档太糊,用户不会选):仍 11 档;模糊算法(缩小再放大,`blurTargetWidth`)不变,50% 即原来的第 5 档;旧设置 55–100 夹到 50。常量 `WALLPAPER_BLUR_MAX` / `WALLPAPER_BLUR_STEP`。
+
+### 2026-09-28 HDR 壁纸 / 屏保显示链(R122–R125)
+
+背景:内置图已是 Android 14(XMP `hdrgm`)+ 15+(ISO 21496-1)双写法 Ultra HDR JPEG(`docs/design/hdr-image-spec.md`)。本节让增益图一路活到屏幕上,并让解码分辨率跟着界面走。下面「Android 14 事实」全部来自 AOSP android14-release 源码,并在 `unitedu-tv`(emulator-5556)上实测。
+
+- **R122 解码分辨率跟随窗口**。壁纸处理输出(原 `OUT_W/OUT_H` 写死 1920×1080)、屏保照片解码(原长边封顶 1920)、屏保图库全屏预览(原 1920×1080 的 2 的幂采样)一律改为**当前窗口像素尺寸**(`resources.displayMetrics`),长边封顶 3840(`screenDecodeSize`,`HdrImageMath.kt`)。1080p 界面(A95L:面板 4K、界面 1920×1080)结果与原来逐像素相同;4K 界面用满 4K。读 `LocalConfiguration` 订阅窗口变化(清单里 screenSize 由应用自己处理,不重建 Activity),换尺寸后按新尺寸重解。预览改走与屏保同一个 `decodePlan` 解码。
+- **R123 首页壁纸处理链保留增益图**(API 34+)。解出的源图先**摘下增益图**(不摘的话软件 Canvas 会走增益图着色器,提亮权重读渲染线程此刻的 `CanvasContext`——一个进程级静态指针——HDR 屏上会随机把高光烤进 8 位底图);底图照旧裁剪 / 缩放 / 模糊 / 亮度(逐像素不变);增益图单独走**同一套几何**:同一个中心裁剪区换算到增益图坐标(浮点、不取整;Android 14 自带的 `createBitmap(…, matrix)` 截断取整)、保持「增益图 / 底图」分辨率比例、模糊缩到同一比例的宽度,再带着源图全部参数(ratioMin/Max、gamma、epsilonSdr/Hdr、displayRatioForFullHdr、minDisplayRatioForHdrTransition;API 35+ 用复制构造)挂回输出。**亮度只作用于底图**:HDR 画面随底图按同一倍数变暗 / 变亮;提亮时底图截到 255 的区域失去纹理,HDR 高光在那里只剩增益图自己的起伏。缓存本来就是 JPEG(q90),`Bitmap.compress(JPEG)` 对带增益图的位图写 Ultra HDR(XMP `hdrgm` + MPF 第二帧,A8 增益图写灰度),命中时解出来同样带增益图;缓存键 v4 加「输出尺寸 + 是否保留增益图」两段。低于 API 34 走原路径。
+- **R124 R110 缓存图层按显示器 HDR/SDR 比例档位重建**。HWUI 在离屏图层里画带增益图的位图与直接画进窗口走同一段 `DrawGainmapBitmap`,**图层创建时的比例下 HDR 完整保留**;但图层的色彩空间只在创建时定(`createOrUpdateLayer` 只在尺寸变了重建)、内容只在显示列表变了重画,比例后来变了不会跟上——在比例 1 时建的图层切到比例 4 后峰值仍是 SDR 白。`Wallpaper` 用 `rememberHdrRatioBucket`(API 34 `Display.registerHdrSdrRatioChangedListener`)监听,跨 1/8 档光圈就 `key(档位)` 整组重建两张图层;只对带增益图的壁纸生效,没有增益图 / API < 34 / 显示器不报比例时恒 0,与 R110 相同。不改成直接画进窗口:每帧一遍全屏增益图着色器,R110 省下的会回来。
+- **R125 壁纸原图路径与屏保 / 预览解码 RGBA_F16 → ARGB_8888**。`BitmapFactory` 不论底图格式都挂增益图(同一个 inSampleSize / 缩放一起缩),底图存的永远是 8 位 JPEG 的 SDR 画面,F16 只是加宽:内存翻倍、多不出 HDR(A95L 消融 GPU 量不出差别,见 perf 报告)。照片格式只收 jpg / png / webp。
+- **Android 14 事实(改 HDR 之前必须知道)**:
+  - 窗口 `COLOR_MODE_HDR` 向系统要的余量(desired ratio)**恒为 `debug.hwui.max_hdr_headroom_on_8bit`(默认 5),与画面内容无关**(`CanvasContext::setColorMode`);所以「HDR 壁纸 > 1、SDR 壁纸 = 1」这种按内容区分的读数在 Android 14 上不存在。
+  - `ViewRootImpl.updateColorModeIfNeeded`:显示器不报 HDR/SDR 比例 → HDR 被降成广色域;不是广色域屏 → 再降成默认。都不报错。本 AVD:`hdrSdrRatio not_available`、`supportedColorModes [0]` → 窗口实际是默认 sRGB(SurfaceFlinger 图层 `dataspace=V0_SRGB`),增益图永远不被用上。
+  - `dumpsys SurfaceFlinger` 的文字输出里**没有** desired / current HDR 比例字段;能读的是 UnitedU 图层的 `dataspace=`(HDR 模式 = Display P3 + 扩展范围;默认 = `V0_SRGB`;广色域 = Display P3)与 Output Layer 的 `whitePointNits=` / `dimmingRatio=`(扩展范围且当前比例 > 1.01 时 whitePointNits = SDR 白 × 当前比例)。显示器自己的比例看 `dumpsys display` 的 `hdrSdrRatio`。
+- **模拟器验证**(`unitedu-tv`,emulator-5556,宿主同时跑三台模拟器):
+  - 日志(每条显示路径打一行「目标尺寸 → 位图尺寸 / 格式 / 增益图」):首页内置 01 原图 → 1920×1080 ARGB_8888 + 增益图 1920×1080 A8(ratioMax 4.94);模糊 20 / 亮度 −20 处理后、缓存命中后都带增益图;SDR 图(去掉增益图的同一张)各路径「无增益图」;设置页内切壁纸 / 拖模糊与亮度滑块(处理 5 次、命中 4 次)全部带增益图;设置页「外观」预览就是首页那一份位图;自定义屏保与屏保图库全屏预览的照片 1920×1080 + 增益图。窗口改 1280×720(`wm size`)后:处理输出 1280×720 + 增益图 1280×720、屏保解码目标 1280×720;本 AVD 上 `wm size 3840x2160` 不生效(`wm size` 仍只报 1920×1080,推测是 TV 镜像的最大界面宽度把它夹回去了),4K 路径用临时探针直接以 3840×2160 调真实函数:壁纸原图 / 处理 / 命中、屏保解码都是 3840×2160 + 增益图 3840×2160。
+  - 增益图几何:4:3 的 Ultra HDR 测试图(内置 01 裁出、增益图 1/4 分辨率 720×540)→ 1080p 输出增益图 480×270;与「按精确裁剪区 (0, 67.5, 720, 472.5) 缩放」的期望比平均差 0.97 级,错开 ±2 像素时 4.4 级、不裁剪 7.8 级;模糊 20 时 0.83 / 1.35 / 4.5。
+  - HWUI 探针(临时构建,`HardwareRenderer` + 隐藏 API 强制 HDR 模式与比例,`hidden_api_policy` 测完删除):比例 4 时直接画峰值 3.86 × SDR 白(2206 个像素超过 SDR 白),离屏图层画 3.86(线性差最大 0.035,图层多一次 8 位量化);比例 1 时建的图层切到 4 后峰值 0.95(HDR 全丢);换新 RenderNode 重建后回到 3.86。处理链输出(亮度 +1 走处理路径)的「HDR / SDR 提亮图」与源图相关系数 0.9992(错开 3 像素 0.69)。
+  - SDR 观感不变:同一状态 raw screencap 与 main(`40fc8e5`)逐像素比(掩掉时钟):内置 01 原图、SDR 图原图、SDR 图处理后、内置 01 处理后(缓存命中)四种**全部 0 差**。
+  - 性能:导航脚本交替装 main / 本分支各 3 次(framestats):渲染线程每帧中位 39.7 / 39.0 ms、74.0 / 73.7 ms(同负载下成对比较;宿主负载中途变了一次),无回退。壁纸处理(冷启动、清缓存,1080p,模糊 20 / 亮度 −20)main 2983–4109 ms、本分支 2541–2727 ms——旧链在软件 Canvas 上跑增益图着色器,摘掉之后底图变快,抵掉了增益图那一路。
+  - 内存(每张,1080p / 4K):ARGB_8888 底图 7.9 / 31.6 MB + A8 增益图 2.0 / 7.9 MB;F16 底图是 15.8 / 63.3 MB。4K 界面同时持有(CPU 侧位图):壁纸 1 张(换壁纸交叉淡入时 2 张)+ 屏保 2 张 = 3 × 39.5 ≈ 119 MB(F16 时 3 × 71.2 ≈ 214 MB);GPU 侧另有上屏的纹理(同量级)与 R110 两张图层 2 × 31.6 MB。1080p 界面同一算法是 3 × 9.9 ≈ 30 MB(改前 F16 3 × 17.8 ≈ 53 MB)。8888 本身就是比 F16 低一档,未再降。
+
+| 裁定 | 时间 / 来源 | 内容 | 现状 |
+|---|---|---|---|
+| R122 | 2026-09-28 Gordon 派单 | 壁纸 / 屏保 / 预览解码尺寸 = 窗口像素尺寸,长边封顶 3840 | 现行 |
+| R123 | 同上 | 壁纸处理链保留增益图(摘下单独走同一套几何,亮度只动底图);缓存 Ultra HDR JPEG,键 v4 | 现行 |
+| R124 | 同上 | R110 缓存图层按显示器 HDR/SDR 比例档位(1/8 档)重建 | 现行;A95L 上比例是否 > 1 待真机读 |
+| R125 | 同上 | 壁纸原图路径与屏保 / 预览解码 RGBA_F16 → ARGB_8888(HDR 靠增益图) | 现行 |

@@ -30,13 +30,12 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
-import kotlin.math.max
-import kotlin.math.min
 import kotlin.random.Random
 
 /**
@@ -174,12 +173,9 @@ internal fun MotionSlideshow(
     active: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val ctx = LocalContext.current
-    val dm = ctx.resources.displayMetrics
-    // 按屏幕尺寸解码,长边封顶 1920(4K 面板的 UI 多半仍是 1080p;两层叠放时各解一张,spec §9)
-    val k = min(1f, 1920f / max(dm.widthPixels, dm.heightPixels).coerceAtLeast(1))
-    val dstW = (dm.widthPixels * k).toInt().coerceAtLeast(1)
-    val dstH = (dm.heightPixels * k).toInt().coerceAtLeast(1)
+    // 按窗口像素尺寸解码(R122:取代「长边封顶 1920」;1080p 界面结果不变,4K 界面用满 4K,长边封顶 3840)。
+    // 两层叠放时各解一张(spec §9)。读 LocalConfiguration 是为了窗口尺寸变了之后下一张按新尺寸解。
+    val (dstW, dstH) = rememberScreenDecodeSize()
     var layers by remember { mutableStateOf(emptyList<SlideLayer>()) }
     val preload = remember { Preload() }
     val clock = remember { mutableLongStateOf(0L) }
@@ -334,11 +330,28 @@ internal fun MotionSlideshow(
 }
 
 /**
- * 屏保照片解码(Ruling R95):RGBA_F16 保留 Ultra HDR gain map(spec §2「不变」);尺寸按
- * [ScreensaverMotion.decodePlan] 缩到「Crop 铺满屏幕」为止,不再像 [Apps.decodeScaled] 那样只按
- * 2 的幂采样、可能留下接近两倍屏幕的大图。F16 解不出来回落 ARGB_8888。失败 → null。
+ * 当前窗口的解码目标尺寸(R122,[screenDecodeSize]):屏保(桌面 / 系统屏保)与图库全屏预览共用。
+ * 订阅 [LocalConfiguration]:窗口尺寸变了(换分辨率、`wm size`)之后重算。
  */
-private suspend fun decodeScreensaverPhoto(path: String, dstW: Int, dstH: Int): ImageBitmap? =
+@Composable
+internal fun rememberScreenDecodeSize(): Pair<Int, Int> {
+    val ctx = LocalContext.current
+    val configuration = LocalConfiguration.current
+    return remember(configuration) {
+        ctx.resources.displayMetrics.let { screenDecodeSize(it.widthPixels, it.heightPixels) }
+    }
+}
+
+/**
+ * 屏保照片解码(Ruling R95):尺寸按 [ScreensaverMotion.decodePlan] 缩到「Crop 铺满屏幕」为止,不再像
+ * [Apps.decodeScaled] 那样只按 2 的幂采样、可能留下接近两倍屏幕的大图。失败 → null。
+ *
+ * **R125:ARGB_8888 + 增益图**(R125 之前是 RGBA_F16、解不出再回落 8888)。HDR 只靠增益图:`BitmapFactory` 不论
+ * 底图格式都把 Ultra HDR 的增益图挂上(同一个 inSampleSize / 缩放一起缩),底图存的永远是 8 位 JPEG 的 SDR 画面,
+ * F16 只是把它加宽成每像素 8 字节——内存与显存翻倍,多不出一点 HDR。照片格式只收 jpg / png / webp(8 位)。
+ * 4K 界面同时两张时,F16 是 2 × 66 MB,8888 是 2 × 33 MB(+ 单通道增益图各 8 MB)。
+ */
+private suspend fun decodeScreensaverBitmap(path: String, dstW: Int, dstH: Int): Bitmap? =
     withContext(Dispatchers.IO) {
         runCatching {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -346,35 +359,36 @@ private suspend fun decodeScreensaverPhoto(path: String, dstW: Int, dstH: Int): 
             decodeImagePath(path, bounds)
             val (sample, density, target) =
                 ScreensaverMotion.decodePlan(bounds.outWidth, bounds.outHeight, dstW, dstH)
-            fun opts(config: Bitmap.Config) = BitmapFactory.Options().apply {
+            val opts = BitmapFactory.Options().apply {
                 inSampleSize = sample
-                inPreferredConfig = config
+                inPreferredConfig = Bitmap.Config.ARGB_8888
                 if (density > 0) {
                     inScaled = true
                     inDensity = density
                     inTargetDensity = target
                 }
             }
-            (decodeImagePath(path, opts(Bitmap.Config.RGBA_F16))
-                ?: decodeImagePath(path, opts(Bitmap.Config.ARGB_8888)))
-                ?.asImageBitmap()
+            decodeImagePath(path, opts)?.also {
+                android.util.Log.i("UnitedU", "屏保照片 ${File(path).name} 目标 ${dstW}x$dstH → ${HdrGainmaps.describe(it)}")
+            }
         }.onFailure { android.util.Log.w("UnitedU", "屏保照片解码失败 $path", it) }.getOrNull()
     }
 
+private suspend fun decodeScreensaverPhoto(path: String, dstW: Int, dstH: Int): ImageBitmap? =
+    decodeScreensaverBitmap(path, dstW, dstH)?.asImageBitmap()
+
 /**
- * 屏保图库全屏预览([ImagePicker.kt] 的 `ScreensaverPoolViewer`)的单张呈现:RGBA_F16 解码保留 Ultra HDR
- * gain map;解码尺寸封顶 1920×1080。那里是在看图,只保留旧版的轻微放大(1.00 → [Theme.ScreensaverZoom],
- * 时长 = 间隔 + 过渡);屏保本体的推拉摇移见 [MotionSlideshow]。缩放在 `graphicsLayer` 块里读,不逐帧重组。
+ * 屏保图库全屏预览([ImagePicker.kt] 的 `ScreensaverPoolViewer`)的单张呈现:与屏保同一个解码([decodeScreensaverBitmap]:
+ * ARGB_8888 + 增益图,按窗口尺寸 Crop 铺满为止,R122 / R125;之前是 RGBA_F16、封顶 1920×1080 的 2 的幂采样)。
+ * 那里是在看图,只保留旧版的轻微放大(1.00 → [Theme.ScreensaverZoom],时长 = 间隔 + 过渡);
+ * 屏保本体的推拉摇移见 [MotionSlideshow]。缩放在 `graphicsLayer` 块里读,不逐帧重组。
  */
 @Composable
 internal fun ScreensaverSlot(file: File?, intervalMs: Long) {
     file ?: return
-    val bmp by produceState<Bitmap?>(null, file.absolutePath) {
-        value = withContext(Dispatchers.IO) {
-            runCatching {
-                Apps.decodeScaled(file.absolutePath, 1920, 1080, Bitmap.Config.RGBA_F16)
-            }.getOrNull()
-        }
+    val (dstW, dstH) = rememberScreenDecodeSize()
+    val bmp by produceState<Bitmap?>(null, file.absolutePath, dstW, dstH) {
+        value = decodeScreensaverBitmap(file.absolutePath, dstW, dstH)
     }
     val b = bmp ?: return
     val scale = remember { Animatable(1.0f) }
