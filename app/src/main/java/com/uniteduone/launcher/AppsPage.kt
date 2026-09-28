@@ -47,7 +47,7 @@ import kotlinx.coroutines.withContext
  * **所有应用页**(R90,Gordon 2026-09-27 定;照 Google TV 的「应用」页):顶栏「应用」胶囊打开。整屏 `MenuBg` 底,
  * 标题「应用」,下面一张网格放「添加应用」列表同一口径([Apps.pickerCandidates] / [pickerGroupOf])的全部应用——
  * 「应用」分组在上,「系统工具」分组放最后并带分组标题;两组各按名字排(改过名的按改过的名字)。**已在桌面上的也列出**。
- * 卡片就是首页的 [AppCard](卡片图口径 R88:自定义图 → 横幅 → 图标 + 边缘色底),小档、一行 [AppsPageLayout.COLUMNS] 张、带名字。
+ * 卡片就是首页的 [AppCard](卡片图口径 R88:自定义图 → 横幅 → 图标 + 边缘色底),122 dp 卡(R121 起借中档,此前小档)、一行 [AppsPageLayout.COLUMNS] 张、带名字。
  * 确定 = 打开;长按 / MENU = 「打开 / 加到桌面…」菜单(MainActivity 识别,同首页长按)。
  *
  * **铁律 1**:网格不用任何可滚动容器——纵向位移自己算([appsPageScroll]),`wrapContentHeight(unbounded)` + `offset`,
@@ -73,9 +73,13 @@ sealed interface AppsLine {
 
 /** 所有应用页的几何(dp,纯数值,JVM 可测)。 */
 object AppsPageLayout {
-    /** 一行 6 张小档卡:6 × 122 + 5 × 20 = 832 dp,左 58 dp 基准线起,右缘 890,聚焦放大 + 描边后仍在 960 dp 屏内。 */
+    /**
+     * 一行 6 张 122 dp 卡:6 × 122 + 5 × 20 = 832 dp,左 58 dp 基准线起,右缘 890,聚焦放大 + 描边后仍在 960 dp 屏内。
+     * **R121(2026-09-28)**:三档改成「一行正好 5 / 6 / 8 张」后小档变成 86 dp、122 成了中档——这一页借**中档**,
+     * 卡宽与版式逐像素不变;中档的定义本来就是「一行 6 张不平移」,与这里的 [COLUMNS] 同一个数。
+     */
     const val COLUMNS = 6
-    val CARD_SIZE = GtvCardSize.SMALL
+    val CARD_SIZE = GtvCardSize.MEDIUM
     /** 标题行顶到屏幕顶。 */
     const val PAGE_TOP = 36f
     /** 标题行高(32 sp 页名 + 下方留白)。 */
@@ -369,7 +373,7 @@ fun AppsPage(
         AppsPagePerf.gridShown(items.size)
     }
 
-    // R109:卡片名与标题按「基准 + SETTINGS_TYPE_STEP」画(卡片名基准 14 = 首页小档同一个数);卡片与行高不变。
+    // R109:卡片名与标题按「基准 + SETTINGS_TYPE_STEP」画(卡片名基准 14 = 首页卡片标题同一个数);卡片与行高不变。
     val baseMetrics = Theme.gtvCardMetrics(AppsPageLayout.CARD_SIZE)
     val metrics = baseMetrics.copy(titleSize = GtvLayout.settingsSp(baseMetrics.titleSize.value).sp)
     val titleStyle = TextStyle(

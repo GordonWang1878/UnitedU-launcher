@@ -103,7 +103,7 @@ fun AppCard(
 ) {
     var focused by remember { mutableStateOf(false) }
     val accent = LocalThemeColors.current.accent
-    // R70:淡化参数来自设置(外观组两条滑块),含设置页的实时预览。
+    // R70:淡化参数来自设置(R120 起在布局组的卡片滑块),含设置页的实时预览。
     val fade = LocalCardFade.current
     // 移动态的描边色:必须与下面 focused 用的 accent 不同,两者才能同时可辨(见 moving 参数上的说明)。
     val movingColor = LocalThemeColors.current.highlight
@@ -243,7 +243,7 @@ internal fun AppCardImage(app: AppEntry, metrics: CardMetrics) {
 
 /**
  * **Ruling R70(2026-09-23 设置页改版)**:卡片淡化的两个参数(百分比)从常量改成设置
- * (`Settings.cardSaturation` / `cardBrightness`,外观组两条滑块)。缺省值 = R49 原来写死的
+ * (`Settings.cardSaturation` / `cardBrightness`,R70 时在外观组,R120 起在布局组)。缺省值 = R49 原来写死的
  * [GtvLayout.CARD_FADE_SATURATION] / [GtvLayout.CARD_FADE_BRIGHTNESS],旧 settings.json 没有这两个键时观感零变化。
  * 两项都 100 时是恒等变换,[gtvCardFade] 直接跳过离屏层。
  */

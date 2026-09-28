@@ -303,9 +303,9 @@
     <!-- edit_move_desc : edit-screen carry mode (M4b follow-up Task 2) -->
     <string name="edit_move_desc">Move this card with the arrow keys, empty rows included</string>
     <!-- settings shell: capsule shell for all settings pages (R69–R72, 2026-09-23) -->
-    <string name="shell_root_layout_desc">Edit rows, card size and titles</string>
+    <string name="shell_root_layout_desc">Edit rows, card size, titles and colors</string>
     <string name="shell_root_general_desc">Language, default home, phone transfer, standby, clock</string>
-    <string name="shell_root_appearance_desc">Wallpaper, theme color, card colors</string>
+    <string name="shell_root_appearance_desc">Wallpaper, theme color</string>
     <string name="shell_root_screensaver_desc">Screensaver timing, gallery, system screensaver</string>
     <string name="settings_card_saturation">Card Saturation</string>
     <string name="settings_card_brightness">Card Brightness</string>

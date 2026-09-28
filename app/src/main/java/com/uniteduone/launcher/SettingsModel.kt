@@ -198,6 +198,32 @@ fun settingsGroups(
                 toggle("showTitles", R.string.settings_show_titles, s.showTitles),
                 // ~~「输入源行」开关 / 「恢复隐藏的输入源」~~(R92,2026-09-27 Gordon):首页不再有输入源行,
                 // 输入源(连同隐藏 / 恢复)搬到顶栏「输入源」胶囊打开的页面。
+                // **R120(2026-09-28 Gordon)**:卡片的三条色彩滑块从「外观」挪到这里,跟在「卡片标题」之后,顺序不变
+                // (饱和度、亮度、透明度)——跟卡片有关的都在「布局」一组里调;左侧桌面预览照旧(布局组本来就带预览)。
+                // R70:卡片淡化(R49)的两个参数做成滑块。饱和度 0–100% 步 10,亮度 50–100% 步 5——
+                // 亮度下限 50:再暗卡片就与深色底糊成一片,认不出是哪个应用。
+                ctl(
+                    id = "cardSaturation", labelRes = R.string.settings_card_saturation,
+                    kind = CtrlKind.SLIDER, optionRes = emptyList(),
+                    count = 11, selected = (s.cardSaturation - CARD_SATURATION_MIN) / CARD_SATURATION_STEP,
+                    sliderMin = CARD_SATURATION_MIN, sliderStep = CARD_SATURATION_STEP,
+                ),
+                ctl(
+                    id = "cardBrightness", labelRes = R.string.settings_card_brightness,
+                    kind = CtrlKind.SLIDER, optionRes = emptyList(),
+                    count = 11, selected = (s.cardBrightness - CARD_BRIGHTNESS_MIN) / CARD_BRIGHTNESS_STEP,
+                    sliderMin = CARD_BRIGHTNESS_MIN, sliderStep = CARD_BRIGHTNESS_STEP,
+                ),
+                // R86:卡片不透明度 40–100% 步 10(7 档),缺省 100。只压未聚焦的卡,焦点卡恒 100%(见 AppCard)。
+                // R87(2026-09-27 owner):界面上反过来叫「卡片透明度」0–60%、缺省 0、往右加——更符合直觉。
+                // 存盘仍是 cardOpacity(不迁移),界面值 = 100 − cardOpacity。
+                ctl(
+                    id = "cardOpacity", labelRes = R.string.settings_card_opacity,
+                    kind = CtrlKind.SLIDER, optionRes = emptyList(),
+                    count = (100 - CARD_OPACITY_MIN) / CARD_OPACITY_STEP + 1,
+                    selected = (100 - s.cardOpacity) / CARD_OPACITY_STEP,
+                    sliderMin = 0, sliderStep = CARD_OPACITY_STEP,
+                ),
             ),
         ),
         // R57:「通用」= 语言、默认桌面、待机、时钟这些「装好先调一次」的项;恢复默认收尾。
@@ -261,7 +287,7 @@ fun settingsGroups(
                 ) { actions.restoreDefaults() },
             ),
         ),
-        // R57:原「壁纸」「主题」两组合成「外观」:先壁纸(换 / 调),再主题色;R70 末尾加卡片淡化两条滑块,R86 再加卡片不透明度。
+        // R57:原「壁纸」「主题」两组合成「外观」:先壁纸(换 / 调),再主题色。R70 / R86 加在末尾的三条卡片色彩滑块 R120 挪到「布局」组。
         GroupSpec(
             GroupId.APPEARANCE, R.string.settings_group_appearance,
             listOf(
@@ -289,30 +315,7 @@ fun settingsGroups(
                     count = ThemePresets.all.size, selected = ThemePresets.indexOf(s.themePresetId),
                 ),
                 toggle("followWallpaper", R.string.settings_follow_wallpaper, s.followWallpaperColor),
-                // R70:卡片淡化(R49)的两个参数做成滑块。饱和度 0–100% 步 10,亮度 50–100% 步 5——
-                // 亮度下限 50:再暗卡片就与深色底糊成一片,认不出是哪个应用。
-                ctl(
-                    id = "cardSaturation", labelRes = R.string.settings_card_saturation,
-                    kind = CtrlKind.SLIDER, optionRes = emptyList(),
-                    count = 11, selected = (s.cardSaturation - CARD_SATURATION_MIN) / CARD_SATURATION_STEP,
-                    sliderMin = CARD_SATURATION_MIN, sliderStep = CARD_SATURATION_STEP,
-                ),
-                ctl(
-                    id = "cardBrightness", labelRes = R.string.settings_card_brightness,
-                    kind = CtrlKind.SLIDER, optionRes = emptyList(),
-                    count = 11, selected = (s.cardBrightness - CARD_BRIGHTNESS_MIN) / CARD_BRIGHTNESS_STEP,
-                    sliderMin = CARD_BRIGHTNESS_MIN, sliderStep = CARD_BRIGHTNESS_STEP,
-                ),
-                // R86:卡片不透明度 40–100% 步 10(7 档),缺省 100。只压未聚焦的卡,焦点卡恒 100%(见 AppCard)。
-                // R87(2026-09-27 owner):界面上反过来叫「卡片透明度」0–60%、缺省 0、往右加——更符合直觉。
-                // 存盘仍是 cardOpacity(不迁移),界面值 = 100 − cardOpacity。
-                ctl(
-                    id = "cardOpacity", labelRes = R.string.settings_card_opacity,
-                    kind = CtrlKind.SLIDER, optionRes = emptyList(),
-                    count = (100 - CARD_OPACITY_MIN) / CARD_OPACITY_STEP + 1,
-                    selected = (100 - s.cardOpacity) / CARD_OPACITY_STEP,
-                    sliderMin = 0, sliderStep = CARD_OPACITY_STEP,
-                ),
+                // ~~卡片饱和度 / 卡片亮度 / 卡片透明度~~:R120 挪到「布局」组「卡片标题」之后。
             ),
         ),
         GroupSpec(

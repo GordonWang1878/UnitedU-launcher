@@ -48,9 +48,9 @@ class SettingsModelTest {
 
     @Test fun rowCountsPerGroup() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
-        // 布局 1 动作(R69 编辑分栏)+ 2(R92 删掉「输入源行」开关)/ 通用 7(R60 手机传输挪进来)+ 动画缩放条件行(默认 UNKNOWN = 读不到 → 出「查看」)/
-        // 外观 1 动作 + 2 壁纸滑块(自动切换 R61 删掉)+ 2 主题(主题化卡片 R58 删掉)+ 2 卡片淡化滑块(R70)+ 卡片不透明度(R86)/ 屏保 1 动作(R93 立即开始屏保)+ 2 控件 + 2 动作
-        assertEquals(listOf(3, 8, 8, 5), g.map { it.rows.size })
+        // 布局 1 动作(R69 编辑分栏)+ 2(R92 删掉「输入源行」开关)+ 3 卡片色彩滑块(R120 从外观挪来)/ 通用 7(R60 手机传输挪进来)+ 动画缩放条件行(默认 UNKNOWN = 读不到 → 出「查看」)/
+        // 外观 1 动作 + 2 壁纸滑块(自动切换 R61 删掉)+ 2 主题(主题化卡片 R58 删掉;卡片淡化 R70 / 不透明度 R86 三条 R120 挪走)/ 屏保 1 动作(R93 立即开始屏保)+ 2 控件 + 2 动作
+        assertEquals(listOf(6, 8, 5, 5), g.map { it.rows.size })
     }
 
     @Test fun rowIdsAreUnique() {
@@ -91,16 +91,27 @@ class SettingsModelTest {
         assertEquals(listOf("openImport"), r.fired)
     }
 
-    /** R57:外观组 = 原壁纸组 + 原主题组。 */
+    /** R57:外观组 = 原壁纸组 + 原主题组。R120:卡片的三条色彩滑块挪去布局组,外观只剩壁纸与主题色。 */
     @Test fun appearanceGroupRowOrder() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
         assertEquals(
-            listOf(
-                "pickWallpaper", "wallpaperBlur", "wallpaperBrightness",
-                "themeColor", "followWallpaper", "cardSaturation", "cardBrightness", "cardOpacity",
-            ),
+            listOf("pickWallpaper", "wallpaperBlur", "wallpaperBrightness", "themeColor", "followWallpaper"),
             g.first { it.id == GroupId.APPEARANCE }.rows.map { it.id },
         )
+    }
+
+    /** R120(2026-09-28 Gordon):卡片饱和度 / 亮度 / 透明度跟在「卡片标题」之后,顺序不变,仍是滑块,写的字段不变。 */
+    @Test fun cardColorSlidersLiveInLayoutAfterTitles() {
+        val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
+        val layout = g.first { it.id == GroupId.LAYOUT }.rows
+        assertEquals(
+            listOf("editLayout", "cardsPerRow", "showTitles", "cardSaturation", "cardBrightness", "cardOpacity"),
+            layout.map { it.id },
+        )
+        assertTrue(layout.drop(3).all { it is ControlRow && it.kind == CtrlKind.SLIDER })
+        // 别的组里不再有这三行(行 id 全局唯一由 rowIdsAreUnique 钉住,这里再从外观那头确认一次)
+        val appearance = g.first { it.id == GroupId.APPEARANCE }.rows.map { it.id }
+        assertTrue(appearance.none { it in setOf("cardSaturation", "cardBrightness", "cardOpacity") })
     }
 
     /** R57:「时钟显示」二选一映射 showDate(0 = 仅时间,1 = 时间与日期),存盘键不变。 */
@@ -267,7 +278,7 @@ class SettingsModelTest {
     @Test fun layoutGroupHasNoInputRows() {
         val ids = settingsGroups(Settings(), {}, Recorder().actions, someImages)
             .first { it.id == GroupId.LAYOUT }.rows.map { it.id }
-        assertEquals(listOf("editLayout", "cardsPerRow", "showTitles"), ids)
+        assertEquals(listOf("editLayout", "cardsPerRow", "showTitles", "cardSaturation", "cardBrightness", "cardOpacity"), ids)   // R120 末尾三条卡片滑块
         assertEquals(null, optionWrite("showInputRow"))
     }
 

@@ -51,6 +51,8 @@ class AppsPageTest {
     }
 
     @Test fun sixSmallCardsFitTheScreenWithFocusOverflow() {
+        // R121:小档改 86 之后这一页改借中档,卡宽仍是 122(版式逐像素不变)
+        assertEquals(122f, GtvLayout.cardWidth(AppsPageLayout.CARD_SIZE), 0f)
         val w = AppsPageLayout.COLUMNS * GtvLayout.cardWidth(AppsPageLayout.CARD_SIZE) +
             (AppsPageLayout.COLUMNS - 1) * GtvLayout.CARD_GAP
         val right = GtvLayout.CONTENT_KEYLINE + w + GtvLayout.appFocusOverflow(GtvLayout.cardWidth(AppsPageLayout.CARD_SIZE))
