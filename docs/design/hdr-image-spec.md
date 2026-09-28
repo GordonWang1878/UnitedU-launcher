@@ -89,3 +89,14 @@
   判读:1 是数字且 > 1、2 是扩展范围 → HDR 显示链全通,肉眼看高光(灯、月亮)应比界面白更亮;1 是 `not_available` → 电视界面层不支持 HDR,这台电视上壁纸 / 屏保只能显示 SDR(不是我们的链路问题)。
 
 - **A95L 真机(2026-09-28 装 `4c1c9c6` 后读)**:`dumpsys display` → `hdrSdrRatio not_available`;面板 `supportedHdrTypes=[1, 2, 3]`(杜比视界 / HDR10 / HLG,仅视频通道)。结论:A95L 的应用界面层不输出 HDR,Android 14 把 HDR 窗口降级,内置 HDR 图在这台上显示为 SDR——固件限制;显示链本身已保留增益图(见 R122–R125),在会报告 HDR/SDR 比例的电视上生效。
+
+- **A95L 视频通道实验(2026-09-28 22:40)**:同一张 HDR 照片转成 HDR10 视频(PQ / BT.2020,SDR 白 203 nit,峰值约 1000 nit,x265 10 bit)用索尼系统播放器播放,电视报 `SignalType is updated to HDR10`、画质引擎收到 `Hdr 1` 的 3840×2160 帧;SDR 对照版为 `Hdr 0`。即:这台电视的界面层不给 HDR,但**视频通道能以 4K HDR10 显示静止画面**——要在 A95L 这类电视上真的亮起来,屏保需要改走视频播放(SurfaceView / 视频层)而不是位图 + 增益图。转换步骤:`ultrahdr_app -m 1 -j <图> -o 0 -O 4 -z hdr.raw`(线性半浮点 RGBA)→ numpy 乘 203 nit、BT.709→BT.2020 矩阵、PQ 编码成 rgb48 → `ffmpeg … -c:v libx265 -x265-params hdr10=1:colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc:master-display=…:max-cll=1000,200`。
+
+### 停止:屏保 / 壁纸改走视频层(2026-09-28 Gordon「如果确实有烧屏风险,那就别研究 HDR 了」)
+烧屏风险主要在壁纸(同一画面挂几小时);屏保画面一直在动、定时换图,风险小。下面四题留作将来若重启的起点。
+Gordon 肉眼确认 HDR10 视频高光明显更亮,但 SDR↔HDR 切换时屏幕明显黑一下。定了「先做屏保、壁纸以后再说」,随后摸底也暂缓。重启时先用一个独立探针小程序(SurfaceView + MediaPlayer)在 A95L 上答这四题,判据是 logcat 的 `SignalType is updated to …` / `flipToPq … Hdr 0|1`:
+1. 两段 HDR 视频之间切换(释放重建 / 双 SurfaceView 预加载 / `setNextMediaPlayer`)信号会不会掉回 SDR;单段 `setLooping` 的循环点会不会掉。
+2. 视频层上 SurfaceView 的 alpha 淡化、缩放动画能不能做、好不好看(要人看)。
+3. 内置 HDR 与用户 SDR 照片混放时怎么避免每次黑一下(分组放 / 暂停的 HDR 视频上叠界面层照片)。
+4. 4 张内置图连同推拉摇移、淡化预先做成一整段 4K HDR10 循环视频的体积。
+另:现有屏保视频走 TextureView(画进界面层),用户上传的 HDR 视频在 A95L 屏保里也只是 SDR(推断,未实测);改走视频层会一并解决。壁纸做成视频的额外代价:每次回首页都切 HDR、模糊 / 亮度 / 设置预览不可用、QD-OLED 静态高光的烧屏风险。
