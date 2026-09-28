@@ -27,6 +27,16 @@ This product bundles the following third-party materials:
   Copyright 2007 ZXing authors
   Licensed under the Apache License, Version 2.0
 
-This product's own assets carry no third-party rights:
+This product's own assets:
 
-- app/src/main/res/mipmap-xhdpi/banner.png — original "United" wordmark created for this project
+- app/src/main/res/mipmap-xhdpi/banner.png and docs/design/icon-masters/ — UnitedU banner and app icon,
+  AI-generated artwork commissioned for this project; distributed under this project's license.
+- app/src/main/assets/builtin/wallpapers/ and app/src/main/assets/builtin/screensavers/ — built-in wallpapers
+  and screensaver images, AI-generated for this project; distributed under this project's license.
+
+Third-party trademarks:
+
+- app/src/main/assets/builtin/cards/ contains the logos of WeTV, Youku, YouTube and iQIYI, offered only so users
+  can identify those apps on their own home screen. These names and logos are trademarks of their respective
+  owners (Tencent, Alibaba/Youku, Google LLC, iQIYI, Inc.). UnitedU is not affiliated with or endorsed by them,
+  and no license to these trademarks is granted by this project's license.

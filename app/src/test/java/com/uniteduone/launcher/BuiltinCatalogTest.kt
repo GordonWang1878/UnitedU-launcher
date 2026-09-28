@@ -57,6 +57,9 @@ class BuiltinCatalogTest {
         assertFalse(isConventionalBuiltinName("01-Dusk.jpg"))      // 大写
         assertFalse(isConventionalBuiltinName("01-dusk city.jpg")) // 空格
         assertFalse(isConventionalBuiltinName("01--dusk.jpg"))     // 连用连字符
+        // 2026-09-28 起允许汉字短名(Gordon 的中文作品名)
+        assertTrue(isConventionalBuiltinName("01-雨夜巴士站.jpg"))
+        assertEquals("雨夜巴士站", builtinLabelOf("01-雨夜巴士站"))
         assertFalse(isConventionalBuiltinName("01-dusk-.jpg"))     // 连字符结尾
         assertFalse(isConventionalBuiltinName("01-.jpg"))
     }

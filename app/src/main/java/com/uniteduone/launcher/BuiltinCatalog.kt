@@ -51,8 +51,11 @@ data class BuiltinImage(val kind: BuiltinKind, val fileName: String) {
 /** 内置项 ID = 去掉扩展名的文件名;没有扩展名的原样返回。 */
 internal fun builtinIdOf(fileName: String): String = fileName.substringBeforeLast('.', fileName)
 
-/** 命名规则(builtin-assets.md):`两位序号-短名`,短名只用小写字母、数字、连字符(不以连字符开头 / 结尾、不连用)。 */
-private val CONVENTIONAL_ID = Regex("^[0-9]{2}-[a-z0-9]+(-[a-z0-9]+)*$")
+/**
+ * 命名规则(builtin-assets.md):`两位序号-短名`,短名用小写字母、数字、**汉字**,可用连字符分段(不以连字符开头 / 结尾、不连用)。
+ * 2026-09-28 起允许汉字:Gordon 的内置图用中文作品名(「01-雨夜巴士站」),网格里显示的就是这个名字。
+ */
+private val CONVENTIONAL_ID = Regex("^[0-9]{2}-[a-z0-9\\p{IsHan}]+(-[a-z0-9\\p{IsHan}]+)*$")
 
 /** 文件名(去掉扩展名之后)合不合命名规则。不合规的**照样收**,只记一条警告(见 [builtinCatalog])。 */
 internal fun isConventionalBuiltinName(fileName: String): Boolean = CONVENTIONAL_ID.matches(builtinIdOf(fileName))
