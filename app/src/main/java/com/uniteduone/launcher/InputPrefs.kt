@@ -4,6 +4,22 @@ import android.content.Context
 import android.util.Log
 
 /**
+ * 输入源显示名(R114,2026-09-27 Gordon:界面切成英文后输入源里仍是中文「电视」)。
+ * `TvInputInfo.loadLabel` 永远按**电视系统语言**给名字,不认我们应用内的语言设置,所以:
+ * - 调谐器一律用我们自己的三语文案 [tvLabel](电视 / 電視 / TV);
+ * - HDMI 端口本身(非 CEC 子设备)规范成「HDMI n」(端口号取系统标签里的数字,取不到就原样用系统标签);
+ * - CEC 子设备(「PlayStation 5」)是设备自报的名字,原样保留。用户改过的名字在 [applyInputPrefs] 里再覆盖。
+ */
+internal fun displayLabel(system: String, isTuner: Boolean, isHdmiPort: Boolean, tvLabel: String): String {
+    if (isTuner) return tvLabel
+    if (isHdmiPort) {
+        val n = Regex("""(\d+)""").find(system)?.groupValues?.get(1)
+        if (n != null) return "HDMI $n"
+    }
+    return system
+}
+
+/**
  * 输入源的显示顺序(R97,2026-09-27 A95L 实测):系统 `tvInputList` 的顺序来自一张哈希表,A95L 上是
  * HDMI 3、HDMI 4、HDMI 1、HDMI 2、电视——不能直接用。规则照电视自己的输入菜单:调谐器(电视)在前,
  * 透传输入按端口号升序;端口号取系统标签里的数字(「HDMI 1」→ 1),HDMI-CEC 子设备(「PlayStation 5」)

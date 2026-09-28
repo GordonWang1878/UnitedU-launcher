@@ -321,4 +321,5 @@
     <string name="toast_cant_switch_input">切換不到「%1$s」</string>
     <string name="settings_start_screensaver">立即啟動螢幕保護</string>
     <string name="toast_screensaver_gallery_empty">請先在螢幕保護圖庫裡加入相片或影片</string>
+    <string name="input_label_tv">電視</string>
 </resources>

@@ -55,10 +55,15 @@ object Inputs {
             runCatching {
                 val keep = info.isPassthroughInput || info.type == TvInputInfo.TYPE_TUNER
                 if (!keep) return@runCatching null
-                val label = info.loadLabel(ctx)?.toString()?.trim().orEmpty()
+                val system = info.loadLabel(ctx)?.toString()?.trim().orEmpty()
                 InputEntry(
                     id = info.id,
-                    label = label.ifEmpty { fallbackLabel(info) },
+                    label = displayLabel(
+                        system = system,
+                        isTuner = !info.isPassthroughInput,
+                        isHdmiPort = info.type == TvInputInfo.TYPE_HDMI && info.parentId == null,
+                        tvLabel = ctx.getString(R.string.input_label_tv),
+                    ).ifEmpty { fallbackLabel(info) },
                     isPassthrough = info.isPassthroughInput,
                     parentId = info.parentId,
                 )

@@ -322,4 +322,5 @@
     <string name="toast_cant_switch_input">切换不到「%1$s」</string>
     <string name="settings_start_screensaver">立即开始屏保</string>
     <string name="toast_screensaver_gallery_empty">先在屏保图库里添加照片或视频</string>
+    <string name="input_label_tv">电视</string>
 </resources>

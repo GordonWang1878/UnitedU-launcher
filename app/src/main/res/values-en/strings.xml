@@ -330,4 +330,5 @@
     <string name="toast_cant_switch_input">Couldn\'t switch to “%1$s”</string>
     <string name="settings_start_screensaver">Start Screensaver</string>
     <string name="toast_screensaver_gallery_empty">Add photos or videos to the Screensaver Gallery first</string>
+    <string name="input_label_tv">TV</string>
 </resources>

@@ -33,3 +33,21 @@ class InputOrderTest {
         assertEquals(listOf("电视", "HDMI 1", "HDMI 3"), inputsPageData(sys, emptySet(), emptyMap()).visible.map { it.label })
     }
 }
+
+/** R114:输入源显示名不跟电视系统语言走。 */
+class InputLabelTest {
+    @Test fun tunerUsesOurOwnLocalizedLabel() {
+        assertEquals("TV", displayLabel("电视", isTuner = true, isHdmiPort = false, tvLabel = "TV"))
+        assertEquals("電視", displayLabel("电视", isTuner = true, isHdmiPort = false, tvLabel = "電視"))
+    }
+
+    @Test fun hdmiPortNormalized() {
+        assertEquals("HDMI 2", displayLabel("HDMI 2", isTuner = false, isHdmiPort = true, tvLabel = "TV"))
+        assertEquals("HDMI 3", displayLabel("高清输入 3", isTuner = false, isHdmiPort = true, tvLabel = "TV"))
+        assertEquals("HDMI", displayLabel("HDMI", isTuner = false, isHdmiPort = true, tvLabel = "TV"))
+    }
+
+    @Test fun cecDeviceKeepsItsName() {
+        assertEquals("PlayStation 5", displayLabel("PlayStation 5", isTuner = false, isHdmiPort = false, tvLabel = "TV"))
+    }
+}
