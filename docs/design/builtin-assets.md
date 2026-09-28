@@ -68,7 +68,8 @@ unzip -l app/build/outputs/apk/release/app-release.apk | grep assets/builtin/   
 
 ## 2026-09-28 现状
 
-- 壁纸:01-雨夜巴士站(默认)、02-午夜玩具房、03-夏日数码门、04-风暴舰队
+- 壁纸:01-夏日数码门(默认,Gordon 16:18 自己调的顺序)、02-午夜玩具房、03-雨夜巴士站、04-风暴舰队
 - 屏保:01-云海天光、02-暮色沙虫、03-海上列车、04-深空远征
 - 卡片:01-wetv、02-youku、03-youtube、04-iqiyi(品牌商标,归属写在 NOTICE)
-- 原图备份:`~/unitedu-assets-originals/2026-09-28/`(仓库外)
+- 壁纸与屏保已用 `scripts/hdr-assets.py` 转成双写法 HDR JPEG(Android 14 XMP + ISO 21496-1),4K 不变,共约 10 MB;生图与转换规范见 `docs/design/hdr-image-spec.md`
+- 原图备份:`~/unitedu-assets-originals/2026-09-28/`(Gordon 放入时的原名)、`~/unitedu-assets-originals/2026-09-28-renamed/`(改名后、转换前)
