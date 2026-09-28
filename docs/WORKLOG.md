@@ -1612,3 +1612,7 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 同日续:Gordon 按遥控器「电视」键后读 logcat:键发 `ACTION_VIEW content://android.media.tv/channel` 给 `com.sony.dtv.tvlin`;tvlin「tunable channel: null」(没搜过台)→ 回落 `LastInputRepository` 的上次输入源 = HDMI 2 的 CEC 子设备「Apple TV」(`HDMI200004`,父 HW3)。13:35:07 那条 START 的发起 uid 10010 就是 UnitedU——我们输入源页的「电视」与遥控器键行为完全一致(Gordon 更正了我「点了没反应」的误判:`query-activities` 对这个 data URI 查不到接收方,不代表 startActivity 解析不到)。Gordon 定:「电视」保持现状,始终列出。
 - 同日续:Gordon 回晨报:流畅度 OK;字号「就这样」——R109 `SETTINGS_TYPE_STEP = -1` 定案;问预编译是什么。已解释(sideload 装的包未编译,等电视空闲夜间后台编译;baseline profile + `.dm` 只能经我们自带的「检查更新」PackageInstaller 会话生效),建议发布 1.0 前再做,待他回。
 - 同日续:Gordon 选「预编译发 1.0 前再做」,记入 `docs/ui-pending.md` F 组 #21。
+
+## 2026-09-28 · 选图页内置块、HDR 显示链、R120 起的裁定
+
+- 同日续:Gordon 看到电视在放「不是我们的屏保」。只读查:`mCurrentDream=null`,前台 `com.sony.dtv.tvlin` 在播 HDMI 2(Apple TV,CEC 子设备);`screensaver_components` 仍是 UnitedUDream、开、5 分钟。结论:画面是 Apple TV 自带屏保经 HDMI 传来;看外部输入时电视播放器保持观看状态,安卓 Dream 不会启动(任何屏保都一样)。另:HDMI 画面是安全层,`screencap` 拿不到图。无需改动。
