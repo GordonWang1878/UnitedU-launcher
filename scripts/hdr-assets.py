@@ -14,8 +14,12 @@ ISO 21496-1 说明书。分辨率不变(4K 原样),普通画面 JPEG 质量 90,�
   ~/Library/uhdr-build/libultrahdr/build/ultrahdr_app,编译步骤见规范文档。
 
 用法:
+  scripts/hdr-assets.py --in-place <内置图目录>     ← 常用:原地处理仓库里新放进来的图
   scripts/hdr-assets.py <输入图片或目录> <输出目录>
-  例:scripts/hdr-assets.py ~/unitedu-assets-originals/2026-09-28/wallpapers app/src/main/assets/builtin/wallpapers
+  例:scripts/hdr-assets.py --in-place app/src/main/assets/builtin/wallpapers
+  --in-place:已经处理过(两份标记都在)的图跳过;没处理过的先把原图备份到
+  ~/unitedu-assets-originals/<日期>/<目录名>/,再原地换成转换后的 .jpg(原来是 png/webp 的,原文件删掉)。
+  构建时的单测 BuiltinHdrAssetsTest 会拦下没处理过的图,报错信息里就是这条命令。
 输出文件名与输入相同(扩展名统一 .jpg)。每张图打印:大小、两种标记是否都在、提亮参数、普通画面 PSNR。
 任何一张校验不过,脚本以非 0 退出。
 """
@@ -70,6 +74,7 @@ def psnr(a: Image.Image, b: Image.Image) -> float:
 
 
 def convert(src: Path, out_dir: Path) -> bool:
+    out_dir.mkdir(parents=True, exist_ok=True)
     dst = out_dir / (src.stem + ".jpg")
     with tempfile.TemporaryDirectory() as t:
         tmp = Path(t)
@@ -114,17 +119,57 @@ def convert(src: Path, out_dir: Path) -> bool:
     return ok
 
 
+IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp")
+MAX_CONVERTED_BYTES = 2_500_000
+
+
+def already_converted(p: Path) -> bool:
+    """处理过的判据(与 BuiltinHdrAssetsTest 同一口径):.jpg、两份 HDR 标记都在、体积 ≤ 2.5 MB;
+    或是脚本按 SDR 压过的 .jpg(没有增益图、体积 ≤ 2.5 MB)。"""
+    if p.suffix.lower() != ".jpg" or p.stat().st_size > MAX_CONVERTED_BYTES:
+        return False
+    data = p.read_bytes()
+    has_xmp, has_iso = b"hdrgm" in data, b"iso:ts:21496" in data
+    return (has_xmp and has_iso) or (not has_xmp and not has_iso and b"MPF" not in data)
+
+
+def in_place(d: Path) -> bool:
+    import datetime, shutil
+    backup = Path.home() / "unitedu-assets-originals" / datetime.date.today().isoformat() / d.name
+    ok = True
+    for f in sorted(p for p in d.iterdir() if p.suffix.lower() in IMAGE_SUFFIXES):
+        if already_converted(f):
+            print(f"SKIP {f.name}: 已处理")
+            continue
+        backup.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(f, backup / f.name)
+        with tempfile.TemporaryDirectory() as t:
+            staged = Path(t) / f.name
+            shutil.copy2(f, staged)
+            if not convert(staged, Path(t) / "out"):
+                ok = False
+                continue
+            out = Path(t) / "out" / (f.stem + ".jpg")
+            if f.suffix.lower() != ".jpg":
+                f.unlink()
+            shutil.copy2(out, d / out.name)
+        print(f"     原图备份 → {backup / f.name}")
+    return ok
+
+
 def main():
+    for tool in (READER, WRITER):
+        if not Path(tool).exists():
+            print(f"缺工具:{tool}(见 docs/design/hdr-image-spec.md)")
+            sys.exit(2)
+    if len(sys.argv) == 3 and sys.argv[1] == "--in-place":
+        sys.exit(0 if in_place(Path(sys.argv[2]).expanduser()) else 1)
     if len(sys.argv) != 3:
         print(__doc__)
         sys.exit(2)
     src, out = Path(sys.argv[1]).expanduser(), Path(sys.argv[2]).expanduser()
     out.mkdir(parents=True, exist_ok=True)
-    files = [src] if src.is_file() else sorted(p for p in src.iterdir() if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp"))
-    for tool in (READER, WRITER):
-        if not Path(tool).exists():
-            print(f"缺工具:{tool}(见 docs/design/hdr-image-spec.md)")
-            sys.exit(2)
+    files = [src] if src.is_file() else sorted(p for p in src.iterdir() if p.suffix.lower() in IMAGE_SUFFIXES)
     results = [convert(f, out) for f in files]
     print(f"{sum(results)}/{len(results)} 通过")
     sys.exit(0 if all(results) else 1)

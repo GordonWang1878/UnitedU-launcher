@@ -170,6 +170,12 @@ adb emu kill                                     # 关闭
    **判据:凡是写了 `x = true`,数一数有几条路把它写回 `false`;只有一条就换写法。**
 
 
+## 内置图铁律(2026-09-28 Gordon:「你不能指望我记」)
+
+- `app/src/main/assets/builtin/{wallpapers,screensavers}/` 里的图**必须先跑** `scripts/hdr-assets.py --in-place <目录>`:转成 Android 14(XMP `hdrgm`)+ Android 15+(ISO 21496-1)双写法 HDR JPEG,4K 不变、压到每张约 1–1.5 MB,原图自动备份到 `~/unitedu-assets-originals/<日期>/`。已处理的图脚本会跳过。
+- Gordon 可能直接把新图放进这两个目录(或改名换顺序)。**构建前 / 发现这两个目录有变化时,先跑脚本再构建**;漏了也会被单测 `BuiltinHdrAssetsTest` 拦下(报错里就是命令)。
+- 生图与转换规范:`docs/design/hdr-image-spec.md`;命名规则:`docs/design/builtin-assets.md`。写入工具是自编译的 libultrahdr 1.4.0(开 `UHDR_WRITE_XMP`),缺了照规范里的步骤编译。
+
 ## 落盘铁律(2026-09-23 卸载一个应用、整个首页被换成默认布局的事故)
 
 - 有多个写者的状态文件(layout / titles / hidden-inputs / settings)一律走 `LockedFile`,新文件也一样;读取统一用 `store.load`。排查表见 `docs/design/persistence-audit.md`。
