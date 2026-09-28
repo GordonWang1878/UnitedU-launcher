@@ -61,7 +61,7 @@ adb emu kill                                     # 关闭
 - `adb install` 的包在 A95L(Android 14)上是**未编译**的(`status=verify`),这台 ART 不读 APK 内嵌的 profile;按键帧 UI 线程 14.6 ms,编译后 6.4 ms。装完要测性能 / 让 Gordon 评手感前先 `adb shell cmd package compile -m speed-profile -f com.uniteduone.launcher`(等同电视夜间后台编译的状态;下次装包会重置)。
 - gfxinfo 的「GPU 分位」在这台电视上不是真实 GPU 开销:GPU 一饱和就降频刚好跟上,读数粘在 ~16.6 ms。消融要用「每帧重复画 N 次」的临时构建让 GPU 满频,再从 framestats 取每帧 GPU 时间。
 
-**推 GitHub 的坑**(2026-09-19 实证):本机 `github.com` 解析到 Surge fake-IP(198.18.x.x),流量走代理节点;带截图的大包(>1 MB)在默认设置下会在上传后被断(`unable to rewind rpc post data` / `remote end hung up`)。Surge 里 GitHub 策略改到稳定节点后,用 `git -c http.version=HTTP/1.1 -c http.postBuffer=157286400 push origin main` 可以推上去(1.18 MB 约 78 秒)。更大的包(2026-09-19 那次 5 MB 截图提交)仍会报 `curl 52 Empty reply from server`:把大提交单独先推(`git push origin <sha>:refs/heads/main`),失败隔 20 s 重试(实测第 3 次过),其余小提交再一次推完。zsh 里写 refspec 要 `"${sha}:refs/heads/main"`,否则 `:r` 被当成修饰符吃掉。
+**推 GitHub 的坑**(2026-09-19 实证):本机 `github.com` 解析到 Surge fake-IP(198.18.x.x),流量走代理节点;带截图的大包(>1 MB)在默认设置下会在上传后被断(`unable to rewind rpc post data` / `remote end hung up`)。Surge 里 GitHub 策略改到稳定节点后,用 `git -c http.version=HTTP/1.1 -c http.postBuffer=157286400 push origin main` 可以推上去(1.18 MB 约 78 秒)。更大的包(2026-09-19 那次 5 MB 截图提交)仍会报 `curl 52 Empty reply from server`:把大提交单独先推(`git push origin <sha>:refs/heads/main`),失败隔 20 s 重试(实测第 3 次过),其余小提交再一次推完。zsh 里写 refspec 要 `"${sha}:refs/heads/main"`,否则 `:r` 被当成修饰符吃掉。2026-09-28 一次推 280 个提交(压缩后约 42 MB):沿 `git rev-list --reverse --first-parent origin/main..main` 按累计 `objectsize:disk` 约 5 MB 切批(单个大提交会让一批到 14 MB),逐批 `git -c http.version=HTTP/1.1 -c http.postBuffer=157286400 push origin "<sha>:refs/heads/main"`,5 批都一次成功、每批 3–5 s——当天代理节点下大包已不再被断,但积压多时仍先切批,失败隔 20 s 重试。
 
 ## 文档分流(每轮工作收尾前必查同步)
 
