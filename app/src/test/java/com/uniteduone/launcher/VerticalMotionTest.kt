@@ -98,7 +98,7 @@ class VerticalMotionTest {
     }
 
     @Test fun `壁纸逐行插值——每次换行按位移进度匀速变化,单调,不低于 0点2`() {
-        val pitch = GtvLayout.rowPitch(GtvCardSize.MEDIUM, false)   // 131.0625
+        val pitch = GtvLayout.rowPitch(GtvCardSize.MEDIUM, false)   // 122.625(R121;R59 时 131.0625)
         for (n in 0..3) {
             val a0 = GtvLayout.wallpaperAlpha(n * pitch)
             val a1 = GtvLayout.wallpaperAlpha((n + 1) * pitch)
@@ -107,10 +107,14 @@ class VerticalMotionTest {
                     GtvLayout.wallpaperAlphaPerRow(-(n + q) * pitch, pitch), 1e-5f)
             }
         }
-        // 行 1 → 2 的中点:现状已暗到底(0.2),逐行插值还在半路(0.454 与 0.2 的中点)
+        // 行 1 → 2 的中点:现状(按位移连续算)已快暗到底——R121 中档 1.5 行 = 183.94 dp,差 8 dp 就到 192,
+        // alpha 0.234(R59 中档 131.06 时 1.5 行已过 192、正好 0.2);逐行插值还在半路(0.489 与 0.2 的中点 0.345)
         val mid = -1.5f * pitch
-        assertEquals(0.2f, GtvLayout.wallpaperAlpha(mid), 1e-6f)
+        assertEquals(1f - 0.8f * 183.9375f / 192f, GtvLayout.wallpaperAlpha(mid), 1e-5f)
+        assertEquals(0.2336f, GtvLayout.wallpaperAlpha(mid), 1e-4f)
+        assertEquals(0.2f, GtvLayout.wallpaperAlpha(-2f * pitch), 1e-6f)   // 行 2 静止:到底
         assertEquals((GtvLayout.wallpaperAlpha(-pitch) + 0.2f) / 2f, GtvLayout.wallpaperAlphaPerRow(mid, pitch), 1e-5f)
+        assertTrue(GtvLayout.wallpaperAlphaPerRow(mid, pitch) > GtvLayout.wallpaperAlpha(mid) + 0.1f)
         val samples = (0..60).map { GtvLayout.wallpaperAlphaPerRow(-it * 10f, pitch) }
         assertTrue(samples.zipWithNext().all { (x, y) -> y <= x + 1e-6f })
         assertTrue(samples.all { it >= GtvLayout.WALLPAPER_BROWSE_ALPHA - 1e-6f })

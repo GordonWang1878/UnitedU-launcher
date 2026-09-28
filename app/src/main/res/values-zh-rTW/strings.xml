@@ -295,9 +295,9 @@
     <!-- edit_move_desc : 編輯頁搬運模式(M4b 真機驗收補丁 Task 2) -->
     <string name="edit_move_desc">在編輯頁裡用方向鍵挪這張卡,空行也能去</string>
     <!-- settings shell:設定頁膠囊外殼(R69–R72,2026-09-23) -->
-    <string name="shell_root_layout_desc">編輯分欄、卡片大小與標題</string>
+    <string name="shell_root_layout_desc">編輯分欄、卡片大小與標題、卡片色彩</string>
     <string name="shell_root_general_desc">語言、預設桌面、手機傳輸、待機、時鐘</string>
-    <string name="shell_root_appearance_desc">桌布、主題色、卡片色彩</string>
+    <string name="shell_root_appearance_desc">桌布、主題色</string>
     <string name="shell_root_screensaver_desc">螢幕保護時間、圖庫、系統螢幕保護</string>
     <string name="settings_card_saturation">卡片飽和度</string>
     <string name="settings_card_brightness">卡片亮度</string>

@@ -48,13 +48,17 @@ class ShellModelTest {
     /** Gordon 定案第 3 条:四个第二层的内容与顺序(条件行不在时)。 */
     @Test fun secondLevelPages() {
         val g = groups()
-        assertEquals(listOf("editLayout", "cardsPerRow", "showTitles"), ids(g, GroupId.LAYOUT))
+        // R120:卡片饱和度 / 亮度 / 透明度从外观挪到布局,跟在「卡片标题」之后
+        assertEquals(
+            listOf("editLayout", "cardsPerRow", "showTitles", "cardSaturation", "cardBrightness", "cardOpacity"),
+            ids(g, GroupId.LAYOUT),
+        )
         assertEquals(
             listOf("language", "setDefaultHome", "openImport", "idleAfter", "idleContent", "clockDisplay", "restoreDefaults"),
             ids(g, GroupId.GENERAL),
         )
         assertEquals(
-            listOf("pickWallpaper", "wallpaperBlur", "wallpaperBrightness", "themeColor", "followWallpaper", "cardSaturation", "cardBrightness", "cardOpacity"),
+            listOf("pickWallpaper", "wallpaperBlur", "wallpaperBrightness", "themeColor", "followWallpaper"),
             ids(g, GroupId.APPEARANCE),
         )
         assertEquals(

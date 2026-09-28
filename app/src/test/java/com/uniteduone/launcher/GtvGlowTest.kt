@@ -86,11 +86,13 @@ class GtvGlowTest {
     @Test fun `柔光不改变 appFocusOverflow(R28 改动前的值逐字不变)`() {
         // 写死在这里当回归闸(整枝审查 C 把 APP_FOCUS_SCALE 1.105 → 1.10 后的值):
         // 153dp 宽的卡 → 153×0.05 + 2 + 2 = 11.65,108 高 → 5.4 + 4 = 9.4(R59 之前的中档宽 / 大档高;
-        // R59 起 153 是大档宽,中档 137 → 10.85,大档高 86.0625 → 8.303)
-        assertEquals(11.65f, GtvLayout.appFocusOverflow(GtvLayout.cardWidth(GtvCardSize.LARGE)), 0.0001f)
+        // R59 时 153 是大档宽、中档 137 → 10.85)。R121 起三档 150 / 122 / 86:大档宽 150 → 11.5、中档宽 122 → 10.1、
+        // 大档高 84.375 → 8.219。
+        assertEquals(11.65f, GtvLayout.appFocusOverflow(153f), 0.0001f)
         assertEquals(9.4f, GtvLayout.appFocusOverflow(108f), 0.01f)
-        assertEquals(10.85f, GtvLayout.appFocusOverflow(GtvLayout.cardWidth(GtvCardSize.MEDIUM)), 0.0001f)
-        assertEquals(8.303f, GtvLayout.appFocusOverflow(GtvLayout.cardHeight(GtvCardSize.LARGE)), 0.001f)
+        assertEquals(11.5f, GtvLayout.appFocusOverflow(GtvLayout.cardWidth(GtvCardSize.LARGE)), 0.0001f)
+        assertEquals(10.1f, GtvLayout.appFocusOverflow(GtvLayout.cardWidth(GtvCardSize.MEDIUM)), 0.0001f)
+        assertEquals(8.219f, GtvLayout.appFocusOverflow(GtvLayout.cardHeight(GtvCardSize.LARGE)), 0.001f)
         // 公式里只有三项:缩放溢出的一半 + gap + stroke,**没有** APP_FOCUS_GLOW_DP
         for (d in listOf(0f, 122f, 153f, 192f)) {
             // 精确相等就已经排除了「把柔光算进去」——此前这里还跟着一条 `< … + APP_FOCUS_GLOW_DP`
@@ -107,11 +109,12 @@ class GtvGlowTest {
         // R25 之后的既有值(GtvLayoutTest 里也断言同一组数,这里重复一遍是为了把「柔光没有
         // 撑开行距」这件事钉在 R28 自己的测试里,以后有人改柔光时先撞到这一条)
         // R48 去掉行标题带(32.5 dp)后、R51 行距 8 → 40 后的值
-        // R59 起 153 × 86 这一档叫「大」,数值不变;中档 137 另钉一组
-        assertEquals(140.0625f, GtvLayout.rowPitch(GtvCardSize.LARGE, showTitles = false), 0.0001f)
-        assertEquals(168.365625f, GtvLayout.rowPitch(GtvCardSize.LARGE, showTitles = true), 0.0001f)   // ui-pending #9 起标题间距 = 聚焦溢出
-        assertEquals(-280.125f, GtvLayout.rowShiftY(2, GtvCardSize.LARGE, showTitles = false), 0.0001f)
-        assertEquals(131.0625f, GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = false), 0.0001f)
+        // R59 起 153 × 86 这一档叫「大」,数值不变;中档 137 另钉一组。R121 起三档 150 / 122 / 86,数值随卡高换:
+        // 大 14 + 84.375 + 40 = 138.375(开标题再 + 8.21875 + 20),中 14 + 68.625 + 40 = 122.625
+        assertEquals(138.375f, GtvLayout.rowPitch(GtvCardSize.LARGE, showTitles = false), 0.0001f)
+        assertEquals(166.59375f, GtvLayout.rowPitch(GtvCardSize.LARGE, showTitles = true), 0.0001f)   // ui-pending #9 起标题间距 = 聚焦溢出
+        assertEquals(-276.75f, GtvLayout.rowShiftY(2, GtvCardSize.LARGE, showTitles = false), 0.0001f)
+        assertEquals(122.625f, GtvLayout.rowPitch(GtvCardSize.MEDIUM, showTitles = false), 0.0001f)
         for (size in GtvCardSize.values()) {
             assertEquals(
                 (GtvLayout.FOCUS_OUTSET + GtvLayout.FOCUS_STROKE),
@@ -123,8 +126,9 @@ class GtvGlowTest {
 
     @Test fun `柔光不改变行位移判据(rowShiftX 逐字不变)`() {
         assertEquals(0f, GtvLayout.rowShiftX(2, GtvCardSize.MEDIUM, 960f), 0.0001f)
-        // 1422 + 11.65(overflow)+ 58 − 960 = 531.65(整枝审查 C 之后的值;R59 起 153 是大档)
-        assertEquals(-531.65f, GtvLayout.rowShiftX(7, GtvCardSize.LARGE, 960f), 0.0001f)
+        // R121 起大档 150:58 + 150×8 + 20×7 = 1398,+ 11.5(overflow)+ 58 − 960 = 507.5
+        // (R59 时大档 153 是 531.65)
+        assertEquals(-507.5f, GtvLayout.rowShiftX(7, GtvCardSize.LARGE, 960f), 0.0001f)
     }
 
     @Test fun `收尾段——数据区边界不跳值、外缘归零、全程单调`() {
