@@ -50,8 +50,8 @@ class SettingsFadeTypeTest {
     // ---------- R108 时长 ----------
 
     @Test fun `R108 打开 200 ms、关闭 150 ms、层与层 150 ms`() {
-        assertEquals(450, GtvLayout.SETTINGS_FADE_IN_MS)
-        assertEquals(350, GtvLayout.SETTINGS_FADE_OUT_MS)
+        assertEquals(500, GtvLayout.SETTINGS_FADE_IN_MS)
+        assertEquals(400, GtvLayout.SETTINGS_FADE_OUT_MS)
         assertEquals(300, GtvLayout.SETTINGS_LAYER_FADE_MS)
     }
 
@@ -186,5 +186,12 @@ class SettingsFadeTypeTest {
         assertNull("淡出期间 z 不动", m.zTarget)
         assertNull(m.zSnapFirst)
         assertEquals(0f, m.zSnapAfter!!, 0f)
+    }
+
+    /** R113:淡入 + 轻微放大,整页 0.96、层间 0.98,且都小于 1。 */
+    @Test fun enterScalesAreSubtle() {
+        assertEquals(0.96f, GtvLayout.SETTINGS_ENTER_SCALE, 0f)
+        assertEquals(0.98f, GtvLayout.SETTINGS_LAYER_SCALE, 0f)
+        assertEquals(true, GtvLayout.SETTINGS_ENTER_SCALE < GtvLayout.SETTINGS_LAYER_SCALE && GtvLayout.SETTINGS_LAYER_SCALE < 1f)
     }
 }

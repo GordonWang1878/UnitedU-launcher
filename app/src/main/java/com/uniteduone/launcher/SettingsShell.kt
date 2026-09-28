@@ -370,6 +370,7 @@ fun SettingsShell(
         state = stack,
         enterMs = GtvLayout.SETTINGS_LAYER_FADE_MS,
         exitMs = GtvLayout.SETTINGS_LAYER_FADE_MS,
+        scaleFrom = GtvLayout.SETTINGS_LAYER_SCALE,  // R113:层间更轻的放大
         contentKey = { s -> s.size to s.last().page },
     ) { layerStack ->
         val ghost = LocalPageGhost.current

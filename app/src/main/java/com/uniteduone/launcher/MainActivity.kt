@@ -730,7 +730,15 @@ class MainActivity : ComponentActivity() {
             if (shellShown) shellLast[0] = shellStack
             if (shellVisible && shellLast[0].isNotEmpty()) {
                 val live = shellShown
-                Box(Modifier.fillMaxSize().graphicsLayer { alpha = shellMotion.a.value }) {
+                // R113:外壳内容淡入同时从 SETTINGS_ENTER_SCALE 放大到 1(底色、首页 / 预览那一层不缩放)
+                Box(
+                    Modifier.fillMaxSize().graphicsLayer {
+                        val t = shellMotion.a.value
+                        alpha = t
+                        val sc = GtvLayout.SETTINGS_ENTER_SCALE + (1f - GtvLayout.SETTINGS_ENTER_SCALE) * t
+                        scaleX = sc; scaleY = sc
+                    },
+                ) {
                     CompositionLocalProvider(LocalPageGhost provides !live) {
                         SettingsShell(
                             stack = if (live) shellStack else shellLast[0],

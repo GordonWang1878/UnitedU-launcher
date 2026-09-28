@@ -1,6 +1,7 @@
 package com.uniteduone.launcher
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
@@ -19,6 +20,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+
+/**
+ * R113(2026-09-28 owner:淡入淡出「依然看不出来」):A95L 录屏证实动画在跑(60 fps、约 0.4 s),看不出来是因为
+ * 暗对暗 + FastOutSlowIn 前 150 ms 就完成约 80% + 画面里没有东西在动。改为对称缓入缓出 + 轻微放大。
+ */
+val SettingsFadeEasing = CubicBezierEasing(0.42f, 0f, 0.58f, 1f)
 
 /*
  * **R108 设置类页面的淡入淡出**(Gordon 2026-09-27)。
@@ -92,6 +99,8 @@ fun <S : Any> FadeSwitch(
     state: S?,
     enterMs: Int,
     exitMs: Int,
+    /** 淡入时从这个比例放大到 1(淡出反过来);1 = 不缩放。 */
+    scaleFrom: Float = GtvLayout.SETTINGS_ENTER_SCALE,
     contentKey: (S) -> Any? = { Unit },
     content: @Composable (S) -> Unit,
 ) {
@@ -112,13 +121,20 @@ fun <S : Any> FadeSwitch(
             val live = e.live
             LaunchedEffect(live) {
                 if (live) {
-                    alpha.animateTo(1f, tween(enterMs, easing = FastOutSlowInEasing))
+                    alpha.animateTo(1f, tween(enterMs, easing = SettingsFadeEasing))
                 } else {
-                    alpha.animateTo(0f, tween(exitMs, easing = FastOutSlowInEasing))
+                    alpha.animateTo(0f, tween(exitMs, easing = SettingsFadeEasing))
                     if (book.remove(e.gen)) { alphas.remove(e.gen); removals++ }
                 }
             }
-            Box(Modifier.fillMaxSize().graphicsLayer { this.alpha = alpha.value }) {
+            Box(
+                Modifier.fillMaxSize().graphicsLayer {
+                    val t = alpha.value
+                    this.alpha = t
+                    val sc = scaleFrom + (1f - scaleFrom) * t
+                    scaleX = sc; scaleY = sc
+                },
+            ) {
                 CompositionLocalProvider(LocalPageGhost provides (outerGhost || !live)) { content(e.state) }
             }
         }
@@ -191,8 +207,8 @@ class ShellMotion(initialShown: Boolean, initialPreview: Boolean) {
     suspend fun run(shown: Boolean, preview: Boolean) = coroutineScope {
         val fresh = shown && a.value <= 0f
         launch {
-            if (shown) a.animateTo(1f, tween(GtvLayout.SETTINGS_FADE_IN_MS, easing = FastOutSlowInEasing))
-            else a.animateTo(0f, tween(GtvLayout.SETTINGS_FADE_OUT_MS, easing = FastOutSlowInEasing))
+            if (shown) a.animateTo(1f, tween(GtvLayout.SETTINGS_FADE_IN_MS, easing = SettingsFadeEasing))
+            else a.animateTo(0f, tween(GtvLayout.SETTINGS_FADE_OUT_MS, easing = SettingsFadeEasing))
         }
         val m = previewMotion(shown, preview, fresh, v.value)
         m.vSnap?.let { v.snapTo(it) }
