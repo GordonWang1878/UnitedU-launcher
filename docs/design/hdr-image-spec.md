@@ -87,3 +87,5 @@
   adb -s <电视序列号> logcat -d -s UnitedU | grep -E "壁纸原图|壁纸处理|壁纸缓存命中|屏保照片"
   ```
   判读:1 是数字且 > 1、2 是扩展范围 → HDR 显示链全通,肉眼看高光(灯、月亮)应比界面白更亮;1 是 `not_available` → 电视界面层不支持 HDR,这台电视上壁纸 / 屏保只能显示 SDR(不是我们的链路问题)。
+
+- **A95L 真机(2026-09-28 装 `4c1c9c6` 后读)**:`dumpsys display` → `hdrSdrRatio not_available`;面板 `supportedHdrTypes=[1, 2, 3]`(杜比视界 / HDR10 / HLG,仅视频通道)。结论:A95L 的应用界面层不输出 HDR,Android 14 把 HDR 窗口降级,内置 HDR 图在这台上显示为 SDR——固件限制;显示链本身已保留增益图(见 R122–R125),在会报告 HDR/SDR 比例的电视上生效。
