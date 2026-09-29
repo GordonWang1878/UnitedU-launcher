@@ -19,7 +19,7 @@
     <string name="menu_system_settings">System Settings</string>
     <string name="menu_system_settings_desc">Open the TV\'s Android settings</string>
     <string name="menu_about">About</string>
-    <string name="menu_about_desc">Version and check for updates</string>
+    <string name="menu_about_desc">Version, updates, restore defaults</string>
     <string name="menu_set_default_home">Set Default Home</string>
     <string name="menu_set_default_home_desc">Choose which launcher opens on the Home button</string>
     <!-- card_menu_* : long-press card menu on the home screen -->
@@ -161,6 +161,8 @@
     <string name="settings_show_titles">Card Titles</string>
     <string name="settings_theme_color">Theme Color</string>
     <string name="settings_follow_wallpaper">Follow Wallpaper Color</string>
+    <!-- R128: Standby Timeout + Standby Display merged into a "Standby" sub-page (General group); the capsule shows both values -->
+    <string name="settings_standby">Standby</string>
     <string name="settings_idle_after">Standby Timeout</string>
     <string name="settings_idle_off">Off</string>
     <string name="settings_idle_minutes">%1$d min</string>
@@ -204,7 +206,6 @@
     <string name="settings_lang_zh_tw">繁體</string>
     <string name="settings_lang_en">English</string>
     <string name="settings_action_restore_defaults">Restore Defaults</string>
-    <string name="settings_action_restore_defaults_desc">Rows, titles, card images and your gallery stay as they are</string>
     <!-- restore_* / dialog_cancel : restore-defaults confirm dialog (T7, spec §4) -->
     <string name="restore_title">Restore default settings?</string>
     <string name="restore_body">Rows, titles, card images and your gallery stay as they are</string>
@@ -313,7 +314,7 @@
     <string name="shell_root_layout_desc">Edit rows, card size, titles and colors</string>
     <string name="shell_root_general_desc">Language, default home, phone transfer, standby, clock</string>
     <string name="shell_root_appearance_desc">Wallpaper, theme color</string>
-    <string name="shell_root_screensaver_desc">Screensaver timing, gallery, system screensaver</string>
+    <string name="shell_root_screensaver_desc">Screensaver timing, gallery, system screensaver, screen off</string>
     <string name="settings_card_saturation">Card Saturation</string>
     <string name="settings_card_brightness">Card Brightness</string>
     <string name="settings_card_opacity">Card Transparency</string>

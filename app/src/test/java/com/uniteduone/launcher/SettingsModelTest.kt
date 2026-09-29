@@ -21,7 +21,6 @@ class SettingsModelTest {
             pickWallpaper = { fired += "pickWallpaper" },
             openImport = { fired += "openImport" },
             setDefaultHome = { fired += "setDefaultHome" },
-            restoreDefaults = { fired += "restoreDefaults" },
             applyLanguage = { lang -> languages += lang },
             openScreensaverGallery = { fired += "openScreensaverGallery" },
             openSystemScreensaver = { fired += "openSystemScreensaver" },
@@ -34,7 +33,8 @@ class SettingsModelTest {
     /** 图库张数:多数用例只关心「非空」。 */
     private val someImages = 3
 
-    private fun rowsOf(groups: List<GroupSpec>) = groups.flatMap { it.rows }
+    /** 所有行,含子页(R128「待机」)里的行——按 id 找行的用例都走它。 */
+    private fun rowsOf(groups: List<GroupSpec>) = allRows(groups)
     private fun row(groups: List<GroupSpec>, id: String) = rowsOf(groups).first { it.id == id }
     private fun ctrl(groups: List<GroupSpec>, id: String) = row(groups, id) as ControlRow
 
@@ -49,9 +49,10 @@ class SettingsModelTest {
 
     @Test fun rowCountsPerGroup() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
-        // 布局 1 动作(R69 编辑分栏)+ 2(R92 删掉「输入源行」开关)+ 3 卡片色彩滑块(R120 从外观挪来)/ 通用 7(R60 手机传输挪进来)+ 动画缩放条件行(默认 UNKNOWN = 读不到 → 出「查看」)/
+        // 布局 1 动作(R69 编辑分栏)+ 2(R92 删掉「输入源行」开关)+ 3 卡片色彩滑块(R120 从外观挪来)/
+        // 通用 5(R128:待机两行合成一颗子页入口、恢复默认挪进关于页)+ 动画缩放条件行(默认 UNKNOWN = 读不到 → 出「查看」)/
         // 外观 1 动作 + 2 壁纸滑块(自动切换 R61 删掉)+ 2 主题(主题化卡片 R58 删掉;卡片淡化 R70 / 不透明度 R86 三条 R120 挪走)/ 屏保 1 动作(R93 立即开始屏保)+ 2 控件 + 3 动作(R127 关闭屏幕)
-        assertEquals(listOf(6, 8, 5, 6), g.map { it.rows.size })
+        assertEquals(listOf(6, 6, 5, 6), g.map { it.rows.size })
     }
 
     @Test fun rowIdsAreUnique() {
@@ -59,10 +60,10 @@ class SettingsModelTest {
         assertEquals(ids.size, ids.distinct().size)
     }
 
-    /** 胶囊列一屏放得下的不变量(≤ 8 颗、永不滚动;8 颗时间距缩到 8 dp,见 capsuleGap)。 */
-    @Test fun noGroupExceedsEightRows() {
+    /** 胶囊列一屏放得下、永不滚动;R128 起每页 ≤ 6(逐页的完整检查见 SettingsPageLimitTest)。 */
+    @Test fun noGroupExceedsSixRows() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
-        assertTrue(g.all { it.rows.size <= 8 })
+        assertTrue(g.all { it.rows.size <= MAX_CAPSULES_PER_PAGE })
     }
 
     @Test fun appearanceGroupStartsWithOneActionRow() {
@@ -72,13 +73,43 @@ class SettingsModelTest {
         assertTrue(appearance.drop(1).all { it is ControlRow })
     }
 
-    /** R57:通用组的行序——语言、默认桌面、手机传输(R60)、待机两行、时钟显示紧跟待机显示、恢复默认收尾。 */
+    /**
+     * R57:通用组的行序——语言、默认桌面、手机传输(R60)、待机、时钟显示紧跟待机。
+     * R128:待机两行合成一颗「待机」子页入口(在原「待机时长」的位置),「恢复默认」挪进关于页。
+     */
     @Test fun generalGroupRowOrder() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages, system = allNormal)
         assertEquals(
-            listOf("language", "setDefaultHome", "openImport", "idleAfter", "idleContent", "clockDisplay", "restoreDefaults"),
+            listOf("language", "setDefaultHome", "openImport", "standby", "clockDisplay"),
             g.first { it.id == GroupId.GENERAL }.rows.map { it.id },
         )
+    }
+
+    /** R128:「待机」子页里就是原来那两行,顺序、选项、写入逐字未动;组里不再有这两行本身。 */
+    @Test fun standbySubPageHoldsTheTwoIdleRows() {
+        var written: Settings? = null
+        val base = Settings()
+        val g = settingsGroups(base, { t -> written = t(base) }, Recorder().actions, someImages, system = allNormal)
+        val general = g.first { it.id == GroupId.GENERAL }.rows
+        val standby = general.first { it.id == STANDBY_ROW } as SubPageRow
+        assertEquals(R.string.settings_standby, standby.labelRes)
+        assertEquals(listOf("idleAfter", "idleContent"), standby.rows.map { it.id })
+        assertTrue(general.none { it.id == "idleAfter" || it.id == "idleContent" })
+        val after = standby.rows[0] as ControlRow
+        assertEquals(R.string.settings_idle_after, after.labelRes)
+        assertEquals(listOf(null, 1, 3, 5, 10), after.optionArgs)
+        assertEquals(2, after.selected)                         // 缺省 3 分
+        val content = standby.rows[1] as ControlRow
+        assertEquals(R.string.settings_idle_content, content.labelRes)
+        assertEquals(
+            listOf(R.string.settings_idle_clock, R.string.settings_idle_black, R.string.settings_idle_nofade),
+            content.optionRes,
+        )
+        assertEquals(0, content.selected)                       // 缺省时钟
+        after.onSelect(4)
+        assertEquals(600_000L, written?.idleAfterMs)
+        content.onSelect(2)
+        assertEquals(IdleContent.NO_FADE, written?.idleContent)
     }
 
     /** R60:「导入图片」改名「手机传输」、挪到通用组,打开的仍是扫码页。 */
@@ -182,14 +213,13 @@ class SettingsModelTest {
         (row(g, "pickWallpaper") as ActionRow).onActivate()
         (row(g, "openImport") as ActionRow).onActivate()
         (row(g, "setDefaultHome") as ActionRow).onActivate()
-        (row(g, "restoreDefaults") as ActionRow).onActivate()
         (row(g, "screensaverGallery") as ActionRow).onActivate()
         (row(g, "systemScreensaver") as ActionRow).onActivate()
         (row(g, "screenOff") as ActionRow).onActivate()
         (row(g, "startScreensaver") as ActionRow).onActivate()
         assertEquals(
             listOf(
-                "openEdit", "pickWallpaper", "openImport", "setDefaultHome", "restoreDefaults",
+                "openEdit", "pickWallpaper", "openImport", "setDefaultHome",
                 "openScreensaverGallery", "openSystemScreensaver", "openSystemScreenOff", "startScreensaver",
             ),
             r.fired,
@@ -309,9 +339,9 @@ class SettingsModelTest {
     @Test fun animRowOnlyWhenScaleIsNotOne() {
         val general = { sys: SystemUiStatus -> rowsWith(sys).first { it.id == GroupId.GENERAL }.rows.map { it.id } }
         assertTrue("systemAnimationScale" !in general(allNormal))
-        // 出现时排在「恢复默认」之前(R57)
+        // 出现时在组末(R57 时在「恢复默认」之前;R128 恢复默认挪进关于页)
         val with = general(allNormal.copy(animatorScale = 1.25f))
-        assertEquals(listOf("systemAnimationScale", "restoreDefaults"), with.takeLast(2))
+        assertEquals(listOf("clockDisplay", "systemAnimationScale"), with.takeLast(2))
     }
 
     @Test fun animRowCarriesFormattedScale() {

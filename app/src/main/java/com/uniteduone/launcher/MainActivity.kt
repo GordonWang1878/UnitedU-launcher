@@ -49,6 +49,12 @@ private data class ImportOrigin(val returnTo: String, val type: String)
 private const val KEY_SETTINGS_OPEN = "settingsOpen"
 /** 外壳导航栈,[encodeShellStack] 编成的一行字符串。 */
 private const val KEY_SHELL_STACK = "shellStack"
+/**
+ * 关于页开着没有 + 它的焦点目标(R128)。只随外壳栈一起种回(同一个 selfTriggeredRecreate 条件):「恢复默认」挪进关于页后,
+ * 恢复默认把语言改回跟随系统而 `recreate()` 时,重建后要落回关于页的「恢复默认」——与改前落回「通用 → 恢复默认」对应。
+ */
+private const val KEY_ABOUT_OPEN = "aboutOpen"
+private const val KEY_ABOUT_FOCUS = "aboutFocus"
 /** 见 [MainActivity.selfTriggeredRecreate] 的 KDoc、`SettingsRestorePolicy.kt`。 */
 private const val KEY_SELF_RECREATE = "selfTriggeredRecreate"
 /** 首次引导停在第几步(T10)。只在引导开着时写;还原规则见 `onCreate` 里引导那一段。 */
@@ -79,7 +85,7 @@ class MainActivity : ComponentActivity() {
     private var editing by mutableStateOf(false)
     /**
      * **设置页外壳的导航栈**(R69,取代 M7 的 `settings` 布尔量 + `settingsPos` 与齿轮菜单的 `menuOpen`)。空 = 设置关着;
-     * 每一帧是一层(第一层 / 分组 / 选项层 / 默认桌面 / 恢复默认)+ 这一层的焦点目标(胶囊 id)。进下一层时父帧的目标原样
+     * 每一帧是一层(第一层 / 分组 / 子页(R128)/ 选项层 / 默认桌面 / 恢复默认)+ 这一层的焦点目标(胶囊 id)。进下一层时父帧的目标原样
      * 留着,返回时父层按它落焦(见 [ShellFrame])。外壳叠在常驻首页之上;有预览的页把首页那一层缩进预览框(R73)。
      * 切语言 `recreate()` 经 Bundle 整栈跨过去(只在 [selfTriggeredRecreate] 时种回);HOME / MENU 一处清空([leaveSettings])。
      */
@@ -221,8 +227,18 @@ class MainActivity : ComponentActivity() {
      * `input keyevent --longpress` 注入的 UP 沿用 DOWN 的 eventTime,按时间差算永远是「短按」。
      */
     private var moveHeldDownTime = -1L
-    /** 「关于」浮层(齿轮菜单第四项,spec §7):版本号 + 手动检查更新,见 AboutScreen.kt。 */
+    /**
+     * 「关于」页开没开(外壳第一层「关于」,spec §7):版本号 + 手动检查更新 + (R128)恢复默认,见 AboutScreen.kt。
+     * 开着 ≠ 画着:从它的「恢复默认」进确认层时它让开,画不画看 [aboutShown]。
+     */
     private var about by mutableStateOf(false)
+    /**
+     * 关于页的焦点目标(胶囊 id,R128 起两颗)。每次打开写 null = 落「检查更新」;跟着焦点走(还原期间冻结,见 `CapsuleColumn`);
+     * 从恢复默认确认层回来时关于页是全新的组合,靠它落回「恢复默认」。与输入源页的 [inputsFocus] 同一写法。
+     */
+    private var aboutFocus by mutableStateOf<String?>(null)
+    /** 关于页此刻画不画(R128:恢复默认确认层在外壳栈顶时让开)。浮层、covered、返回键兜底都按它判。 */
+    private val aboutShown: Boolean get() = aboutPageShown(about, shellStack)
     /**
      * 关于页的状态机(检查 / 下载 / 校验 / 安装)。页面关掉时 [closeAbout] 调 `reset()`
      * 取消进行中的一切,所以它的寿命可以跟 Activity 走——构造时只存引用,不碰 Context。
@@ -394,6 +410,12 @@ class MainActivity : ComponentActivity() {
             // R69:整条外壳导航栈种回来(切语言时用户站在「通用 → 语言」,确定键先弹回「通用」再写盘,
             // 所以重建后落在「语言」那颗胶囊上)。认不出的栈解码成空 = 不开。
             shellStack = decodeShellStack(savedInstanceState.getString(KEY_SHELL_STACK))
+            // R128:关于页(叠在外壳第一层上)一起种回——只在外壳栈种回来了时(关于页只能从外壳第一层打开)。
+            // 状态机不跨重建,从「检查更新」的 Idle 重新开始;焦点目标原样(恢复默认那一趟是「恢复默认」)。
+            if (shellStack.isNotEmpty() && savedInstanceState.getBoolean(KEY_ABOUT_OPEN)) {
+                about = true
+                aboutFocus = savedInstanceState.getString(KEY_ABOUT_FOCUS)
+            }
         }
         // T10:引导**开没开不从 Bundle 读**(上面 resolveOnboarding 已经按 settings.json 判过),Bundle
         // 只回答「开着的话停在第几步」。**不像设置页那样卡 selfTriggeredRecreate**:设置页要卡,是因为
@@ -417,9 +439,8 @@ class MainActivity : ComponentActivity() {
                     pickWallpaper = { pickWallpaper() },
                     openImport = { openImport() },
                     // R74:默认桌面与恢复默认确认都是外壳里的一层(取代 HomeSettingsCard 浮层与 ConfirmDialog)。
+                    // 恢复默认 R128 起从关于页进(AboutScreen 的 onRestoreDefaults,见下面关于页那一段),不经这里。
                     setDefaultHome = { pushShell(ShellPages.HOME) },
-                    // 只进确认页(spec §4),真正的写盘在用户按下「恢复」之后 —— 见 confirmRestoreDefaults()。
-                    restoreDefaults = { pushShell(ShellPages.RESTORE) },
                     // T8:接回真正的 applyLanguage()——写盘,且只在 Locale 真的变了才 recreate()。
                     // 重建后的位置由 onSaveInstanceState/onCreate 经 Bundle 还原(外壳整条导航栈,见 shellStack 的 KDoc)。
                     applyLanguage = ::applyLanguage,
@@ -769,12 +790,14 @@ class MainActivity : ComponentActivity() {
                                 // `open()` 失败时已经会 toast(`toast_open_failed`,带异常信息)。
                                 if (live) open(Intent(Settings.ACTION_SETTINGS))
                             },
-                            onOpenAbout = { if (live) about = true },
+                            // R128:每次打开关于页都从「检查更新」开始(目标清空);恢复默认确认层回来时不经这里,目标留着。
+                            onOpenAbout = { if (live) { aboutFocus = null; about = true } },
                             onConfirmRestore = { if (live) confirmRestoreDefaults() },
                             onChangeHome = { if (live) switchHome() },
                             onWritten = { settingsRevision++ },
                             focusNonce = focusNonce,
-                            covered = pt != null || about || onboarding,
+                            // 关于页从「恢复默认」进确认层时让开(aboutShown 为假),外壳这时不能再当自己被盖着。
+                            covered = pt != null || aboutShown || onboarding,
                             galleryVersion = galleryVersion,
                             revision = revision,
                         )
@@ -853,11 +876,14 @@ class MainActivity : ComponentActivity() {
             // 与它们同属 [overlayOpen] 的整屏浮层家族,首页早已因 previewing 让路;
             // 焦点由页面自己的胶囊列负责(铁律 3)。状态机在 aboutFlow 里,这里只接线。
             // R108:淡入 200 / 淡出 150 ms;残影冻结在关掉前最后那个状态(关页时 aboutFlow.reset() 已把它清回 Idle)。
+            // R128:第二颗「恢复默认」推外壳的确认层——关于页随之让开(aboutShown 为假:淡出,状态机不 reset、下载照跑),
+            // 外壳不再 covered、确认层自己落焦;确认层弹栈后关于页重新出现(新的组合,淡入),按 aboutFocus 落回「恢复默认」。
             FadeSwitch(
-                state = if (about) aboutFlow.state else null,
+                state = if (aboutShown) aboutFlow.state else null,
                 enterMs = GtvLayout.SETTINGS_FADE_IN_MS,
                 exitMs = GtvLayout.SETTINGS_FADE_OUT_MS,
             ) { aboutState ->
+                val live = !LocalPageGhost.current
                 AboutScreen(
                     versionName = BuildConfig.VERSION_NAME,
                     versionCode = BuildConfig.VERSION_CODE,
@@ -867,6 +893,9 @@ class MainActivity : ComponentActivity() {
                     onInstall = aboutFlow::installReady,
                     onBack = ::onAboutBack,
                     nonce = focusNonce,
+                    target = aboutFocus,
+                    onTarget = { if (live) aboutFocus = it },
+                    onRestoreDefaults = { if (live) pushShell(ShellPages.RESTORE) },
                 )
             }
             // 首次引导(T10,spec §8)。画在最上层,而且**放在 editing 的 if/else 之外**:引导开着时
@@ -962,7 +991,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * 与 `onCreate` 的还原半成对(T8,spec §5)。只存「设置开没开」与外壳的整条导航栈(R69),
+     * 与 `onCreate` 的还原半成对(T8,spec §5)。只存「设置开没开」与外壳的整条导航栈(R69)、关于页开没开与它的焦点目标(R128),
      * 外加 [selfTriggeredRecreate] 这个一次性记号(见其 KDoc)——其余临时态(`pickerTarget` 之类)
      * recreate 后归零才是对的:它们各自只服务自己那一次交互,没有一条规则说它们要跨越一次 Activity 重建续命。
      */
@@ -971,6 +1000,9 @@ class MainActivity : ComponentActivity() {
         outState.putBoolean(KEY_SETTINGS_OPEN, shellStack.isNotEmpty())
         outState.putBoolean(KEY_SELF_RECREATE, selfTriggeredRecreate)
         if (shellStack.isNotEmpty()) outState.putString(KEY_SHELL_STACK, encodeShellStack(shellStack))
+        // R128:关于页 + 它的焦点目标(还原条件与外壳栈相同,见 onCreate)。
+        outState.putBoolean(KEY_ABOUT_OPEN, about)
+        aboutFocus?.let { outState.putString(KEY_ABOUT_FOCUS, it) }
         // T10:引导的步骤号。第 1 步选语言时 chooseOnboardingLanguage 先把它改成 2 再 recreate(),
         // 这里写下的就是 2——重建后直接落在第 2 步、已是新语言。
         if (onboarding) outState.putInt(KEY_ONB_STEP, onbStep)
@@ -1473,7 +1505,7 @@ class MainActivity : ComponentActivity() {
      * cache/ 两处:[restoredDefaults] 只动前者,library/titles.json/icons/ 一个字节都不碰
      * (纯函数,T1 已单测);壁纸缓存另调 [Wallpapers.clearCache],都在 IO 线程做。
      *
-     * R74 起确认是外壳里的一层(「恢复」胶囊先弹回「通用」再调本函数)。外壳读的是 MainActivity 的 `homeSaved`
+     * R74 起确认是外壳里的一层(「恢复」胶囊先弹栈再调本函数;R128 起确认层从关于页进,弹栈后回到关于页的「恢复默认」)。外壳读的是 MainActivity 的 `homeSaved`
      * (`settingsRevision` 驱动的同一份),所以写盘落地之后那一下 `settingsRevision++` 就是外壳的重读——
      * M7 那颗专用的 `settingsReloadNonce`(两栏设置页自己持有一份 Settings 副本时才需要)随之删掉。
      *
@@ -2027,7 +2059,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         runCatching { unregisterReceiver(packageChanges) }
-        // 关于页不跨 Activity 重建(`about` 不进 Bundle):这个实例一走,它等着用户按「安装」的
+        // 关于页的状态机不跨 Activity 重建(页面本身只在「恢复默认把语言改回跟随系统」那一趟随外壳栈种回来,
+        // 状态从 Idle 重新开始,R128):这个实例一走,它等着用户按「安装」的
         // 那份已校验文件就再没人用了,在这里丢掉;进行中的检查 / 下载本来就随 lifecycleScope 取消。
         aboutFlow.reset()
         super.onDestroy()
@@ -2058,7 +2091,8 @@ class MainActivity : ComponentActivity() {
                     inputsPage -> closeInputs()
                     // 「关于」页画在最上层,兜底也最先判(AboutScreen 自带的 BackHandler 正常会先接管)。
                     // 它开着时下面几种浮层都不可能同时在场(只能从首页齿轮菜单打开,打开时菜单已收起)。
-                    about -> onAboutBack()
+                    // R128:从它的「恢复默认」进了确认层时它让开(aboutShown 为假),返回键归外壳(下面 popShell,弹回关于页)。
+                    aboutShown -> onAboutBack()
                     // 兜底:GearMenu 自带的 BackHandler 组合时挂得更晚、正常会先接管,
                     // 但这一层不能是空的 —— 万一那条路没接住,返回键就会落进「桌面根状态什么都不做」,
                     // 菜单留在屏幕上而按键毫无反应。

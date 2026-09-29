@@ -285,7 +285,8 @@ fun BoxScope.ShellPreviewFrame(path: String, title: String, pending: String?) {
 
 /**
  * **设置页胶囊外壳**(R69,Gordon 2026-09-23 定案;取代 M7 起的「UnitedU 设置」两栏浮层与齿轮菜单第一层)。
- * 画栈顶那一层:第一层(6 颗两行胶囊)/ 四个分组页 / 选项层 / 默认桌面页 / 恢复默认确认页。
+ * 画栈顶那一层:第一层(6 颗两行胶囊)/ 四个分组页 / 子页(R128「待机」)/ 选项层 / 默认桌面页 / 恢复默认确认页。
+ * 每一页的胶囊 ≤ [MAX_CAPSULES_PER_PAGE](R128,清单见 [pageCapsuleIds],单测逐页数)。
  * 导航栈住在 MainActivity([stack],理由见 [ShellFrame]),这里只经 [onPush] / [onPop] / [onFocus] 改它。
  *
  * - 分组页:可改值的行显示当前值(同一行右对齐、更淡);选项行进选项层;滑块行聚焦时变成滑块、左右键即时调值并落盘(R72);
@@ -347,7 +348,6 @@ fun SettingsShell(
             pickWallpaper = actions.pickWallpaper,
             openImport = actions.openImport,
             setDefaultHome = actions.setDefaultHome,
-            restoreDefaults = actions.restoreDefaults,
             applyLanguage = { lang -> actions.applyLanguage(lang); written() },
             openScreensaverGallery = actions.openScreensaverGallery,
             openSystemScreensaver = actions.openSystemScreensaver,
@@ -384,6 +384,7 @@ fun SettingsShell(
         val target = top.focus ?: defaultFocus(top.page, groups)
         val groupId = ShellPages.groupOf(top.page)
         val optionsRow = ShellPages.optionsRow(top.page)
+        val subRow = ShellPages.subRow(top.page)
         when {
             top.page == ShellPages.ROOT -> {
                 val items = SHELL_ROOT.map { e ->
@@ -421,13 +422,28 @@ fun SettingsShell(
                 )
             }
 
+            // **子页**(R128「待机」):与分组页同一个画法、同一套胶囊列;行就是子页入口里的那几行(id 不变),
+            // 选项行照旧进选项层,返回落回这里进入时那颗;这一页返回落回分组页的子页入口那颗(父帧的目标原样留着)。
+            // 理论上不会找不到(只能从现存的入口进来);万一没了,退回上一层,绝不留一个空列。
+            subRow != null && subPageRow(groups, subRow) == null -> LaunchedEffect(Unit) { onPop() }
+
+            subRow != null -> {
+                val sub = subPageRow(groups, subRow)!!
+                val path = (listOf(settingsTitle) + rowParents(groups, sub.id).map { stringResource(it) }).joinToString(" · ")
+                val items = sub.rows.map { row -> groupCapsule(row, onPush, followingWallpaper = saved.followWallpaperColor) }
+                ShellScaffold(
+                    left = { ShellTitle(path, stringResource(sub.labelRes)) },
+                    right = { CapsuleColumn(items, target, onFocus, focusNonce, covered) },
+                )
+            }
+
             // 理论上不会(选项层只能从现存的行进来);万一那一行没了,退回上一层,绝不留一个空列。
             optionsRow != null && controlRow(groups, optionsRow) == null -> LaunchedEffect(Unit) { onPop() }
 
             optionsRow != null -> {
                 val row = controlRow(groups, optionsRow)!!
-                val owner = groups.first { g -> g.rows.any { it.id == optionsRow } }
-                val path = settingsTitle + " · " + stringResource(owner.titleRes)
+                // 路径 = 设置 · 所属组(· 子页,R128:待机两行的选项层是「设置 · 通用 · 待机」)。
+                val path = (listOf(settingsTitle) + rowParents(groups, optionsRow).map { stringResource(it) }).joinToString(" · ")
                 val title = stringResource(row.labelRes)
                 val items = optionOrder(row).map { i ->
                     Capsule(
@@ -470,9 +486,9 @@ fun SettingsShell(
             top.page == ShellPages.HOME -> {
                 // 取代 M7 的 HomeSettingsCard 浮层(R74):左边当前默认桌面 + 说明,右边一颗「在系统设置中更改」。
                 val home = rememberCurrentHome(revision, focusNonce)
-                val items = listOf(
-                    Capsule(SHELL_CHANGE_HOME, stringResource(R.string.home_settings_change_button), onClick = onChangeHome),
-                )
+                val items = HOME_CAPSULES.map { id ->
+                    Capsule(id, stringResource(R.string.home_settings_change_button), onClick = onChangeHome)
+                }
                 ShellScaffold(
                     left = {
                         ShellTitle(settingsTitle + " · " + stringResource(R.string.settings_group_general), stringResource(R.string.home_settings_title)) {
@@ -489,13 +505,15 @@ fun SettingsShell(
 
             top.page == ShellPages.RESTORE -> {
                 // 取代「恢复默认」ConfirmDialog(R74):默认焦点「取消」、破坏性动作在下面那颗(spec §4 终审)。
-                val items = listOf(
-                    Capsule(SHELL_CANCEL, stringResource(R.string.dialog_cancel), onClick = onPop),
-                    Capsule(SHELL_CONFIRM, stringResource(R.string.restore_ok), onClick = { onPop(); onConfirmRestore() }),
-                )
+                // R128 起从关于页的「恢复默认」进来(关于页此时让开,见 aboutPageShown):取消 / 返回 / 确定都弹栈,
+                // 关于页重新出现、落回「恢复默认」那颗。
+                val items = RESTORE_CAPSULES.map { id ->
+                    if (id == SHELL_CANCEL) Capsule(id, stringResource(R.string.dialog_cancel), onClick = onPop)
+                    else Capsule(id, stringResource(R.string.restore_ok), onClick = { onPop(); onConfirmRestore() })
+                }
                 ShellScaffold(
                     left = {
-                        ShellTitle(settingsTitle + " · " + stringResource(R.string.settings_group_general), stringResource(R.string.restore_title)) {
+                        ShellTitle(settingsTitle + " · " + stringResource(R.string.menu_about), stringResource(R.string.restore_title)) {
                             BasicText(stringResource(R.string.restore_body), style = shellBodyStyle.copy(textAlign = TextAlign.Center))
                         }
                     },
@@ -570,6 +588,19 @@ private fun groupCapsule(row: RowSpec, onPush: (String, String?) -> Unit, follow
                     dot = if (row.kind == CtrlKind.SWATCH) ThemePresets.all.getOrNull(row.selected)?.color else null,
                 ),
                 onClick = { onPush(ShellPages.options(row.id), optionId(row.selected)) },
+            )
+        }
+        is SubPageRow -> {
+            // R128:右端是子页里各行当前值的摘要(「3 分 · 时钟」)——与那几行自己显示的值同一份文案,「 · 」连接
+            // (同「系统屏保」摘要的连法)。不画 ›:与它合并掉的两行一样只显示值(可改值的行点进去也是另一层,同样不画 ›)。
+            val summary = row.rows.filterIsInstance<ControlRow>().map { r ->
+                if (r.kind == CtrlKind.SLIDER) sliderText(r) else optionLabel(r, r.selected)
+            }.joinToString(" · ")
+            Capsule(
+                id = row.id,
+                label = label,
+                trailing = Trailing.Value(summary),
+                onClick = { onPush(ShellPages.sub(row.id), row.rows.firstOrNull()?.id) },
             )
         }
         is ActionRow -> {
