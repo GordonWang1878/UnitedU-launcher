@@ -1668,3 +1668,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
   1. 编辑页连续保存会写回已卸载应用(`EditScreen.persist`):写盘成功后 `knownOnDisk` 被换成「这次写下的」,刚被 `dropRemovedElsewhere` 滤掉的已卸载包随之出集合;内存 `rows` 仍留着它(R67 看不见的包留原下标),第二次保存它被当成「本页新加」写回。修:`knownAfterWrite` = 旧集合 ∪ 写下的(只增不减);单测 `secondSaveDoesNotResurrectPackageRemovedElsewhere` 按 persist 真实顺序模拟两次保存。
   2. 并发 APK 上传互相覆盖(`UploadServer.serveApk` 固定写 `cacheDir/apk/upload.apk`,NanoHTTPD 每请求一线程):后到的请求可在前一个解析后、安装器读取前换掉文件,失败 / 后台分支还会删掉别人的。修:`UpdateFiles` 加前缀 / 归属参数,手机传 APK 用独立登记簿 `uploadApks`(`upload-<UUID>.apk`),失败分支 `release`,交给安装器的不注销、下次开服务 `sweep`;两套前缀清扫互不越界(`UpdateFilesTest` 新增用例)。`persistence-audit.md` 里当初「没改」的那一行同步改为已修。
   593 测试绿。均为静态审查结论,未在真机复现(并发上传需两台手机)。
+- 电视 adb:我先报「端口变了、要 Gordon 读端口」,Gordon 追问「你确定?」。复查:43995 确实拒绝,但 `adb mdns services` 同时列着新端口 36205,直接连上——是我 kill-server 后立刻查 mDNS 得到空表就下了结论。CLAUDE.md 与记忆已补「拒绝时先逐个试 mDNS 列出的端口」。随后把 `2ec6906` 装上 A95L + 编译(电视当时在屏保,装包结束屏保后按惯例会进待机)。
