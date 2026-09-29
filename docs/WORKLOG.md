@@ -1669,3 +1669,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
   2. 并发 APK 上传互相覆盖(`UploadServer.serveApk` 固定写 `cacheDir/apk/upload.apk`,NanoHTTPD 每请求一线程):后到的请求可在前一个解析后、安装器读取前换掉文件,失败 / 后台分支还会删掉别人的。修:`UpdateFiles` 加前缀 / 归属参数,手机传 APK 用独立登记簿 `uploadApks`(`upload-<UUID>.apk`),失败分支 `release`,交给安装器的不注销、下次开服务 `sweep`;两套前缀清扫互不越界(`UpdateFilesTest` 新增用例)。`persistence-audit.md` 里当初「没改」的那一行同步改为已修。
   593 测试绿。均为静态审查结论,未在真机复现(并发上传需两台手机)。
 - 电视 adb:我先报「端口变了、要 Gordon 读端口」,Gordon 追问「你确定?」。复查:43995 确实拒绝,但 `adb mdns services` 同时列着新端口 36205,直接连上——是我 kill-server 后立刻查 mDNS 得到空表就下了结论。CLAUDE.md 与记忆已补「拒绝时先逐个试 mDNS 列出的端口」。随后把 `2ec6906` 装上 A95L + 编译(电视当时在屏保,装包结束屏保后按惯例会进待机)。
+- **Codex 复审 `2ec6906`:新增一条 P2,核实成立,已修**:`serveApk` 在 NEEDS_PERMISSION / INVALID 两个结局没有 `release`,文件一直登记为使用中,`sweep` 永远跳过,每次重试多一份,直到进程重启。改为只有 STARTED 保留(`keepUploadedApk`),其余结局与等待主线程回合时的异常一律释放;单测 `onlyStartedUploadKeepsTheApk` 覆盖全部枚举值。594 测试绿。

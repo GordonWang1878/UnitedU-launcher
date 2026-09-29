@@ -128,4 +128,17 @@ class UpdateFilesTest {
         UpdateFiles(dir).sweep()
         assertTrue(a.exists() && b.exists())
     }
+
+    /** 2026-09-30 Codex 复审 P2:只有交给安装器(STARTED)才保留登记,其余结局释放——否则 sweep 永远跳过、每次重试多一份。 */
+    @Test fun onlyStartedUploadKeepsTheApk() {
+        assertTrue(keepUploadedApk(ApkInstaller.Result.STARTED))
+        for (r in ApkInstaller.Result.values().filter { it != ApkInstaller.Result.STARTED }) {
+            assertFalse("$r 应释放", keepUploadedApk(r))
+        }
+        // 释放之后 sweep 能清掉(登记簿里没了)
+        val uploads = UpdateFiles(dir, "upload-", ::isUploadApkName)
+        val f = uploads.reserve(".apk").apply { writeText("x") }
+        uploads.release(f)
+        assertFalse(uploads.isInUse(f) || f.exists())
+    }
 }

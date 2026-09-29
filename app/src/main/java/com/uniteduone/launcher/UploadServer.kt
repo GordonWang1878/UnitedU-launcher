@@ -306,7 +306,16 @@ class UploadServer(
             ApkInstaller.install(ctx, dst)
         }
         main.post(task)
-        return when (task.get()) {
+        // 只有真正交给了安装器(STARTED)才保留登记(2026-09-30 Codex 复审 P2):NEEDS_PERMISSION / INVALID / BACKGROUND
+        // 都没人再用这个文件,留着登记会让 sweep 永远跳过它,每次重试多一份;等待主线程回合时抛异常同样释放再上抛。
+        val result = try {
+            task.get()
+        } catch (e: Exception) {
+            apks.release(dst)
+            throw e
+        }
+        if (!keepUploadedApk(result)) apks.release(dst)
+        return when (result) {
             ApkInstaller.Result.STARTED ->
                 json(Response.Status.OK, jsonOk("\"package\":${jsonStr(info.first)},\"version\":${jsonStr(info.second)}"))
             ApkInstaller.Result.NEEDS_PERMISSION -> {
@@ -314,8 +323,8 @@ class UploadServer(
                 json(Response.Status.OK, jsonFail("needs-permission"))
             }
             ApkInstaller.Result.INVALID -> json(Response.Status.OK, jsonFail("invalid"))
-            // 没装,暂存文件立刻删掉:窗口没被续,页面照原到期时间关,这个文件也不该留到下次。
-            ApkInstaller.Result.BACKGROUND -> { apks.release(dst); json(Response.Status.OK, jsonFail("background")) }
+            // 没装(文件上面已释放):窗口没被续,页面照原到期时间关。
+            ApkInstaller.Result.BACKGROUND -> json(Response.Status.OK, jsonFail("background"))
         }
     }
 
@@ -491,6 +500,9 @@ fun webStringsJson(ctx: Context): String {
     return (keys.mapValues { ctx.getString(it.value) } + plurals).entries
         .joinToString(",", "{", "}") { (k, v) -> "${jsonStr(k)}:${jsonStr(v)}" }
 }
+
+/** 上传的 APK 在这个安装结局之后还要不要留着:只有交给了系统安装器(它经 FileProvider 异步读)才留。 */
+fun keepUploadedApk(result: ApkInstaller.Result): Boolean = result == ApkInstaller.Result.STARTED
 
 /** 手机传来的 APK 的文件名:每次上传 `upload-<唯一名>.apk`,以及旧版固定名 `upload.apk`(清扫时一并清掉)。 */
 fun isUploadApkName(name: String): Boolean =
