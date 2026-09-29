@@ -1670,3 +1670,5 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
   593 测试绿。均为静态审查结论,未在真机复现(并发上传需两台手机)。
 - 电视 adb:我先报「端口变了、要 Gordon 读端口」,Gordon 追问「你确定?」。复查:43995 确实拒绝,但 `adb mdns services` 同时列着新端口 36205,直接连上——是我 kill-server 后立刻查 mDNS 得到空表就下了结论。CLAUDE.md 与记忆已补「拒绝时先逐个试 mDNS 列出的端口」。随后把 `2ec6906` 装上 A95L + 编译(电视当时在屏保,装包结束屏保后按惯例会进待机)。
 - **Codex 复审 `2ec6906`:新增一条 P2,核实成立,已修**:`serveApk` 在 NEEDS_PERMISSION / INVALID 两个结局没有 `release`,文件一直登记为使用中,`sweep` 永远跳过,每次重试多一份,直到进程重启。改为只有 STARTED 保留(`keepUploadedApk`),其余结局与等待主线程回合时的异常一律释放;单测 `onlyStartedUploadKeepsTheApk` 覆盖全部枚举值。594 测试绿。
+- Codex 复审 `c4ce78b`:未发现新问题,上一轮 P2 关闭(三个非 STARTED 结局与 `task.get()` 异常都释放;594 测试绿)。**本轮 Code Review 结束,3 条 P2 全部修复**。
+- Gordon 换了两张内置卡片图:`03-youtube.webp` / `04-iqiyi.webp` → `03-youtube.jpg` / `04-iqiyi.jpg`(512×288,16:9 横幅)。ID 取去扩展名的文件名,不变,已选过的记录不受影响;已经套用过旧图的应用(复制在 `icons/<包名>.png`)不会自动换,要重新选一次。卡片图不走 HDR 脚本。594 测试绿,装 A95L + 编译。
