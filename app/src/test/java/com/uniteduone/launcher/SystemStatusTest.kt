@@ -180,22 +180,20 @@ class SystemStatusTest {
         assertEquals(listOf(HintPart.Res(R.string.settings_sys_view)), screenOffSummary(SystemUiStatus.UNKNOWN.screenOff))
     }
 
-    /** R127b:先试索尼节能控制面板(只有索尼解析得到),别家落系统设置首页。 */
-    @Test fun screenOffChainTriesSonyEcoDashboardThenSystemSettings() {
-        assertEquals(
-            listOf(
-                SystemPage(action = "com.sony.dtv.ecodashboard.intent.action.START_ECODASHBOARD"),
-                SystemPage(action = "android.settings.SETTINGS"),
-            ),
-            SCREEN_OFF_SETTINGS_PAGES,
-        )
+    /** R127c:那一页没有直达入口,只开系统设置首页(索尼节能控制面板是索尼独有的,Gordon 否掉)。 */
+    @Test fun screenOffChainIsSystemSettingsOnly() {
+        assertEquals(listOf(SystemPage(action = "android.settings.SETTINGS")), SCREEN_OFF_SETTINGS_PAGES)
     }
 
-    /** R127b:小字跟着落点走——索尼面板 / TvSettings 首页的固定路径 / 别家首页的通用提示。 */
-    @Test fun screenOffNoteFollowsDestination() {
-        assertEquals(R.string.settings_screen_off_where_sony, screenOffNoteRes(ScreenOffWhere.SONY_ECO))
-        assertEquals(R.string.settings_screen_off_where, screenOffNoteRes(ScreenOffWhere.TV_SETTINGS))
-        assertEquals(R.string.settings_screen_off_where_generic, screenOffNoteRes(ScreenOffWhere.GENERIC))
+    /** R127c:小字用电视自己的菜单名拼路径;读不到给通用提示。 */
+    @Test fun screenOffNoteUsesTvMenuNames() {
+        assertEquals(
+            R.string.settings_screen_off_where to listOf("系统 → 电源和能耗 → 自动关闭"),
+            screenOffNote(listOf("系统", "电源和能耗", "自动关闭")),
+        )
+        assertEquals(R.string.settings_screen_off_where to listOf("System → Shut-Off Timer"), screenOffNote(listOf("System", "Shut-Off Timer")))
+        assertEquals(R.string.settings_screen_off_where_generic to emptyList<Any>(), screenOffNote(null))
+        assertEquals(R.string.settings_screen_off_where_generic to emptyList<Any>(), screenOffNote(emptyList()))
     }
 
     /** 候选链的顺序与退路(理由见 DREAM_SETTINGS_PAGES 的 KDoc)。 */

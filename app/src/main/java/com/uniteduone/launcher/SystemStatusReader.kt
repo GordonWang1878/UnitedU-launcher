@@ -45,8 +45,8 @@ fun readSystemUiStatus(ctx: Context): SystemUiStatus {
         val raw = Settings.Global.getString(cr, key) ?: return@safe 1f
         raw.trim().toFloatOrNull()
     }
-    // R127b:按候选链 SCREEN_OFF_SETTINGS_PAGES 的解析结果定小字(索尼节能控制面板 / TvSettings 首页 / 别家首页)。
-    val where = safe("screen_off_where") { screenOffWhere(ctx) } ?: ScreenOffWhere.GENERIC
+    // R127c:从电视自己的设置应用里读「关闭屏幕」那一页的菜单路径(各家叫法不同),读不到 → 通用提示。
+    val path = safe("screen_off_path") { screenOffPath(ctx) }
     return SystemUiStatus(
         screensaverEnabled = enabled,
         screensaverSource = source,
@@ -55,18 +55,44 @@ fun readSystemUiStatus(ctx: Context): SystemUiStatus {
         transitionScale = scale(Settings.Global.TRANSITION_ANIMATION_SCALE),
         windowScale = scale(Settings.Global.WINDOW_ANIMATION_SCALE),
         screenOff = screenOff,
-        screenOffWhere = where,
+        screenOffPath = path,
     )
 }
 
-private fun screenOffWhere(ctx: Context): ScreenOffWhere {
+/**
+ * R127c:打开「系统设置」会落到哪个应用,就去那个应用的资源里找「关闭屏幕」那一页的菜单名(电视当前语言)。
+ * 只认 TvSettings 系(AOSP / Google TV / 索尼都是):偏好页 xml 里 `android:fragment` 以 `EnergySaverFragment`
+ * 结尾的那一项就是它——索尼标题「自动关闭」、Google TV「关机定时器」,不写死。先找 `power_and_energy`(新布局:
+ * 系统 → 电源和能耗 → X),再找 `device`(老布局:系统 → X)。任何一步对不上 → null(小字退通用提示)。
+ */
+private fun screenOffPath(ctx: Context): List<String>? {
     val pm = ctx.packageManager
-    fun resolve(action: String) = pm.resolveActivity(
-        android.content.Intent(action), android.content.pm.PackageManager.MATCH_DEFAULT_ONLY,
-    )?.activityInfo
-    if (resolve(SONY_ECO_DASHBOARD_ACTION)?.exported == true) return ScreenOffWhere.SONY_ECO
-    return if (resolve("android.settings.SETTINGS")?.packageName == "com.android.tv.settings") ScreenOffWhere.TV_SETTINGS
-    else ScreenOffWhere.GENERIC
+    val pkg = pm.resolveActivity(
+        android.content.Intent("android.settings.SETTINGS"), android.content.pm.PackageManager.MATCH_DEFAULT_ONLY,
+    )?.activityInfo?.packageName ?: return null
+    val res = pm.getResourcesForApplication(pkg)
+    fun str(name: String): String? =
+        res.getIdentifier(name, "string", pkg).takeIf { it != 0 }?.let { res.getString(it) }?.takeIf { it.isNotBlank() }
+    val ns = "http://schemas.android.com/apk/res/android"
+    fun energySaverTitle(xml: String): String? {
+        val id = res.getIdentifier(xml, "xml", pkg).takeIf { it != 0 } ?: return null
+        val p = res.getXml(id)
+        try {
+            while (p.next() != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+                if (p.eventType != org.xmlpull.v1.XmlPullParser.START_TAG) continue
+                if (p.getAttributeValue(ns, "fragment")?.endsWith(".EnergySaverFragment") != true) continue
+                val t = p.getAttributeResourceValue(ns, "title", 0)
+                return (if (t != 0) res.getString(t) else p.getAttributeValue(ns, "title"))?.takeIf { it.isNotBlank() }
+            }
+        } finally {
+            p.close()
+        }
+        return null
+    }
+    val system = str("device_pref_category_title") ?: return null
+    energySaverTitle("power_and_energy")?.let { item -> str("power_and_energy")?.let { return listOf(system, it, item) } }
+    energySaverTitle("device")?.let { return listOf(system, it) }
+    return null
 }
 
 /**

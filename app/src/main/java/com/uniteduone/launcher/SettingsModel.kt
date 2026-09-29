@@ -87,6 +87,8 @@ data class ActionRow(
      * 只有「关闭屏幕」行用它(R127):那一页在系统设置里没有直达入口,小字写去哪改。
      */
     val noteRes: Int? = null,
+    /** [noteRes] 的格式化参数(R127c:菜单路径是从电视设置应用里读出来的,没有资源 id)。 */
+    val noteArgs: List<Any> = emptyList(),
     val onActivate: () -> Unit,
 ) : RowSpec
 
@@ -394,14 +396,15 @@ fun settingsGroups(
                     onActivate = { actions.openSystemScreensaver() },
                 ),
                 // R127(2026-09-29 Gordon):紧跟「系统屏保」。值读 secure sleep_timeout(「无操作 24 小时后」;读不到「查看」),
-                // 小字写系统里去哪改;确定键先试索尼节能控制面板(R127b),别的品牌落系统设置首页,小字随落点变。只读,不写任何系统设置。
+                // 小字写系统里去哪改(路径用电视自己的菜单名,R127c);确定键开系统设置首页(那一页没有直达入口)。只读,不写任何系统设置。
                 // 常驻行(不是条件行),胶囊 id 就是行 id。
                 ActionRow(
                     "screenOff",
                     R.string.settings_screen_off,
                     hintRes = null,
                     hintParts = screenOffSummary(system.screenOff),
-                    noteRes = screenOffNoteRes(system.screenOffWhere),
+                    noteRes = screenOffNote(system.screenOffPath).first,
+                    noteArgs = screenOffNote(system.screenOffPath).second,
                     onActivate = { actions.openSystemScreenOff() },
                 ),
             ),

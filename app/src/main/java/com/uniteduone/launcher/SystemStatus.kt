@@ -38,8 +38,12 @@ data class SystemUiStatus(
      * ([sleepTimeoutDisplay])。与其他字段一样 null = 读不到;键**没设过**不是读不到,是平台缺省「从不」。
      */
     val screenOff: TimeoutDisplay? = null,
-    /** 「关闭屏幕」行按下去会落到哪种系统页(R127b),决定行下小字写什么([screenOffNoteRes])。 */
-    val screenOffWhere: ScreenOffWhere = ScreenOffWhere.TV_SETTINGS,
+    /**
+     * 电视设置里「关闭屏幕」那一页的菜单路径(R127c),**用电视自己设置应用里的真实菜单名**、按电视当前语言:
+     * 索尼 [系统, 电源和能耗, 自动关闭],Google TV 原生 [系统, 电源和能耗, 关机定时器];老布局没有「电源和能耗」时两段。
+     * null = 读不到(不是 TvSettings 系的设置应用,或资源名对不上)→ 小字给通用提示。见 [screenOffNote]。
+     */
+    val screenOffPath: List<String>? = null,
 ) {
     companion object {
         /** 一项都没读到(读取器还没跑、或者整块被系统挡掉)。 */
@@ -244,33 +248,20 @@ internal val ANIMATION_SETTINGS_PAGES = listOf(
  * 行下的小字告诉人往哪走。仍写成链、走同一个 `openSystemPage`(弹回检测):以后找到直达电源页的入口,加在最前面即可。
  */
 internal val SCREEN_OFF_SETTINGS_PAGES = listOf(
-    SystemPage(action = SONY_ECO_DASHBOARD_ACTION),
     SystemPage(action = "android.settings.SETTINGS"), // Settings.ACTION_SETTINGS
 )
 
 /**
- * 索尼「节能控制面板」(`com.sony.dtv.ecodashboard/.presentation.activity.EcoDashboardActivity`,exported)。
- * R127b(2026-09-29 Gordon:「跳一级设置页不够」):它第一屏就有「处于非活动状态时关闭」卡(改的正是 `sleep_timeout`,
- * 该 APK 里有这个键名),点一下就能改——比设置首页往里走三层近。只有索尼解析得到,别的品牌自动落到下一项。
- * 这个 action 也是索尼自己的「电源和能耗 → 节能控制面板」入口用的(TvSettings `power_and_energy.xml` 的 intent)。
- * 没找到能直接定位到那张卡的参数(Activity 只读 `LaunchFrom`),所以落在面板第一屏。
+ * 「关闭屏幕」行下的小字(R127c):读得到路径 →「在 系统 → 电源和能耗 → 自动关闭 里修改」(路径用电视自己的菜单名,
+ * 各家叫法不同:索尼「自动关闭」、Google TV 原生「关机定时器」);读不到 → 通用提示。返回 (资源 id, 参数)。
+ *
+ * 为什么不直达那一页(2026-09-29 查过索尼与 Google TV 两份 TvSettings):那一页是 `EnergySaverFragment`,只作为
+ * 偏好页里的 fragment 出现,`MainSettings` / `TvSettingsActivity` 永远从首页开、不读任何「跳到哪页」的参数,
+ * 没有公开 intent;R127b 用过的索尼「节能控制面板」是索尼独有的,Gordon 否掉(要适用尽量多的安卓电视)。
  */
-internal const val SONY_ECO_DASHBOARD_ACTION = "com.sony.dtv.ecodashboard.intent.action.START_ECODASHBOARD"
-
-/**
- * 「关闭屏幕」行按下去实际会到哪里(R127b):按候选链的解析结果定,行下小字跟着变,不写错路。
- * - [SONY_ECO]:索尼节能控制面板(链的第一项解析得到);
- * - [TV_SETTINGS]:落到 AOSP / Google TV 的 TvSettings 首页(`com.android.tv.settings`),小字写「系统 → 电源和能耗 → 关闭显示屏」;
- * - [GENERIC]:别的厂商的设置首页,路径未知,小字只给通用提示。
- */
-enum class ScreenOffWhere { SONY_ECO, TV_SETTINGS, GENERIC }
-
-/** [ScreenOffWhere] → 行下小字。 */
-fun screenOffNoteRes(where: ScreenOffWhere): Int = when (where) {
-    ScreenOffWhere.SONY_ECO -> R.string.settings_screen_off_where_sony
-    ScreenOffWhere.TV_SETTINGS -> R.string.settings_screen_off_where
-    ScreenOffWhere.GENERIC -> R.string.settings_screen_off_where_generic
-}
+fun screenOffNote(path: List<String>?): Pair<Int, List<Any>> =
+    if (path.isNullOrEmpty()) R.string.settings_screen_off_where_generic to emptyList()
+    else R.string.settings_screen_off_where to listOf(path.joinToString(" → "))
 
 /**
  * 启动系统页之后,本 Activity 在这么短的时间内就回到前台(或根本没离开)= 那一页没真正打开(当场 finish / 崩溃),

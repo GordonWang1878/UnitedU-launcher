@@ -379,9 +379,10 @@ class SettingsModelTest {
         assertEquals(R.string.settings_screen_off, row.labelRes)
         assertNull(row.hintRes)
         assertEquals(listOf(HintPart.Res(R.string.settings_sys_idle_hours, listOf(24))), row.hintParts)
-        assertEquals(R.string.settings_screen_off_where, row.noteRes)
-        val sony = row(rowsWith(allNormal.copy(screenOffWhere = ScreenOffWhere.SONY_ECO)), "screenOff") as ActionRow
-        assertEquals(R.string.settings_screen_off_where_sony, sony.noteRes)
+        assertEquals(R.string.settings_screen_off_where_generic, row.noteRes)
+        val sony = row(rowsWith(allNormal.copy(screenOffPath = listOf("系统", "电源和能耗", "自动关闭"))), "screenOff") as ActionRow
+        assertEquals(R.string.settings_screen_off_where, sony.noteRes)
+        assertEquals(listOf<Any>("系统 → 电源和能耗 → 自动关闭"), sony.noteArgs)
         val never = row(rowsWith(allNormal.copy(screenOff = TimeoutDisplay.Never)), "screenOff") as ActionRow
         assertEquals(listOf(HintPart.Res(R.string.settings_sys_never)), never.hintParts)
         val unknown = row(rowsWith(SystemUiStatus.UNKNOWN), "screenOff") as ActionRow

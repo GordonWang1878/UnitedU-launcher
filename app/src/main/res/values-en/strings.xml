@@ -190,9 +190,8 @@
     <string name="settings_sys_hours">%1$d hr</string>
     <!-- R127: Screensaver group "Screen Off" row (reads secure sleep_timeout, OK opens system settings); the path uses Sony TvSettings' English labels -->
     <string name="settings_screen_off">Screen Off</string>
-    <string name="settings_screen_off_where">Change in System → Power &amp; Energy → Turn off display</string>
-    <string name="settings_screen_off_where_sony">Change in Eco Dashboard → Shut-off when inactive</string>
-    <string name="settings_screen_off_where_generic">Look for “Turn off display” or “Sleep” in TV settings</string>
+    <string name="settings_screen_off_where">Change in %1$s</string>
+    <string name="settings_screen_off_where_generic">Look for “Auto shut-off”, “Shut-Off Timer” or “Turn off display” in TV settings</string>
     <string name="settings_sys_idle_hours">After %1$d hr idle</string>
     <string name="settings_sys_idle_minutes">After %1$d min idle</string>
     <string name="settings_sys_idle_hours_minutes">After %1$d hr %2$d min idle</string>

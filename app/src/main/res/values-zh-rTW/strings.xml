@@ -182,9 +182,8 @@
     <string name="settings_sys_hours">%1$d 小時</string>
     <!-- R127:螢幕保護組「關閉螢幕」行;路徑取自索尼 TvSettings 的繁體中文(台灣)文案 -->
     <string name="settings_screen_off">關閉螢幕</string>
-    <string name="settings_screen_off_where">在 系統 → 開關和電源 → 關閉螢幕 裡修改</string>
-    <string name="settings_screen_off_where_sony">在 節能儀表板 → 不活躍時關閉 裡修改</string>
-    <string name="settings_screen_off_where_generic">在電視設定裡找「關閉螢幕」或「休眠」</string>
+    <string name="settings_screen_off_where">在 %1$s 裡修改</string>
+    <string name="settings_screen_off_where_generic">在電視設定裡找「自動關閉」「關機計時器」或「關閉螢幕」</string>
     <string name="settings_sys_idle_hours">閒置 %1$d 小時後</string>
     <string name="settings_sys_idle_minutes">閒置 %1$d 分鐘後</string>
     <string name="settings_sys_idle_hours_minutes">閒置 %1$d 小時 %2$d 分鐘後</string>

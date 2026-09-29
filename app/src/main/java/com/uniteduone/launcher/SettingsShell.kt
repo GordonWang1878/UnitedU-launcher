@@ -623,7 +623,7 @@ private fun groupCapsule(row: RowSpec, onPush: (String, String?) -> Unit, follow
                 id = row.id,
                 label = label,
                 // R127:标签下方的小字(「关闭屏幕」行写去哪改),与第一层的说明小字同一个样式;值照旧在右端。
-                hint = row.noteRes?.let { stringResource(it) },
+                hint = row.noteRes?.let { if (row.noteArgs.isEmpty()) stringResource(it) else stringResource(it, *row.noteArgs.toTypedArray()) },
                 trailing = when {
                     value != null -> Trailing.Value(value, chevron = !jump)
                     jump -> Trailing.None

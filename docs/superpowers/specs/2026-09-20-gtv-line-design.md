@@ -516,7 +516,7 @@ cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的�
 
 | 裁定 | 时间 / 来源 | 内容 | 现状 |
 |---|---|---|---|
-| R127b | 2026-09-29 Gordon | 「关闭屏幕」先跳索尼节能控制面板,别家落设置首页;小字按落点三选一 | 现行;A95L 已装,待 Gordon 看 |
+| R127b | 2026-09-29 Gordon | 「关闭屏幕」先跳索尼节能控制面板,别家落设置首页;小字按落点三选一 | 被 R127c 推翻(节能控制面板是索尼独有的) |
 
 ### 2026-09-29 首页换行:新焦点行晚一拍淡入(R129,Gordon:照 Google)
 
@@ -538,3 +538,14 @@ cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的�
 | 裁定 | 时间 / 来源 | 内容 | 现状 |
 |---|---|---|---|
 | R129 | 2026-09-29 Gordon(照 Google 实测) | 首页换行时新焦点行若换行前看不见(屏外或透明度 < 0.5),进场乘子从换行前透明度起、停 140 ms 再 250 ms FastOutSlowIn 淡到 1,与 450 ms 位移同帧起算;上下键同规则(我们的几何下单按上键不触发);只在首页,移动态不淡;行图层上下撑大柔光宽度 | 现行;待 Gordon 电视上看 |
+
+### 2026-09-29 「关闭屏幕」:去掉索尼面板,小字读电视自己的菜单名(R127c,推翻 R127b)
+
+- Gordon:「节能控制面板是索尼特有的,做产品要适用更多安卓电视,不要用」;应直达「系统 → 电源和能耗 → 自动关闭」。查两份 TvSettings(A95L 的 SonyTvSettings、`unitedu-gtv` 的 Google `TvSettingsTwoPanel`):那一页是 `EnergySaverFragment`,只在偏好页 xml(`power_and_energy` / 老布局 `device`)里当 fragment 出现;`MainSettings` / `TvSettingsActivity.createSettingsFragment` 固定开首页、不读任何参数;全清单没有能开它的 exported activity——**没有外部直达入口**,AOSP 与索尼同一份代码,不是索尼独有的限制。
+- **做法**:候选链只剩 `android.settings.SETTINGS`(首页)。小字 `screenOffNote(path)`:`readSystemUiStatus` 解析「系统设置」落到哪个应用,在它的资源里读 `device_pref_category_title`、`power_and_energy`,再在偏好页 xml 里找 `android:fragment` 以 `.EnergySaverFragment` 结尾那一项的标题——**各家叫法不同,不写死**:索尼「自动关闭」、Google TV「关机定时器 / Shut-Off Timer」(AOSP 的「关闭显示屏」是那一页里的另一个标题)。按电视当前语言读(用户看到的就是这些字)。读不到 → 通用提示「在电视设置里找「自动关闭」「关机定时器」或「关闭显示屏」」。
+- 验证:`unitedu-gtv`(Google TV 镜像)上该行小字 =「Change in System → Power & Energy → Shut-Off Timer」,值「After 20 min idle」;单测 590 绿。
+
+| 裁定 | 时间 / 来源 | 内容 | 现状 |
+|---|---|---|---|
+| R127c | 2026-09-29 Gordon | 去掉索尼节能控制面板;确定键开设置首页(那一页无外部入口);小字路径从电视设置应用里读真实菜单名 | 现行;A95L 待 Gordon 看 |
+
