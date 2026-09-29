@@ -226,11 +226,13 @@ object Theme {
      * **Ruling R129**:首页换行时新焦点行的进场乘子(起点 → 1)的规格——先停 [GtvLayout.ROW_ENTER_DELAY_MS],
      * 再 `tween(`[GtvLayout.ROW_ENTER_FADE_MS]`, FastOutSlowIn)`。与整页位移([homeVerticalShiftSpec])在同一次按键里
      * 同时起算;位移曲线不受影响。数值依据见 [GtvLayout.ROW_ENTER_DELAY_MS]。
+     * **R129e 起曲线 FastOutSlowIn → Linear**:FastOutSlowIn 在 35 % 时长就到 0.5,后半段的差别落在画面停下之后,
+     * Gordon 把时长 250 → 400 也「没有感受到变化」(电视录像证实新值已生效);匀速让亮度均匀升起来。
      */
     fun homeRowEnterSpec(): androidx.compose.animation.core.TweenSpec<Float> = androidx.compose.animation.core.tween(
         GtvLayout.ROW_ENTER_FADE_MS,
         delayMillis = GtvLayout.ROW_ENTER_DELAY_MS,
-        easing = androidx.compose.animation.core.FastOutSlowInEasing,
+        easing = androidx.compose.animation.core.LinearEasing,
     )
 
     /**
