@@ -180,9 +180,22 @@ class SystemStatusTest {
         assertEquals(listOf(HintPart.Res(R.string.settings_sys_view)), screenOffSummary(SystemUiStatus.UNKNOWN.screenOff))
     }
 
-    /** 索尼没有直达「关闭显示屏」的公开入口:今天链上只有系统设置首页(以后找到入口加在最前面)。 */
-    @Test fun screenOffChainEndsAtSystemSettings() {
-        assertEquals(listOf(SystemPage(action = "android.settings.SETTINGS")), SCREEN_OFF_SETTINGS_PAGES)
+    /** R127b:先试索尼节能控制面板(只有索尼解析得到),别家落系统设置首页。 */
+    @Test fun screenOffChainTriesSonyEcoDashboardThenSystemSettings() {
+        assertEquals(
+            listOf(
+                SystemPage(action = "com.sony.dtv.ecodashboard.intent.action.START_ECODASHBOARD"),
+                SystemPage(action = "android.settings.SETTINGS"),
+            ),
+            SCREEN_OFF_SETTINGS_PAGES,
+        )
+    }
+
+    /** R127b:小字跟着落点走——索尼面板 / TvSettings 首页的固定路径 / 别家首页的通用提示。 */
+    @Test fun screenOffNoteFollowsDestination() {
+        assertEquals(R.string.settings_screen_off_where_sony, screenOffNoteRes(ScreenOffWhere.SONY_ECO))
+        assertEquals(R.string.settings_screen_off_where, screenOffNoteRes(ScreenOffWhere.TV_SETTINGS))
+        assertEquals(R.string.settings_screen_off_where_generic, screenOffNoteRes(ScreenOffWhere.GENERIC))
     }
 
     /** 候选链的顺序与退路(理由见 DREAM_SETTINGS_PAGES 的 KDoc)。 */

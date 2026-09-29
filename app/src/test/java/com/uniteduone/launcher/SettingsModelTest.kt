@@ -380,6 +380,8 @@ class SettingsModelTest {
         assertNull(row.hintRes)
         assertEquals(listOf(HintPart.Res(R.string.settings_sys_idle_hours, listOf(24))), row.hintParts)
         assertEquals(R.string.settings_screen_off_where, row.noteRes)
+        val sony = row(rowsWith(allNormal.copy(screenOffWhere = ScreenOffWhere.SONY_ECO)), "screenOff") as ActionRow
+        assertEquals(R.string.settings_screen_off_where_sony, sony.noteRes)
         val never = row(rowsWith(allNormal.copy(screenOff = TimeoutDisplay.Never)), "screenOff") as ActionRow
         assertEquals(listOf(HintPart.Res(R.string.settings_sys_never)), never.hintParts)
         val unknown = row(rowsWith(SystemUiStatus.UNKNOWN), "screenOff") as ActionRow

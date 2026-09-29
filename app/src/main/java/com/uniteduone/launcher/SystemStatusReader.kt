@@ -45,6 +45,8 @@ fun readSystemUiStatus(ctx: Context): SystemUiStatus {
         val raw = Settings.Global.getString(cr, key) ?: return@safe 1f
         raw.trim().toFloatOrNull()
     }
+    // R127b:按候选链 SCREEN_OFF_SETTINGS_PAGES 的解析结果定小字(索尼节能控制面板 / TvSettings 首页 / 别家首页)。
+    val where = safe("screen_off_where") { screenOffWhere(ctx) } ?: ScreenOffWhere.GENERIC
     return SystemUiStatus(
         screensaverEnabled = enabled,
         screensaverSource = source,
@@ -53,7 +55,18 @@ fun readSystemUiStatus(ctx: Context): SystemUiStatus {
         transitionScale = scale(Settings.Global.TRANSITION_ANIMATION_SCALE),
         windowScale = scale(Settings.Global.WINDOW_ANIMATION_SCALE),
         screenOff = screenOff,
+        screenOffWhere = where,
     )
+}
+
+private fun screenOffWhere(ctx: Context): ScreenOffWhere {
+    val pm = ctx.packageManager
+    fun resolve(action: String) = pm.resolveActivity(
+        android.content.Intent(action), android.content.pm.PackageManager.MATCH_DEFAULT_ONLY,
+    )?.activityInfo
+    if (resolve(SONY_ECO_DASHBOARD_ACTION)?.exported == true) return ScreenOffWhere.SONY_ECO
+    return if (resolve("android.settings.SETTINGS")?.packageName == "com.android.tv.settings") ScreenOffWhere.TV_SETTINGS
+    else ScreenOffWhere.GENERIC
 }
 
 /**

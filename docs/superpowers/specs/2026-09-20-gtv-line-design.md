@@ -507,3 +507,14 @@ cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的�
 | 裁定 | 时间 / 来源 | 内容 | 现状 |
 |---|---|---|---|
 | R128 | 2026-09-29 Gordon(方案 A) | 设置页每页胶囊 ≤ 6(条件行按全部出现算,单测逐页数);通用的待机时长 + 待机显示合成「待机」子页(右端摘要「3 分 · 时钟」);恢复默认挪进关于页(第二颗,确认层回来落回它);第一层关于 / 屏保说明更新 | 现行;待 Gordon 电视上看 |
+
+### 2026-09-29 「关闭屏幕」跳转改进(R127b,Gordon:「跳一级设置页不够」)
+
+- 候选链 `SCREEN_OFF_SETTINGS_PAGES` 前面加**索尼节能控制面板**(`com.sony.dtv.ecodashboard.intent.action.START_ECODASHBOARD` → `EcoDashboardActivity`,exported;面板第一屏有「处于非活动状态时关闭」卡,该 APK 读写的正是 `sleep_timeout`)。没找到定位到那张卡的参数(Activity 只读 `LaunchFrom`),落在面板第一屏。别的品牌解析不到,自动落到系统设置首页。
+- **小字跟着落点变**(`ScreenOffWhere`,读快照时按链的解析结果定):索尼 →「在 节能控制面板 → 处于非活动状态时关闭 里修改」;TvSettings 首页(`com.android.tv.settings`,Google TV 原生)→ 原路径「系统 → 电源和能耗 → 关闭显示屏」;别家首页 →「在电视设置里找「关闭显示屏」或「休眠」」。三语文案取自索尼 APK(繁中「節能儀表板 → 不活躍時關閉」,英文「Eco Dashboard → Shut-off when inactive」)。
+- 品牌差异(Gordon 问):数值(`sleep_timeout`)是安卓标准,所有安卓电视一样;跳转目标只能逐品牌适配——TCL / 创维 / 海信等拿到真机再查、查到就往链的最前面加;三星(Tizen)/ LG(webOS)不是安卓,装不了 UnitedU。
+
+| 裁定 | 时间 / 来源 | 内容 | 现状 |
+|---|---|---|---|
+| R127b | 2026-09-29 Gordon | 「关闭屏幕」先跳索尼节能控制面板,别家落设置首页;小字按落点三选一 | 现行;A95L 已装,待 Gordon 看 |
+

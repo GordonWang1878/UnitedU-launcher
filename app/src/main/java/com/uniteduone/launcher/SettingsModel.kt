@@ -394,14 +394,14 @@ fun settingsGroups(
                     onActivate = { actions.openSystemScreensaver() },
                 ),
                 // R127(2026-09-29 Gordon):紧跟「系统屏保」。值读 secure sleep_timeout(「无操作 24 小时后」;读不到「查看」),
-                // 小字写系统里去哪改(索尼没有直达那一页的公开入口),确定键开系统设置首页。只读,不写任何系统设置。
+                // 小字写系统里去哪改;确定键先试索尼节能控制面板(R127b),别的品牌落系统设置首页,小字随落点变。只读,不写任何系统设置。
                 // 常驻行(不是条件行),胶囊 id 就是行 id。
                 ActionRow(
                     "screenOff",
                     R.string.settings_screen_off,
                     hintRes = null,
                     hintParts = screenOffSummary(system.screenOff),
-                    noteRes = R.string.settings_screen_off_where,
+                    noteRes = screenOffNoteRes(system.screenOffWhere),
                     onActivate = { actions.openSystemScreenOff() },
                 ),
             ),
