@@ -24,6 +24,7 @@ enum class CtrlKind { SEGMENTED, TOGGLE, SWATCH, SLIDER }
  * 布局 / 壁纸 / 主题 / 待机与屏保 / 时钟 / 语言 /(R55 的系统)/ 其他:语言、默认桌面、待机、时钟、恢复默认并入「通用」,
  * 壁纸 + 主题并成「外观」,屏保独立成组。R56 先撤掉了 R55 的「系统」组(三行跳同一个系统页),
  * 屏保那三项合成「屏保」组末行「系统屏保 ▸」的一行摘要,动画缩放提示行进「通用」组。
+ * **R128(2026-09-29 Gordon)**:每页胶囊 ≤ 6——「通用」的待机两行合成「待机」子页([SubPageRow]),恢复默认挪进关于页。
  */
 enum class GroupId { LAYOUT, GENERAL, APPEARANCE, SCREENSAVER }
 
@@ -89,7 +90,29 @@ data class ActionRow(
     val onActivate: () -> Unit,
 ) : RowSpec
 
+/**
+ * **子页入口**(R128,2026-09-29 Gordon):一颗胶囊,右端是子页里各行当前值的摘要(「3 分 · 时钟」),
+ * 确定键进外壳的下一层 [ShellPages.sub],那一层只有 [rows]——行本身原样搬进去(同一个 id、同一个选项层、同一个写入函数),
+ * 所以进子页 → 进选项层 → 返回 → 返回的每一步都是外壳原有的栈机制,没有新的焦点账本。
+ * 为什么要有它:设置页每页胶囊 ≤ 6(R128),一组放不下时先合并再加。子页不再嵌套子页。
+ */
+data class SubPageRow(
+    override val id: String,
+    override val labelRes: Int,
+    val rows: List<RowSpec>,
+) : RowSpec
+
 data class GroupSpec(val id: GroupId, val titleRes: Int, val rows: List<RowSpec>)
+
+/** 一列行连同子页里的行一起展开(子页入口在前、它的行紧跟其后)。按 id 找行的地方一律走它,子页里的行才找得到。 */
+fun List<RowSpec>.withSubRows(): List<RowSpec> =
+    flatMap { if (it is SubPageRow) listOf(it) + it.rows.withSubRows() else listOf(it) }
+
+/** 所有组的所有行(含子页里的行)。 */
+fun allRows(groups: List<GroupSpec>): List<RowSpec> = groups.flatMap { it.rows.withSubRows() }
+
+/** 「待机」子页入口的 id(R128:待机时长 + 待机显示合成一颗)。也是子页的页 id 后缀(`s:standby`)。 */
+const val STANDBY_ROW = "standby"
 
 /**
  * 语言的四个选项文案,与 [VALID_LANGUAGES] 逐项对应(第 i 项的文案对应第 i 个取值)。
@@ -113,7 +136,7 @@ class SettingsActions(
     val pickWallpaper: () -> Unit,
     val openImport: () -> Unit,
     val setDefaultHome: () -> Unit,
-    val restoreDefaults: () -> Unit,
+    // ~~restoreDefaults~~(R128):「恢复默认」挪出「通用」组、进关于页(第二颗胶囊),由 MainActivity 直接推确认层,不经模型。
     /** 取值是 [VALID_LANGUAGES] 里的一项。T8 起它 = 写盘 + `recreate()`;在那之前只写盘。 */
     val applyLanguage: (String) -> Unit,
     /** M5:打开屏保图库(叠在设置页上;设置页 `covered` 让路,关掉后焦点回同一行)。 */
@@ -233,7 +256,9 @@ fun settingsGroups(
                 ),
             ),
         ),
-        // R57:「通用」= 语言、默认桌面、待机、时钟这些「装好先调一次」的项;恢复默认收尾。
+        // R57:「通用」= 语言、默认桌面、待机、时钟这些「装好先调一次」的项。
+        // R128(2026-09-29 Gordon,方案 A):每页胶囊 ≤ 6——待机时长 + 待机显示合成一颗「待机」子页入口(放在原「待机时长」的位置),
+        // 「恢复默认」挪进关于页。现在 5 颗常驻 + 动画缩放条件行 = 最多 6。
         GroupSpec(
             GroupId.GENERAL, R.string.settings_group_general,
             listOfNotNull(
@@ -257,26 +282,32 @@ fun settingsGroups(
                 ActionRow("openImport", R.string.settings_phone_transfer, R.string.settings_phone_transfer_desc) {
                     actions.openImport()
                 },
-                ctl(
-                    id = "idleAfter", labelRes = R.string.settings_idle_after,
-                    kind = CtrlKind.SEGMENTED,
-                    optionRes = listOf(R.string.settings_idle_off, minutes, minutes, minutes, minutes),
-                    optionArgs = listOf(null, 1, 3, 5, 10),
-                    count = VALID_IDLE_AFTER_MS.size,
-                    selected = VALID_IDLE_AFTER_MS.indexOf(s.idleAfterMs).let { if (it < 0) 2 else it },
-                ),
-                ctl(
-                    id = "idleContent", labelRes = R.string.settings_idle_content,
-                    kind = CtrlKind.SEGMENTED,
-                    optionRes = listOf(
-                        R.string.settings_idle_clock,
-                        R.string.settings_idle_black,
-                        R.string.settings_idle_nofade,
+                // R128:「待机」子页——里面就是原来的两行,id / 选项 / 写入函数逐字未动;胶囊右端显示两行当前值的摘要。
+                SubPageRow(
+                    STANDBY_ROW, R.string.settings_standby,
+                    listOf(
+                        ctl(
+                            id = "idleAfter", labelRes = R.string.settings_idle_after,
+                            kind = CtrlKind.SEGMENTED,
+                            optionRes = listOf(R.string.settings_idle_off, minutes, minutes, minutes, minutes),
+                            optionArgs = listOf(null, 1, 3, 5, 10),
+                            count = VALID_IDLE_AFTER_MS.size,
+                            selected = VALID_IDLE_AFTER_MS.indexOf(s.idleAfterMs).let { if (it < 0) 2 else it },
+                        ),
+                        ctl(
+                            id = "idleContent", labelRes = R.string.settings_idle_content,
+                            kind = CtrlKind.SEGMENTED,
+                            optionRes = listOf(
+                                R.string.settings_idle_clock,
+                                R.string.settings_idle_black,
+                                R.string.settings_idle_nofade,
+                            ),
+                            count = IdleContent.entries.size,
+                            selected = IdleContent.entries.indexOf(s.idleContent).coerceAtLeast(0),
+                        ),
                     ),
-                    count = IdleContent.entries.size,
-                    selected = IdleContent.entries.indexOf(s.idleContent).coerceAtLeast(0),
                 ),
-                // R57:原「时钟」组那一个开关改成二选一,紧跟待机显示(待机时留在屏上的就是这个时钟)。
+                // R57:原「时钟」组那一个开关改成二选一,紧跟待机(待机时留在屏上的就是这个时钟)。
                 // 映射既有的 showDate,存盘键不变。
                 ctl(
                     id = "clockDisplay", labelRes = R.string.settings_clock_display,
@@ -284,14 +315,10 @@ fun settingsGroups(
                     optionRes = listOf(R.string.settings_clock_time_only, R.string.settings_clock_time_date),
                     count = 2, selected = if (s.showDate) 1 else 0,
                 ),
-                // 动画缩放提示行(仅 ≠ 1× 或读不到时出现)放「恢复默认」之前(R57;R56 时在「其他」组顶上)。
-                // 它不在组末,行数变化时的焦点交接靠外壳胶囊列「目标按行 id 记」——id 还在就跟着那一行走。
+                // 动画缩放提示行(仅 ≠ 1× 或读不到时出现;R56 时在「其他」组顶上,R57 放「恢复默认」之前)。
+                // R128 起「恢复默认」挪进关于页,它成了组末行;行数变化时的焦点交接照旧靠外壳胶囊列「目标按行 id 记」——
+                // id 还在就跟着那一行走,这一行自己没了落到上一行(时钟显示)。
                 animScaleRow(system, actions),
-                ActionRow(
-                    "restoreDefaults",
-                    R.string.settings_action_restore_defaults,
-                    R.string.settings_action_restore_defaults_desc,
-                ) { actions.restoreDefaults() },
             ),
         ),
         // R57:原「壁纸」「主题」两组合成「外观」:先壁纸(换 / 调),再主题色。R70 / R86 加在末尾的三条卡片色彩滑块 R120 挪到「布局」组。
@@ -406,7 +433,8 @@ internal fun optionWrite(rowId: String): ((Settings, Int) -> Settings)? = when (
 }
 
 /**
- * 「通用」组「恢复默认」之前的「系统动画缩放」提示行(ui-pending #16 起;R56/R57 从已撤掉的「系统」组挪来,行为不变):
+ * 「通用」组末行的「系统动画缩放」提示行(ui-pending #16 起;R56/R57 从已撤掉的「系统」组挪来,行为不变;
+ * R57 时在「恢复默认」之前,R128 恢复默认挪进关于页后它是组末):
  * **条件行**,只在 [animScaleNotice] 非 null 时出现(三项缩放任一 ≠ 1×,或动画程序那一项读不到);
  * `animator_duration_scale` ≠ 1 时写「1.25×,界面动画会变慢」,只有窗口 / 过渡 ≠ 1 时写两者的值并注明只影响
  * 应用切换,读不到写「查看」。确定键跳开发者选项。只读,我们不写任何系统设置。

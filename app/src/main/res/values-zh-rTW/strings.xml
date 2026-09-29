@@ -11,7 +11,7 @@
     <string name="menu_system_settings">系統設定</string>
     <string name="menu_system_settings_desc">開啟電視的 Android 設定</string>
     <string name="menu_about">關於</string>
-    <string name="menu_about_desc">版本與檢查更新</string>
+    <string name="menu_about_desc">版本、檢查更新、恢復預設</string>
     <string name="menu_set_default_home">設定預設桌面</string>
     <string name="menu_set_default_home_desc">選擇按下 Home 鍵時啟動哪個桌面</string>
     <!-- card_menu_* : 首頁長按卡片選單 -->
@@ -153,6 +153,8 @@
     <string name="settings_show_titles">卡片標題</string>
     <string name="settings_theme_color">主題色</string>
     <string name="settings_follow_wallpaper">跟隨桌布主色</string>
+    <!-- R128:待機時間 + 待機顯示合成「待機」子頁(通用組),膠囊右端是兩行的值摘要 -->
+    <string name="settings_standby">待機</string>
     <string name="settings_idle_after">待機時間</string>
     <string name="settings_idle_off">關</string>
     <string name="settings_idle_minutes">%1$d 分鐘</string>
@@ -196,7 +198,6 @@
     <string name="settings_lang_zh_tw">繁體</string>
     <string name="settings_lang_en">English</string>
     <string name="settings_action_restore_defaults">恢復預設</string>
-    <string name="settings_action_restore_defaults_desc">分欄、標題、卡片圖和圖片庫都不會變</string>
     <!-- restore_* / dialog_cancel : 「恢復預設」確認框(T7,spec §4) -->
     <string name="restore_title">恢復預設設定?</string>
     <string name="restore_body">分欄、標題、卡片圖和圖片庫都不會變</string>
@@ -305,7 +306,7 @@
     <string name="shell_root_layout_desc">編輯分欄、卡片大小與標題、卡片色彩</string>
     <string name="shell_root_general_desc">語言、預設桌面、手機傳輸、待機、時鐘</string>
     <string name="shell_root_appearance_desc">桌布、主題色</string>
-    <string name="shell_root_screensaver_desc">螢幕保護時間、圖庫、系統螢幕保護</string>
+    <string name="shell_root_screensaver_desc">螢幕保護時間、圖庫、系統螢幕保護、關閉螢幕</string>
     <string name="settings_card_saturation">卡片飽和度</string>
     <string name="settings_card_brightness">卡片亮度</string>
     <string name="settings_card_opacity">卡片透明度</string>

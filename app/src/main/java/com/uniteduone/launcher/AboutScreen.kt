@@ -333,12 +333,15 @@ class AboutController(
 
 /**
  * 关于页(spec §7.1;R74 起换成设置页外壳的样子):左边标题 + 版本 + 检查结果 + 许可声明 + 项目地址,
- * 右边一颗胶囊(检查更新 / 下载并安装 / 安装更新 / 忙碌态的进度文字)。一屏放下,**不滚动**(铁律 1);
+ * 右边两颗胶囊(R128):检查更新(下载并安装 / 安装更新 / 忙碌态的进度文字)、恢复默认 ›。一屏放下,**不滚动**(铁律 1);
  * `notes` 最多四行,超出省略。
  *
- * 焦点账本 = 外壳同一个 [CapsuleColumn](一颗胶囊):初始焦点循环只信自报、`nonce` 变化(从别的应用回来)重来一轮、
- * `holder == null` 看门狗兜底、`ON_PAUSE` 冻结;上下左右都锁 `Cancel`。本页自己负责自己的焦点(铁律 3),
+ * 焦点账本 = 外壳同一个 [CapsuleColumn]:初始焦点循环只信自报、`nonce` 变化(从别的应用回来)重来一轮、
+ * `holder == null` 看门狗兜底、`ON_PAUSE` 冻结;上下到头、左右都锁 `Cancel`。目标 [target] 住在 MainActivity
+ * (与输入源页的 `inputsFocus` 同一写法,铁律 5:目标与当前分开)。本页自己负责自己的焦点(铁律 3),
  * 底下的外壳因 `covered` 让路,关掉后外壳把焦点接回第一层「关于」那颗胶囊。
+ * 「恢复默认」进的确认层是外壳栈上的一层:那时本页让开(MainActivity 不画它、外壳不再 covered),确认层弹栈后本页
+ * 重新组合,按 [target] 落回「恢复默认」。
  * **胶囊永远可点**:忙碌态靠 [AboutState.action] = NONE 吞掉点击。若撤掉可聚焦性,它正是持有焦点的唯一节点,
  * 焦点当场被清掉(与 `MainActivity.dispatchKeyEvent` KDoc 里 `canFocus = !idle` 那次是同一个坑)。
  *
@@ -357,26 +360,45 @@ fun AboutScreen(
     onInstall: () -> Unit,
     onBack: () -> Unit,
     nonce: Int,
+    /**
+     * 焦点目标(胶囊 id,R128 起两颗:检查更新 / 恢复默认);住在 MainActivity(`aboutFocus`),每次打开写 null =
+     * 落「检查更新」。从恢复默认确认层回来时关于页是一次全新的组合,靠它落回「恢复默认」。
+     */
+    target: String? = null,
+    onTarget: (String) -> Unit = {},
+    /** R128:第二颗「恢复默认」——推外壳的恢复默认确认层(关于页随之让开,见 [aboutPageShown])。 */
+    onRestoreDefaults: () -> Unit = {},
 ) {
     val highlight = LocalThemeColors.current.highlight
 
     // 淡出中的残影(R108)不收返回键;胶囊列自己读 LocalPageGhost 让路、不可聚焦。
     androidx.activity.compose.BackHandler(enabled = !LocalPageGhost.current) { onBack() }
 
-    val items = listOf(
-        Capsule(
-            id = ShellPages.ABOUT,
-            label = buttonLabel(state),
-            onClick = {
-                when (state.action) {
-                    AboutAction.CHECK -> onCheck()
-                    AboutAction.DOWNLOAD -> onDownload()
-                    AboutAction.INSTALL -> onInstall()
-                    AboutAction.NONE -> Unit
-                }
-            },
-        ),
-    )
+    // 按 ABOUT_CAPSULES 的顺序画(R128 的单测按同一张表数胶囊)。
+    val items = ABOUT_CAPSULES.map { id ->
+        if (id == ABOUT_RESTORE) {
+            // R128(Gordon 2026-09-29):「恢复默认」从「通用」组挪来(Google TV 也把重置放在 系统 → 关于)。右端 › = 进确认层。
+            Capsule(
+                id = id,
+                label = stringResource(R.string.settings_action_restore_defaults),
+                trailing = Trailing.Chevron,
+                onClick = onRestoreDefaults,
+            )
+        } else {
+            Capsule(
+                id = id,
+                label = buttonLabel(state),
+                onClick = {
+                    when (state.action) {
+                        AboutAction.CHECK -> onCheck()
+                        AboutAction.DOWNLOAD -> onDownload()
+                        AboutAction.INSTALL -> onInstall()
+                        AboutAction.NONE -> Unit
+                    }
+                },
+            )
+        }
+    }
     // 本页叠在外壳之上:自己铺一层不透明的 MenuBg,否则底下外壳的胶囊会透出来。
     Box(Modifier.fillMaxSize().background(GtvTokens.MenuBg)) {
         ShellScaffold(
@@ -458,7 +480,7 @@ fun AboutScreen(
                 }
             },
             right = {
-                CapsuleColumn(items, target = ShellPages.ABOUT, onTarget = {}, nonce = nonce, covered = false)
+                CapsuleColumn(items, target = target ?: ShellPages.ABOUT, onTarget = onTarget, nonce = nonce, covered = false)
             },
         )
     }

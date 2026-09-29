@@ -14,7 +14,7 @@ import org.junit.Test
 class ShellModelTest {
 
     private val noActions = SettingsActions(
-        pickWallpaper = {}, openImport = {}, setDefaultHome = {}, restoreDefaults = {}, applyLanguage = {},
+        pickWallpaper = {}, openImport = {}, setDefaultHome = {}, applyLanguage = {},
         openScreensaverGallery = {}, openSystemScreensaver = {}, openSystemAnimationSettings = {},
     )
     private val normalSystem = SystemUiStatus(
@@ -54,7 +54,8 @@ class ShellModelTest {
             ids(g, GroupId.LAYOUT),
         )
         assertEquals(
-            listOf("language", "setDefaultHome", "openImport", "idleAfter", "idleContent", "clockDisplay", "restoreDefaults"),
+            // R128:待机两行合成「待机」子页入口(原「待机时长」的位置),「恢复默认」挪进关于页
+            listOf("language", "setDefaultHome", "openImport", "standby", "clockDisplay"),
             ids(g, GroupId.GENERAL),
         )
         assertEquals(
@@ -67,11 +68,95 @@ class ShellModelTest {
         )
     }
 
-    /** 条件行:动画缩放(通用「恢复默认」之前)。(「恢复隐藏的输入源」R92 起不在设置里了,在「输入源」页。) */
+    /**
+     * 条件行:动画缩放(R57 起在通用「恢复默认」之前;R128 恢复默认挪进关于页后它是组末,出现时通用组 6 颗)。
+     * (「恢复隐藏的输入源」R92 起不在设置里了,在「输入源」页。)
+     */
     @Test fun conditionalRows() {
         val general = ids(groups(sys = normalSystem.copy(animatorScale = 2f)), GroupId.GENERAL)
-        assertEquals(listOf("systemAnimationScale", "restoreDefaults"), general.takeLast(2))
-        assertEquals(8, general.size)
+        assertEquals(listOf("clockDisplay", "systemAnimationScale"), general.takeLast(2))
+        assertEquals(6, general.size)
+    }
+
+    // ---- R128:「待机」子页 ----
+
+    /** 子页里就是原来那两行(id 不变),缺省焦点第一行;选项层照旧按行 id 找得到、写入函数不变。 */
+    @Test fun standbySubPage() {
+        val g = groups(Settings(idleAfterMs = 600_000L))
+        val page = ShellPages.sub(STANDBY_ROW)
+        assertEquals("s:standby", page)
+        assertEquals(STANDBY_ROW, ShellPages.subRow(page))
+        assertNull(ShellPages.subRow("s:"))
+        assertNull(ShellPages.groupOf(page))
+        assertNull(ShellPages.optionsRow(page))
+        assertEquals(listOf("idleAfter", "idleContent"), pageCapsuleIds(page, g))
+        assertEquals("idleAfter", defaultFocus(page, g))
+        // 子页里的行仍能按 id 找到(选项层 / 预览 / 解码都靠它)
+        assertEquals("opt:4", defaultFocus(ShellPages.options("idleAfter"), g))   // 10 分 = 第 4 档
+        assertEquals(listOf(0, 1, 2), optionOrder(controlRow(g, "idleContent")!!))
+        // 路径:设置 · 通用(· 待机)
+        assertEquals(listOf(R.string.settings_group_general, R.string.settings_standby), rowParents(g, "idleAfter"))
+        assertEquals(listOf(R.string.settings_group_general), rowParents(g, STANDBY_ROW))
+        assertEquals(listOf(R.string.settings_group_general), rowParents(g, "clockDisplay"))
+        assertEquals(emptyList<Int>(), rowParents(g, "nope"))
+        assertFalse(pageHasPreview(page))
+    }
+
+    /** 进子页 → 进选项层 → 返回 → 返回:每一层落回进入时那颗(外壳原有的栈,没有新机制)。 */
+    @Test fun standbyStackReturnsToEnteringCapsule() {
+        val g = groups()
+        var st = shellPush(shellOpened(), "g:GENERAL", defaultFocus("g:GENERAL", g))
+        st = shellSetFocus(st, STANDBY_ROW)
+        st = shellPush(st, ShellPages.sub(STANDBY_ROW), defaultFocus(ShellPages.sub(STANDBY_ROW), g))
+        st = shellSetFocus(st, "idleContent")
+        st = shellPush(st, ShellPages.options("idleContent"), defaultFocus(ShellPages.options("idleContent"), g))
+        assertEquals(ShellFrame("o:idleContent", "opt:0"), st.last())
+        st = shellPop(st)
+        assertEquals(ShellFrame("s:standby", "idleContent"), st.last())
+        st = shellPop(st)
+        assertEquals(ShellFrame("g:GENERAL", STANDBY_ROW), st.last())
+        // 切语言 recreate() 时整栈进 Bundle:子页认得
+        val deep = listOf(
+            ShellFrame("root", "g:GENERAL"), ShellFrame("g:GENERAL", STANDBY_ROW),
+            ShellFrame("s:standby", "idleAfter"), ShellFrame("o:idleAfter", "opt:2"),
+        )
+        assertEquals(deep, decodeShellStack(encodeShellStack(deep)))
+        assertTrue(decodeShellStack("root@x|s:nosuchpage").isEmpty())
+    }
+
+    /** 解 Bundle 用的子页清单与模型里真有的子页入口一致(加子页忘了登记会在这里红)。 */
+    @Test fun subPageRegistryMatchesModel() {
+        val inModel = allRows(groups(sys = SystemUiStatus.UNKNOWN)).filterIsInstance<SubPageRow>().map { it.id }.toSet()
+        assertEquals(inModel, SUB_PAGE_ROWS)
+    }
+
+    // ---- R128:关于页两颗胶囊;恢复默认确认层从关于页进 ----
+
+    @Test fun aboutPageCapsules() {
+        assertEquals(listOf(ShellPages.ABOUT, ABOUT_RESTORE), ABOUT_CAPSULES)
+        assertEquals("restoreDefaults", ABOUT_RESTORE)
+        assertEquals(ABOUT_CAPSULES, pageCapsuleIds(ShellPages.ABOUT, groups()))
+        assertEquals(listOf(SHELL_CANCEL, SHELL_CONFIRM), pageCapsuleIds(ShellPages.RESTORE, groups()))
+        assertEquals(listOf(SHELL_CHANGE_HOME), pageCapsuleIds(ShellPages.HOME, groups()))
+        assertNull(pageCapsuleIds(ShellPages.SYSTEM_SETTINGS, groups()))
+        // 「恢复默认」不再是任何一组里的行
+        assertTrue(allRows(groups(sys = SystemUiStatus.UNKNOWN)).none { it.id == ABOUT_RESTORE })
+    }
+
+    /** 关于页只在「恢复默认确认层在栈顶」时让开;弹栈后重新出现。关着的永远不画。 */
+    @Test fun aboutPageStepsAsideOnlyForRestoreLayer() {
+        val root = shellSetFocus(shellOpened(), ShellPages.ABOUT)
+        assertTrue(aboutPageShown(true, root))
+        val confirm = shellPush(root, ShellPages.RESTORE, defaultFocus(ShellPages.RESTORE, groups()))
+        assertEquals(ShellFrame(ShellPages.RESTORE, SHELL_CANCEL), confirm.last())
+        assertFalse(aboutPageShown(true, confirm))
+        // 取消 / 返回 / 确定都是弹栈:回到第一层(焦点目标仍是「关于」),关于页重新出现
+        assertEquals(root, shellPop(confirm))
+        assertTrue(aboutPageShown(true, shellPop(confirm)))
+        assertFalse(aboutPageShown(false, root))
+        assertFalse(aboutPageShown(false, confirm))
+        // 栈空而 about 为真(不该出现)时照样画,不留「开着却看不见」的黑洞
+        assertTrue(aboutPageShown(true, emptyList()))
     }
 
     @Test fun defaultFocusPerPage() {
@@ -109,6 +194,8 @@ class ShellModelTest {
         for (r in listOf("language", "idleAfter", "idleContent", "clockDisplay", "screensaverAfter", "screensaverInterval")) {
             assertFalse(r, pageHasPreview(ShellPages.options(r)))
         }
+        assertFalse(pageHasPreview(ShellPages.sub(STANDBY_ROW)))
+        assertFalse(pageHasPreview(ShellPages.ABOUT))
     }
 
     // ---- 栈 ----
@@ -270,11 +357,15 @@ class ShellModelTest {
 
     // ---- 版式 ----
 
-    /** 7 颗以内保持 16 dp;通用组 8 颗(含动画缩放条件行)缩到 8 dp;第一层 6 颗两行胶囊仍是 16。 */
+    /**
+     * 7 颗以内保持 16 dp;8 颗(R128 之前的通用组,含动画缩放条件行)缩到 8 dp;第一层 6 颗两行胶囊仍是 16。
+     * R128 起每页 ≤ 6,单行胶囊页永远是 16——缩间距只剩兜底。
+     */
     @Test fun capsuleGapShrinksOnlyWhenNeeded() {
         assertEquals(16f, capsuleGap(List(7) { 55f }))
         assertEquals(8f, capsuleGap(List(8) { 55f }))
         assertEquals(16f, capsuleGap(List(6) { SHELL_TWO_LINE_PILL_DP }))
+        assertEquals(16f, capsuleGap(List(MAX_CAPSULES_PER_PAGE) { 55f }))
         assertEquals(16f, capsuleGap(listOf(55f)))
         // 放不下时也不低于下限
         assertEquals(4f, capsuleGap(List(12) { 55f }))

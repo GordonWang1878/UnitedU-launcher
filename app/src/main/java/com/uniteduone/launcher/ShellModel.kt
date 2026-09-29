@@ -36,10 +36,16 @@ object ShellPages {
 
     fun group(id: GroupId) = "g:${id.name}"
     fun options(rowId: String) = "o:$rowId"
+    /** R128:子页(「待机」)——页 id = `s:` + 子页入口那一行的 id。 */
+    fun sub(rowId: String) = "s:$rowId"
     fun groupOf(page: String): GroupId? =
         page.removePrefix("g:").takeIf { page.startsWith("g:") }?.let { n -> GroupId.entries.firstOrNull { it.name == n } }
     fun optionsRow(page: String): String? = page.removePrefix("o:").takeIf { page.startsWith("o:") && it.isNotEmpty() }
+    fun subRow(page: String): String? = page.removePrefix("s:").takeIf { page.startsWith("s:") && it.isNotEmpty() }
 }
+
+/** 认得的子页(解 Bundle 里的栈时校验用;模型里每加一个 [SubPageRow] 就加进来,[ShellModelTest] 钉住两边一致)。 */
+val SUB_PAGE_ROWS: Set<String> = setOf(STANDBY_ROW)
 
 /** 选项层里第 i 档那颗胶囊的 id。 */
 fun optionId(i: Int) = "opt:$i"
@@ -49,6 +55,29 @@ fun optionIndex(id: String?): Int? = id?.removePrefix("opt:")?.takeIf { id.start
 const val SHELL_CANCEL = "cancel"
 const val SHELL_CONFIRM = "confirm"
 const val SHELL_CHANGE_HOME = "changeHome"
+
+/** 「恢复默认」确认层的胶囊,自上而下(默认焦点「取消」在上,破坏性动作在下;界面按这张表画)。 */
+val RESTORE_CAPSULES: List<String> = listOf(SHELL_CANCEL, SHELL_CONFIRM)
+
+/** 「默认桌面」页的胶囊。 */
+val HOME_CAPSULES: List<String> = listOf(SHELL_CHANGE_HOME)
+
+/**
+ * 关于页的第二颗胶囊「恢复默认」(R128:从「通用」组挪来,照 Google TV 把重置放在 系统 → 关于 里)。
+ * id 沿用原来那一行的 id。按下去推外壳的「恢复默认」确认层([ShellPages.RESTORE])。
+ */
+const val ABOUT_RESTORE = "restoreDefaults"
+
+/** 关于页的胶囊,自上而下:检查更新(id 沿用 [ShellPages.ABOUT])、恢复默认(界面按这张表画)。 */
+val ABOUT_CAPSULES: List<String> = listOf(ShellPages.ABOUT, ABOUT_RESTORE)
+
+/**
+ * 关于页此刻画不画(R128)。关于页是叠在外壳第一层之上的整屏页;从它的「恢复默认」进确认层时,确认层是外壳栈上的一层,
+ * 关于页让开(淡出、外壳不再 covered),确认层返回 / 确定弹栈后关于页重新出现、落回「恢复默认」。
+ * 只有「确认层在栈顶」这一种情况让开——[about] 为真时其余任何栈形状都照常画关于页(不会出现「开着却看不见」的黑洞)。
+ */
+fun aboutPageShown(about: Boolean, stack: List<ShellFrame>): Boolean =
+    about && stack.lastOrNull()?.page != ShellPages.RESTORE
 
 /** 第一层的一颗胶囊:标题 + 说明小字(Gordon 定案:第一层保留两行胶囊)。 */
 data class RootEntry(val id: String, val labelRes: Int, val hintRes: Int)
@@ -73,6 +102,7 @@ fun optionOrder(row: ControlRow): List<Int> =
 /** 一页的缺省焦点(第一次进这一页时落哪)。选项层落在**已保存**那一档(✓),所以一进去没有未保存的预览。 */
 fun defaultFocus(page: String, groups: List<GroupSpec>): String? {
     ShellPages.groupOf(page)?.let { g -> return groups.firstOrNull { it.id == g }?.rows?.firstOrNull()?.id }
+    ShellPages.subRow(page)?.let { r -> return subPageRow(groups, r)?.rows?.firstOrNull()?.id }
     ShellPages.optionsRow(page)?.let { r -> return controlRow(groups, r)?.let { optionId(it.selected) } }
     return when (page) {
         ShellPages.ROOT -> SHELL_ROOT.first().id
@@ -83,8 +113,66 @@ fun defaultFocus(page: String, groups: List<GroupSpec>): String? {
     }
 }
 
+/** 按 id 找可改值的行(含子页里的行,R128)。 */
 internal fun controlRow(groups: List<GroupSpec>, rowId: String): ControlRow? =
-    groups.asSequence().flatMap { it.rows }.firstOrNull { it.id == rowId } as? ControlRow
+    allRows(groups).firstOrNull { it.id == rowId } as? ControlRow
+
+/** 按 id 找子页入口(R128)。 */
+internal fun subPageRow(groups: List<GroupSpec>, rowId: String): SubPageRow? =
+    allRows(groups).firstOrNull { it.id == rowId } as? SubPageRow
+
+/**
+ * 一行的「上级」标题,自外而内:所属组的标题,在子页里的再加子页入口的标签(R128)。外壳拿它拼选项层 / 子页左上的路径
+ * (「设置 · 通用 · 待机」)。找不到这一行 = 空表。
+ */
+fun rowParents(groups: List<GroupSpec>, rowId: String): List<Int> {
+    for (g in groups) {
+        for (r in g.rows) {
+            if (r.id == rowId) return listOf(g.titleRes)
+            if (r is SubPageRow && r.rows.withSubRows().any { it.id == rowId }) return listOf(g.titleRes, r.labelRes)
+        }
+    }
+    return emptyList()
+}
+
+/** R128(Gordon 2026-09-29):设置页**每一页**右边的胶囊最多几颗。条件行按全部出现算。先合并再加。 */
+const val MAX_CAPSULES_PER_PAGE = 6
+
+/**
+ * 一页右边胶囊列的 id 清单,自上而下(R128)。界面画的就是这些:分组页 / 子页 = 行 id,选项层 = [optionOrder] 的档位,
+ * 第一层 / 默认桌面 / 恢复默认 / 关于 = 各自那张表([SHELL_ROOT] / [HOME_CAPSULES] / [RESTORE_CAPSULES] / [ABOUT_CAPSULES])。
+ * null = 不是一页(系统设置那颗胶囊直接跳安卓设置)或认不出。
+ */
+fun pageCapsuleIds(page: String, groups: List<GroupSpec>): List<String>? {
+    ShellPages.groupOf(page)?.let { g -> return groups.firstOrNull { it.id == g }?.rows?.map { it.id } }
+    ShellPages.subRow(page)?.let { r -> return subPageRow(groups, r)?.rows?.map { it.id } }
+    ShellPages.optionsRow(page)?.let { r -> return controlRow(groups, r)?.let { row -> optionOrder(row).map { optionId(it) } } }
+    return when (page) {
+        ShellPages.ROOT -> SHELL_ROOT.map { it.id }
+        ShellPages.HOME -> HOME_CAPSULES
+        ShellPages.RESTORE -> RESTORE_CAPSULES
+        ShellPages.ABOUT -> ABOUT_CAPSULES
+        else -> null
+    }
+}
+
+/**
+ * 设置外壳能走到的**每一页**(R128 的单测据此逐页数胶囊):第一层、四组、每个子页、每个会打开选项层的行(滑块不开选项层)、
+ * 默认桌面、恢复默认、关于。条件行出没出现取决于 [groups] 是按什么系统快照生成的——测试要喂一份让所有条件行都出现的快照。
+ */
+fun shellPages(groups: List<GroupSpec>): List<String> = buildList {
+    add(ShellPages.ROOT)
+    groups.forEach { add(ShellPages.group(it.id)) }
+    allRows(groups).forEach { r ->
+        when {
+            r is SubPageRow -> add(ShellPages.sub(r.id))
+            r is ControlRow && r.kind != CtrlKind.SLIDER -> add(ShellPages.options(r.id))
+        }
+    }
+    add(ShellPages.HOME)
+    add(ShellPages.RESTORE)
+    add(ShellPages.ABOUT)
+}
 
 /** 打开设置 = 一个只有第一层的栈,焦点在「布局」。 */
 fun shellOpened(): List<ShellFrame> = listOf(ShellFrame(ShellPages.ROOT, SHELL_ROOT.first().id))
@@ -105,6 +193,7 @@ fun shellSetFocus(stack: List<ShellFrame>, id: String): List<ShellFrame> =
 /**
  * 有实时预览的页(Gordon 定案第 6 条):「布局」「外观」两组,以及其下带预览的选项层。
  * 其余(第一层、通用、屏保、默认桌面、恢复默认、它们的选项层)左边只放标题。
+ * 子页(R128「待机」,在通用组里)同样没有预览——待机那两行本来就没有(R75 删了待机演示)。
  */
 fun pageHasPreview(page: String): Boolean {
     val g = ShellPages.groupOf(page)
@@ -146,8 +235,9 @@ fun sliderText(row: ControlRow, i: Int = row.selected): String {
 
 /**
  * 胶囊之间的纵向间距(dp):优先 [GtvLayout.MENU_ITEM_GAP](16),整列放不进 [maxColumn] 时等比缩小,
- * 不低于 [minGap]。整列高 = Σ 胶囊高 + (n−1) × 间距。「通用」组最多 8 颗单行胶囊:8 × 55 + 7 × 16 = 552 > 540,
- * 缩成 8 dp(8 × 55 + 7 × 8 = 496)。
+ * 不低于 [minGap]。整列高 = Σ 胶囊高 + (n−1) × 间距。R128 之前「通用」组最多 8 颗单行胶囊:8 × 55 + 7 × 16 = 552 > 540,
+ * 缩成 8 dp(8 × 55 + 7 × 8 = 496);R128 起每页 ≤ [MAX_CAPSULES_PER_PAGE] 颗,单行胶囊 6 × 55 + 5 × 16 = 410 用不着缩,
+ * 缩间距只剩给两行胶囊多的页(英文第一层说明折行)兜底。
  */
 fun capsuleGap(heights: List<Float>, maxColumn: Float = SHELL_MAX_COLUMN_DP, preferred: Float = GtvLayout.MENU_ITEM_GAP, minGap: Float = 4f): Float {
     if (heights.size < 2) return preferred
@@ -200,6 +290,7 @@ fun decodeShellStack(text: String?): List<ShellFrame> {
     val known = frames.all { f ->
         f.page == ShellPages.ROOT || f.page == ShellPages.HOME || f.page == ShellPages.RESTORE ||
             ShellPages.groupOf(f.page) != null ||
+            ShellPages.subRow(f.page)?.let { it in SUB_PAGE_ROWS } == true ||
             ShellPages.optionsRow(f.page)?.let { it == "language" || optionWrite(it) != null } == true
     }
     return if (known) frames else emptyList()
