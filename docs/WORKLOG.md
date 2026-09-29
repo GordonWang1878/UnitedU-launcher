@@ -1672,3 +1672,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - **Codex 复审 `2ec6906`:新增一条 P2,核实成立,已修**:`serveApk` 在 NEEDS_PERMISSION / INVALID 两个结局没有 `release`,文件一直登记为使用中,`sweep` 永远跳过,每次重试多一份,直到进程重启。改为只有 STARTED 保留(`keepUploadedApk`),其余结局与等待主线程回合时的异常一律释放;单测 `onlyStartedUploadKeepsTheApk` 覆盖全部枚举值。594 测试绿。
 - Codex 复审 `c4ce78b`:未发现新问题,上一轮 P2 关闭(三个非 STARTED 结局与 `task.get()` 异常都释放;594 测试绿)。**本轮 Code Review 结束,3 条 P2 全部修复**。
 - Gordon 换了两张内置卡片图:`03-youtube.webp` / `04-iqiyi.webp` → `03-youtube.jpg` / `04-iqiyi.jpg`(512×288,16:9 横幅)。ID 取去扩展名的文件名,不变,已选过的记录不受影响;已经套用过旧图的应用(复制在 `icons/<包名>.png`)不会自动换,要重新选一次。卡片图不走 HDR 脚本。594 测试绿,装 A95L + 编译。
+- Gordon 又换了这两张:`03-youtube.jpg` / `04-iqiyi.jpg` → `.png`(512×288,不透明 RGBA;YouTube 白底红标、爱奇艺绿底白字)。ID 不变;内置清单同 ID 只认一个文件,旧 jpg 已删。
