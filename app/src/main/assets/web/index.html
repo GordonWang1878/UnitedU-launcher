@@ -1,53 +1,176 @@
 <!doctype html>
-<html>
+<html lang="__LANG__">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
 <title>UnitedU</title>
 <style>
-:root{--bg:#0a0a0a;--fg:#eeeeee;--dim:#9a9a9a;--acc:#FFF5DC;--gold:#C0A73A;--card:#1e1e1e}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 -apple-system,system-ui,"PingFang SC","Noto Sans CJK SC",sans-serif}
-header{position:sticky;top:0;background:var(--bg);padding:12px 16px 0;border-bottom:1px solid #222}
-h1{font-size:18px;margin:0 0 10px;color:var(--acc);font-weight:600}
-nav{display:flex;gap:6px}
-nav button{flex:1;padding:10px 4px;border:0;border-radius:8px 8px 0 0;background:#151515;color:var(--dim);font-size:14px}
-nav button.on{background:var(--card);color:var(--acc);font-weight:600}
-main{padding:12px 16px 90px}
-.bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;color:var(--dim);font-size:13px}
-.btn{display:inline-block;background:var(--gold);color:#000;border:0;border-radius:8px;padding:10px 16px;font-weight:600;font-size:15px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-.cell{background:var(--card);border-radius:10px;overflow:hidden;position:relative}
-.cell .play{position:absolute;right:6px;top:6px;background:rgba(0,0,0,.6);color:#fff;font-size:12px;padding:1px 6px;border-radius:4px;pointer-events:none}
-#hint{color:var(--dim);font-size:13px;margin:0 0 10px;display:none}
-.cell img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#111}
-.cell .n{padding:6px 8px;font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cell .del{width:100%;border:0;background:#2a2a2a;color:var(--fg);padding:8px;font-size:13px}
-.empty{color:var(--dim);text-align:center;padding:40px 0}
-#msg{position:fixed;left:16px;right:16px;bottom:16px;background:#222;color:var(--fg);padding:12px;border-radius:10px;display:none;font-size:14px;white-space:pre-line}
-#view{position:fixed;inset:0;background:#000;display:none;align-items:center;justify-content:center}
-#view img,#view video{max-width:100%;max-height:100%}
-#apkpane p{color:var(--dim)}
-input[type=file]{display:none}
+/* 手机上传页(R130,2026-09-30 重做):跟随手机的深浅色;强调色 = 电视当前主题色(服务端注入 __ACCENT__),
+   只当填充色用、上面压深色字——主题色都是很浅的低饱和色(R62),当文字色在浅色模式下看不清。 */
+:root{
+  --acc:__ACCENT__; --on-acc:#18161d;
+  --bg:#f4f4f6; --surface:#fff; --surface2:#e9e9ee; --line:rgba(0,0,0,.07);
+  --text:#16161a; --dim:#62626b; --faint:#9696a0; --danger:#d23c3c; --ok:#1e9b57;
+  --shadow:0 1px 2px rgba(0,0,0,.05),0 6px 20px rgba(0,0,0,.07);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0e0e10; --surface:#1a1a1e; --surface2:#26262b; --line:rgba(255,255,255,.07);
+    --text:#f3f3f5; --dim:#a6a6b0; --faint:#6f6f79; --danger:#ff7070; --ok:#62d394;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.4);
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text)}
+body{font:16px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","PingFang TC","Noto Sans CJK SC","Noto Sans CJK TC","Microsoft YaHei",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+button,label{font:inherit;color:inherit}
+button{cursor:pointer}
+[hidden]{display:none!important}
+.wrap{max-width:620px;margin:0 auto;padding:max(14px,env(safe-area-inset-top)) 18px calc(120px + env(safe-area-inset-bottom))}
+
+/* 顶部:品牌 + 连接状态 */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;letter-spacing:.2px}
+.mark{width:26px;height:26px;border-radius:8px;background:var(--acc);display:grid;place-items:center;color:var(--on-acc);font-size:15px;font-weight:700}
+.conn{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--dim);background:var(--surface);border-radius:999px;padding:5px 11px 5px 9px;box-shadow:var(--shadow)}
+.conn .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 22%,transparent)}
+.conn.off .dot{background:var(--danger);box-shadow:0 0 0 3px color-mix(in srgb,var(--danger) 22%,transparent)}
+h1{font-size:28px;line-height:1.2;margin:0 0 16px;font-weight:700;letter-spacing:-.2px}
+
+/* 分段选择 */
+.seg{display:flex;background:var(--surface2);border-radius:14px;padding:4px;gap:4px;margin-bottom:18px}
+.seg button{flex:1 1 auto;min-width:0;border:0;background:transparent;border-radius:10px;padding:9px 8px;font-size:14px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .2s,color .2s}
+.seg button.on{background:var(--surface);color:var(--text);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+
+/* 每一类的说明 + 主按钮 */
+.lead{background:var(--surface);border-radius:20px;padding:18px;box-shadow:var(--shadow);margin-bottom:26px}
+.desc{margin:0 0 16px;color:var(--dim);font-size:15px}
+.primary{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;border:0;border-radius:14px;padding:15px 16px;background:var(--acc);color:var(--on-acc);font-weight:600;font-size:16px;cursor:pointer;transition:transform .12s,filter .12s}
+.primary:active{transform:scale(.98);filter:brightness(.95)}
+.primary svg{width:20px;height:20px}
+input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+
+/* 电视上已有 */
+.libhead{display:flex;align-items:baseline;gap:8px;margin:0 2px 12px;font-weight:600;font-size:17px}
+.count{font-size:13px;font-weight:500;color:var(--dim);background:var(--surface2);border-radius:999px;padding:1px 8px}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+@media (min-width:460px){.grid{grid-template-columns:repeat(3,1fr)}}
+.tile{position:relative;border:0;padding:0;border-radius:14px;overflow:hidden;background:var(--surface2);aspect-ratio:16/9;display:block;width:100%}
+.tile img{width:100%;height:100%;object-fit:cover;display:block}
+.tile .badge{position:absolute;left:8px;bottom:8px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.55);display:grid;place-items:center;pointer-events:none}
+.tile .badge svg{width:12px;height:12px;fill:#fff;margin-left:2px}
+.tile .del{position:absolute;right:6px;top:6px;width:32px;height:32px;border:0;border-radius:50%;background:rgba(0,0,0,.5);display:grid;place-items:center;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.tile .del svg{width:16px;height:16px;stroke:#fff}
+.tile.new{animation:pop .5s ease-out}
+@keyframes pop{from{transform:scale(.92);opacity:0}to{transform:none;opacity:1}}
+.empty{text-align:center;padding:34px 18px;color:var(--dim);border:1.5px dashed var(--line);border-radius:20px}
+.empty svg{width:44px;height:44px;stroke:var(--faint);margin-bottom:8px}
+.empty .t{color:var(--text);font-weight:600;font-size:16px;margin-bottom:4px}
+.empty .s{font-size:14px}
+
+/* 装应用 */
+.apkstatus{display:flex;gap:12px;align-items:flex-start;background:var(--surface);border-radius:16px;padding:14px 16px;box-shadow:var(--shadow);font-size:15px}
+.apkstatus .i{flex:none;width:22px;height:22px;margin-top:1px}
+.apkstatus .sub{color:var(--dim);font-size:13px;margin-top:2px;word-break:break-all}
+
+/* 底部进度 / 结果卡 */
+.toast{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));max-width:596px;margin:0 auto;background:var(--surface);border-radius:18px;padding:14px 16px;box-shadow:0 10px 40px rgba(0,0,0,.25);transform:translateY(0);transition:transform .25s,opacity .25s;z-index:5}
+.toast.hide{transform:translateY(24px);opacity:0;pointer-events:none}
+.trow{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:500}
+.trow .i{flex:none;width:22px;height:22px}
+.trow .x{margin-left:auto;border:0;background:transparent;padding:4px;display:grid;place-items:center}
+.trow .x svg{width:18px;height:18px;stroke:var(--dim)}
+.tsub{color:var(--dim);font-size:13px;margin:2px 0 0 32px}
+.bar{height:6px;border-radius:3px;background:var(--surface2);margin-top:10px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--acc);border-radius:3px;transition:width .2s}
+.tlist{margin:8px 0 0 32px;padding:0;list-style:none;font-size:13px;color:var(--dim);max-height:30vh;overflow:auto}
+.tlist b{color:var(--text);font-weight:500;word-break:break-all}
+.spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* 删除确认(底部抽屉) */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:10;animation:fade .2s}
+.sheet{width:100%;max-width:620px;background:var(--surface);border-radius:22px 22px 0 0;padding:20px 18px calc(18px + env(safe-area-inset-bottom));animation:up .25s ease-out}
+@keyframes fade{from{opacity:0}}
+@keyframes up{from{transform:translateY(40px)}}
+.sheet .thumb{width:96px;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:var(--surface2);margin:0 auto 14px}
+.sheet .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.sheet .st{text-align:center;font-weight:600;font-size:17px}
+.sheet .ss{text-align:center;color:var(--dim);font-size:14px;margin:4px 0 18px}
+.sheet .acts{display:flex;gap:10px}
+.sheet .acts button{flex:1;border:0;border-radius:14px;padding:14px;font-weight:600;font-size:16px;background:var(--surface2)}
+.sheet .acts .danger{background:var(--danger);color:#fff}
+
+/* 全屏查看 */
+.viewer{position:fixed;inset:0;background:#000;z-index:8;display:flex;flex-direction:column}
+.vbar{display:flex;align-items:center;gap:8px;padding:max(10px,env(safe-area-inset-top)) 10px 10px;color:#fff}
+.vbar span{flex:1;min-width:0;font-size:14px;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+.vbar button{width:40px;height:40px;border:0;border-radius:50%;background:rgba(255,255,255,.12);display:grid;place-items:center}
+.vbar svg{width:20px;height:20px;stroke:#fff}
+.vbody{flex:1;display:flex;align-items:center;justify-content:center;min-height:0}
+.vbody img,.vbody video{max-width:100%;max-height:100%}
 </style>
 </head>
 <body>
-<header><h1 id="title"></h1><nav id="tabs"></nav></header>
-<main>
-  <div id="imgpane">
-    <div class="bar"><span id="count"></span><label class="btn" for="pick" id="uplabel"></label><input id="pick" type="file" multiple accept="image/*"></div>
-    <p id="hint"></p>
-    <div id="grid" class="grid"></div>
-    <div id="empty" class="empty"></div>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><span class="mark" aria-hidden="true">U</span>UnitedU</div>
+    <div class="conn" id="conn"><span class="dot"></span><span id="connText"></span></div>
+  </header>
+  <h1 id="title"></h1>
+  <nav class="seg" id="tabs" role="tablist"></nav>
+
+  <section id="imgpane">
+    <div class="lead">
+      <p class="desc" id="desc"></p>
+      <label class="primary" for="pick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span id="pickLabel"></span></label>
+      <input id="pick" type="file" multiple accept="image/*">
+    </div>
+    <div class="libhead"><span id="libTitle"></span><span class="count" id="count" hidden></span></div>
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="empty" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-9 9"/></svg>
+      <div class="t" id="emptyTitle"></div>
+      <div class="s" id="emptySub"></div>
+    </div>
+  </section>
+
+  <section id="apkpane" hidden>
+    <div class="lead">
+      <p class="desc" id="apkDesc"></p>
+      <label class="primary" for="apkpick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span id="apkLabel"></span></label>
+      <input id="apkpick" type="file" accept=".apk,application/vnd.android.package-archive">
+    </div>
+    <div class="apkstatus" id="apkstatus" hidden></div>
+  </section>
+</div>
+
+<div class="toast hide" id="toast" role="status" aria-live="polite">
+  <div class="trow"><span class="i" id="tIcon"></span><span id="tText"></span><button class="x" id="tClose" hidden><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="tsub" id="tSub" hidden></div>
+  <div class="bar" id="tBarWrap" hidden><i id="tBar"></i></div>
+  <ul class="tlist" id="tList" hidden></ul>
+</div>
+
+<div class="scrim" id="sheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="thumb"><img id="sheetImg" alt=""></div>
+    <div class="st" id="sheetTitle"></div>
+    <div class="ss" id="sheetBody"></div>
+    <div class="acts"><button id="sheetCancel"></button><button class="danger" id="sheetOk"></button></div>
   </div>
-  <div id="apkpane" style="display:none">
-    <p id="apkhint"></p>
-    <label class="btn" for="apkpick" id="apklabel"></label><input id="apkpick" type="file" accept=".apk,application/vnd.android.package-archive">
-    <p id="apkstatus"></p>
+</div>
+
+<div class="viewer" id="view" hidden>
+  <div class="vbar">
+    <button id="vClose"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <span id="vName"></span>
+    <button id="vDel"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2"/></svg></button>
   </div>
-</main>
-<div id="msg"></div>
-<div id="view"><img id="viewimg" alt=""><video id="viewvid" muted loop playsinline controls style="display:none"></video></div>
+  <div class="vbody"><img id="viewImg" alt=""><video id="viewVid" muted loop playsinline controls hidden></video></div>
+</div>
+
 <script>
 const S = __STRINGS__;
 // 非 GET 一律带这个头:服务端只认带它的写请求(见 UploadServer.serve)。fetch + FormData 本来是
@@ -65,106 +188,211 @@ const MAX_VIDEO = 500 * 1024 * 1024;
 const isVideo = n => VIDEO_EXTS.includes((n.split(".").pop() || "").toLowerCase());
 const ACCEPT_IMG = "image/*";
 const ACCEPT_MEDIA = "image/*,video/mp4,video/quicktime,video/webm,.mp4,.m4v,.mov,.webm";
-function msg(t) { const m = $("msg"); m.textContent = t; m.style.display = "block"; clearTimeout(msg.t); msg.t = setTimeout(() => m.style.display = "none", 5000); }
-function renderTabs() {
-  $("tabs").innerHTML = "";
-  for (const [k, l] of TABS) { const b = document.createElement("button"); b.textContent = l; b.className = k === type ? "on" : ""; b.onclick = () => { type = k; renderTabs(); load(); }; $("tabs").appendChild(b); }
+
+const ICON = {
+  ok: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M8 12.3l2.7 2.7L16.2 9.5"/></svg>',
+  warn: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M12 7.5v5.5M12 16.5v.01"/></svg>',
+  busy: '<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="var(--dim)" stroke-width="2.4" stroke-linecap="round"><path d="M12 3a9 9 0 109 9"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>',
+  play: '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>',
+};
+const fmt = (t, n) => t.replace("%d", n);
+const plural = (base, n) => fmt(n === 1 ? S[base + "_one"] : S[base + "_other"], n);
+
+// ---------- 底部卡:进度 / 结果 ----------
+let toastTimer = 0;
+function toast({ icon, text, sub, progress, list, sticky }) {
+  const t = $("toast");
+  $("tIcon").innerHTML = ICON[icon] || "";
+  $("tText").textContent = text;
+  $("tSub").hidden = !sub; $("tSub").textContent = sub || "";
+  $("tBarWrap").hidden = progress == null; if (progress != null) $("tBar").style.width = progress + "%";
+  const l = $("tList"); l.innerHTML = ""; l.hidden = !(list && list.length);
+  for (const [name, why] of list || []) { const li = document.createElement("li"); const b = document.createElement("b"); b.textContent = name; li.append(b, " · " + why); l.appendChild(li); }
+  $("tClose").hidden = !sticky;
+  t.classList.remove("hide");
+  clearTimeout(toastTimer);
+  if (!sticky && icon !== "busy") toastTimer = setTimeout(() => t.classList.add("hide"), 3500);
 }
-async function load() {
+$("tClose").onclick = () => $("toast").classList.add("hide");
+
+// ---------- 连接状态:每 6 秒问一次电视(页面在前台时),顺便把别处的增删同步进来 ----------
+let online = true;
+function setOnline(on) {
+  online = on;
+  $("conn").classList.toggle("off", !on);
+  $("connText").textContent = on ? S.connected : S.offline;
+  if (!on) toast({ icon: "warn", text: S.offline, sub: S.offline_hint, sticky: true });
+}
+
+// ---------- 分页 ----------
+function renderTabs() {
+  const nav = $("tabs"); nav.innerHTML = "";
+  for (const [k, label] of TABS) {
+    const b = document.createElement("button");
+    b.textContent = label; b.setAttribute("role", "tab");
+    b.className = k === type ? "on" : ""; b.setAttribute("aria-selected", k === type);
+    b.onclick = () => { if (type === k) return; type = k; lastList = ""; renderTabs(); load(); };
+    nav.appendChild(b);
+  }
+}
+
+let lastList = "";
+async function load(quiet) {
   const isApk = type === "apk";
-  $("imgpane").style.display = isApk ? "none" : ""; $("apkpane").style.display = isApk ? "" : "none";
+  $("imgpane").hidden = isApk; $("apkpane").hidden = !isApk;
   if (isApk) return;
   const ss = type === "screensavers";
+  $("desc").textContent = S["desc_" + type];
+  $("pickLabel").textContent = ss ? S.pick_media : S.pick_photos;
   $("pick").accept = ss ? ACCEPT_MEDIA : ACCEPT_IMG;
-  $("hint").textContent = ss ? S.screensavers_hint : ""; $("hint").style.display = ss ? "block" : "none";
+  $("libTitle").textContent = S.lib_title;
+  $("emptyTitle").textContent = ss ? S.empty_screensavers : S.empty;
+  $("emptySub").textContent = S.empty_sub;
+  const want = type;
   let d;
-  try { d = await (await fetch(`/api/list?type=${type}`)).json(); } catch (e) { msg(S.error); return; }
-  if (!d || !Array.isArray(d.files)) { msg(S.error); return; }
+  try { d = await (await fetch(`/api/list?type=${want}`, { cache: "no-store" })).json(); }
+  catch (e) { if (online) setOnline(false); return; }
+  if (!online) { setOnline(true); $("toast").classList.add("hide"); }
+  if (want !== type || !d || !Array.isArray(d.files)) return;
+  const sig = JSON.stringify(d.files);
+  if (quiet && sig === lastList) return;
+  const before = new Set(lastList ? JSON.parse(lastList).map(f => f.name) : []);
+  lastList = sig;
+  render(d.files, before);
+}
+
+function render(files, before) {
   const g = $("grid"); g.innerHTML = "";
-  $("count").textContent = d.files.length ? String(d.files.length) : "";
-  $("empty").textContent = d.files.length ? "" : (type === "screensavers" ? S.empty_screensavers : S.empty);
-  for (const f of d.files) {
-    const c = document.createElement("div"); c.className = "cell";
-    const img = document.createElement("img"); img.loading = "lazy"; img.src = `/thumb?type=${type}&name=${q(f.name)}&v=${f.mtime}`;
-    const vid = isVideo(f.name);
-    img.onclick = () => {
-      const src = `/file?type=${type}&name=${q(f.name)}`;
-      $("viewimg").style.display = vid ? "none" : ""; $("viewvid").style.display = vid ? "" : "none";
-      if (vid) { $("viewvid").src = src; $("viewvid").play().catch(() => {}); } else $("viewimg").src = src;
-      $("view").style.display = "flex";
-    };
-    const n = document.createElement("div"); n.className = "n"; n.textContent = f.name;
-    const del = document.createElement("button"); del.className = "del"; del.textContent = S.delete;
-    del.onclick = async () => {
-      if (!confirm(S.confirm_delete.replace("%s", f.name))) return;
-      let r;
-      try { r = await fetch(`/api/file?type=${type}&name=${q(f.name)}`, { method: "DELETE", headers: H }); } catch (e) { msg(S.error); return; }
-      msg(r.ok ? S.done : S.error); load();
-    };
-    c.append(img, n, del);
-    if (vid) { const b = document.createElement("div"); b.className = "play"; b.textContent = "▶"; c.appendChild(b); }
-    g.appendChild(c);
+  $("count").hidden = !files.length; $("count").textContent = files.length;
+  $("empty").hidden = !!files.length;
+  // 新传上来的排在最前面(按修改时间倒序),刚到的那几张带一下弹入
+  const sorted = [...files].sort((a, b) => b.mtime - a.mtime);
+  for (const f of sorted) {
+    const tile = document.createElement("div");
+    tile.className = "tile" + (before.size && !before.has(f.name) ? " new" : "");
+    const img = document.createElement("img"); img.loading = "lazy"; img.alt = f.name;
+    img.src = `/thumb?type=${type}&name=${q(f.name)}&v=${f.mtime}`;
+    img.onclick = () => openViewer(f);
+    tile.appendChild(img);
+    if (isVideo(f.name)) { const b = document.createElement("span"); b.className = "badge"; b.innerHTML = ICON.play; tile.appendChild(b); }
+    const del = document.createElement("button"); del.className = "del"; del.setAttribute("aria-label", S.delete);
+    del.innerHTML = ICON.trash; del.onclick = e => { e.stopPropagation(); askDelete(f); };
+    tile.appendChild(del);
+    g.appendChild(tile);
   }
 }
-const uploading = n => (n === 1 ? S.uploading_one : S.uploading_other).replace("%d", n);
-const reasonText = x => (x.reason === "type" && type === "screensavers" ? S.rejected_type_media : S["rejected_" + x.reason]) || x.reason;
-// 一个文件的原始字节上传(R103):body 就是文件,服务端流式落盘;XHR 才有上传进度(几百 MB 的视频要几分钟)
-function sendRaw(f, onProgress) {
+
+// ---------- 查看 / 删除 ----------
+let viewing = null;
+function openViewer(f) {
+  viewing = f;
+  const src = `/file?type=${type}&name=${q(f.name)}`;
+  const vid = isVideo(f.name);
+  $("vName").textContent = f.name;
+  $("viewImg").hidden = vid; $("viewVid").hidden = !vid;
+  if (vid) { $("viewVid").src = src; $("viewVid").play().catch(() => {}); } else $("viewImg").src = src;
+  $("view").hidden = false;
+}
+function closeViewer() { $("viewVid").pause(); $("viewVid").removeAttribute("src"); $("viewImg").removeAttribute("src"); $("view").hidden = true; viewing = null; }
+$("vClose").onclick = closeViewer;
+$("vDel").onclick = () => { const f = viewing; closeViewer(); if (f) askDelete(f); };
+
+let pending = null;
+function askDelete(f) {
+  pending = f;
+  $("sheetImg").src = `/thumb?type=${type}&name=${q(f.name)}&v=${f.mtime}`;
+  $("sheetTitle").textContent = S.delete_title;
+  $("sheetBody").textContent = S.delete_body;
+  $("sheetCancel").textContent = S.cancel; $("sheetOk").textContent = S.delete;
+  $("sheet").hidden = false;
+}
+$("sheetCancel").onclick = () => { $("sheet").hidden = true; pending = null; };
+$("sheet").onclick = e => { if (e.target.id === "sheet") $("sheetCancel").onclick(); };
+$("sheetOk").onclick = async () => {
+  const f = pending; $("sheet").hidden = true; pending = null; if (!f) return;
+  let r;
+  try { r = await fetch(`/api/file?type=${type}&name=${q(f.name)}`, { method: "DELETE", headers: H }); }
+  catch (e) { setOnline(false); return; }
+  toast(r.ok ? { icon: "ok", text: S.deleted } : { icon: "warn", text: S.error });
+  lastList = ""; load();
+};
+
+// ---------- 上传 ----------
+const reasonText = x => (x.reason === "type" && type === "screensavers" ? S.rejected_type_media : S["rejected_" + x.reason]) || S.error;
+// 带进度的 POST;body 是 FormData(照片一批)或文件本身(屏保逐个、R103)。回调拿到的是解析好的 JSON 或 null。
+function post(url, body, raw, onProgress) {
   return new Promise(resolve => {
     const x = new XMLHttpRequest();
-    x.open("POST", `/api/upload-raw?type=${type}&name=${q(f.name)}`);
+    x.open("POST", url);
     for (const k in H) x.setRequestHeader(k, H[k]);
-    x.setRequestHeader("Content-Type", "application/octet-stream");
+    if (raw) x.setRequestHeader("Content-Type", "application/octet-stream");
     x.upload.onprogress = ev => { if (ev.lengthComputable) onProgress(Math.floor(ev.loaded * 100 / ev.total)); };
     x.onload = () => { let d = null; try { d = JSON.parse(x.responseText); } catch (err) {} resolve(d); };
-    x.onerror = () => resolve(null);
-    x.send(f);
+    x.onerror = () => resolve(undefined);   // undefined = 连不上;null = 连上了但回的不是 JSON
+    x.send(body);
   });
 }
-// 屏保分页:逐个文件上传(视频可达 500 MB,不拼成一个 multipart 大包)
-async function uploadEach(files) {
-  const saved = [], rejected = [];
-  for (let i = 0; i < files.length; i++) {
-    const f = files[i];
-    if (isVideo(f.name) && f.size > MAX_VIDEO) { rejected.push({ name: f.name, reason: "video_size" }); continue; }
-    const head = `${uploading(files.length)} ${i + 1}/${files.length}`;
-    msg(head);
-    const d = await sendRaw(f, p => msg(`${head} · ${p}%`));
-    if (d && Array.isArray(d.saved) && Array.isArray(d.rejected)) { saved.push(...d.saved); rejected.push(...d.rejected); }
-    else rejected.push({ name: f.name, reason: (d && d.reason) || "server" });
-  }
-  return { saved, rejected };
+function finish(total, saved, rejected) {
+  if (!saved.length && !rejected.length) return;
+  const list = rejected.map(x => [x.name, reasonText(x)]);
+  if (!rejected.length) toast({ icon: "ok", text: plural("sent", saved.length), sub: S.sent_sub });
+  else toast({ icon: saved.length ? "ok" : "warn", text: saved.length ? plural("sent", saved.length) : S.failed_title, sub: saved.length ? S.failed_title : "", list, sticky: true });
 }
 $("pick").onchange = async e => {
-  const files = [...e.target.files]; if (!files.length) return;
+  const files = [...e.target.files]; e.target.value = ""; if (!files.length) return;
+  const head = plural("uploading", files.length);
+  const saved = [], rejected = [];
   if (type === "screensavers") {
-    const d = await uploadEach(files);
-    let t = `${S.done} ${d.saved.length}/${files.length}`;
-    for (const x of d.rejected) t += `\n${x.name}: ${reasonText(x) === "server" ? S.error : reasonText(x)}`;
-    msg(t); e.target.value = ""; load(); return;
+    // 屏保分页:逐个文件原始字节上传(视频可达 500 MB,不拼成一个 multipart 大包)
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      if (isVideo(f.name) && f.size > MAX_VIDEO) { rejected.push({ name: f.name, reason: "video_size" }); continue; }
+      const step = files.length > 1 ? ` ${i + 1}/${files.length}` : "";
+      toast({ icon: "busy", text: head + step, progress: 0 });
+      const d = await post(`/api/upload-raw?type=${type}&name=${q(f.name)}`, f, true, p => toast({ icon: "busy", text: head + step, progress: p }));
+      if (d === undefined) { setOnline(false); return; }
+      if (d && Array.isArray(d.saved) && Array.isArray(d.rejected)) { saved.push(...d.saved); rejected.push(...d.rejected); }
+      else rejected.push({ name: f.name, reason: (d && d.reason) || "server" });
+    }
+  } else {
+    const fd = new FormData(); for (const f of files) fd.append("files", f, f.name);
+    toast({ icon: "busy", text: head, progress: 0 });
+    const d = await post(`/api/upload?type=${type}`, fd, false, p => toast({ icon: "busy", text: head, progress: p }));
+    if (d === undefined) { setOnline(false); return; }
+    if (d && Array.isArray(d.saved) && Array.isArray(d.rejected)) { saved.push(...d.saved); rejected.push(...d.rejected); }
+    else rejected.push(...files.map(f => ({ name: f.name, reason: (d && d.reason) || "server" })));
   }
-  const fd = new FormData(); for (const f of files) fd.append("files", f, f.name);
-  msg(uploading(files.length));
-  let d;
-  try { d = await (await fetch(`/api/upload?type=${type}`, { method: "POST", headers: H, body: fd })).json(); } catch (err) { msg(S.error); return; }
-  if (!d || !Array.isArray(d.saved) || !Array.isArray(d.rejected)) { msg(S.error); e.target.value = ""; return; }
-  let t = `${S.done} ${d.saved.length}/${files.length}`;
-  for (const x of d.rejected) t += `\n${x.name}: ${S["rejected_" + x.reason] || x.reason}`;
-  msg(t); e.target.value = ""; load();
+  finish(files.length, saved, rejected);
+  load();
 };
+
+// ---------- 装应用 ----------
+function apkStatus(icon, text, sub) {
+  const s = $("apkstatus"); s.hidden = false; s.innerHTML = "";
+  const i = document.createElement("span"); i.className = "i"; i.innerHTML = ICON[icon];
+  const body = document.createElement("div"); body.textContent = text;
+  if (sub) { const d = document.createElement("div"); d.className = "sub"; d.textContent = sub; body.appendChild(d); }
+  s.append(i, body);
+}
 $("apkpick").onchange = async e => {
-  const f = e.target.files[0]; if (!f) return;
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
   const fd = new FormData(); fd.append("apk", f, f.name);
-  $("apkstatus").textContent = uploading(1);
-  let d;
-  try { d = await (await fetch("/api/apk", { method: "POST", headers: H, body: fd })).json(); } catch (err) { d = { ok: false, reason: "server" }; }
-  $("apkstatus").textContent = d.ok ? `${S.done} ${d.package || ""} ${d.version || ""}` : (S["apk_" + d.reason] || S.error);
-  e.target.value = "";
+  apkStatus("busy", plural("uploading", 1), f.name);
+  const d = await post("/api/apk", fd, false, p => apkStatus("busy", `${plural("uploading", 1)} ${p}%`, f.name));
+  if (d === undefined) { apkStatus("warn", S.offline, S.offline_hint); setOnline(false); return; }
+  if (d && d.ok) apkStatus("ok", S.apk_sent, [d.package, d.version].filter(Boolean).join(" · "));
+  else apkStatus("warn", S["apk_" + ((d && d.reason) || "server")] || S.error, f.name);
 };
-$("view").onclick = ev => { if (ev.target.id === "viewvid") return; $("viewvid").pause(); $("viewvid").removeAttribute("src"); $("view").style.display = "none"; };
-$("title").textContent = S.title; document.title = S.title;
-$("uplabel").textContent = S.upload; $("apklabel").textContent = S.apk_install; $("apkhint").textContent = S.apk_hint;
+
+// ---------- 启动 ----------
+$("title").textContent = S.title; document.title = S.title + " · UnitedU";
+$("apkDesc").textContent = S.desc_apk; $("apkLabel").textContent = S.pick_apk;
+$("vClose").setAttribute("aria-label", S.close); $("vDel").setAttribute("aria-label", S.delete);
+$("tClose").setAttribute("aria-label", S.close);
+setOnline(true); $("toast").classList.add("hide");
 renderTabs(); load();
+setInterval(() => { if (document.visibilityState === "visible" && $("sheet").hidden && $("view").hidden) load(true); }, 6000);
 </script>
 </body>
 </html>

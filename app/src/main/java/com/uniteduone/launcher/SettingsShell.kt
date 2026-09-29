@@ -222,6 +222,49 @@ internal val shellBodyStyle = TextStyle(
     fontFamily = Theme.Sans, color = Theme.SecondaryText,
     fontSize = GtvLayout.settingsSp(14f).sp, lineHeight = GtvLayout.settingsSp(20f).sp,
 )
+/** R131:光标所在那一行的说明文字(比 [shellBodyStyle] 大一档,坐在沙发上读得清)。 */
+private val shellDescStyle = TextStyle(
+    fontFamily = Theme.Sans, color = Theme.SecondaryText,
+    fontSize = GtvLayout.settingsSp(15f).sp, lineHeight = GtvLayout.settingsSp(22f).sp,
+)
+
+/**
+ * 说明块的固定高度(dp,R131):最长的说明(英文)三行 + 一行状态小字。**固定高**是为了光标在说明长短不同的行之间
+ * 移动时,左边的页名一动不动(没有预览的页,页名与说明是一整块竖直居中的)。
+ */
+private const val DESC_BLOCK_DP = 96f
+
+/**
+ * **光标所在那一行的说明**(R131,2026-09-30「第一次用、没人教也看得懂」):没有预览的页放在页名下方,居中。
+ * [note] 是这一行的动态状态(「从最后一次按遥控器算起」「轮播里没有照片」),用主题色与说明区分开。
+ */
+@Composable
+private fun RowDescription(text: String?, note: String? = null) {
+    val highlight = LocalThemeColors.current.highlight
+    Column(Modifier.height(DESC_BLOCK_DP.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        if (text != null) BasicText(text, maxLines = 3, style = shellDescStyle.copy(textAlign = TextAlign.Center))
+        if (note != null) {
+            Spacer(Modifier.height(8.dp))
+            BasicText(note, maxLines = 2, style = shellDescStyle.copy(color = highlight, textAlign = TextAlign.Center))
+        }
+    }
+}
+
+/** 一页的行里,光标所在那一行的说明文字(R131)。找不到这一行或它没有说明 → null。 */
+@Composable
+private fun focusedDesc(rows: List<RowSpec>, focusId: String?): String? =
+    rows.firstOrNull { it.id == focusId }?.descRes?.let { stringResource(it) }
+
+/**
+ * 光标所在那一行的动态小字(R131):动作行的 [ActionRow.noteRes](「自动关屏」写去电视设置哪一页改)。
+ * R127 起它画在胶囊里、占两三行;有了左侧说明区之后挪到说明下面,胶囊只剩「标签 … 值」。
+ */
+@Composable
+private fun focusedNote(rows: List<RowSpec>, focusId: String?): String? {
+    val row = rows.firstOrNull { it.id == focusId } as? ActionRow ?: return null
+    val res = row.noteRes ?: return null
+    return if (row.noteArgs.isEmpty()) stringResource(res) else stringResource(res, *row.noteArgs.toTypedArray())
+}
 
 /**
  * 没有预览的页:路径(小字灰)+ 页名(32 sp)放在左半屏正中(效果图 README 第 4 条「照 M1 的做法」);
@@ -252,7 +295,7 @@ fun BoxScope.ShellTitle(path: String?, title: String, extra: (@Composable () -> 
  * MainActivity 缩放首页那一层同一个函数,第一帧就对齐。
  */
 @Composable
-fun BoxScope.ShellPreviewFrame(path: String, title: String, pending: String?) {
+fun BoxScope.ShellPreviewFrame(path: String, title: String, pending: String?, desc: String? = null) {
     val cfg = LocalConfiguration.current
     val r = previewRect(cfg.screenWidthDp.toFloat(), cfg.screenHeightDp.toFloat())
     Box(
@@ -280,6 +323,13 @@ fun BoxScope.ShellPreviewFrame(path: String, title: String, pending: String?) {
             Spacer(Modifier.width(8.dp))
             BasicText(pending, maxLines = 1, style = shellBodyStyle)
         }
+    } else if (desc != null) {
+        // R131:光标所在那一行的说明,与「● 预览:…」同一个位置(两者不同时出现:有未保存的预览时先说预览)。
+        BasicText(
+            desc, maxLines = 3,
+            modifier = Modifier.offset(r.x.dp, (r.y + r.height + 12f).dp).width(r.width.dp),
+            style = shellDescStyle,
+        )
     }
 }
 
@@ -413,10 +463,12 @@ fun SettingsShell(
                 val spec = groups.first { it.id == groupId }
                 val items = spec.rows.map { row -> groupCapsule(row, onPush, followingWallpaper = saved.followWallpaperColor) }
                 val title = stringResource(spec.titleRes)
+                val desc = focusedDesc(spec.rows, target)
+                val note = focusedNote(spec.rows, target)
                 ShellScaffold(
                     left = {
-                        if (pageHasPreview(top.page)) ShellPreviewFrame(settingsTitle, title, pending = null)
-                        else ShellTitle(settingsTitle, title)
+                        if (pageHasPreview(top.page)) ShellPreviewFrame(settingsTitle, title, pending = null, desc = desc)
+                        else ShellTitle(settingsTitle, title) { RowDescription(desc, note) }
                     },
                     right = { CapsuleColumn(items, target, onFocus, focusNonce, covered) },
                 )
@@ -431,8 +483,9 @@ fun SettingsShell(
                 val sub = subPageRow(groups, subRow)!!
                 val path = (listOf(settingsTitle) + rowParents(groups, sub.id).map { stringResource(it) }).joinToString(" · ")
                 val items = sub.rows.map { row -> groupCapsule(row, onPush, followingWallpaper = saved.followWallpaperColor) }
+                val desc = focusedDesc(sub.rows, target)
                 ShellScaffold(
-                    left = { ShellTitle(path, stringResource(sub.labelRes)) },
+                    left = { ShellTitle(path, stringResource(sub.labelRes)) { RowDescription(desc) } },
                     right = { CapsuleColumn(items, target, onFocus, focusNonce, covered) },
                 )
             }
@@ -474,10 +527,12 @@ fun SettingsShell(
                     stringResource(R.string.shell_preview_hint, optionLabel(row, cursor))
                 } else null
                 val note = row.noteRes?.let { stringResource(it) }
+                val desc = row.descRes?.let { stringResource(it) }
                 ShellScaffold(
                     left = {
-                        if (pageHasPreview(top.page)) ShellPreviewFrame(path, title, pending)
-                        else ShellTitle(path, title, extra = note?.let { { BasicText(it, style = shellBodyStyle.copy(textAlign = TextAlign.Center)) } })
+                        // R131:选项层同样写这一行是做什么的;动态状态(屏保从哪算起 / 轮播为空)跟在说明下面
+                        if (pageHasPreview(top.page)) ShellPreviewFrame(path, title, pending, desc = desc)
+                        else ShellTitle(path, title) { RowDescription(desc, note) }
                     },
                     right = { CapsuleColumn(items, target, onFocus, focusNonce, covered) },
                 )
@@ -593,7 +648,7 @@ private fun groupCapsule(row: RowSpec, onPush: (String, String?) -> Unit, follow
         is SubPageRow -> {
             // R128:右端是子页里各行当前值的摘要(「3 分 · 时钟」)——与那几行自己显示的值同一份文案,「 · 」连接
             // (同「系统屏保」摘要的连法)。不画 ›:与它合并掉的两行一样只显示值(可改值的行点进去也是另一层,同样不画 ›)。
-            val summary = row.rows.filterIsInstance<ControlRow>().map { r ->
+            val summary = row.rows.filterIsInstance<ControlRow>().filter { r -> row.summaryIds?.contains(r.id) ?: true }.map { r ->
                 if (r.kind == CtrlKind.SLIDER) sliderText(r) else optionLabel(r, r.selected)
             }.joinToString(" · ")
             Capsule(
@@ -622,8 +677,7 @@ private fun groupCapsule(row: RowSpec, onPush: (String, String?) -> Unit, follow
             Capsule(
                 id = row.id,
                 label = label,
-                // R127:标签下方的小字(「关闭屏幕」行写去哪改),与第一层的说明小字同一个样式;值照旧在右端。
-                hint = row.noteRes?.let { if (row.noteArgs.isEmpty()) stringResource(it) else stringResource(it, *row.noteArgs.toTypedArray()) },
+                // ~~R127:标签下方的小字(「关闭屏幕」行写去哪改)~~ R131 起挪到左侧说明区(focusedNote),胶囊里只有标签与值。
                 trailing = when {
                     value != null -> Trailing.Value(value, chevron = !jump)
                     jump -> Trailing.None

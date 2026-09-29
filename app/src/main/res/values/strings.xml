@@ -4,23 +4,23 @@
 
     <!-- menu_* : 齿轮菜单与菜单项 -->
     <string name="menu_settings_title">设置</string>
-    <string name="menu_edit">编辑分栏</string>
-    <string name="menu_edit_desc">增删应用、调整顺序、换卡片图</string>
+    <string name="menu_edit">编辑桌面</string>
+    <string name="menu_edit_desc">添加或移除应用、调整顺序、管理每一行。</string>
     <string name="menu_wallpaper">换壁纸</string>
-    <string name="menu_wallpaper_desc">选一张图片替换背景</string>
-    <string name="menu_system_settings">系统设置</string>
-    <string name="menu_system_settings_desc">打开电视的 Android 设置</string>
+    <string name="menu_wallpaper_desc">从内置壁纸或你自己的照片里选一张。</string>
+    <string name="menu_system_settings">电视设置</string>
+    <string name="menu_system_settings_desc">网络、画面、声音等电视自身的设置</string>
     <string name="menu_about">关于</string>
     <string name="menu_about_desc">版本、检查更新、恢复默认</string>
-    <string name="menu_set_default_home">设置默认桌面</string>
-    <string name="menu_set_default_home_desc">选择按 Home 键时启动哪个桌面</string>
+    <string name="menu_set_default_home">默认桌面</string>
+    <string name="menu_set_default_home_desc">按遥控器的主页键时打开哪个桌面。设成 UnitedU，每次按主页键都会回到这里。</string>
     <!-- card_menu_* : 首页长按卡片菜单 -->
     <string name="card_menu_open">打开应用</string>
     <string name="card_menu_open_desc">启动这个应用</string>
     <string name="card_menu_uninstall">卸载应用</string>
-    <string name="card_menu_uninstall_desc">走系统卸载确认;卸载后卡片自动消失</string>
+    <string name="card_menu_uninstall_desc">走系统卸载确认；卸载后卡片自动消失</string>
     <string name="card_menu_rename">修改标题</string>
-    <string name="card_menu_rename_desc">只改卡片上的名字,不改应用</string>
+    <string name="card_menu_rename_desc">只改卡片上的名字，不改应用</string>
     <string name="card_menu_icon">换卡片图</string>
     <string name="card_menu_icon_desc">从图库选一张 16:9 的图</string>
     <string name="card_menu_move">移动位置</string>
@@ -33,66 +33,90 @@
     <string name="toast_title_saved">标题已保存</string>
     <string name="toast_title_not_saved">标题没能存下来</string>
     <string name="toast_uninstall_failed">打不开系统卸载页</string>
-    <string name="toast_remove_failed">没找到这张卡,可能刚被移出</string>
+    <string name="toast_remove_failed">没找到这张卡，可能刚被移出</string>
     <!-- R60(2026-09-23):原「导入图片」改名「手机传输」,从外观组挪到通用组;扫码页本身不变 -->
-    <string name="settings_phone_transfer">手机传输</string>
-    <string name="settings_phone_transfer_desc">手机扫码上传壁纸、卡片图、屏保照片与视频,或安装 APK</string>
-    <!-- import_* : 「导入图片」页(电视端) -->
-    <string name="import_title">用手机导入图片</string>
+    <string name="settings_phone_transfer">从手机添加</string>
+    <string name="settings_phone_transfer_desc">用手机扫码，把照片和视频传到电视，或给电视装应用。</string>
+    <!-- import_* : 电视端「从手机添加」页(R130 起:左边三步说明,右边二维码与网址) -->
+    <string name="import_title">用手机传到电视</string>
     <string name="import_title_wallpapers">用手机添加壁纸</string>
     <string name="import_title_cards">用手机添加卡片图</string>
-    <string name="import_title_screensavers">用手机添加屏保照片或视频</string>
+    <string name="import_title_screensavers">用手机添加屏保照片和视频</string>
+    <string name="import_step_wifi">手机连上和电视相同的 Wi-Fi</string>
+    <string name="import_step_scan">用手机相机扫描右边的二维码</string>
+    <string name="import_step_pick">在打开的网页里选好文件，电视这边马上就能用</string>
+    <string name="import_url_hint">扫不了？在手机浏览器里输入</string>
+    <string name="import_waiting">等待手机发送…</string>
     <plurals name="import_received">
         <item quantity="one">已收到 %1$d 个文件</item>
         <item quantity="other">已收到 %1$d 个文件</item>
     </plurals>
-    <string name="import_last">最近:%1$s</string>
-    <string name="import_hint_back">按返回键关闭并停止服务</string>
-    <string name="import_error_no_network">电视没有连接网络,连上 Wi-Fi 或网线后再试</string>
-    <string name="import_error_port">端口 8090–8099 都被占用,稍后再试</string>
-    <string name="import_apk_needs_permission">请在电视上允许「安装未知应用」,然后在手机上重试</string>
-    <string name="import_apk_started">已交给系统安装器</string>
+    <string name="import_last">最近：%1$s</string>
+    <string name="import_hint_back">传完按返回键离开</string>
+    <string name="import_error_no_network">电视还没有联网。连上 Wi-Fi 或网线后，再打开这一页</string>
+    <string name="import_error_port">传输暂时开不起来，请稍后再试</string>
+    <string name="import_apk_needs_permission">请在电视上允许 UnitedU 安装应用，然后在手机上再试一次</string>
+    <string name="import_apk_started">请在电视上确认安装</string>
 
-    <!-- web_* : 手机上传网页文案(服务端注入,JS 里 %s/%d 由网页自己替换) -->
-    <string name="web_title">用手机导入图片</string>
+    <!-- web_* : 手机上传网页文案(服务端注入;JS 里 %d 由网页自己替换)。R130 起页面按「传到电视」重做 -->
+    <string name="web_title">传到电视</string>
+    <string name="web_connected">已连接电视</string>
+    <string name="web_offline">和电视断开了</string>
+    <string name="web_offline_hint">在电视上重新打开「从手机添加」，再刷新这一页</string>
     <string name="web_tab_wallpapers">壁纸</string>
     <string name="web_tab_cards">卡片图</string>
     <string name="web_tab_screensavers">屏保</string>
-    <string name="web_tab_apk">安装 APK</string>
-    <string name="web_upload">上传</string>
-    <string name="web_delete">删除</string>
-    <string name="web_confirm_delete" formatted="false">删除 %s?</string>
-    <string name="web_empty">还没有图片,点右上「上传」</string>
+    <string name="web_tab_apk">装应用</string>
+    <string name="web_desc_wallpapers">电视桌面的背景图，横向照片效果最好。</string>
+    <string name="web_desc_cards">给应用卡片换上的图，16:9 横图最合适。传完在电视上长按应用，选「换卡片图」就能用。</string>
+    <string name="web_desc_screensavers">屏保轮播用的照片和视频。视频静音播放，最长播 60 秒，每个不超过 500 MB。</string>
+    <string name="web_desc_apk">把手机里的安卓安装包（.apk）装到电视上。发送后，电视会请你确认安装。</string>
+    <string name="web_pick_photos">选择照片</string>
+    <string name="web_pick_media">选择照片或视频</string>
+    <string name="web_pick_apk">选择安装包</string>
+    <string name="web_lib_title">电视上已有</string>
+    <string name="web_empty">还没有图片</string>
+    <string name="web_empty_screensavers">还没有照片或视频</string>
+    <string name="web_empty_sub">传上来的会出现在这里，电视上也能马上选到。</string>
     <plurals name="web_uploading" formatted="false">
-        <item quantity="one">正在上传 %d 个文件…</item>
-        <item quantity="other">正在上传 %d 个文件…</item>
+        <item quantity="one">正在发送 %d 个文件…</item>
+        <item quantity="other">正在发送 %d 个文件…</item>
     </plurals>
-    <string name="web_done">完成</string>
-    <string name="web_error">出错了,请重试</string>
-    <string name="web_rejected_type">只支持 jpg / png / webp</string>
-    <string name="web_rejected_size">超过 30 MB</string>
-    <string name="web_rejected_decode">图片解码失败</string>
-    <string name="web_rejected_name">文件名无效</string>
-    <string name="web_rejected_write">电视存储写入失败</string>
-    <string name="web_rejected_type_media">只支持 jpg / png / webp 照片,或 mp4 / mov / webm 视频</string>
-    <string name="web_rejected_video_size">视频超过 500 MB</string>
-    <string name="web_rejected_video_decode">电视无法识别这个视频</string>
-    <string name="web_rejected_space">电视存储空间不足</string>
-    <string name="web_screensavers_hint">可以上传照片或短视频(mp4 / mov / webm,每个视频不超过 500 MB)。屏保里视频静音播放,超过 60 秒只播前 60 秒。</string>
-    <string name="web_empty_screensavers">还没有照片或视频,点右上「上传」</string>
+    <plurals name="web_sent" formatted="false">
+        <item quantity="one">已添加 %d 个</item>
+        <item quantity="other">已添加 %d 个</item>
+    </plurals>
+    <string name="web_sent_sub">电视上马上就能选到</string>
+    <string name="web_failed_title">这些没能添加</string>
+    <string name="web_delete">删除</string>
+    <string name="web_delete_title">从电视上删除？</string>
+    <string name="web_delete_body">删除后无法恢复</string>
+    <string name="web_cancel">取消</string>
+    <string name="web_deleted">已删除</string>
+    <string name="web_close">关闭</string>
+    <string name="web_error">出了点问题，请再试一次</string>
+    <string name="web_rejected_type">格式不支持，只能用 JPG、PNG 或 WebP</string>
+    <string name="web_rejected_size">太大了，每张不超过 30 MB</string>
+    <string name="web_rejected_decode">这张图片打不开，可能已损坏</string>
+    <string name="web_rejected_name">文件名不支持，改个名再试</string>
+    <string name="web_rejected_write">电视没能存下这个文件</string>
+    <string name="web_rejected_type_media">格式不支持：照片用 JPG、PNG、WebP，视频用 MP4、MOV、WebM</string>
+    <string name="web_rejected_video_size">视频太大了，每个不超过 500 MB</string>
+    <string name="web_rejected_video_decode">电视播放不了这个视频</string>
+    <string name="web_rejected_space">电视的存储空间不够了</string>
+    <string name="web_apk_sent">已发到电视，请在电视上确认安装</string>
+    <string name="web_apk_needs_permission">请先在电视上允许 UnitedU 安装应用（电视会打开这项设置），然后再试一次</string>
+    <string name="web_apk_invalid">这不是有效的安卓安装包（.apk）</string>
+    <string name="web_apk_size">安装包太大了，不能超过 100 MB</string>
+    <string name="web_apk_background">电视上的传输页没在最前面，回到那一页再试一次</string>
+
     <string name="picker_video_badge">视频</string>
     <string name="preview_video_failed">无法播放这个视频</string>
-    <string name="web_apk_hint">选择 APK 后,电视会弹出系统安装器;首次需要在电视上允许「安装未知应用」。</string>
-    <string name="web_apk_install">选择 APK 并安装到电视</string>
-    <string name="web_apk_needs_permission">请先在电视上允许安装未知应用,然后重试</string>
-    <string name="web_apk_invalid">不是有效的 APK 文件</string>
-    <string name="web_apk_size">APK 超过 100 MB</string>
-    <string name="web_apk_background">电视上的导入页不在前台,回到导入页后重试</string>
 
     <!-- edit_* : 编辑分栏界面 -->
-    <string name="edit_title">编辑分栏</string>
-    <string name="edit_hint">选中应用按确定:调顺序、换图、移出。每行末尾的加号:添加应用、管理这一行。返回键退出。</string>
-    <string name="edit_toast_order_not_saved">顺序没能存下来,重启后会变回原样</string>
+    <string name="edit_title">编辑桌面</string>
+    <string name="edit_hint">在应用上按确定：移动、换卡片图、移出这一行。在每行末尾的 + 上按确定：添加应用、管理这一行。按返回键完成。</string>
+    <string name="edit_toast_order_not_saved">顺序没能存下来，重启后会变回原样</string>
     <string name="edit_change_image">换卡片图</string>
     <string name="edit_change_image_desc">选一张 16:9 的图替换</string>
     <string name="edit_remove">从这一行移出</string>
@@ -104,23 +128,23 @@
     <string name="edit_picker_system_tools">系统工具</string>
 
     <!-- home_* : 首页与默认桌面设置卡 -->
-    <string name="home_empty_apps_hint">没有可显示的应用\n按遥控器的菜单键,或选左上角的设置按钮,再进「布局 → 编辑分栏」添加</string>
+    <string name="home_empty_apps_hint">桌面上还没有应用\n选左上角的「所有应用」，长按想要的应用，再选「加到桌面」</string>
     <string name="home_new_apps">有 %1$d 个新应用</string>
     <string name="home_settings_title">默认桌面</string>
     <string name="home_settings_current_label">当前</string>
-    <string name="home_settings_change_button">在系统设置中更改</string>
-    <string name="home_settings_note">Android 要求默认桌面在系统设置里切换。</string>
+    <string name="home_settings_change_button">去系统设置更改</string>
+    <string name="home_settings_note">按主页键时打开的桌面。Android 只允许在系统设置里更改。</string>
     <string name="home_settings_unknown">未知</string>
 
     <!-- picker_* : 壁纸/卡片图/屏保图库选择器 -->
     <string name="picker_wallpaper_title">选一张壁纸</string>
     <string name="picker_card_image_title">选一张卡片图</string>
     <string name="picker_no_images">还没有图片可选</string>
-    <string name="picker_back_to_close">按返回键关闭</string>
+    <string name="picker_back_to_close">按确定预览 · 长按可删除或关闭 · 按返回键关闭</string>
     <string name="picker_back_to_cancel">按返回键取消</string>
     <string name="picker_restore_original">恢复原图</string>
     <string name="picker_add_from_phone">从手机添加</string>
-    <string name="picker_screensaver_pool_title">屏保图库 · %1$d 项 · 按确定键预览</string>
+    <string name="picker_screensaver_pool_title">屏保图库 · %1$d 项</string>
     <string name="picker_screensaver_title">屏保图库</string>
     <string name="picker_no_screensavers">还没有屏保照片或视频</string>
     <!-- R115:选图页「内置 / 我的」两块的分组标题;内置屏保图关掉之后的角标与胶囊菜单(R117) -->
@@ -130,8 +154,8 @@
     <string name="pool_builtin_exclude">不参与轮播</string>
     <string name="pool_builtin_include">加入轮播</string>
     <!-- pool_delete_* : 屏保图库长按删图的确认框(M5 spec §5);取消复用 dialog_cancel -->
-    <string name="pool_delete_title">删除这一项?</string>
-    <string name="pool_delete_body">「%1$s」会从屏保图库删除,无法恢复</string>
+    <string name="pool_delete_title">删除这一项？</string>
+    <string name="pool_delete_body">「%1$s」会从屏保图库删除，无法恢复</string>
     <string name="pool_delete_ok">删除</string>
 
     <!-- settings_* : UnitedU 设置页(分组带标题) -->
@@ -150,27 +174,27 @@
     <string name="settings_card_large">大</string>
     <string name="settings_card_medium">中</string>
     <string name="settings_card_small">小</string>
-    <string name="settings_show_titles">卡片标题</string>
+    <string name="settings_show_titles">显示应用名</string>
     <string name="settings_theme_color">主题色</string>
-    <string name="settings_follow_wallpaper">跟随壁纸主色</string>
+    <string name="settings_follow_wallpaper">主题色跟随壁纸</string>
     <!-- R128:待机时长 + 待机显示合成「待机」子页(通用组),胶囊右端是两行的值摘要 -->
-    <string name="settings_standby">待机</string>
-    <string name="settings_idle_after">待机时长</string>
-    <string name="settings_idle_off">关</string>
-    <string name="settings_idle_minutes">%1$d 分</string>
-    <string name="settings_idle_content">待机显示</string>
-    <string name="settings_idle_clock">时钟</string>
+    <string name="settings_standby">闲置画面</string>
+    <string name="settings_idle_after">进入闲置</string>
+    <string name="settings_idle_off">从不</string>
+    <string name="settings_idle_minutes">%1$d 分钟</string>
+    <string name="settings_idle_content">闲置时显示</string>
+    <string name="settings_idle_clock">只留时钟</string>
     <string name="settings_idle_black">全黑</string>
-    <string name="settings_idle_nofade">不淡出</string>
+    <string name="settings_idle_nofade">不变</string>
     <!-- M5「待机与屏保」组新增的四行(spec §3、§6);分钟档复用 settings_idle_minutes,「关」复用 settings_idle_off -->
-    <string name="settings_screensaver_after">屏保启动</string>
-    <string name="settings_screensaver_note_empty">轮播为空,不会进入</string>
-    <string name="settings_screensaver_note_from_input">从最后一次按键算</string>
-    <string name="settings_screensaver_note_after_standby">从进入待机算</string>
-    <string name="settings_screensaver_interval">屏保轮播设置</string>
+    <string name="settings_screensaver_after">自动开始</string>
+    <string name="settings_screensaver_note_empty">轮播里没有照片，屏保不会开始</string>
+    <string name="settings_screensaver_note_from_input">从最后一次按遥控器算起</string>
+    <string name="settings_screensaver_note_after_standby">从桌面进入闲置画面算起</string>
+    <string name="settings_screensaver_interval">每张停留</string>
     <string name="settings_seconds">%1$d 秒</string>
     <string name="settings_screensaver_gallery">屏保图库</string>
-    <string name="settings_screensaver_gallery_desc">看照片和视频、长按删除</string>
+    <string name="settings_screensaver_gallery_desc">屏保播放的照片和视频。可以关掉内置图片，或从手机添加你自己的。</string>
     <string name="settings_system_screensaver">系统屏保</string>
     <string name="settings_on">开</string>
     <string name="settings_off">关</string>
@@ -181,18 +205,18 @@
     <string name="settings_sys_minutes">%1$d 分钟</string>
     <string name="settings_sys_hours">%1$d 小时</string>
     <!-- R127:屏保组「关闭屏幕」行(读 secure sleep_timeout,确定键开系统设置);路径取自索尼 TvSettings 的简体中文文案 -->
-    <string name="settings_screen_off">关闭屏幕</string>
+    <string name="settings_screen_off">自动关屏</string>
     <string name="settings_screen_off_where">在 %1$s 里修改</string>
     <string name="settings_screen_off_where_generic">在电视设置里找「自动关闭」「关机定时器」或「关闭显示屏」</string>
     <string name="settings_sys_idle_hours">无操作 %1$d 小时后</string>
     <string name="settings_sys_idle_minutes">无操作 %1$d 分钟后</string>
     <string name="settings_sys_idle_hours_minutes">无操作 %1$d 小时 %2$d 分钟后</string>
     <string name="settings_sys_idle_seconds">无操作 %1$d 秒后</string>
-    <string name="settings_sys_anim_scale">系统动画缩放</string>
-    <string name="settings_sys_anim_slower">%1$s×,界面动画会变慢</string>
-    <string name="settings_sys_anim_faster">%1$s×,界面动画会变快</string>
-    <string name="settings_sys_anim_off">已关闭,界面没有动画</string>
-    <string name="settings_sys_anim_window">窗口 %1$s×、过渡 %2$s×,只影响打开和切换应用</string>
+    <string name="settings_sys_anim_scale">系统动画速度</string>
+    <string name="settings_sys_anim_slower">%1$s×，界面动画会变慢</string>
+    <string name="settings_sys_anim_faster">%1$s×，界面动画会变快</string>
+    <string name="settings_sys_anim_off">已关闭，界面没有动画</string>
+    <string name="settings_sys_anim_window">窗口 %1$s×、过渡 %2$s×，只影响打开和切换应用</string>
     <string name="settings_language">语言</string>
     <string name="settings_lang_system">跟随系统</string>
     <string name="settings_lang_zh_cn">简体</string>
@@ -200,8 +224,8 @@
     <string name="settings_lang_en">English</string>
     <string name="settings_action_restore_defaults">恢复默认</string>
     <!-- restore_* / dialog_cancel : 「恢复默认」确认框(T7,spec §4) -->
-    <string name="restore_title">恢复默认设置?</string>
-    <string name="restore_body">分栏、标题、卡片图和图片库都不会变</string>
+    <string name="restore_title">恢复默认设置？</string>
+    <string name="restore_body">只重置这些设置。桌面上的应用、卡片图和你的照片都不会变。</string>
     <string name="restore_ok">恢复</string>
     <string name="dialog_cancel">取消</string>
     <!-- about_* : 关于页与手动检查更新(T9,spec §7) -->
@@ -217,18 +241,18 @@
     <string name="about_downloading_unknown">下载中…</string>
     <string name="about_verifying">校验中…</string>
     <string name="about_verify_failed">校验失败</string>
-    <string name="about_download_failed">下载失败,请稍后再试</string>
+    <string name="about_download_failed">下载失败，请稍后再试</string>
     <string name="about_install_failed">这个更新包无法安装</string>
-    <string name="about_needs_permission">请在电视上允许「安装未知应用」,然后重试</string>
-    <string name="about_net_failed">检查失败,请稍后再试</string>
+    <string name="about_needs_permission">请在电视上允许「安装未知应用」，然后重试</string>
+    <string name="about_net_failed">检查失败，请稍后再试</string>
     <string name="about_bad_json">更新信息无法解析</string>
     <string name="about_license_title">许可声明</string>
-    <string name="about_license">本项目以 Apache-2.0 许可发布。第三方组件:Google Sans Flex(OFL 1.1)、Material Icons(Apache-2.0)、NanoHTTPD(BSD-3-Clause)、ZXing(Apache-2.0)。</string>
+    <string name="about_license">本项目以 Apache-2.0 许可发布。第三方组件：Google Sans Flex（OFL 1.1）、Material Icons（Apache-2.0）、NanoHTTPD（BSD-3-Clause）、ZXing（Apache-2.0）。</string>
     <string name="about_repo">项目地址 github.com/GordonWang1878/UnitedU-launcher</string>
     <!-- onb_* : 首次启动引导(T10,spec §8);第 1 步的语言按钮复用 settings_lang_* -->
     <string name="onb_step1_title">选择语言</string>
     <string name="onb_step2_title">把已安装的应用放到桌面</string>
-    <string name="onb_step2_body">只放下面这些;其余的可以稍后在编辑分栏里添加</string>
+    <string name="onb_step2_body">先放这些。其他应用以后可以在「所有应用」里加到桌面。</string>
     <string name="onb_step3_title">把 UnitedU 设为默认桌面</string>
     <string name="onb_next">继续</string>
     <string name="onb_skip">跳过</string>
@@ -242,14 +266,14 @@
     <string name="preset_green">鼠尾草</string>
 
     <!-- toast_* : 一次性提示 -->
-    <string name="toast_cant_open_app">打不开「%1$s」,它可能已被卸载</string>
-    <string name="toast_storage_not_ready">外部存储还没准备好,稍后再试</string>
-    <string name="toast_open_failed">打不开:%1$s</string>
+    <string name="toast_cant_open_app">打不开「%1$s」，它可能已被卸载</string>
+    <string name="toast_storage_not_ready">外部存储还没准备好，稍后再试</string>
+    <string name="toast_open_failed">打不开：%1$s</string>
     <string name="toast_wallpaper_changed">壁纸已更换</string>
     <string name="toast_invalid_image">这个文件不是能用的图片</string>
     <string name="toast_card_image_changed">卡片图已更换</string>
     <string name="toast_icon_restored">已恢复原始图标</string>
-    <string name="toast_opened_stock_launcher">已打开原厂桌面;要永久切换请在系统设置里改主屏幕应用</string>
+    <string name="toast_opened_stock_launcher">已打开原厂桌面；要永久切换请在系统设置里改主屏幕应用</string>
     <string name="toast_stock_launcher_not_found">找不到原厂桌面</string>
     <string name="toast_restored">已恢复默认设置</string>
     <string name="toast_system_screensaver_unavailable">打不开系统屏保设置</string>
@@ -258,8 +282,8 @@
     <!-- M4b -->
     <string name="menu_hide_input">隐藏</string>
     <string name="menu_hide_input_desc">从桌面隐藏这个输入源</string>
-    <string name="toast_input_hidden">已隐藏「%1$s」,可在输入源列表末尾恢复</string>
-    <string name="toast_input_hide_failed">没能隐藏,请稍后再试</string>
+    <string name="toast_input_hidden">已隐藏「%1$s」，可在输入源列表末尾恢复</string>
+    <string name="toast_input_hide_failed">没能隐藏，请稍后再试</string>
     <string name="settings_restore_hidden_inputs">恢复隐藏的输入源</string>
     <string name="settings_hidden_inputs_count">%1$d 个</string>
     <string name="toast_inputs_restored">已恢复全部输入源</string>
@@ -283,8 +307,8 @@
     <string name="edit_row_rename_heading">重命名此行</string>
     <string name="edit_row_rename_hint">确定保存 · 返回取消 · 清空不会改名</string>
     <string name="edit_row_icon_heading">选择行图标</string>
-    <string name="edit_row_delete_confirm_title">删除「%1$s」?</string>
-    <string name="edit_row_delete_confirm_body">这一行的 %1$d 个应用会从桌面移除,不会卸载。</string>
+    <string name="edit_row_delete_confirm_title">删除「%1$s」？</string>
+    <string name="edit_row_delete_confirm_body">这一行的 %1$d 个应用会从桌面移除，不会卸载。</string>
     <string name="edit_row_delete_ok">删除</string>
     <string name="row_icon_movie">影片</string>
     <string name="row_icon_tv">电视</string>
@@ -300,14 +324,14 @@
     <string name="row_icon_apps">应用</string>
     <!-- home_move_hint / toast_move_failed : 首页原地移动态(M4b Task 5) -->
     <string name="home_move_hint">← → 移动 · ↑ ↓ 换行 · 确定 放下 · 返回 取消</string>
-    <string name="toast_move_failed">没能保存新位置,请稍后再试</string>
+    <string name="toast_move_failed">没能保存新位置，请稍后再试</string>
     <!-- edit_move_desc : 编辑页搬运模式(M4b 真机验收补丁 Task 2) -->
-    <string name="edit_move_desc">在编辑页里用方向键挪这张卡,空行也能去</string>
+    <string name="edit_move_desc">在编辑页里用方向键挪这张卡，空行也能去</string>
     <!-- settings shell:设置页胶囊外壳(R69–R72,2026-09-23) -->
-    <string name="shell_root_layout_desc">编辑分栏、卡片大小与标题、卡片色彩</string>
-    <string name="shell_root_general_desc">语言、默认桌面、手机传输、待机、时钟</string>
+    <string name="shell_root_layout_desc">编辑桌面、卡片大小、应用名、卡片色彩</string>
+    <string name="shell_root_general_desc">语言、默认桌面、从手机添加、时钟</string>
     <string name="shell_root_appearance_desc">壁纸、主题色</string>
-    <string name="shell_root_screensaver_desc">屏保时间、图库、系统屏保、关屏</string>
+    <string name="shell_root_screensaver_desc">屏保图库、自动开始、系统屏保等</string>
     <string name="settings_card_saturation">卡片饱和度</string>
     <string name="settings_card_brightness">卡片亮度</string>
     <string name="settings_card_opacity">卡片透明度</string>
@@ -318,17 +342,17 @@
     <string name="shell_slider_card_brightness">卡片亮度</string>
     <string name="shell_slider_card_opacity">卡片透明度</string>
     <string name="shell_theme_following_wallpaper">跟随壁纸</string>
-    <string name="shell_preview_hint">预览:%1$s · 按确定保存,按返回不改</string>
+    <string name="shell_preview_hint">预览：%1$s · 按确定保存，按返回不改</string>
     <!-- R89–R93(2026-09-27):顶栏三颗胶囊(设置 / 应用 / 输入源)、所有应用页、输入源页、立即开始屏保 -->
-    <string name="apps_page_title">应用</string>
-    <string name="apps_page_hint">长按或按菜单键可以加到桌面</string>
+    <string name="apps_page_title">所有应用</string>
+    <string name="apps_page_hint">长按确定键或按菜单键，可以把应用加到桌面</string>
     <string name="apps_menu_add_to_home">加到桌面…</string>
-    <string name="apps_add_row_here">%1$s(已在这一行)</string>
+    <string name="apps_add_row_here">%1$s（已在这一行）</string>
     <string name="toast_added_to_row">已加到「%1$s」</string>
     <string name="toast_already_in_row">「%1$s」这一行里已经有它了</string>
-    <string name="toast_add_to_row_failed">没能加到桌面,请稍后再试</string>
+    <string name="toast_add_to_row_failed">没能加到桌面，请稍后再试</string>
     <string name="inputs_page_title">输入源</string>
-    <string name="inputs_page_current">当前:%1$s</string>
+    <string name="inputs_page_current">当前：%1$s</string>
     <string name="inputs_page_intro">从这里切换电视的信号源</string>
     <string name="inputs_page_hint">长按或按菜单键可以改名、隐藏</string>
     <string name="inputs_page_empty">这台电视没有可切换的输入源</string>
@@ -336,6 +360,39 @@
     <string name="input_menu_rename">改名</string>
     <string name="toast_cant_switch_input">切换不到「%1$s」</string>
     <string name="settings_start_screensaver">立即开始屏保</string>
-    <string name="toast_screensaver_gallery_empty">屏保轮播是空的,先在屏保图库里添加照片或视频</string>
+    <string name="toast_screensaver_gallery_empty">屏保轮播是空的，先在屏保图库里添加照片或视频</string>
     <string name="input_label_tv">电视</string>
+    <!-- R131–R133(2026-09-30 新手可读性):设置每一行的说明(外壳左侧显示)与新增取值 -->
+    <string name="settings_language_desc">UnitedU 界面的语言，可以和电视系统不同。</string>
+    <string name="settings_home_not_set">未设置</string>
+    <string name="settings_standby_desc">一段时间不按遥控器，桌面会淡去、只留时钟。在这里设定多久、留下什么。</string>
+    <string name="settings_idle_after_desc">多久不按遥控器，桌面就进入闲置画面。</string>
+    <string name="settings_after_minutes">%1$d 分钟后</string>
+    <string name="settings_idle_content_desc">只留时钟：桌面淡去，留下右上角的时间。全黑：画面全部变黑。不变：桌面保持原样。</string>
+    <string name="settings_clock_display_desc">右上角的时钟显示哪些内容。</string>
+    <string name="settings_sys_anim_scale_desc">电视的动画速度不是 1×，界面动画会变慢或变快。按确定前往开发者选项修改。</string>
+    <string name="settings_card_size_desc">小：一行 8 张 · 中：一行 6 张 · 大：一行 5 张</string>
+    <string name="settings_show_titles_desc">在每张卡片下方显示应用名。</string>
+    <string name="settings_card_saturation_desc">卡片颜色的浓淡。调低更素雅，100% 是应用原本的颜色。</string>
+    <string name="settings_card_brightness_desc">卡片的明暗。调低更柔和，100% 是原本的亮度。</string>
+    <string name="settings_card_opacity_desc">没选中的卡片透出壁纸的程度，选中的那张始终不透明。</string>
+    <string name="settings_wallpaper_blur_desc">把壁纸调模糊，卡片会更醒目。</string>
+    <string name="settings_wallpaper_brightness_desc">调暗或调亮壁纸。</string>
+    <string name="settings_theme_color_desc">焦点框、按钮等高亮处的颜色。</string>
+    <string name="settings_follow_wallpaper_desc">打开后，主题色会从当前壁纸里自动选取。</string>
+    <string name="settings_start_screensaver_desc">马上播放屏保，按任意键退出。</string>
+    <string name="settings_screensaver_after_desc">在 UnitedU 桌面上多久没操作，就自动开始屏保。</string>
+    <string name="settings_screensaver_interval_desc">每张照片停留多久，再换下一张。</string>
+    <string name="settings_system_screensaver_desc">在其他应用里闲置时，由电视启动的屏保。选 UnitedU，就会播放同一个屏保图库。</string>
+    <string name="settings_screen_off_desc">多久没操作，电视就自动关闭屏幕。这是电视自己的设置，按确定前往。</string>
+    <string name="settings_sys_never_starts">不会自动开始</string>
+    <!-- R133:内置三行的名字(新建布局时按界面语言写进 layout.json;老布局不动) -->
+    <string name="row_default_video">影视</string>
+    <string name="row_default_live">直播</string>
+    <string name="row_default_music">音乐</string>
+    <!-- R133:首次引导(欢迎语、找不到应用时的说明、第 2 / 3 步的按钮) -->
+    <string name="onb_step1_body">欢迎使用 UnitedU——没有广告，只有你自己的应用。先选择界面语言。</string>
+    <string name="onb_step2_body_empty">没有找到常见的影视、直播或音乐应用。以后可以在「所有应用」里把任何应用加到桌面。</string>
+    <string name="onb_add_to_home">放到桌面</string>
+    <string name="onb_done">完成</string>
 </resources>

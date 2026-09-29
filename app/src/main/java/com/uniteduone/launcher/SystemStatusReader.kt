@@ -47,6 +47,16 @@ fun readSystemUiStatus(ctx: Context): SystemUiStatus {
     }
     // R127c:从电视自己的设置应用里读「关闭屏幕」那一页的菜单路径(各家叫法不同),读不到 → 通用提示。
     val path = safe("screen_off_path") { screenOffPath(ctx) }
+    // R132:当前默认桌面。解析到系统包(ResolverActivity,「选择打开方式」)= 还没选默认桌面。
+    val home = safe("default_home") {
+        val pm = ctx.packageManager
+        val info = pm.resolveActivity(
+            android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(android.content.Intent.CATEGORY_HOME),
+            android.content.pm.PackageManager.MATCH_DEFAULT_ONLY,
+        )
+        val pkg = info?.activityInfo?.packageName
+        if (pkg == null || pkg == "android") DefaultHome.NotSet else DefaultHome.App(info.loadLabel(pm).toString())
+    }
     return SystemUiStatus(
         screensaverEnabled = enabled,
         screensaverSource = source,
@@ -56,6 +66,7 @@ fun readSystemUiStatus(ctx: Context): SystemUiStatus {
         windowScale = scale(Settings.Global.WINDOW_ANIMATION_SCALE),
         screenOff = screenOff,
         screenOffPath = path,
+        defaultHome = home,
     )
 }
 

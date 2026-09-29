@@ -7,7 +7,7 @@
 - **产品**:UnitedU,Android TV 桌面(launcher)。一句话定义:**零广告、零推荐,只有用户自己放上去的应用**。面向**国行、没有 GMS 的 Android TV**;外观照着 Google TV(`launcherx`)复刻,内容与功能是自己的。产品基线见 [`DESIGN-unitedu-open-source.md`](DESIGN-unitedu-open-source.md),现行界面见 gtv 线设计稿(§6)。
 - **唯一的真机**:国行 Sony A95L(`XR-77A95L`,MT5897),Android 14,**32 位 armeabi-v7a 用户空间**,界面层 1920×1080 @ 320 dpi(面板 4K,界面由固件放大),无 Google 服务。开发全程在 Android 14 TV 模拟器(arm64)上验证,真机只做里程碑验收。
 - **形态**:单 Activity(`MainActivity`)+ Jetpack Compose(`androidx.tv:tv-material` 1.0.0 只用叶子组件)。包名 `com.uniteduone.launcher`,minSdk 28,target / compile 35。
-- **联网**:只有两处——用户按「检查更新」时拉一次 `latest.json`;用户打开「手机传输」页时在局域网起一个 HTTP 上传服务(关页即停)。没有统计、没有崩溃上报。
+- **联网**:只有两处——用户按「检查更新」时拉一次 `latest.json`;用户打开「从手机添加」页(R130 前叫「手机传输」)时在局域网起一个 HTTP 上传服务(关页即停)。没有统计、没有崩溃上报。
 - **状态**:内部版本 `1.0.0-beta`(versionCode 2),**还没发布过**;仓库暂为私有。1.0 前剩下的事见 [`ui-pending.md`](ui-pending.md) F 组。
 
 ## 2. 怎么构建、测试
@@ -54,7 +54,7 @@
 **选图、导入、上传**
 - `ImagePicker.kt`(1080 行):壁纸 / 卡片图选择器、屏保图库(`PickerGrid` 一个网格一套焦点,内置 + 「＋」+ 我的);`PickerCells.kt`:格子号换算。
 - `BuiltinCatalog.kt`(内置图命名规则,纯函数)+ `BuiltinImages.kt`(assets 发现与读取、伪路径 `/android_asset/…` 解码)。
-- `ImportScreen.kt`(扫码页)、`UploadServer.kt`(NanoHTTPD,端口 8090–8099,只在扫码页开着时运行)、`UploadPure.kt`(类型 / 文件名清洗 / 上限)、网页在 `app/src/main/assets/web/index.html`。
+- `ImportScreen.kt`(扫码页)、`UploadServer.kt`(NanoHTTPD,端口 8090–8099,只在扫码页开着时运行)、`UploadPure.kt`(类型 / 文件名清洗 / 上限)、网页在 `app/src/main/assets/web/index.html`(R130 起:服务端注入 `__STRINGS__` 文案表 `WEB_STRING_KEYS` / `WEB_PLURALS`、`__DEFAULT_TAB__`、`__ACCENT__` 主题色、`__LANG__`;网页每 6 秒拉一次列表兼做连接检测)。文案防线在 `CopyTest`:三语 key 与占位符一致、网页用到的每个 `S.xxx` 都已注入、设置每一行都有说明。
 
 **屏保、视频、HDR**
 - `StandbySchedule.kt`(待机 / 屏保两个时刻,纯函数)、`Screensaver.kt`(桌面屏保层)、`ScreensaverPlayer.kt`(进程级播放器单例:扫描、下标、换图计时、引用计数)、`ScreensaverMotion.kt`(推拉摇移)、`ScreensaverMedia.kt`(照片 / 视频判定与上限)、`UnitedUDream.kt`(系统屏保 `DreamService`,自己管 Lifecycle / SavedState)。

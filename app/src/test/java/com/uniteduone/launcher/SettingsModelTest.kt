@@ -118,7 +118,9 @@ class SettingsModelTest {
         val g = settingsGroups(Settings(), {}, r.actions, someImages)
         val row = g.first { it.id == GroupId.GENERAL }.rows.first { it.id == "openImport" } as ActionRow
         assertEquals(R.string.settings_phone_transfer, row.labelRes)
-        assertEquals(R.string.settings_phone_transfer_desc, row.hintRes)
+        // R131:说明不再塞进 hintRes(胶囊里本来就不画),改由外壳左侧按 descRes 显示
+        assertEquals(R.string.settings_phone_transfer_desc, row.descRes)
+        assertEquals(null, row.hintRes)
         row.onActivate()
         assertEquals(listOf("openImport"), r.fired)
     }

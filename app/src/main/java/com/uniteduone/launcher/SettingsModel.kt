@@ -28,10 +28,15 @@ enum class CtrlKind { SEGMENTED, TOGGLE, SWATCH, SLIDER }
  */
 enum class GroupId { LAYOUT, GENERAL, APPEARANCE, SCREENSAVER }
 
-/** 右栏的一行。`id` 是稳定标识(测试与日志按它找行,不按下标)。 */
+/**
+ * 右栏的一行。`id` 是稳定标识(测试与日志按它找行,不按下标)。
+ * [descRes](R131,2026-09-30 新手可读性):这一行是做什么的,一两句话;光标停在这一行时外壳左侧显示它
+ * (没有预览的页在页名下方,有预览的页在预览框下方)。null = 不显示。
+ */
 sealed interface RowSpec {
     val id: String
     val labelRes: Int
+    val descRes: Int?
 }
 
 /**
@@ -63,6 +68,7 @@ data class ControlRow(
     val sliderMin: Int = 0,
     val sliderStep: Int = 10,
     val onSelect: (Int) -> Unit,
+    override val descRes: Int? = null,
 ) : RowSpec
 
 /** 动作行(spec §2.2 的 ▸):确定键打开一个子界面或弹确认框,没有档位。 */
@@ -89,6 +95,7 @@ data class ActionRow(
     val noteRes: Int? = null,
     /** [noteRes] 的格式化参数(R127c:菜单路径是从电视设置应用里读出来的,没有资源 id)。 */
     val noteArgs: List<Any> = emptyList(),
+    override val descRes: Int? = null,
     val onActivate: () -> Unit,
 ) : RowSpec
 
@@ -102,6 +109,12 @@ data class SubPageRow(
     override val id: String,
     override val labelRes: Int,
     val rows: List<RowSpec>,
+    override val descRes: Int? = null,
+    /**
+     * 右端摘要只取这几行的值(R132);null = 全部。「闲置画面」在「进入闲置」是「从不」时只写「从不」——
+     * 那时「闲置时显示」不起作用,写出来反而让人以为它还会发生。
+     */
+    val summaryIds: List<String>? = null,
 ) : RowSpec
 
 data class GroupSpec(val id: GroupId, val titleRes: Int, val rows: List<RowSpec>)
@@ -192,7 +205,7 @@ fun settingsGroups(
     fun ctl(
         id: String, labelRes: Int, kind: CtrlKind, optionRes: List<Int>, count: Int, selected: Int,
         optionArgs: List<Int?> = emptyList(), noteRes: Int? = null, zeroAt: Int = 0,
-        sliderMin: Int = 0, sliderStep: Int = 10,
+        sliderMin: Int = 0, sliderStep: Int = 10, descRes: Int? = null,
     ): ControlRow {
         val write = optionWrite(id) ?: error("没有写入函数的控件行: $id")
         return ControlRow(
@@ -200,11 +213,14 @@ fun settingsGroups(
             zeroAt = zeroAt, optionArgs = optionArgs, noteRes = noteRes, write = write,
             sliderMin = sliderMin, sliderStep = sliderStep,
             onSelect = { i -> update { write(it, i) } },
+            descRes = descRes,
         )
     }
-    fun toggle(id: String, labelRes: Int, value: Boolean) =
-        ctl(id, labelRes, CtrlKind.TOGGLE, onOff, 2, if (value) 1 else 0)
+    fun toggle(id: String, labelRes: Int, value: Boolean, descRes: Int? = null) =
+        ctl(id, labelRes, CtrlKind.TOGGLE, onOff, 2, if (value) 1 else 0, descRes = descRes)
     val minutes = R.string.settings_idle_minutes
+    // R132:「进入闲置」「自动开始」两行是延迟,取值写成「3 分钟后」(换图间隔那一行仍是时长「1 分钟」)。
+    val afterMinutes = R.string.settings_after_minutes
 
     return listOf(
         // R69(2026-09-23 设置页胶囊外壳,Gordon 定):四组的顺序 = 外壳第一层胶囊的顺序——布局 / 通用 / 外观 / 屏保
@@ -214,7 +230,7 @@ fun settingsGroups(
             GroupId.LAYOUT, R.string.settings_group_layout,
             listOfNotNull(
                 // R69:原齿轮菜单第一项「编辑分栏」挪进来,打开的仍是同一个整屏编辑页。
-                ActionRow("editLayout", R.string.menu_edit, R.string.menu_edit_desc) { actions.openEdit() },
+                ActionRow("editLayout", R.string.menu_edit, hintRes = null, descRes = R.string.menu_edit_desc) { actions.openEdit() },
                 ctl(
                     id = "cardsPerRow", labelRes = R.string.settings_card_size,
                     kind = CtrlKind.SEGMENTED,
@@ -226,8 +242,9 @@ fun settingsGroups(
                     count = VALID_CARDS_PER_ROW.size,
                     // 表里找不到(理论上不可能,读盘就夹过)时退到「中」,不让下标变成 −1。
                     selected = VALID_CARDS_PER_ROW.indexOf(s.cardsPerRow).let { if (it < 0) 1 else it },
+                    descRes = R.string.settings_card_size_desc,
                 ),
-                toggle("showTitles", R.string.settings_show_titles, s.showTitles),
+                toggle("showTitles", R.string.settings_show_titles, s.showTitles, R.string.settings_show_titles_desc),
                 // ~~「输入源行」开关 / 「恢复隐藏的输入源」~~(R92,2026-09-27 Gordon):首页不再有输入源行,
                 // 输入源(连同隐藏 / 恢复)搬到顶栏「输入源」胶囊打开的页面。
                 // **R120(2026-09-28 Gordon)**:卡片的三条色彩滑块从「外观」挪到这里,跟在「卡片标题」之后,顺序不变
@@ -239,12 +256,14 @@ fun settingsGroups(
                     kind = CtrlKind.SLIDER, optionRes = emptyList(),
                     count = 11, selected = (s.cardSaturation - CARD_SATURATION_MIN) / CARD_SATURATION_STEP,
                     sliderMin = CARD_SATURATION_MIN, sliderStep = CARD_SATURATION_STEP,
+                    descRes = R.string.settings_card_saturation_desc,
                 ),
                 ctl(
                     id = "cardBrightness", labelRes = R.string.settings_card_brightness,
                     kind = CtrlKind.SLIDER, optionRes = emptyList(),
                     count = 11, selected = (s.cardBrightness - CARD_BRIGHTNESS_MIN) / CARD_BRIGHTNESS_STEP,
                     sliderMin = CARD_BRIGHTNESS_MIN, sliderStep = CARD_BRIGHTNESS_STEP,
+                    descRes = R.string.settings_card_brightness_desc,
                 ),
                 // R86:卡片不透明度 40–100% 步 10(7 档),缺省 100。只压未聚焦的卡,焦点卡恒 100%(见 AppCard)。
                 // R87(2026-09-27 owner):界面上反过来叫「卡片透明度」0–60%、缺省 0、往右加——更符合直觉。
@@ -255,6 +274,7 @@ fun settingsGroups(
                     count = (100 - CARD_OPACITY_MIN) / CARD_OPACITY_STEP + 1,
                     selected = (100 - s.cardOpacity) / CARD_OPACITY_STEP,
                     sliderMin = 0, sliderStep = CARD_OPACITY_STEP,
+                    descRes = R.string.settings_card_opacity_desc,
                 ),
             ),
         ),
@@ -275,13 +295,17 @@ fun settingsGroups(
                     // 这一行只负责把档位翻译成合法取值交出去,写盘与 recreate 都在 applyLanguage 里。
                     // 没有 write:切语言不是「改一个字段看效果」,外壳里它也不做实时预览(通用组没有预览)。
                     onSelect = { i -> actions.applyLanguage(VALID_LANGUAGES[i]) },
+                    descRes = R.string.settings_language_desc,
                 ),
-                ActionRow("setDefaultHome", R.string.menu_set_default_home, R.string.menu_set_default_home_desc) {
-                    actions.setDefaultHome()
-                },
+                // R132:右端显示当前默认桌面的名字(读不到不显示;没设默认写「未设置」),一眼看出 UnitedU 是不是默认桌面。
+                ActionRow(
+                    "setDefaultHome", R.string.menu_set_default_home, hintRes = null,
+                    hintParts = defaultHomeSummary(system.defaultHome),
+                    descRes = R.string.menu_set_default_home_desc,
+                ) { actions.setDefaultHome() },
                 // R60(2026-09-23 傍晚,Gordon 定):原外观组「导入图片」改名「手机传输」挪到这里——手机传的不只是
                 // 壁纸,还有卡片图、屏保图片和 APK,放在「外观」里名不副实。打开的仍是同一个扫码页(openImport)。
-                ActionRow("openImport", R.string.settings_phone_transfer, R.string.settings_phone_transfer_desc) {
+                ActionRow("openImport", R.string.settings_phone_transfer, hintRes = null, descRes = R.string.settings_phone_transfer_desc) {
                     actions.openImport()
                 },
                 // R128:「待机」子页——里面就是原来的两行,id / 选项 / 写入函数逐字未动;胶囊右端显示两行当前值的摘要。
@@ -291,10 +315,11 @@ fun settingsGroups(
                         ctl(
                             id = "idleAfter", labelRes = R.string.settings_idle_after,
                             kind = CtrlKind.SEGMENTED,
-                            optionRes = listOf(R.string.settings_idle_off, minutes, minutes, minutes, minutes),
+                            optionRes = listOf(R.string.settings_idle_off, afterMinutes, afterMinutes, afterMinutes, afterMinutes),
                             optionArgs = listOf(null, 1, 3, 5, 10),
                             count = VALID_IDLE_AFTER_MS.size,
                             selected = VALID_IDLE_AFTER_MS.indexOf(s.idleAfterMs).let { if (it < 0) 2 else it },
+                            descRes = R.string.settings_idle_after_desc,
                         ),
                         ctl(
                             id = "idleContent", labelRes = R.string.settings_idle_content,
@@ -306,8 +331,11 @@ fun settingsGroups(
                             ),
                             count = IdleContent.entries.size,
                             selected = IdleContent.entries.indexOf(s.idleContent).coerceAtLeast(0),
+                            descRes = R.string.settings_idle_content_desc,
                         ),
                     ),
+                    descRes = R.string.settings_standby_desc,
+                    summaryIds = if (s.idleAfterMs == 0L) listOf("idleAfter") else null,
                 ),
                 // R57:原「时钟」组那一个开关改成二选一,紧跟待机(待机时留在屏上的就是这个时钟)。
                 // 映射既有的 showDate,存盘键不变。
@@ -316,6 +344,7 @@ fun settingsGroups(
                     kind = CtrlKind.SEGMENTED,
                     optionRes = listOf(R.string.settings_clock_time_only, R.string.settings_clock_time_date),
                     count = 2, selected = if (s.showDate) 1 else 0,
+                    descRes = R.string.settings_clock_display_desc,
                 ),
                 // 动画缩放提示行(仅 ≠ 1× 或读不到时出现;R56 时在「其他」组顶上,R57 放「恢复默认」之前)。
                 // R128 起「恢复默认」挪进关于页,它成了组末行;行数变化时的焦点交接照旧靠外壳胶囊列「目标按行 id 记」——
@@ -329,7 +358,7 @@ fun settingsGroups(
             listOf(
                 // 从齿轮菜单搬进来的动作行(spec §1)。原来还有一条「导入图片」,R60 改名「手机传输」挪到「通用」组;
                 // 「壁纸自动切换」R61 删掉。
-                ActionRow("pickWallpaper", R.string.menu_wallpaper, R.string.menu_wallpaper_desc) {
+                ActionRow("pickWallpaper", R.string.menu_wallpaper, hintRes = null, descRes = R.string.menu_wallpaper_desc) {
                     actions.pickWallpaper()
                 },
                 ctl(
@@ -338,19 +367,22 @@ fun settingsGroups(
                     // R119:0–50% 步 5,仍 11 档
                     count = WALLPAPER_BLUR_MAX / WALLPAPER_BLUR_STEP + 1, selected = s.wallpaperBlur / WALLPAPER_BLUR_STEP,
                     sliderStep = WALLPAPER_BLUR_STEP,
+                    descRes = R.string.settings_wallpaper_blur_desc,
                 ),
                 ctl(
                     id = "wallpaperBrightness", labelRes = R.string.settings_wallpaper_brightness,
                     kind = CtrlKind.SLIDER, optionRes = emptyList(),
                     // −50…+50 步 10:11 档双向滑块,第 5 档 = 0 = 原片。
                     count = 11, selected = (s.wallpaperBrightness + 50) / 10, zeroAt = 5, sliderMin = -50,
+                    descRes = R.string.settings_wallpaper_brightness_desc,
                 ),
                 ctl(
                     id = "themeColor", labelRes = R.string.settings_theme_color,
                     kind = CtrlKind.SWATCH, optionRes = ThemePresets.all.map { it.nameRes },
                     count = ThemePresets.all.size, selected = ThemePresets.indexOf(s.themePresetId),
+                    descRes = R.string.settings_theme_color_desc,
                 ),
-                toggle("followWallpaper", R.string.settings_follow_wallpaper, s.followWallpaperColor),
+                toggle("followWallpaper", R.string.settings_follow_wallpaper, s.followWallpaperColor, R.string.settings_follow_wallpaper_desc),
                 // ~~卡片饱和度 / 卡片亮度 / 卡片透明度~~:R120 挪到「布局」组「卡片标题」之后。
             ),
         ),
@@ -358,19 +390,20 @@ fun settingsGroups(
             GroupId.SCREENSAVER, R.string.settings_group_screensaver,
             listOf(
                 // R93(2026-09-27 Gordon):顶栏屏保按钮挪到这里,放最上面。按下去当场开始,不进外壳的下一层。
-                ActionRow("startScreensaver", R.string.settings_start_screensaver, hintRes = null) {
+                ActionRow("startScreensaver", R.string.settings_start_screensaver, hintRes = null, descRes = R.string.settings_start_screensaver_desc) {
                     actions.startScreensaver()
                 },
                 // M5 spec §3:进入待机后再过多久进自定义屏保;小字说明计时起点 / 图库为空(screensaverAfterNoteRes)。
                 ctl(
                     id = "screensaverAfter", labelRes = R.string.settings_screensaver_after,
                     kind = CtrlKind.SEGMENTED,
-                    optionRes = listOf(R.string.settings_idle_off, minutes, minutes, minutes, minutes),
+                    optionRes = listOf(R.string.settings_idle_off, afterMinutes, afterMinutes, afterMinutes, afterMinutes),
                     optionArgs = listOf(null, 1, 5, 10, 30),
                     count = VALID_SCREENSAVER_AFTER_MS.size,
                     // 读盘已夹过;万一找不到退到默认 5 分(第 2 档),不让下标变成 −1。
                     selected = VALID_SCREENSAVER_AFTER_MS.indexOf(s.screensaverAfterMs).let { if (it < 0) 2 else it },
                     noteRes = screensaverAfterNoteRes(s.idleAfterMs, s.screensaverAfterMs, screensaverImages),
+                    descRes = R.string.settings_screensaver_after_desc,
                 ),
                 ctl(
                     id = "screensaverInterval", labelRes = R.string.settings_screensaver_interval,
@@ -379,12 +412,14 @@ fun settingsGroups(
                     optionArgs = listOf(30, 1, 5),
                     count = VALID_SCREENSAVER_INTERVAL_MS.size,
                     selected = VALID_SCREENSAVER_INTERVAL_MS.indexOf(s.screensaverIntervalMs).coerceAtLeast(0),
+                    descRes = R.string.settings_screensaver_interval_desc,
                 ),
                 // 两条动作行(spec §3):图库叠在设置页上;系统屏保跳系统页。都只有 Activity 做得了,走 actions。
                 ActionRow(
                     "screensaverGallery",
                     R.string.settings_screensaver_gallery,
-                    R.string.settings_screensaver_gallery_desc,
+                    hintRes = null,
+                    descRes = R.string.settings_screensaver_gallery_desc,
                 ) { actions.openScreensaverGallery() },
                 // R56:值是系统屏保的摘要「开 · UnitedU · 5 分钟」(screensaverSummary;读不到的部分省略,全读不到不显示值)。
                 // 确定键仍走 MainActivity.openSystemPage 的候选链 + 弹回检测(cc7b3cf)。
@@ -393,6 +428,7 @@ fun settingsGroups(
                     R.string.settings_system_screensaver,
                     hintRes = null,
                     hintParts = screensaverSummary(system),
+                    descRes = R.string.settings_system_screensaver_desc,
                     onActivate = { actions.openSystemScreensaver() },
                 ),
                 // R127(2026-09-29 Gordon):紧跟「系统屏保」。值读 secure sleep_timeout(「无操作 24 小时后」;读不到「查看」),
@@ -405,6 +441,7 @@ fun settingsGroups(
                     hintParts = screenOffSummary(system.screenOff),
                     noteRes = screenOffNote(system.screenOffPath).first,
                     noteArgs = screenOffNote(system.screenOffPath).second,
+                    descRes = R.string.settings_screen_off_desc,
                     onActivate = { actions.openSystemScreenOff() },
                 ),
             ),
@@ -456,6 +493,7 @@ internal fun animScaleRow(sys: SystemUiStatus, actions: SettingsActions): Action
     }
     return ActionRow(
         "systemAnimationScale", R.string.settings_sys_anim_scale,
-        hintRes = res, hintArgs = args, onActivate = { actions.openSystemAnimationSettings() },
+        hintRes = res, hintArgs = args, descRes = R.string.settings_sys_anim_scale_desc,
+        onActivate = { actions.openSystemAnimationSettings() },
     )
 }

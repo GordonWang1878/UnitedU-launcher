@@ -4,28 +4,28 @@
 
     <!-- menu_* : 齒輪選單與選單項 -->
     <string name="menu_settings_title">設定</string>
-    <string name="menu_edit">編輯分欄</string>
-    <string name="menu_edit_desc">新增或移除應用程式、調整順序、換卡片圖</string>
+    <string name="menu_edit">編輯桌面</string>
+    <string name="menu_edit_desc">新增或移除應用程式、調整順序、管理每一列。</string>
     <string name="menu_wallpaper">換桌布</string>
-    <string name="menu_wallpaper_desc">選一張圖片取代背景</string>
-    <string name="menu_system_settings">系統設定</string>
-    <string name="menu_system_settings_desc">開啟電視的 Android 設定</string>
+    <string name="menu_wallpaper_desc">從內建桌布或你自己的相片中選一張。</string>
+    <string name="menu_system_settings">電視設定</string>
+    <string name="menu_system_settings_desc">網路、畫面、聲音等電視本身的設定</string>
     <string name="menu_about">關於</string>
     <string name="menu_about_desc">版本、檢查更新、恢復預設</string>
-    <string name="menu_set_default_home">設定預設桌面</string>
-    <string name="menu_set_default_home_desc">選擇按下 Home 鍵時啟動哪個桌面</string>
+    <string name="menu_set_default_home">預設桌面</string>
+    <string name="menu_set_default_home_desc">按遙控器的主畫面鍵時開啟哪個桌面。設成 UnitedU，每次按主畫面鍵都會回到這裡。</string>
     <!-- card_menu_* : 首頁長按卡片選單 -->
     <string name="card_menu_open">開啟應用程式</string>
     <string name="card_menu_open_desc">啟動這個應用程式</string>
     <string name="card_menu_uninstall">解除安裝</string>
-    <string name="card_menu_uninstall_desc">透過系統確認解除安裝;之後卡片會自動消失</string>
+    <string name="card_menu_uninstall_desc">透過系統確認解除安裝；之後卡片會自動消失</string>
     <string name="card_menu_rename">修改標題</string>
-    <string name="card_menu_rename_desc">只改卡片上的名字,不改應用程式</string>
+    <string name="card_menu_rename_desc">只改卡片上的名字，不改應用程式</string>
     <string name="card_menu_icon">換卡片圖</string>
     <string name="card_menu_icon_desc">從圖庫選一張 16:9 的圖</string>
     <string name="card_menu_move">移動位置</string>
     <string name="card_menu_move_desc">在桌面上直接挪動這張卡</string>
-    <string name="card_menu_remove">從這一行移出</string>
+    <string name="card_menu_remove">從這一列移出</string>
     <string name="card_menu_remove_desc">應用程式本身不會被解除安裝</string>
     <!-- title_dialog_* : 「修改標題」對話框 -->
     <string name="title_dialog_title">修改標題</string>
@@ -33,69 +33,93 @@
     <string name="toast_title_saved">標題已儲存</string>
     <string name="toast_title_not_saved">標題無法儲存</string>
     <string name="toast_uninstall_failed">無法開啟系統解除安裝頁</string>
-    <string name="toast_remove_failed">找不到這張卡,可能剛被移出</string>
+    <string name="toast_remove_failed">找不到這張卡，可能剛被移出</string>
     <!-- R60(2026-09-23):原「导入图片」改名「手机传输」,从外观组挪到通用组;扫码页本身不变 -->
-    <string name="settings_phone_transfer">手機傳輸</string>
-    <string name="settings_phone_transfer_desc">手機掃碼上傳桌布、卡片圖、螢幕保護程式相片與影片,或安裝 APK</string>
-    <!-- import_* : 「匯入圖片」頁(電視端) -->
-    <string name="import_title">用手機匯入圖片</string>
+    <string name="settings_phone_transfer">從手機新增</string>
+    <string name="settings_phone_transfer_desc">用手機掃碼，把相片和影片傳到電視，或替電視安裝應用程式。</string>
+    <!-- import_* : 電視端「從手機新增」頁(R130 起:左邊三步說明,右邊 QR 碼與網址) -->
+    <string name="import_title">用手機傳到電視</string>
     <string name="import_title_wallpapers">用手機新增桌布</string>
     <string name="import_title_cards">用手機新增卡片圖</string>
-    <string name="import_title_screensavers">用手機新增螢幕保護程式相片或影片</string>
+    <string name="import_title_screensavers">用手機新增螢幕保護相片和影片</string>
+    <string name="import_step_wifi">手機連上和電視相同的 Wi-Fi</string>
+    <string name="import_step_scan">用手機相機掃描右邊的 QR 碼</string>
+    <string name="import_step_pick">在開啟的網頁裡選好檔案，電視這邊馬上就能使用</string>
+    <string name="import_url_hint">無法掃描？在手機瀏覽器輸入</string>
+    <string name="import_waiting">等待手機傳送…</string>
     <plurals name="import_received">
         <item quantity="one">已收到 %1$d 個檔案</item>
         <item quantity="other">已收到 %1$d 個檔案</item>
     </plurals>
-    <string name="import_last">最近:%1$s</string>
-    <string name="import_hint_back">按返回鍵關閉並停止服務</string>
-    <string name="import_error_no_network">電視尚未連上網路,連上 Wi-Fi 或網路線後再試</string>
-    <string name="import_error_port">連接埠 8090–8099 都被佔用,請稍後再試</string>
-    <string name="import_apk_needs_permission">請在電視上允許「安裝未知應用程式」,然後在手機上重試</string>
-    <string name="import_apk_started">已交給系統安裝程式</string>
+    <string name="import_last">最近：%1$s</string>
+    <string name="import_hint_back">傳完後按返回鍵離開</string>
+    <string name="import_error_no_network">電視還沒連上網路。連上 Wi-Fi 或網路線後，再開啟這一頁</string>
+    <string name="import_error_port">暫時無法開始傳輸，請稍後再試</string>
+    <string name="import_apk_needs_permission">請在電視上允許 UnitedU 安裝應用程式，然後在手機上再試一次</string>
+    <string name="import_apk_started">請在電視上確認安裝</string>
 
-    <!-- web_* : 手機上傳網頁文案(伺服端注入,JS 裡 %s/%d 由網頁自行取代) -->
-    <string name="web_title">用手機匯入圖片</string>
+    <!-- web_* : 手機上傳網頁文案(伺服端注入;JS 裡 %d 由網頁自行取代)。R130 起頁面按「傳到電視」重做 -->
+    <string name="web_title">傳到電視</string>
+    <string name="web_connected">已連線到電視</string>
+    <string name="web_offline">和電視中斷連線</string>
+    <string name="web_offline_hint">在電視上重新開啟「從手機新增」，再重新整理這一頁</string>
     <string name="web_tab_wallpapers">桌布</string>
     <string name="web_tab_cards">卡片圖</string>
-    <string name="web_tab_screensavers">螢幕保護程式</string>
-    <string name="web_tab_apk">安裝 APK</string>
-    <string name="web_upload">上傳</string>
-    <string name="web_delete">刪除</string>
-    <string name="web_confirm_delete" formatted="false">刪除 %s?</string>
-    <string name="web_empty">還沒有圖片,點右上「上傳」</string>
+    <string name="web_tab_screensavers">螢幕保護</string>
+    <string name="web_tab_apk">裝應用程式</string>
+    <string name="web_desc_wallpapers">電視桌面的背景圖，橫向相片效果最好。</string>
+    <string name="web_desc_cards">替應用程式卡片換上的圖，16:9 橫圖最合適。傳完在電視上長按應用程式，選「換卡片圖」就能使用。</string>
+    <string name="web_desc_screensavers">螢幕保護輪播用的相片和影片。影片靜音播放，最長播放 60 秒，每部不超過 500 MB。</string>
+    <string name="web_desc_apk">把手機裡的 Android 安裝檔（.apk）裝到電視上。傳送後，電視會請你確認安裝。</string>
+    <string name="web_pick_photos">選擇相片</string>
+    <string name="web_pick_media">選擇相片或影片</string>
+    <string name="web_pick_apk">選擇安裝檔</string>
+    <string name="web_lib_title">電視上已有</string>
+    <string name="web_empty">還沒有圖片</string>
+    <string name="web_empty_screensavers">還沒有相片或影片</string>
+    <string name="web_empty_sub">傳上來的會出現在這裡，電視上也能馬上選到。</string>
     <plurals name="web_uploading" formatted="false">
-        <item quantity="one">正在上傳 %d 個檔案…</item>
-        <item quantity="other">正在上傳 %d 個檔案…</item>
+        <item quantity="one">正在傳送 %d 個檔案…</item>
+        <item quantity="other">正在傳送 %d 個檔案…</item>
     </plurals>
-    <string name="web_done">完成</string>
-    <string name="web_error">發生錯誤,請再試一次</string>
-    <string name="web_rejected_type">只支援 jpg / png / webp</string>
-    <string name="web_rejected_size">超過 30 MB</string>
-    <string name="web_rejected_decode">圖片解碼失敗</string>
-    <string name="web_rejected_name">檔名無效</string>
-    <string name="web_rejected_write">電視儲存空間寫入失敗</string>
-    <string name="web_rejected_type_media">只支援 jpg / png / webp 相片,或 mp4 / mov / webm 影片</string>
-    <string name="web_rejected_video_size">影片超過 500 MB</string>
-    <string name="web_rejected_video_decode">電視無法辨識這部影片</string>
-    <string name="web_rejected_space">電視儲存空間不足</string>
-    <string name="web_screensavers_hint">可以上傳相片或短片(mp4 / mov / webm,每部影片不超過 500 MB)。螢幕保護程式裡影片靜音播放,超過 60 秒只播前 60 秒。</string>
-    <string name="web_empty_screensavers">還沒有相片或影片,點右上「上傳」</string>
+    <plurals name="web_sent" formatted="false">
+        <item quantity="one">已新增 %d 個</item>
+        <item quantity="other">已新增 %d 個</item>
+    </plurals>
+    <string name="web_sent_sub">電視上馬上就能選到</string>
+    <string name="web_failed_title">這些無法新增</string>
+    <string name="web_delete">刪除</string>
+    <string name="web_delete_title">從電視上刪除？</string>
+    <string name="web_delete_body">刪除後無法復原</string>
+    <string name="web_cancel">取消</string>
+    <string name="web_deleted">已刪除</string>
+    <string name="web_close">關閉</string>
+    <string name="web_error">發生問題，請再試一次</string>
+    <string name="web_rejected_type">格式不支援，只能使用 JPG、PNG 或 WebP</string>
+    <string name="web_rejected_size">太大了，每張不超過 30 MB</string>
+    <string name="web_rejected_decode">這張圖片打不開，可能已損壞</string>
+    <string name="web_rejected_name">檔名不支援，改個名稱再試</string>
+    <string name="web_rejected_write">電視無法儲存這個檔案</string>
+    <string name="web_rejected_type_media">格式不支援：相片用 JPG、PNG、WebP，影片用 MP4、MOV、WebM</string>
+    <string name="web_rejected_video_size">影片太大了，每部不超過 500 MB</string>
+    <string name="web_rejected_video_decode">電視無法播放這部影片</string>
+    <string name="web_rejected_space">電視的儲存空間不足</string>
+    <string name="web_apk_sent">已傳到電視，請在電視上確認安裝</string>
+    <string name="web_apk_needs_permission">請先在電視上允許 UnitedU 安裝應用程式（電視會開啟這項設定），然後再試一次</string>
+    <string name="web_apk_invalid">這不是有效的 Android 安裝檔（.apk）</string>
+    <string name="web_apk_size">安裝檔太大了，不能超過 100 MB</string>
+    <string name="web_apk_background">電視上的傳輸頁不在最前面，回到那一頁再試一次</string>
+
     <string name="picker_video_badge">影片</string>
     <string name="preview_video_failed">無法播放這部影片</string>
-    <string name="web_apk_hint">選擇 APK 後,電視會跳出系統安裝程式;第一次需要在電視上允許「安裝未知應用程式」。</string>
-    <string name="web_apk_install">選擇 APK 並安裝到電視</string>
-    <string name="web_apk_needs_permission">請先在電視上允許安裝未知應用程式,然後重試</string>
-    <string name="web_apk_invalid">不是有效的 APK 檔案</string>
-    <string name="web_apk_size">APK 超過 100 MB</string>
-    <string name="web_apk_background">電視上的匯入頁不在前景,回到匯入頁後重試</string>
 
     <!-- edit_* : 編輯分欄畫面 -->
-    <string name="edit_title">編輯分欄</string>
-    <string name="edit_hint">選取應用程式後按確定:調整順序、換圖、移出。每行最後的加號:新增應用程式、管理這一行。按返回鍵離開。</string>
-    <string name="edit_toast_order_not_saved">順序沒能存下來,重新啟動後會變回原樣</string>
+    <string name="edit_title">編輯桌面</string>
+    <string name="edit_hint">在應用程式上按確定：移動、換卡片圖、移出這一列。在每列最後的 + 上按確定：新增應用程式、管理這一列。按返回鍵完成。</string>
+    <string name="edit_toast_order_not_saved">順序沒能存下來，重新啟動後會變回原樣</string>
     <string name="edit_change_image">換卡片圖</string>
     <string name="edit_change_image_desc">選一張 16:9 的圖片取代</string>
-    <string name="edit_remove">從這一行移出</string>
+    <string name="edit_remove">從這一列移出</string>
     <string name="edit_remove_desc">應用程式本身不會被解除安裝</string>
     <string name="edit_add_app_title">新增應用程式</string>
     <string name="edit_loading_apps">正在讀取應用程式清單…</string>
@@ -104,23 +128,23 @@
     <string name="edit_picker_system_tools">系統工具</string>
 
     <!-- home_* : 首頁與預設桌面設定卡 -->
-    <string name="home_empty_apps_hint">沒有可顯示的應用程式\n按遙控器的選單鍵,或選左上角的設定按鈕,再進「版面 → 編輯分欄」新增</string>
+    <string name="home_empty_apps_hint">桌面上還沒有應用程式\n選左上角的「所有應用程式」，長按想要的應用程式，再選「加到桌面」</string>
     <string name="home_new_apps">有 %1$d 個新應用程式</string>
     <string name="home_settings_title">預設桌面</string>
     <string name="home_settings_current_label">目前</string>
-    <string name="home_settings_change_button">在系統設定中變更</string>
-    <string name="home_settings_note">Android 要求預設桌面須在系統設定裡切換。</string>
+    <string name="home_settings_change_button">前往系統設定變更</string>
+    <string name="home_settings_note">按主畫面鍵時開啟的桌面。Android 只允許在系統設定中變更。</string>
     <string name="home_settings_unknown">未知</string>
 
     <!-- picker_* : 桌布/卡片圖/螢幕保護程式圖庫選擇器 -->
     <string name="picker_wallpaper_title">選一張桌布</string>
     <string name="picker_card_image_title">選一張卡片圖</string>
     <string name="picker_no_images">還沒有圖片可選</string>
-    <string name="picker_back_to_close">按返回鍵關閉</string>
+    <string name="picker_back_to_close">按確定預覽 · 長按可刪除或關閉 · 按返回鍵關閉</string>
     <string name="picker_back_to_cancel">按返回鍵取消</string>
     <string name="picker_restore_original">恢復原圖</string>
     <string name="picker_add_from_phone">從手機新增</string>
-    <string name="picker_screensaver_pool_title">螢幕保護程式圖庫 · %1$d 項 · 按確定鍵預覽</string>
+    <string name="picker_screensaver_pool_title">螢幕保護圖庫 · %1$d 項</string>
     <string name="picker_screensaver_title">螢幕保護程式圖庫</string>
     <string name="picker_no_screensavers">還沒有螢幕保護程式相片或影片</string>
     <!-- R115:選圖頁「內建 / 我的」兩塊的分組標題;內建螢幕保護圖關掉之後的角標與膠囊選單(R117) -->
@@ -130,8 +154,8 @@
     <string name="pool_builtin_exclude">不參與輪播</string>
     <string name="pool_builtin_include">加入輪播</string>
     <!-- pool_delete_* : 螢幕保護圖庫長按刪圖的確認框(M5 spec §5);取消複用 dialog_cancel -->
-    <string name="pool_delete_title">刪除這一項?</string>
-    <string name="pool_delete_body">「%1$s」會從螢幕保護圖庫刪除,無法復原</string>
+    <string name="pool_delete_title">刪除這一項？</string>
+    <string name="pool_delete_body">「%1$s」會從螢幕保護圖庫刪除，無法復原</string>
     <string name="pool_delete_ok">刪除</string>
 
     <!-- settings_* : UnitedU 設定頁(分組帶標題) -->
@@ -150,27 +174,27 @@
     <string name="settings_card_large">大</string>
     <string name="settings_card_medium">中</string>
     <string name="settings_card_small">小</string>
-    <string name="settings_show_titles">卡片標題</string>
+    <string name="settings_show_titles">顯示應用程式名稱</string>
     <string name="settings_theme_color">主題色</string>
-    <string name="settings_follow_wallpaper">跟隨桌布主色</string>
+    <string name="settings_follow_wallpaper">主題色跟隨桌布</string>
     <!-- R128:待機時間 + 待機顯示合成「待機」子頁(通用組),膠囊右端是兩行的值摘要 -->
-    <string name="settings_standby">待機</string>
-    <string name="settings_idle_after">待機時間</string>
-    <string name="settings_idle_off">關</string>
+    <string name="settings_standby">閒置畫面</string>
+    <string name="settings_idle_after">進入閒置</string>
+    <string name="settings_idle_off">永不</string>
     <string name="settings_idle_minutes">%1$d 分鐘</string>
-    <string name="settings_idle_content">待機顯示</string>
-    <string name="settings_idle_clock">時鐘</string>
+    <string name="settings_idle_content">閒置時顯示</string>
+    <string name="settings_idle_clock">只留時鐘</string>
     <string name="settings_idle_black">全黑</string>
-    <string name="settings_idle_nofade">不淡出</string>
+    <string name="settings_idle_nofade">不變</string>
     <!-- M5「待機與螢幕保護」組新增的四行(spec §3、§6);分鐘檔複用 settings_idle_minutes,「關」複用 settings_idle_off -->
-    <string name="settings_screensaver_after">螢幕保護啟動</string>
-    <string name="settings_screensaver_note_empty">輪播是空的,不會進入</string>
-    <string name="settings_screensaver_note_from_input">從最後一次按鍵算起</string>
-    <string name="settings_screensaver_note_after_standby">從進入待機算起</string>
-    <string name="settings_screensaver_interval">螢幕保護輪播設定</string>
+    <string name="settings_screensaver_after">自動開始</string>
+    <string name="settings_screensaver_note_empty">輪播裡沒有相片，螢幕保護不會開始</string>
+    <string name="settings_screensaver_note_from_input">從最後一次按遙控器算起</string>
+    <string name="settings_screensaver_note_after_standby">從桌面進入閒置畫面算起</string>
+    <string name="settings_screensaver_interval">每張停留</string>
     <string name="settings_seconds">%1$d 秒</string>
     <string name="settings_screensaver_gallery">螢幕保護圖庫</string>
-    <string name="settings_screensaver_gallery_desc">看相片和影片、長按刪除</string>
+    <string name="settings_screensaver_gallery_desc">螢幕保護播放的相片和影片。可以關閉內建圖片，或從手機新增你自己的。</string>
     <string name="settings_system_screensaver">系統螢幕保護</string>
     <string name="settings_on">開</string>
     <string name="settings_off">關</string>
@@ -181,18 +205,18 @@
     <string name="settings_sys_minutes">%1$d 分鐘</string>
     <string name="settings_sys_hours">%1$d 小時</string>
     <!-- R127:螢幕保護組「關閉螢幕」行;路徑取自索尼 TvSettings 的繁體中文(台灣)文案 -->
-    <string name="settings_screen_off">關閉螢幕</string>
+    <string name="settings_screen_off">自動關閉螢幕</string>
     <string name="settings_screen_off_where">在 %1$s 裡修改</string>
     <string name="settings_screen_off_where_generic">在電視設定裡找「自動關閉」「關機計時器」或「關閉螢幕」</string>
     <string name="settings_sys_idle_hours">閒置 %1$d 小時後</string>
     <string name="settings_sys_idle_minutes">閒置 %1$d 分鐘後</string>
     <string name="settings_sys_idle_hours_minutes">閒置 %1$d 小時 %2$d 分鐘後</string>
     <string name="settings_sys_idle_seconds">閒置 %1$d 秒後</string>
-    <string name="settings_sys_anim_scale">系統動畫縮放</string>
-    <string name="settings_sys_anim_slower">%1$s×,介面動畫會變慢</string>
-    <string name="settings_sys_anim_faster">%1$s×,介面動畫會變快</string>
-    <string name="settings_sys_anim_off">已關閉,介面沒有動畫</string>
-    <string name="settings_sys_anim_window">視窗 %1$s×、轉場 %2$s×,只影響開啟和切換應用程式</string>
+    <string name="settings_sys_anim_scale">系統動畫速度</string>
+    <string name="settings_sys_anim_slower">%1$s×，介面動畫會變慢</string>
+    <string name="settings_sys_anim_faster">%1$s×，介面動畫會變快</string>
+    <string name="settings_sys_anim_off">已關閉，介面沒有動畫</string>
+    <string name="settings_sys_anim_window">視窗 %1$s×、轉場 %2$s×，只影響開啟和切換應用程式</string>
     <string name="settings_language">語言</string>
     <string name="settings_lang_system">跟隨系統</string>
     <string name="settings_lang_zh_cn">简体</string>
@@ -200,8 +224,8 @@
     <string name="settings_lang_en">English</string>
     <string name="settings_action_restore_defaults">恢復預設</string>
     <!-- restore_* / dialog_cancel : 「恢復預設」確認框(T7,spec §4) -->
-    <string name="restore_title">恢復預設設定?</string>
-    <string name="restore_body">分欄、標題、卡片圖和圖片庫都不會變</string>
+    <string name="restore_title">恢復預設設定？</string>
+    <string name="restore_body">只重設這些設定。桌面上的應用程式、卡片圖和你的相片都不會變。</string>
     <string name="restore_ok">恢復</string>
     <string name="dialog_cancel">取消</string>
     <!-- about_* : 關於頁與手動檢查更新(T9,spec §7) -->
@@ -217,18 +241,18 @@
     <string name="about_downloading_unknown">下載中…</string>
     <string name="about_verifying">驗證中…</string>
     <string name="about_verify_failed">驗證失敗</string>
-    <string name="about_download_failed">下載失敗,請稍後再試</string>
+    <string name="about_download_failed">下載失敗，請稍後再試</string>
     <string name="about_install_failed">這個更新套件無法安裝</string>
-    <string name="about_needs_permission">請在電視上允許「安裝未知應用程式」,然後重試</string>
-    <string name="about_net_failed">檢查失敗,請稍後再試</string>
+    <string name="about_needs_permission">請在電視上允許「安裝未知應用程式」，然後重試</string>
+    <string name="about_net_failed">檢查失敗，請稍後再試</string>
     <string name="about_bad_json">無法解析更新資訊</string>
     <string name="about_license_title">授權聲明</string>
-    <string name="about_license">本專案以 Apache-2.0 授權發布。第三方元件:Google Sans Flex(OFL 1.1)、Material Icons(Apache-2.0)、NanoHTTPD(BSD-3-Clause)、ZXing(Apache-2.0)。</string>
+    <string name="about_license">本專案以 Apache-2.0 授權發布。第三方元件：Google Sans Flex（OFL 1.1）、Material Icons（Apache-2.0）、NanoHTTPD（BSD-3-Clause）、ZXing（Apache-2.0）。</string>
     <string name="about_repo">專案網址 github.com/GordonWang1878/UnitedU-launcher</string>
     <!-- onb_* : 首次啟動引導(T10,spec §8);第 1 步的語言按鈕沿用 settings_lang_* -->
     <string name="onb_step1_title">選擇語言</string>
     <string name="onb_step2_title">把已安裝的應用程式放到桌面</string>
-    <string name="onb_step2_body">只會放下面這些;其餘的可以稍後在編輯分欄裡新增</string>
+    <string name="onb_step2_body">先放這些。其他應用程式之後可以在「所有應用程式」裡加到桌面。</string>
     <string name="onb_step3_title">把 UnitedU 設為預設桌面</string>
     <string name="onb_next">繼續</string>
     <string name="onb_skip">略過</string>
@@ -242,14 +266,14 @@
     <string name="preset_green">鼠尾草</string>
 
     <!-- toast_* : 一次性提示 -->
-    <string name="toast_cant_open_app">打不開「%1$s」,它可能已被解除安裝</string>
-    <string name="toast_storage_not_ready">外部儲存空間還沒準備好,稍後再試</string>
-    <string name="toast_open_failed">打不開:%1$s</string>
+    <string name="toast_cant_open_app">打不開「%1$s」，它可能已被解除安裝</string>
+    <string name="toast_storage_not_ready">外部儲存空間還沒準備好，稍後再試</string>
+    <string name="toast_open_failed">打不開：%1$s</string>
     <string name="toast_wallpaper_changed">桌布已更換</string>
     <string name="toast_invalid_image">這個檔案不是可用的圖片</string>
     <string name="toast_card_image_changed">卡片圖已更換</string>
     <string name="toast_icon_restored">已恢復原始圖示</string>
-    <string name="toast_opened_stock_launcher">已開啟原廠桌面;要永久切換請在系統設定裡變更主畫面應用程式</string>
+    <string name="toast_opened_stock_launcher">已開啟原廠桌面；要永久切換請在系統設定裡變更主畫面應用程式</string>
     <string name="toast_stock_launcher_not_found">找不到原廠桌面</string>
     <string name="toast_restored">已恢復預設設定</string>
     <string name="toast_system_screensaver_unavailable">無法開啟系統螢幕保護設定</string>
@@ -258,8 +282,8 @@
     <!-- M4b -->
     <string name="menu_hide_input">隱藏</string>
     <string name="menu_hide_input_desc">從桌面隱藏這個輸入源</string>
-    <string name="toast_input_hidden">已隱藏「%1$s」,可在輸入源清單末尾恢復</string>
-    <string name="toast_input_hide_failed">無法隱藏,請稍後再試</string>
+    <string name="toast_input_hidden">已隱藏「%1$s」，可在輸入源清單末尾恢復</string>
+    <string name="toast_input_hide_failed">無法隱藏，請稍後再試</string>
     <string name="settings_restore_hidden_inputs">恢復隱藏的輸入源</string>
     <string name="settings_hidden_inputs_count">%1$d 個</string>
     <string name="toast_inputs_restored">已恢復全部輸入源</string>
@@ -267,24 +291,24 @@
     <!-- edit_row_* / row_icon_* : 編輯頁行選單(行尾「+」)、行改名、行圖示選擇器、刪行確認框(M4b Task 4) -->
     <string name="edit_row_add_app">新增應用程式</string>
     <string name="edit_row_add_app_desc">從已安裝的應用程式裡挑</string>
-    <string name="edit_row_rename">重新命名此行</string>
-    <string name="edit_row_rename_desc">改這一行的名字</string>
-    <string name="edit_row_icon">更換此行圖示</string>
-    <string name="edit_row_icon_desc">更換行名前的圖示</string>
-    <string name="edit_row_up">此行上移</string>
-    <string name="edit_row_up_desc">和上面一行對調</string>
-    <string name="edit_row_down">此行下移</string>
-    <string name="edit_row_down_desc">和下面一行對調</string>
-    <string name="edit_row_new">在下方新增一行</string>
-    <string name="edit_row_new_desc">在這一行下面加一個空行</string>
-    <string name="edit_row_delete">刪除此行</string>
-    <string name="edit_row_delete_desc">行裡的應用程式不會被解除安裝</string>
-    <string name="edit_new_row_name">新行</string>
-    <string name="edit_row_rename_heading">重新命名此行</string>
+    <string name="edit_row_rename">重新命名此列</string>
+    <string name="edit_row_rename_desc">改這一列的名字</string>
+    <string name="edit_row_icon">更換此列圖示</string>
+    <string name="edit_row_icon_desc">更換列名前的圖示</string>
+    <string name="edit_row_up">此列上移</string>
+    <string name="edit_row_up_desc">和上面一列對調</string>
+    <string name="edit_row_down">此列下移</string>
+    <string name="edit_row_down_desc">和下面一列對調</string>
+    <string name="edit_row_new">在下方新增一列</string>
+    <string name="edit_row_new_desc">在這一列下面加一個空列</string>
+    <string name="edit_row_delete">刪除此列</string>
+    <string name="edit_row_delete_desc">列裡的應用程式不會被解除安裝</string>
+    <string name="edit_new_row_name">新列</string>
+    <string name="edit_row_rename_heading">重新命名此列</string>
     <string name="edit_row_rename_hint">確定儲存 · 返回取消 · 清空不會改名</string>
-    <string name="edit_row_icon_heading">選擇行圖示</string>
-    <string name="edit_row_delete_confirm_title">刪除「%1$s」?</string>
-    <string name="edit_row_delete_confirm_body">這一行的 %1$d 個應用程式會從桌面移除,不會解除安裝。</string>
+    <string name="edit_row_icon_heading">選擇列圖示</string>
+    <string name="edit_row_delete_confirm_title">刪除「%1$s」？</string>
+    <string name="edit_row_delete_confirm_body">這一列的 %1$d 個應用程式會從桌面移除，不會解除安裝。</string>
     <string name="edit_row_delete_ok">刪除</string>
     <string name="row_icon_movie">影片</string>
     <string name="row_icon_tv">電視</string>
@@ -299,15 +323,15 @@
     <string name="row_icon_photos">相簿</string>
     <string name="row_icon_apps">應用程式</string>
     <!-- home_move_hint / toast_move_failed : 首頁原地移動態(M4b Task 5) -->
-    <string name="home_move_hint">← → 移動 · ↑ ↓ 換行 · 確定 放下 · 返回 取消</string>
-    <string name="toast_move_failed">無法儲存新位置,請稍後再試</string>
+    <string name="home_move_hint">← → 移動 · ↑ ↓ 換列 · 確定 放下 · 返回 取消</string>
+    <string name="toast_move_failed">無法儲存新位置，請稍後再試</string>
     <!-- edit_move_desc : 編輯頁搬運模式(M4b 真機驗收補丁 Task 2) -->
-    <string name="edit_move_desc">在編輯頁裡用方向鍵挪這張卡,空行也能去</string>
+    <string name="edit_move_desc">在編輯頁裡用方向鍵挪這張卡，空列也能去</string>
     <!-- settings shell:設定頁膠囊外殼(R69–R72,2026-09-23) -->
-    <string name="shell_root_layout_desc">編輯分欄、卡片大小與標題、卡片色彩</string>
-    <string name="shell_root_general_desc">語言、預設桌面、手機傳輸、待機、時鐘</string>
+    <string name="shell_root_layout_desc">編輯桌面、卡片大小、名稱、色彩</string>
+    <string name="shell_root_general_desc">語言、預設桌面、從手機新增、時鐘</string>
     <string name="shell_root_appearance_desc">桌布、主題色</string>
-    <string name="shell_root_screensaver_desc">螢幕保護時間、圖庫、系統螢幕保護、關閉螢幕</string>
+    <string name="shell_root_screensaver_desc">圖庫、自動開始、系統螢幕保護等</string>
     <string name="settings_card_saturation">卡片飽和度</string>
     <string name="settings_card_brightness">卡片亮度</string>
     <string name="settings_card_opacity">卡片透明度</string>
@@ -317,17 +341,17 @@
     <string name="shell_slider_card_brightness">卡片亮度</string>
     <string name="shell_slider_card_opacity">卡片透明度</string>
     <string name="shell_theme_following_wallpaper">跟隨桌布</string>
-    <string name="shell_preview_hint">預覽:%1$s · 按確定儲存,按返回不變</string>
+    <string name="shell_preview_hint">預覽：%1$s · 按確定儲存，按返回不變</string>
     <!-- R89–R93(2026-09-27):頂欄三顆膠囊(設定 / 應用 / 輸入源)、所有應用頁、輸入源頁、立即啟動螢幕保護 -->
-    <string name="apps_page_title">應用</string>
-    <string name="apps_page_hint">長按或按選單鍵可以加到桌面</string>
+    <string name="apps_page_title">所有應用程式</string>
+    <string name="apps_page_hint">長按確定鍵或按選單鍵，可以把應用程式加到桌面</string>
     <string name="apps_menu_add_to_home">加到桌面…</string>
-    <string name="apps_add_row_here">%1$s(已在這一行)</string>
+    <string name="apps_add_row_here">%1$s（已在這一列）</string>
     <string name="toast_added_to_row">已加到「%1$s」</string>
-    <string name="toast_already_in_row">「%1$s」這一行裡已經有它了</string>
-    <string name="toast_add_to_row_failed">沒能加到桌面,請稍後再試</string>
+    <string name="toast_already_in_row">「%1$s」這一列裡已經有它了</string>
+    <string name="toast_add_to_row_failed">沒能加到桌面，請稍後再試</string>
     <string name="inputs_page_title">輸入源</string>
-    <string name="inputs_page_current">目前:%1$s</string>
+    <string name="inputs_page_current">目前：%1$s</string>
     <string name="inputs_page_intro">從這裡切換電視的訊號源</string>
     <string name="inputs_page_hint">長按或按選單鍵可以重新命名、隱藏</string>
     <string name="inputs_page_empty">這台電視沒有可切換的輸入源</string>
@@ -335,6 +359,39 @@
     <string name="input_menu_rename">重新命名</string>
     <string name="toast_cant_switch_input">切換不到「%1$s」</string>
     <string name="settings_start_screensaver">立即啟動螢幕保護</string>
-    <string name="toast_screensaver_gallery_empty">螢幕保護輪播是空的,請先在螢幕保護圖庫裡加入相片或影片</string>
+    <string name="toast_screensaver_gallery_empty">螢幕保護輪播是空的，請先在螢幕保護圖庫裡加入相片或影片</string>
     <string name="input_label_tv">電視</string>
+    <!-- R131–R133(2026-09-30 新手可读性):设置每一行的说明(外壳左侧显示)与新增取值 -->
+    <string name="settings_language_desc">UnitedU 介面的語言，可以和電視系統不同。</string>
+    <string name="settings_home_not_set">未設定</string>
+    <string name="settings_standby_desc">一段時間不按遙控器，桌面會淡出、只留時鐘。在這裡設定多久、留下什麼。</string>
+    <string name="settings_idle_after_desc">多久不按遙控器，桌面就進入閒置畫面。</string>
+    <string name="settings_after_minutes">%1$d 分鐘後</string>
+    <string name="settings_idle_content_desc">只留時鐘：桌面淡出，留下右上角的時間。全黑：畫面全部變黑。不變：桌面維持原樣。</string>
+    <string name="settings_clock_display_desc">右上角的時鐘要顯示哪些內容。</string>
+    <string name="settings_sys_anim_scale_desc">電視的動畫速度不是 1×，介面動畫會變慢或變快。按確定前往開發人員選項修改。</string>
+    <string name="settings_card_size_desc">小：一列 8 張 · 中：一列 6 張 · 大：一列 5 張</string>
+    <string name="settings_show_titles_desc">在每張卡片下方顯示應用程式名稱。</string>
+    <string name="settings_card_saturation_desc">卡片顏色的濃淡。調低更素雅，100% 是應用程式原本的顏色。</string>
+    <string name="settings_card_brightness_desc">卡片的明暗。調低更柔和，100% 是原本的亮度。</string>
+    <string name="settings_card_opacity_desc">沒選中的卡片透出桌布的程度，選中的那張始終不透明。</string>
+    <string name="settings_wallpaper_blur_desc">把桌布調模糊，卡片會更醒目。</string>
+    <string name="settings_wallpaper_brightness_desc">調暗或調亮桌布。</string>
+    <string name="settings_theme_color_desc">焦點框、按鈕等醒目處的顏色。</string>
+    <string name="settings_follow_wallpaper_desc">開啟後，主題色會從目前的桌布中自動選取。</string>
+    <string name="settings_start_screensaver_desc">馬上播放螢幕保護，按任意鍵結束。</string>
+    <string name="settings_screensaver_after_desc">在 UnitedU 桌面上多久沒操作，就自動開始螢幕保護。</string>
+    <string name="settings_screensaver_interval_desc">每張相片停留多久，再換下一張。</string>
+    <string name="settings_system_screensaver_desc">在其他應用程式中閒置時，由電視啟動的螢幕保護。選 UnitedU，就會播放同一個螢幕保護圖庫。</string>
+    <string name="settings_screen_off_desc">多久沒操作，電視就自動關閉螢幕。這是電視本身的設定，按確定前往。</string>
+    <string name="settings_sys_never_starts">不會自動開始</string>
+    <!-- R133:内置三行的名字(新建布局时按界面语言写进 layout.json;老布局不动) -->
+    <string name="row_default_video">影視</string>
+    <string name="row_default_live">直播</string>
+    <string name="row_default_music">音樂</string>
+    <!-- R133:首次引导(欢迎语、找不到应用时的说明、第 2 / 3 步的按钮) -->
+    <string name="onb_step1_body">歡迎使用 UnitedU——沒有廣告，只有你自己的應用程式。先選擇介面語言。</string>
+    <string name="onb_step2_body_empty">沒有找到常見的影音、直播或音樂應用程式。之後可以在「所有應用程式」裡把任何應用程式加到桌面。</string>
+    <string name="onb_add_to_home">放到桌面</string>
+    <string name="onb_done">完成</string>
 </resources>

@@ -1,6 +1,7 @@
 package com.uniteduone.launcher
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -106,6 +107,11 @@ fun GtvTopBar(
             ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // R133(2026-09-30 新手可读性):三颗都是纯图标,第一次用的人认不全(尤其「所有应用」「输入源」)——
+        // 焦点落在哪一颗,药丸组右边就淡入它的名字,离开顶栏淡出。Google 在这一带放的是文字 tab,我们用图标 + 焦点名字补上。
+        // 只是本地显示状态:焦点账本照旧只经 onFocusChange 上报,这里不读不写任何焦点目标。
+        var focusedPill by remember { mutableStateOf<Int?>(null) }
+        var labelPill by remember { mutableStateOf(0) }
         PillGroup(
             pillFocusRequesters = pillFocusRequesters,
             canFocus = canFocus,
@@ -114,9 +120,41 @@ fun GtvTopBar(
             onSettings = onSettings,
             onApps = onApps,
             onInputs = onInputs,
-            onFocusChange = onFocusChange,
+            onFocusChange = { col, got ->
+                if (got) { focusedPill = col; labelPill = col } else if (focusedPill == col) focusedPill = null
+                onFocusChange(col, got)
+            },
             modifier = Modifier.alpha(pillAlpha),
         )
+        val labelAlpha by animateFloatAsState(
+            targetValue = if (focusedPill != null) 1f else 0f,
+            animationSpec = tween(
+                durationMillis = if (focusedPill != null) GtvLayout.TOP_NAV_FADE_IN_MS else GtvLayout.TOP_NAV_FADE_OUT_MS,
+                easing = Theme.AppFocusEasing,
+            ),
+            label = "topBarPillLabel",
+        )
+        Spacer(Modifier.width(GtvLayout.TOP_BAR_LABEL_GAP.dp))
+        // 名字放在与药丸组同底色的小胶囊里:顶栏左边没有压暗,直接写在壁纸上的浅色字在亮壁纸上看不清
+        // (模拟器实测:内置壁纸「夏日数码门」的蓝色光圈上,加了阴影也糊)。
+        Box(
+            modifier = Modifier
+                .alpha(labelAlpha * pillAlpha)
+                .height(GtvLayout.TOP_BAR_HEIGHT.dp)
+                .clip(RoundedCornerShape(percent = 50))
+                .background(GtvTokens.PillTrack)
+                .padding(horizontal = GtvLayout.TOP_BAR_LABEL_PAD_H.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            BasicText(
+                text = stringResource(TOP_PILLS[labelPill].descriptionRes),
+                style = TextStyle(
+                    fontFamily = Theme.Sans,
+                    fontSize = GtvLayout.TOP_BAR_CLOCK_TEXT.sp,
+                    color = LocalThemeColors.current.accent,
+                ),
+            )
+        }
         // Google 在这条留白里放搜索 / Home / Apps 三个 tab;我们没有搜索与 Home tab(spec §9),
         // 「应用」R89 起做成药丸组里的一颗(打开所有应用页),不另起一组 tab。
         Spacer(Modifier.weight(1f))

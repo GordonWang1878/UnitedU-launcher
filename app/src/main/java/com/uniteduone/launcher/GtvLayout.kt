@@ -278,6 +278,10 @@ object GtvLayout {
      *  与长按菜单项字号（同一张参考图量出的「M」）巧合地是同一个数字,但这是两次独立测量各自收敛
      *  到的结果,不是复用同一个数。 */
     const val TOP_BAR_CLOCK_TEXT = 16f
+    /** R133:药丸组与焦点所在那颗的名字之间的间距(dp)。名字字号同 [TOP_BAR_CLOCK_TEXT]。 */
+    const val TOP_BAR_LABEL_GAP = 10f
+    /** R133:名字小胶囊的左右内边距(dp);高度同药丸组 [TOP_BAR_HEIGHT]。 */
+    const val TOP_BAR_LABEL_PAD_H = 16f
 
     /**
      * **Ruling R41(2026-09-22,owner 真机反馈 Round 10)**:UnitedU 设置页(当时的两栏 `SettingsScreen`,R69 起是外壳 `SettingsShell` 每一层的页名)左上角

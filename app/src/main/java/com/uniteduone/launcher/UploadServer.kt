@@ -33,6 +33,8 @@ class UploadServer(
     private val isForeground: () -> Boolean = { true },
     /** 手机网页默认打开的分页(R63,见 [defaultTabJs]);null = 网页自己的默认。 */
     private val defaultTab: String? = null,
+    /** 电视当前主题色(ARGB,R130):网页的按钮 / 进度条跟电视同一个颜色,见 [cssHex]。 */
+    private val accent: Int = DEFAULT_WEB_ACCENT,
 ) : NanoHTTPD(port) {
 
     private val main = Handler(Looper.getMainLooper())
@@ -139,12 +141,22 @@ class UploadServer(
         return closing(json(Response.Status.PAYLOAD_TOO_LARGE, jsonFail(reason)))
     }
 
-    /** 网页。把 index.html 里的 __STRINGS__ 占位替换成按电视当前语言取的三语 JSON,__DEFAULT_TAB__ 换成默认分页(R63)。 */
+    /**
+     * 网页。把 index.html 里的占位换掉:__STRINGS__ = 按电视当前语言取的文案 JSON,__DEFAULT_TAB__ = 默认分页(R63),
+     * __ACCENT__ = 电视主题色、__LANG__ = 电视界面语言(R130:手机上的字体按它选简 / 繁)。
+     */
     private fun serveIndex(): Response {
         val html = runCatching {
             ctx.assets.open("web/index.html").use { it.readBytes().toString(Charsets.UTF_8) }
         }.getOrNull() ?: return text(Response.Status.NOT_FOUND, "index missing")
-        return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html.replace("__STRINGS__", webStringsJson(ctx)).replace("__DEFAULT_TAB__", defaultTabJs(defaultTab)))
+        val lang = ctx.resources.configuration.locales[0].toLanguageTag()
+        return newFixedLengthResponse(
+            Response.Status.OK, "text/html; charset=utf-8",
+            html.replace("__STRINGS__", webStringsJson(ctx))
+                .replace("__DEFAULT_TAB__", defaultTabJs(defaultTab))
+                .replace("__ACCENT__", cssHex(accent))
+                .replace("__LANG__", lang),
+        )
     }
 
     /** 屏保分类照片 + 视频(R100),壁纸 / 卡片图只有照片。 */
@@ -432,9 +444,10 @@ class UploadServer(
             onNotice: (Int) -> Unit = {},
             isForeground: () -> Boolean = { true },
             defaultTab: String? = null,
+            accent: Int = DEFAULT_WEB_ACCENT,
         ): UploadServer? {
             for (port in UPLOAD_PORT_FIRST..UPLOAD_PORT_LAST) {
-                val s = UploadServer(ctx, port, onSaved, onNotice, isForeground, defaultTab)
+                val s = UploadServer(ctx, port, onSaved, onNotice, isForeground, defaultTab, accent)
                 val ok = runCatching { s.start(SOCKET_READ_TIMEOUT, false); true }
                     .onFailure { runCatching { s.stop() } }
                     .getOrDefault(false)
@@ -457,49 +470,78 @@ private class CacheTempFileManager(private val dir: File) : NanoHTTPD.TempFileMa
     }
 }
 
-/** 网页文案:按电视 app 当前语言取 web_* 资源,拼成 JSON 对象注入 index.html 的 __STRINGS__。key 与网页 JS 里 S.xxx 一一对应。 */
+/**
+ * 网页文案的 key → 资源(R130 起抽成表):key 与网页 JS 里的 `S.xxx` 一一对应。单测 [WebStringsTest] 扫 index.html
+ * 里用到的每一个 `S.xxx` / `S["…"]` 前缀,确认都在这张表(或 [WEB_PLURALS])里——漏一个,网页上就会出现 `undefined`。
+ */
+internal val WEB_STRING_KEYS: Map<String, Int> = mapOf(
+    "title" to R.string.web_title,
+    "connected" to R.string.web_connected,
+    "offline" to R.string.web_offline,
+    "offline_hint" to R.string.web_offline_hint,
+    "tab_wallpapers" to R.string.web_tab_wallpapers,
+    "tab_cards" to R.string.web_tab_cards,
+    "tab_screensavers" to R.string.web_tab_screensavers,
+    "tab_apk" to R.string.web_tab_apk,
+    "desc_wallpapers" to R.string.web_desc_wallpapers,
+    "desc_cards" to R.string.web_desc_cards,
+    "desc_screensavers" to R.string.web_desc_screensavers,
+    "desc_apk" to R.string.web_desc_apk,
+    "pick_photos" to R.string.web_pick_photos,
+    "pick_media" to R.string.web_pick_media,
+    "pick_apk" to R.string.web_pick_apk,
+    "lib_title" to R.string.web_lib_title,
+    "empty" to R.string.web_empty,
+    "empty_screensavers" to R.string.web_empty_screensavers,
+    "empty_sub" to R.string.web_empty_sub,
+    "sent_sub" to R.string.web_sent_sub,
+    "failed_title" to R.string.web_failed_title,
+    "delete" to R.string.web_delete,
+    "delete_title" to R.string.web_delete_title,
+    "delete_body" to R.string.web_delete_body,
+    "cancel" to R.string.web_cancel,
+    "deleted" to R.string.web_deleted,
+    "close" to R.string.web_close,
+    "error" to R.string.web_error,
+    "rejected_type" to R.string.web_rejected_type,
+    "rejected_size" to R.string.web_rejected_size,
+    "rejected_decode" to R.string.web_rejected_decode,
+    "rejected_name" to R.string.web_rejected_name,
+    "rejected_write" to R.string.web_rejected_write,
+    "rejected_type_media" to R.string.web_rejected_type_media,
+    "rejected_video_size" to R.string.web_rejected_video_size,
+    "rejected_video_decode" to R.string.web_rejected_video_decode,
+    "rejected_space" to R.string.web_rejected_space,
+    "apk_sent" to R.string.web_apk_sent,
+    "apk_needs-permission" to R.string.web_apk_needs_permission,
+    "apk_invalid" to R.string.web_apk_invalid,
+    "apk_size" to R.string.web_apk_size,
+    "apk_background" to R.string.web_apk_background,
+    "apk_server" to R.string.web_error,
+    "apk_write" to R.string.web_rejected_write,
+)
+
+/** 复数文案(P5):网页端没有 Android 的复数规则,每个 key 注入 `<key>_one` / `<key>_other` 两种形态(保留 %d),JS 按件数挑。 */
+internal val WEB_PLURALS: Map<String, Int> = mapOf(
+    "uploading" to R.plurals.web_uploading,
+    "sent" to R.plurals.web_sent,
+)
+
+/** 网页文案:按电视 app 当前语言取 [WEB_STRING_KEYS] / [WEB_PLURALS],拼成 JSON 对象注入 index.html 的 __STRINGS__。 */
 fun webStringsJson(ctx: Context): String {
-    val keys = mapOf(
-        "title" to R.string.web_title,
-        "tab_wallpapers" to R.string.web_tab_wallpapers,
-        "tab_cards" to R.string.web_tab_cards,
-        "tab_screensavers" to R.string.web_tab_screensavers,
-        "tab_apk" to R.string.web_tab_apk,
-        "upload" to R.string.web_upload,
-        "delete" to R.string.web_delete,
-        "confirm_delete" to R.string.web_confirm_delete,
-        "empty" to R.string.web_empty,
-        "done" to R.string.web_done,
-        "error" to R.string.web_error,
-        "rejected_type" to R.string.web_rejected_type,
-        "rejected_size" to R.string.web_rejected_size,
-        "rejected_decode" to R.string.web_rejected_decode,
-        "rejected_name" to R.string.web_rejected_name,
-        "rejected_write" to R.string.web_rejected_write,
-        "rejected_type_media" to R.string.web_rejected_type_media,
-        "rejected_video_size" to R.string.web_rejected_video_size,
-        "rejected_video_decode" to R.string.web_rejected_video_decode,
-        "rejected_space" to R.string.web_rejected_space,
-        "screensavers_hint" to R.string.web_screensavers_hint,
-        "empty_screensavers" to R.string.web_empty_screensavers,
-        "apk_hint" to R.string.web_apk_hint,
-        "apk_install" to R.string.web_apk_install,
-        "apk_needs-permission" to R.string.web_apk_needs_permission,
-        "apk_invalid" to R.string.web_apk_invalid,
-        "apk_size" to R.string.web_apk_size,
-        "apk_background" to R.string.web_apk_background,
-        "apk_server" to R.string.web_error,
-        "apk_write" to R.string.web_rejected_write,
-    )
-    // 复数文案(P5):网页端没有 Android 的复数规则,把 one / other 两种形态原样(保留 %d)注入,JS 按件数挑。
     // 不带格式参数的 getQuantityString 返回未格式化的原文;中文两种形态同文。
-    val plurals = mapOf(
-        "uploading_one" to ctx.resources.getQuantityString(R.plurals.web_uploading, 1),
-        "uploading_other" to ctx.resources.getQuantityString(R.plurals.web_uploading, 2),
-    )
-    return (keys.mapValues { ctx.getString(it.value) } + plurals).entries
+    val plurals = WEB_PLURALS.flatMap { (k, id) ->
+        listOf("${k}_one" to ctx.resources.getQuantityString(id, 1), "${k}_other" to ctx.resources.getQuantityString(id, 2))
+    }.toMap()
+    return (WEB_STRING_KEYS.mapValues { ctx.getString(it.value) } + plurals).entries
         .joinToString(",", "{", "}") { (k, v) -> "${jsonStr(k)}:${jsonStr(v)}" }
 }
+
+/** 网页强调色的缺省值 = 默认主题预设淡紫(R62 #C5B6DF),与 [ThemeColors] 的缺省同一个颜色。 */
+const val DEFAULT_WEB_ACCENT: Int = 0xFFC5B6DF.toInt()
+
+/** ARGB → CSS 的 `#RRGGBB`(丢掉透明度;网页只拿它当不透明的填充色)。 */
+fun cssHex(argb: Int): String = "#%06X".format(argb and 0xFFFFFF)
 
 /** 上传的 APK 在这个安装结局之后还要不要留着:只有交给了系统安装器(它经 FileProvider 异步读)才留。 */
 fun keepUploadedApk(result: ApkInstaller.Result): Boolean = result == ApkInstaller.Result.STARTED

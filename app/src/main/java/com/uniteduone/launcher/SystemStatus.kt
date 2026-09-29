@@ -44,11 +44,29 @@ data class SystemUiStatus(
      * null = 读不到(不是 TvSettings 系的设置应用,或资源名对不上)→ 小字给通用提示。见 [screenOffNote]。
      */
     val screenOffPath: List<String>? = null,
+    /** 当前默认桌面(R132,「通用 → 默认桌面」行右端的值):null = 读不到,不显示。见 [defaultHomeSummary]。 */
+    val defaultHome: DefaultHome? = null,
 ) {
     companion object {
         /** 一项都没读到(读取器还没跑、或者整块被系统挡掉)。 */
         val UNKNOWN = SystemUiStatus()
     }
+}
+
+/**
+ * 默认桌面(R132)。[NotSet] = 系统还没有选定默认桌面(HOME 解析到系统的「选择打开方式」,按主页键会弹选择框);
+ * [App] 的 [App.label] 是那个桌面的应用名(是 UnitedU 时就是「UnitedU」)。
+ */
+sealed interface DefaultHome {
+    data object NotSet : DefaultHome
+    data class App(val label: String) : DefaultHome
+}
+
+/** 「默认桌面」行右端的值(R132):写默认桌面的名字;还没选写「未设置」;读不到不显示(空清单)。 */
+fun defaultHomeSummary(home: DefaultHome?): List<HintPart> = when (home) {
+    null -> emptyList()
+    DefaultHome.NotSet -> listOf(HintPart.Res(R.string.settings_home_not_set))
+    is DefaultHome.App -> listOf(HintPart.Text(home.label))
 }
 
 /** 系统屏保来源。[Ours] = 选的就是 UnitedU 自己的 Dream;[Other] 的 [label] 是应用名,拿不到应用名时是包名。 */
@@ -103,14 +121,16 @@ internal fun screensaverSummary(sys: SystemUiStatus): List<HintPart> {
         DreamSource.Ours -> HintPart.Res(R.string.app_name)
         is DreamSource.Other -> HintPart.Text(src.label)
     }
+    // R132:启动时间写成「无操作 5 分钟后」(与「自动关屏」同一种说法);「从不」写「不会自动开始」——
+    // 原来「开 · 从不」两段挨着,读起来像自相矛盾。
     val start: HintPart? = when (val t = sys.screensaverStart) {
         null -> null
-        TimeoutDisplay.Never -> HintPart.Res(R.string.settings_sys_never)
-        is TimeoutDisplay.Seconds -> HintPart.Res(R.string.settings_seconds, listOf(t.n))
-        is TimeoutDisplay.Minutes -> HintPart.Res(R.string.settings_sys_minutes, listOf(t.n))
-        is TimeoutDisplay.Hours -> HintPart.Res(R.string.settings_sys_hours, listOf(t.n))
+        TimeoutDisplay.Never -> HintPart.Res(R.string.settings_sys_never_starts)
+        is TimeoutDisplay.Seconds -> HintPart.Res(R.string.settings_sys_idle_seconds, listOf(t.n))
+        is TimeoutDisplay.Minutes -> HintPart.Res(R.string.settings_sys_idle_minutes, listOf(t.n))
+        is TimeoutDisplay.Hours -> HintPart.Res(R.string.settings_sys_idle_hours, listOf(t.n))
         // timeoutDisplay 不产生这一种;万一传进来,按屏保启动时间一贯的写法折回整分钟。
-        is TimeoutDisplay.HoursMinutes -> HintPart.Res(R.string.settings_sys_minutes, listOf(t.hours * 60 + t.minutes))
+        is TimeoutDisplay.HoursMinutes -> HintPart.Res(R.string.settings_sys_idle_minutes, listOf(t.hours * 60 + t.minutes))
     }
     val enabled = if (sys.screensaverEnabled == true) HintPart.Res(R.string.settings_on) else null
     return listOfNotNull(enabled, source, start)

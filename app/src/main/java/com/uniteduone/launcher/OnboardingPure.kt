@@ -28,6 +28,14 @@ internal fun plannedLayout(
 ): List<LayoutRow> =
     default.map { it.copy(apps = it.apps.filter { p -> p in installed }) }
 
+/**
+ * 内置三行的名字换成界面语言(R133,2026-09-30):分类表里写的是英文大写 VIDEO / LIVE / MUSIC,原样写进 layout.json 后
+ * 中文用户在编辑页、「加到桌面…」的行列表里看到的是英文。[names] = 分类表里的名字 → 当前语言的名字(界面层按资源给);
+ * 改了名的行同时写上原来按名字推出来的图标([legacyRowIconId]),图标不再依赖名字。不在 [names] 里的行原样返回。
+ */
+internal fun localizedDefaultRows(rows: List<LayoutRow>, names: Map<String, String>): List<LayoutRow> =
+    rows.map { r -> names[r.name]?.let { r.copy(name = it, icon = r.icon ?: legacyRowIconId(r.name)) } ?: r }
+
 /** 第 2 步「跳过」:三行保留、`apps` 清空(spec §8)。桌面从空白开始,由用户自己在编辑分栏里添加。 */
 internal fun skippedLayout(default: List<LayoutRow>): List<LayoutRow> =
     default.map { it.copy(apps = emptyList()) }

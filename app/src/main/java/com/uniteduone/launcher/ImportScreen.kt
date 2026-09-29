@@ -7,8 +7,15 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -21,11 +28,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -63,7 +73,7 @@ private fun importTitleFor(category: String?): Int = when (category) {
 }
 
 /**
- * 「导入图片」页(spec §3):进入即起 HTTP 服务,显示地址 + 二维码 + 已收到计数;返回键关闭并停止服务。
+ * 「从手机添加」页(spec §3;R130 起左边三步说明 + 状态、右边二维码 + 手输地址):进入即起 HTTP 服务;返回键关闭并停止服务。
  * 焦点账本最简:根节点是唯一可聚焦项;守卫 `focused` 同时是 key(铁律 2、3、6);
  * 焦点是否落下只信自报 isFocused,不信 requestFocus 的返回。
  *
@@ -97,6 +107,8 @@ fun ImportScreen(
     // 本页整段生命周期里 LocalLifecycleOwner 就是宿主 Activity,不会中途换人——所以下面几个
     // DisposableEffect 捕获它是安全的,不需要把它写进 key(写进去反而会让服务白白重起)。
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    // R130:手机网页的按钮 / 进度条跟电视同一个主题色(只在起服务那一刻取一次)。
+    val accentArgb = LocalThemeColors.current.accent.toArgb()
 
     // 服务寿命 = 本页寿命:起在这里、停在 onDispose(返回键 → MainActivity 把本页拆掉)。
     DisposableEffect(Unit) {
@@ -119,6 +131,7 @@ fun ImportScreen(
                 },
                 isForeground = { lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) },
                 defaultTab = category,
+                accent = accentArgb,
             )
             if (server == null) error = R.string.import_error_port
             else url = "http://$ip:${server.listeningPort}/"
@@ -177,10 +190,12 @@ fun ImportScreen(
         }
     }
 
+    // R130(2026-09-30 Gordon:「手机上传页是用户体验差的典型,非常 hardcore」):照 Google TV「用手机登录」那一类页面,
+    // 左边标题 + 三步说明 + 状态,右边白底二维码 + 扫不了时手输的地址。整页仍只有根节点一个焦点(方向键全部 Cancel)。
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Theme.EditScreenBackground)
+            .background(GtvTokens.MenuBg)
             .focusRequester(fr)
             .focusProperties {
                 up = FocusRequester.Cancel; down = FocusRequester.Cancel
@@ -188,41 +203,116 @@ fun ImportScreen(
             }
             .onFocusChanged { focused = it.isFocused }
             .focusable(),
-        contentAlignment = Alignment.Center,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            BasicText(
-                text = stringResource(importTitleFor(category)),
-                style = TextStyle(fontFamily = Theme.Sans, fontWeight = FontWeight.Medium, color = Theme.EmphasisText, fontSize = 24.sp),
-            )
-            val err = error
-            if (err != null) {
+        val err = error
+        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+            Column(
+                modifier = Modifier.weight(1f).padding(start = 96.dp, end = 40.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
+            ) {
                 BasicText(
-                    text = stringResource(err),
-                    style = TextStyle(fontFamily = Theme.Sans, color = Theme.HintText, fontSize = 16.sp),
+                    text = stringResource(importTitleFor(category)),
+                    style = TextStyle(
+                        fontFamily = Theme.Sans, fontWeight = FontWeight.Medium, color = Theme.EmphasisText,
+                        fontSize = GtvLayout.SETTINGS_TITLE_TEXT.sp, lineHeight = (GtvLayout.SETTINGS_TITLE_TEXT * 1.25f).sp,
+                    ),
                 )
-            } else {
-                qr?.let { Image(bitmap = it.asImageBitmap(), contentDescription = null, modifier = Modifier.size(300.dp)) }
+                Spacer(Modifier.height(32.dp))
+                if (err != null) {
+                    BasicText(text = stringResource(err), style = importBody.copy(color = Theme.DialogBodyText))
+                } else {
+                    val steps = listOf(R.string.import_step_wifi, R.string.import_step_scan, R.string.import_step_pick)
+                    steps.forEachIndexed { i, res ->
+                        if (i > 0) Spacer(Modifier.height(18.dp))
+                        ImportStep(n = i + 1, text = stringResource(res))
+                    }
+                    Spacer(Modifier.height(36.dp))
+                    // 状态:没收到时「等待手机发送…」,收到后 ✓ 已收到 N 个文件 · 最近:名字;APK 的提示压在下面一行。
+                    val last = lastName
+                    if (received == 0) {
+                        StatusLine(dot = Theme.SecondaryText, text = stringResource(R.string.import_waiting), color = Theme.SecondaryText)
+                    } else {
+                        StatusLine(
+                            dot = highlight,
+                            text = pluralStringResource(R.plurals.import_received, received, received) +
+                                (if (last != null) " · " + stringResource(R.string.import_last, last) else ""),
+                            color = highlight,
+                        )
+                    }
+                    val n = notice
+                    if (n != null) {
+                        Spacer(Modifier.height(10.dp))
+                        BasicText(text = stringResource(n), style = importBody.copy(color = highlight))
+                    }
+                }
+                Spacer(Modifier.height(36.dp))
                 BasicText(
-                    text = url ?: "",
-                    style = TextStyle(fontFamily = Theme.Sans, fontWeight = FontWeight.Medium, color = highlight, fontSize = 28.sp),
-                )
-                val last = lastName
-                BasicText(
-                    text = pluralStringResource(R.plurals.import_received, received, received) +
-                        (if (last != null) " · " + stringResource(R.string.import_last, last) else ""),
-                    style = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 15.sp),
-                )
-                val n = notice
-                if (n != null) BasicText(
-                    text = stringResource(n),
-                    style = TextStyle(fontFamily = Theme.Sans, color = highlight, fontSize = 15.sp),
+                    text = stringResource(R.string.import_hint_back),
+                    style = TextStyle(fontFamily = Theme.Sans, color = Theme.HintText, fontSize = 15.sp),
                 )
             }
+            if (err == null) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(288.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(Color.White)
+                            .padding(18.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        qr?.let { Image(bitmap = it.asImageBitmap(), contentDescription = null, modifier = Modifier.fillMaxSize()) }
+                    }
+                    Spacer(Modifier.height(24.dp))
+                    BasicText(
+                        text = stringResource(R.string.import_url_hint),
+                        style = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 15.sp),
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    BasicText(
+                        // 手机浏览器地址栏认得不带 http:// 的「IP:端口」;二维码里仍是完整网址。
+                        text = url?.let { displayAddress(it) } ?: "",
+                        style = TextStyle(fontFamily = Theme.Sans, fontWeight = FontWeight.Medium, color = Theme.EmphasisText, fontSize = 24.sp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private val importBody = TextStyle(fontFamily = Theme.Sans, color = Theme.DialogBodyText, fontSize = 18.sp, lineHeight = 26.sp)
+
+/** 地址栏里给人手输的样子:去掉 `http://` 与末尾的 `/`(R130)。二维码仍编码完整网址。 */
+internal fun displayAddress(url: String): String = url.removePrefix("http://").removeSuffix("/")
+
+/** 一步说明:主题色圆点里是序号,右边一句话。 */
+@Composable
+private fun ImportStep(n: Int, text: String) {
+    val accent = LocalThemeColors.current.accent
+    Row(verticalAlignment = Alignment.Top) {
+        Box(
+            modifier = Modifier.size(30.dp).clip(CircleShape).background(accent),
+            contentAlignment = Alignment.Center,
+        ) {
             BasicText(
-                text = stringResource(R.string.import_hint_back),
-                style = TextStyle(fontFamily = Theme.Sans, color = Theme.FooterHintText, fontSize = 12.sp),
+                text = n.toString(),
+                style = TextStyle(fontFamily = Theme.Sans, fontWeight = FontWeight.Medium, color = contrastingTextColor(accent), fontSize = 16.sp),
             )
         }
+        Spacer(Modifier.width(16.dp))
+        BasicText(text = text, modifier = Modifier.padding(top = 2.dp), style = importBody)
+    }
+}
+
+/** 状态行:小圆点 + 一句话(等待中灰色;收到文件后主题色)。 */
+@Composable
+private fun StatusLine(dot: Color, text: String, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(10.dp).clip(CircleShape).background(dot))
+        Spacer(Modifier.width(12.dp))
+        BasicText(text = text, style = TextStyle(fontFamily = Theme.Sans, color = color, fontSize = 17.sp))
     }
 }

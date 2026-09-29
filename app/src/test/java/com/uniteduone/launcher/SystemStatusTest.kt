@@ -86,20 +86,21 @@ class SystemStatusTest {
         screensaverEnabled = true, screensaverSource = DreamSource.Ours, screensaverStart = TimeoutDisplay.Minutes(5),
     )
 
+    /** R132:启动时间用「无操作 N 分钟后」的说法;「从不」写「不会自动开始」。 */
     @Test fun summaryWhenOnListsSourceAndStart() {
         assertEquals(
             listOf(
                 HintPart.Res(R.string.settings_on),
                 HintPart.Res(R.string.app_name),
-                HintPart.Res(R.string.settings_sys_minutes, listOf(5)),
+                HintPart.Res(R.string.settings_sys_idle_minutes, listOf(5)),
             ),
             screensaverSummary(on5),
         )
         // 别的应用的 Dream:名字原样当字
         assertEquals(HintPart.Text("Backdrop"), screensaverSummary(on5.copy(screensaverSource = DreamSource.Other("Backdrop")))[1])
-        assertEquals(HintPart.Res(R.string.settings_sys_never), screensaverSummary(on5.copy(screensaverStart = TimeoutDisplay.Never))[2])
-        assertEquals(HintPart.Res(R.string.settings_sys_hours, listOf(1)), screensaverSummary(on5.copy(screensaverStart = TimeoutDisplay.Hours(1)))[2])
-        assertEquals(HintPart.Res(R.string.settings_seconds, listOf(15)), screensaverSummary(on5.copy(screensaverStart = TimeoutDisplay.Seconds(15)))[2])
+        assertEquals(HintPart.Res(R.string.settings_sys_never_starts), screensaverSummary(on5.copy(screensaverStart = TimeoutDisplay.Never))[2])
+        assertEquals(HintPart.Res(R.string.settings_sys_idle_hours, listOf(1)), screensaverSummary(on5.copy(screensaverStart = TimeoutDisplay.Hours(1)))[2])
+        assertEquals(HintPart.Res(R.string.settings_sys_idle_seconds, listOf(15)), screensaverSummary(on5.copy(screensaverStart = TimeoutDisplay.Seconds(15)))[2])
     }
 
     @Test fun summaryWhenOffIsJustOff() {
@@ -109,13 +110,13 @@ class SystemStatusTest {
     /** 读不到的部分省略,不猜;全读不到 = 空 = 不显示值。 */
     @Test fun summaryOmitsUnreadableParts() {
         assertEquals(
-            listOf(HintPart.Res(R.string.settings_on), HintPart.Res(R.string.settings_sys_minutes, listOf(5))),
+            listOf(HintPart.Res(R.string.settings_on), HintPart.Res(R.string.settings_sys_idle_minutes, listOf(5))),
             screensaverSummary(on5.copy(screensaverSource = null)),
         )
         assertEquals(listOf(HintPart.Res(R.string.settings_on)), screensaverSummary(SystemUiStatus(screensaverEnabled = true)))
         // 开关读不到,来源 / 时间读得到:照样给出
         assertEquals(
-            listOf(HintPart.Res(R.string.app_name), HintPart.Res(R.string.settings_sys_minutes, listOf(5))),
+            listOf(HintPart.Res(R.string.app_name), HintPart.Res(R.string.settings_sys_idle_minutes, listOf(5))),
             screensaverSummary(on5.copy(screensaverEnabled = null)),
         )
         assertTrue(screensaverSummary(SystemUiStatus.UNKNOWN).isEmpty())
@@ -124,7 +125,7 @@ class SystemStatusTest {
     /** 屏保启动时间的格式化不拆「小时 + 分钟」(HoursMinutes 只给 R127 的关闭屏幕用);万一传进来折回整分钟。 */
     @Test fun summaryFoldsHoursMinutesBackToMinutes() {
         assertEquals(
-            HintPart.Res(R.string.settings_sys_minutes, listOf(90)),
+            HintPart.Res(R.string.settings_sys_idle_minutes, listOf(90)),
             screensaverSummary(on5.copy(screensaverStart = TimeoutDisplay.HoursMinutes(1, 30)))[2],
         )
     }

@@ -4,8 +4,8 @@
 
     <!-- menu_* : gear menu and its items -->
     <string name="menu_settings_title">Settings</string>
-    <string name="menu_edit">Edit Rows</string>
-    <string name="menu_edit_desc">Add, remove, reorder apps, or change card art</string>
+    <string name="menu_edit">Edit Home Screen</string>
+    <string name="menu_edit_desc">Add or remove apps, reorder them and manage rows.</string>
     <!-- Fix 5 (final review, 2026-09-20): the old forced line break was tuned for the pre-Task-8 dialog
          row, where the focus indicator bar narrowed the text column (521px unfocused vs 515px focused
          width at 11sp DM Sans) and an uneven wrap made the whole menu jump height on focus. The Task 8
@@ -15,13 +15,13 @@
          this on two lines with no truncation; the forced break no longer did, once Task 8 narrowed
          the column. -->
     <string name="menu_wallpaper">Change Wallpaper</string>
-    <string name="menu_wallpaper_desc">Pick an image to replace the background</string>
-    <string name="menu_system_settings">System Settings</string>
-    <string name="menu_system_settings_desc">Open the TV\'s Android settings</string>
+    <string name="menu_wallpaper_desc">Choose a built-in wallpaper or one of your photos.</string>
+    <string name="menu_system_settings">TV Settings</string>
+    <string name="menu_system_settings_desc">Network, picture, sound and other TV settings</string>
     <string name="menu_about">About</string>
     <string name="menu_about_desc">Version, updates, restore defaults</string>
-    <string name="menu_set_default_home">Set Default Home</string>
-    <string name="menu_set_default_home_desc">Choose which launcher opens on the Home button</string>
+    <string name="menu_set_default_home">Default Home App</string>
+    <string name="menu_set_default_home_desc">Which home screen opens when you press Home on the remote. Choose UnitedU to always come back here.</string>
     <!-- card_menu_* : long-press card menu on the home screen -->
     <string name="card_menu_open">Open App</string>
     <string name="card_menu_open_desc">Launch this app</string>
@@ -43,63 +43,87 @@
     <string name="toast_uninstall_failed">Could not open the system uninstall page</string>
     <string name="toast_remove_failed">Card not found — it may have just been removed</string>
     <!-- R60(2026-09-23):原「导入图片」改名「手机传输」,从外观组挪到通用组;扫码页本身不变 -->
-    <string name="settings_phone_transfer">Phone Transfer</string>
-    <string name="settings_phone_transfer_desc">Upload wallpapers, card images, screensaver photos &amp; videos, or an APK by phone</string>
-    <!-- import_* : Import Images page (TV side) -->
-    <string name="import_title">Import images from your phone</string>
-    <string name="import_title_wallpapers">Add wallpapers from your phone</string>
-    <string name="import_title_cards">Add card images from your phone</string>
-    <string name="import_title_screensavers">Add screensaver photos or videos from your phone</string>
+    <string name="settings_phone_transfer">Add from Phone</string>
+    <string name="settings_phone_transfer_desc">Scan a code with your phone to send photos and videos to the TV, or install apps.</string>
+    <!-- import_* : TV-side Add from Phone page (R130: three steps on the left, QR code and address on the right) -->
+    <string name="import_title">Send from Your Phone</string>
+    <string name="import_title_wallpapers">Add Wallpapers from Your Phone</string>
+    <string name="import_title_cards">Add Card Art from Your Phone</string>
+    <string name="import_title_screensavers">Add Screensaver Photos &amp; Videos</string>
+    <string name="import_step_wifi">Connect your phone to the same Wi-Fi as this TV</string>
+    <string name="import_step_scan">Scan the QR code with your phone\'s camera</string>
+    <string name="import_step_pick">Pick files on the page that opens. They\'re ready on the TV right away.</string>
+    <string name="import_url_hint">Can\'t scan? Type this into your phone\'s browser</string>
+    <string name="import_waiting">Waiting for your phone…</string>
     <plurals name="import_received">
         <item quantity="one">%1$d file received</item>
         <item quantity="other">%1$d files received</item>
     </plurals>
     <string name="import_last">Latest: %1$s</string>
-    <string name="import_hint_back">Press Back to close and stop the service</string>
-    <string name="import_error_no_network">The TV is not connected to a network. Connect Wi-Fi or Ethernet and try again</string>
-    <string name="import_error_port">Ports 8090–8099 are all in use. Try again later</string>
-    <string name="import_apk_needs_permission">Allow “Install unknown apps” on the TV, then retry on your phone</string>
-    <string name="import_apk_started">Handed to the system installer</string>
+    <string name="import_hint_back">Press Back when you\'re done</string>
+    <string name="import_error_no_network">This TV isn\'t online. Connect to Wi-Fi or Ethernet, then open this page again.</string>
+    <string name="import_error_port">Couldn\'t start the transfer. Try again in a moment.</string>
+    <string name="import_apk_needs_permission">Allow UnitedU to install apps on the TV, then try again on your phone</string>
+    <string name="import_apk_started">Confirm the install on your TV</string>
 
-    <!-- web_* : phone upload page (injected by the server; %s/%d replaced by the page's JS) -->
-    <string name="web_title">Import images from your phone</string>
-    <string name="web_tab_wallpapers">Wallpapers</string>
-    <string name="web_tab_cards">Card Images</string>
-    <string name="web_tab_screensavers">Screensavers</string>
-    <string name="web_tab_apk">Install APK</string>
-    <string name="web_upload">Upload</string>
-    <string name="web_delete">Delete</string>
-    <string name="web_confirm_delete" formatted="false">Delete %s?</string>
-    <string name="web_empty">No images yet. Tap Upload at the top right</string>
+    <!-- web_* : phone upload page (injected by the server; %d replaced by the page's JS). R130: rebuilt as "Send to TV" -->
+    <string name="web_title">Send to TV</string>
+    <string name="web_connected">Connected to TV</string>
+    <string name="web_offline">Disconnected from TV</string>
+    <string name="web_offline_hint">Open Add from Phone on the TV again, then reload this page</string>
+    <string name="web_tab_wallpapers">Wallpaper</string>
+    <string name="web_tab_cards">Card Art</string>
+    <string name="web_tab_screensavers">Screensaver</string>
+    <string name="web_tab_apk">Apps</string>
+    <string name="web_desc_wallpapers">Backgrounds for your TV\'s home screen. Landscape photos look best.</string>
+    <string name="web_desc_cards">Custom art for app cards; 16:9 images fit best. On the TV, hold OK on an app and choose Change Card Art.</string>
+    <string name="web_desc_screensavers">Photos and videos for the screensaver slideshow. Videos play muted, up to 60 seconds, 500 MB max each.</string>
+    <string name="web_desc_apk">Install an Android app (.apk) from this phone on your TV. The TV will ask you to confirm.</string>
+    <string name="web_pick_photos">Choose Photos</string>
+    <string name="web_pick_media">Choose Photos or Videos</string>
+    <string name="web_pick_apk">Choose an APK</string>
+    <string name="web_lib_title">On your TV</string>
+    <string name="web_empty">No photos yet</string>
+    <string name="web_empty_screensavers">No photos or videos yet</string>
+    <string name="web_empty_sub">What you send shows up here, and on your TV right away.</string>
     <plurals name="web_uploading" formatted="false">
-        <item quantity="one">Uploading %d file…</item>
-        <item quantity="other">Uploading %d files…</item>
+        <item quantity="one">Sending %d file…</item>
+        <item quantity="other">Sending %d files…</item>
     </plurals>
-    <string name="web_done">Done</string>
-    <string name="web_error">Something went wrong. Please try again</string>
-    <string name="web_rejected_type">Only jpg / png / webp are supported</string>
-    <string name="web_rejected_size">Larger than 30 MB</string>
-    <string name="web_rejected_decode">Image could not be decoded</string>
-    <string name="web_rejected_name">Invalid file name</string>
-    <string name="web_rejected_write">Could not write to TV storage</string>
-    <string name="web_rejected_type_media">Only jpg / png / webp photos or mp4 / mov / webm videos are supported</string>
-    <string name="web_rejected_video_size">Video is larger than 500 MB</string>
-    <string name="web_rejected_video_decode">The TV can\'t read this video</string>
-    <string name="web_rejected_space">Not enough storage on the TV</string>
-    <string name="web_screensavers_hint">Upload photos or short videos (mp4 / mov / webm, up to 500 MB each). Videos play muted in the screensaver; only the first 60 seconds of longer ones are shown.</string>
-    <string name="web_empty_screensavers">No photos or videos yet. Tap Upload at the top right</string>
+    <plurals name="web_sent" formatted="false">
+        <item quantity="one">Added %d file</item>
+        <item quantity="other">Added %d files</item>
+    </plurals>
+    <string name="web_sent_sub">Ready to use on your TV</string>
+    <string name="web_failed_title">Couldn\'t add these</string>
+    <string name="web_delete">Delete</string>
+    <string name="web_delete_title">Delete from your TV?</string>
+    <string name="web_delete_body">This can\'t be undone.</string>
+    <string name="web_cancel">Cancel</string>
+    <string name="web_deleted">Deleted</string>
+    <string name="web_close">Close</string>
+    <string name="web_error">Something went wrong. Please try again.</string>
+    <string name="web_rejected_type">Unsupported format. Use JPG, PNG or WebP.</string>
+    <string name="web_rejected_size">Too large. 30 MB max per photo.</string>
+    <string name="web_rejected_decode">This image can\'t be opened. It may be damaged.</string>
+    <string name="web_rejected_name">This file name isn\'t supported. Rename it and try again.</string>
+    <string name="web_rejected_write">The TV couldn\'t save this file.</string>
+    <string name="web_rejected_type_media">Unsupported format. Photos: JPG, PNG, WebP. Videos: MP4, MOV, WebM.</string>
+    <string name="web_rejected_video_size">Video too large. 500 MB max.</string>
+    <string name="web_rejected_video_decode">The TV can\'t play this video.</string>
+    <string name="web_rejected_space">Not enough space on the TV.</string>
+    <string name="web_apk_sent">Sent! Confirm the install on your TV.</string>
+    <string name="web_apk_needs_permission">First allow UnitedU to install apps on the TV (the TV opens that setting for you), then try again.</string>
+    <string name="web_apk_invalid">That isn\'t a valid Android app (.apk).</string>
+    <string name="web_apk_size">That app is too large. 100 MB max.</string>
+    <string name="web_apk_background">The transfer page isn\'t showing on the TV. Go back to it and try again.</string>
+
     <string name="picker_video_badge">Video</string>
     <string name="preview_video_failed">Can\'t play this video</string>
-    <string name="web_apk_hint">After you pick an APK the TV shows the system installer. The first time, allow “Install unknown apps” on the TV.</string>
-    <string name="web_apk_install">Pick an APK and install on the TV</string>
-    <string name="web_apk_needs_permission">Allow installing unknown apps on the TV first, then retry</string>
-    <string name="web_apk_invalid">Not a valid APK file</string>
-    <string name="web_apk_size">APK larger than 100 MB</string>
-    <string name="web_apk_background">The TV\'s import page is not in the foreground. Return to it and retry</string>
 
     <!-- edit_* : Edit Rows screen -->
-    <string name="edit_title">Edit Rows</string>
-    <string name="edit_hint">Select an app and press OK to reorder, change art, or remove it. The plus sign at the end of each row adds apps or manages the row. Press Back to exit.</string>
+    <string name="edit_title">Edit Home Screen</string>
+    <string name="edit_hint">On an app, press OK to move it, change its card art or remove it. On the + at the end of a row, press OK to add apps or manage the row. Press Back when you\'re done.</string>
     <string name="edit_toast_order_not_saved">The order couldn\'t be saved and will reset after restart</string>
     <string name="edit_change_image">Change Card Art</string>
     <string name="edit_change_image_desc">Pick a 16:9 image to replace it</string>
@@ -112,23 +136,23 @@
     <string name="edit_picker_system_tools">System Tools</string>
 
     <!-- home_* : home screen and default-home settings card -->
-    <string name="home_empty_apps_hint">No apps to show\nPress Menu on your remote, or select the settings button in the top left, then choose “Layout → Edit Rows” to add some</string>
+    <string name="home_empty_apps_hint">No apps on your home screen yet\nOpen All Apps at the top left, hold OK on an app, then choose Add to Home</string>
     <string name="home_new_apps">%1$d new app(s)</string>
-    <string name="home_settings_title">Default Home</string>
+    <string name="home_settings_title">Default Home App</string>
     <string name="home_settings_current_label">Current</string>
     <string name="home_settings_change_button">Change in System Settings</string>
-    <string name="home_settings_note">Android requires switching the default home screen in System Settings.</string>
+    <string name="home_settings_note">The home screen that opens when you press Home. Android only lets you change it in System Settings.</string>
     <string name="home_settings_unknown">Unknown</string>
 
     <!-- picker_* : wallpaper / card-image / screensaver pickers -->
     <string name="picker_wallpaper_title">Choose a Wallpaper</string>
     <string name="picker_card_image_title">Choose a Card Image</string>
     <string name="picker_no_images">No images available yet</string>
-    <string name="picker_back_to_close">Press Back to close</string>
+    <string name="picker_back_to_close">Press OK to preview · Hold OK to delete or turn off · Press Back to close</string>
     <string name="picker_back_to_cancel">Press Back to cancel</string>
     <string name="picker_restore_original">Restore Original</string>
     <string name="picker_add_from_phone">Add from Phone</string>
-    <string name="picker_screensaver_pool_title">Screensaver Gallery · %1$d items · Press OK to preview</string>
+    <string name="picker_screensaver_pool_title">Screensaver Gallery · %1$d items</string>
     <string name="picker_screensaver_title">Screensaver Gallery</string>
     <string name="picker_no_screensavers">No screensaver photos or videos yet</string>
     <!-- R115: section titles of the "Built-in / Mine" blocks in the image pickers; off badge and capsule menu for built-in screensaver images (R117) -->
@@ -158,27 +182,27 @@
     <string name="settings_card_large">Large</string>
     <string name="settings_card_medium">Medium</string>
     <string name="settings_card_small">Small</string>
-    <string name="settings_show_titles">Card Titles</string>
+    <string name="settings_show_titles">Show App Names</string>
     <string name="settings_theme_color">Theme Color</string>
-    <string name="settings_follow_wallpaper">Follow Wallpaper Color</string>
+    <string name="settings_follow_wallpaper">Match Wallpaper Color</string>
     <!-- R128: Standby Timeout + Standby Display merged into a "Standby" sub-page (General group); the capsule shows both values -->
-    <string name="settings_standby">Standby</string>
-    <string name="settings_idle_after">Standby Timeout</string>
-    <string name="settings_idle_off">Off</string>
+    <string name="settings_standby">Idle Screen</string>
+    <string name="settings_idle_after">Idle After</string>
+    <string name="settings_idle_off">Never</string>
     <string name="settings_idle_minutes">%1$d min</string>
-    <string name="settings_idle_content">Standby Display</string>
-    <string name="settings_idle_clock">Clock</string>
+    <string name="settings_idle_content">Show When Idle</string>
+    <string name="settings_idle_clock">Clock Only</string>
     <string name="settings_idle_black">Black</string>
-    <string name="settings_idle_nofade">No Fade</string>
+    <string name="settings_idle_nofade">No Change</string>
     <!-- M5 "Standby & Screensaver" group, four new rows (spec §3, §6); minutes reuse settings_idle_minutes, "Off" reuses settings_idle_off -->
-    <string name="settings_screensaver_after">Screensaver Starts</string>
-    <string name="settings_screensaver_note_empty">Slideshow empty, won\'t start</string>
-    <string name="settings_screensaver_note_from_input">From the last key press</string>
-    <string name="settings_screensaver_note_after_standby">After standby begins</string>
-    <string name="settings_screensaver_interval">Slideshow Interval</string>
+    <string name="settings_screensaver_after">Start Automatically</string>
+    <string name="settings_screensaver_note_empty">The slideshow is empty, so it won\'t start</string>
+    <string name="settings_screensaver_note_from_input">Counted from your last button press</string>
+    <string name="settings_screensaver_note_after_standby">Counted from when the idle screen appears</string>
+    <string name="settings_screensaver_interval">Time per Slide</string>
     <string name="settings_seconds">%1$d s</string>
     <string name="settings_screensaver_gallery">Screensaver Gallery</string>
-    <string name="settings_screensaver_gallery_desc">View photos &amp; videos; hold OK to delete</string>
+    <string name="settings_screensaver_gallery_desc">The photos and videos the screensaver plays. Turn off built-in ones, or add your own from your phone.</string>
     <string name="settings_system_screensaver">System Screensaver</string>
     <string name="settings_on">On</string>
     <string name="settings_off">Off</string>
@@ -189,27 +213,27 @@
     <string name="settings_sys_minutes">%1$d min</string>
     <string name="settings_sys_hours">%1$d hr</string>
     <!-- R127: Screensaver group "Screen Off" row (reads secure sleep_timeout, OK opens system settings); the path uses Sony TvSettings' English labels -->
-    <string name="settings_screen_off">Screen Off</string>
+    <string name="settings_screen_off">Auto Screen Off</string>
     <string name="settings_screen_off_where">Change in %1$s</string>
     <string name="settings_screen_off_where_generic">Look for “Auto shut-off”, “Shut-Off Timer” or “Turn off display” in TV settings</string>
     <string name="settings_sys_idle_hours">After %1$d hr idle</string>
     <string name="settings_sys_idle_minutes">After %1$d min idle</string>
     <string name="settings_sys_idle_hours_minutes">After %1$d hr %2$d min idle</string>
     <string name="settings_sys_idle_seconds">After %1$d s idle</string>
-    <string name="settings_sys_anim_scale">System Animation Scale</string>
+    <string name="settings_sys_anim_scale">System Animation Speed</string>
     <string name="settings_sys_anim_slower">%1$s×, UI animations run slower</string>
     <string name="settings_sys_anim_faster">%1$s×, UI animations run faster</string>
     <string name="settings_sys_anim_off">Off, UI animations are skipped</string>
     <string name="settings_sys_anim_window">Window %1$s×, transition %2$s×; only affects opening and switching apps</string>
     <string name="settings_language">Language</string>
-    <string name="settings_lang_system">System</string>
+    <string name="settings_lang_system">System Default</string>
     <string name="settings_lang_zh_cn">简体</string>
     <string name="settings_lang_zh_tw">繁體</string>
     <string name="settings_lang_en">English</string>
     <string name="settings_action_restore_defaults">Restore Defaults</string>
     <!-- restore_* / dialog_cancel : restore-defaults confirm dialog (T7, spec §4) -->
     <string name="restore_title">Restore default settings?</string>
-    <string name="restore_body">Rows, titles, card images and your gallery stay as they are</string>
+    <string name="restore_body">Only these settings are reset. Your apps, card art and photos stay as they are.</string>
     <string name="restore_ok">Restore</string>
     <string name="dialog_cancel">Cancel</string>
     <!-- about_* : About page and manual update check (T9, spec §7) -->
@@ -236,7 +260,7 @@
     <!-- onb_* : first-run guide (T10, spec §8); step 1 language buttons reuse settings_lang_* -->
     <string name="onb_step1_title">Choose a language</string>
     <string name="onb_step2_title">Put your installed apps on the home screen</string>
-    <string name="onb_step2_body">Only the apps below will be added; you can add others later in Edit Rows.</string>
+    <string name="onb_step2_body">We\'ll start with these. You can add more later from All Apps.</string>
     <string name="onb_step3_title">Make UnitedU your default home screen</string>
     <string name="onb_next">Continue</string>
     <string name="onb_skip">Skip</string>
@@ -312,10 +336,10 @@
     <!-- edit_move_desc : edit-screen carry mode (M4b follow-up Task 2) -->
     <string name="edit_move_desc">Move this card with the arrow keys, empty rows included</string>
     <!-- settings shell: capsule shell for all settings pages (R69–R72, 2026-09-23) -->
-    <string name="shell_root_layout_desc">Edit rows, card size, titles and colors</string>
-    <string name="shell_root_general_desc">Language, default home, phone transfer, standby, clock</string>
+    <string name="shell_root_layout_desc">Edit home screen, card size, app names, card colors</string>
+    <string name="shell_root_general_desc">Language, default home, add from phone, idle screen, clock</string>
     <string name="shell_root_appearance_desc">Wallpaper, theme color</string>
-    <string name="shell_root_screensaver_desc">Screensaver timing, gallery, system screensaver, screen off</string>
+    <string name="shell_root_screensaver_desc">Gallery, auto start, system screensaver, screen off</string>
     <string name="settings_card_saturation">Card Saturation</string>
     <string name="settings_card_brightness">Card Brightness</string>
     <string name="settings_card_opacity">Card Transparency</string>
@@ -328,8 +352,8 @@
     <string name="shell_theme_following_wallpaper">Wallpaper</string>
     <string name="shell_preview_hint">Preview: %1$s · OK to save, Back to cancel</string>
     <!-- R89–R93 (2026-09-27): top bar pills Settings / Apps / Inputs, all-apps page, inputs page, start screensaver -->
-    <string name="apps_page_title">Apps</string>
-    <string name="apps_page_hint">Hold OK or press Menu to add to Home</string>
+    <string name="apps_page_title">All Apps</string>
+    <string name="apps_page_hint">Hold OK or press Menu to add an app to your home screen</string>
     <string name="apps_menu_add_to_home">Add to Home…</string>
     <string name="apps_add_row_here">%1$s (already here)</string>
     <string name="toast_added_to_row">Added to “%1$s”</string>
@@ -343,7 +367,40 @@
     <string name="inputs_page_back">Back</string>
     <string name="input_menu_rename">Rename</string>
     <string name="toast_cant_switch_input">Couldn\'t switch to “%1$s”</string>
-    <string name="settings_start_screensaver">Start Screensaver</string>
+    <string name="settings_start_screensaver">Start Screensaver Now</string>
     <string name="toast_screensaver_gallery_empty">The screensaver slideshow is empty. Add photos or videos in the Screensaver Gallery first</string>
     <string name="input_label_tv">TV</string>
+    <!-- R131–R133(2026-09-30 新手可读性):设置每一行的说明(外壳左侧显示)与新增取值 -->
+    <string name="settings_language_desc">The language UnitedU uses. It can differ from your TV\'s.</string>
+    <string name="settings_home_not_set">Not Set</string>
+    <string name="settings_standby_desc">When the remote sits unused for a while, the home screen fades to a clock. Choose when, and what stays.</string>
+    <string name="settings_idle_after_desc">How long without a button press before the idle screen appears.</string>
+    <string name="settings_after_minutes">After %1$d min</string>
+    <string name="settings_idle_content_desc">Clock Only: the home screen fades, leaving the time. Black: the screen goes dark. No Change: nothing changes.</string>
+    <string name="settings_clock_display_desc">What the clock in the top-right corner shows.</string>
+    <string name="settings_sys_anim_scale_desc">Your TV\'s animation speed isn\'t 1×, so animations run slower or faster. Press OK to change it in Developer options.</string>
+    <string name="settings_card_size_desc">Small fits 8 per row, Medium 6, Large 5.</string>
+    <string name="settings_show_titles_desc">Show each app\'s name under its card.</string>
+    <string name="settings_card_saturation_desc">How vivid the cards are. Lower looks calmer; 100% shows the original colors.</string>
+    <string name="settings_card_brightness_desc">How bright the cards are. Lower looks softer; 100% is the original brightness.</string>
+    <string name="settings_card_opacity_desc">How much wallpaper shows through the cards you\'re not on. The selected card stays solid.</string>
+    <string name="settings_wallpaper_blur_desc">Blur the wallpaper so the cards stand out.</string>
+    <string name="settings_wallpaper_brightness_desc">Make the wallpaper darker or brighter.</string>
+    <string name="settings_theme_color_desc">The highlight color for the focus frame, buttons and more.</string>
+    <string name="settings_follow_wallpaper_desc">When on, the theme color is picked from your wallpaper.</string>
+    <string name="settings_start_screensaver_desc">Play the screensaver right now. Press any button to exit.</string>
+    <string name="settings_screensaver_after_desc">How long the home screen sits unused before the screensaver starts.</string>
+    <string name="settings_screensaver_interval_desc">How long each photo stays before the next one.</string>
+    <string name="settings_system_screensaver_desc">The screensaver your TV starts when idle in other apps. Choose UnitedU to play the same gallery.</string>
+    <string name="settings_screen_off_desc">How long the TV sits unused before it turns the screen off. This is a TV setting; press OK to go there.</string>
+    <string name="settings_sys_never_starts">Never starts</string>
+    <!-- R133:内置三行的名字(新建布局时按界面语言写进 layout.json;老布局不动) -->
+    <string name="row_default_video">Video</string>
+    <string name="row_default_live">Live</string>
+    <string name="row_default_music">Music</string>
+    <!-- R133:首次引导(欢迎语、找不到应用时的说明、第 2 / 3 步的按钮) -->
+    <string name="onb_step1_body">Welcome to UnitedU: no ads, just your apps. First, pick a language.</string>
+    <string name="onb_step2_body_empty">We didn\'t find common video, live TV or music apps. You can add any app later from All Apps.</string>
+    <string name="onb_add_to_home">Add to Home Screen</string>
+    <string name="onb_done">Done</string>
 </resources>

@@ -149,7 +149,9 @@ fun MenuPill(
                 val extras = 12.dp.toPx() + (if (trailing.dot != null) 16.dp.toPx() else 0f) +
                     (if (trailing.chevron) 20.dp.toPx() else 0f)
                 val inner = (GtvLayout.MENU_ITEM_WIDTH - 2 * GtvLayout.MENU_ITEM_PADDING_H).dp.toPx()
-                labelW + valueW + extras > inner
+                // R132:单行时值最宽只给 VALUE_MAX_WIDTH(标签至少留一半),比它长的值在单行里一定被省略——
+                // 「闲置画面 · 从不 · 只留时钟」这类摘要原来就这样被截成「从不 · 只留…」。比上限长也挪到第二行。
+                valueW > VALUE_MAX_WIDTH.dp.toPx() || labelW + valueW + extras > inner
             }
         }
     // 标签下面的小字行:挪下来的值在前,说明在后。没有带值的说明胶囊之前(R127 之前)这里最多一行,与原来逐位相同。

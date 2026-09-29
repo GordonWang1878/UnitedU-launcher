@@ -61,9 +61,18 @@ internal val layoutWrites: CoroutineDispatcher = Dispatchers.IO.limitedParalleli
  * 同一个已装集合(`plannedLayout` + `installedDefaultApps`);查询失败时 `Apps.load` 返回空,结果是三个空行
  * (与「跳过」相同),桌面空着但编辑页的「+」都在,不是死胡同。在 [Layout] 的锁里调用(IO 线程)。
  */
-internal fun installedDefaultLayout(ctx: Context): List<LayoutRow> =
+internal fun installedDefaultLayout(ctx: Context): List<LayoutRow> = localizedDefaultRows(
     runCatching { plannedLayout(DEFAULT_LAYOUT, installedDefaultApps(ctx).keys) }
-        .getOrElse { skippedLayout(DEFAULT_LAYOUT) }
+        .getOrElse { skippedLayout(DEFAULT_LAYOUT) },
+    defaultRowNames(ctx),
+)
+
+/** 内置三行在当前界面语言下的名字(R133,见 [localizedDefaultRows])。 */
+internal fun defaultRowNames(ctx: Context): Map<String, String> = mapOf(
+    "VIDEO" to ctx.getString(R.string.row_default_video),
+    "LIVE" to ctx.getString(R.string.row_default_live),
+    "MUSIC" to ctx.getString(R.string.row_default_music),
+)
 
 object Layout {
     private const val TAG = "UnitedU"

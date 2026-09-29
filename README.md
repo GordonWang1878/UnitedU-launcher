@@ -2,7 +2,7 @@
 
 零广告、零推荐,只有你放上去的应用。
 
-面向**国行无 GMS 的 Android TV**(索尼/小米/TCL 等买不到 Google 服务的电视)的开源桌面替代品。外观照着 Google TV 做,内容只有你自己放上去的应用。全程不联网,唯一的例外是你自己按「检查更新」的那一刻(以及你打开「手机传输」页时,电视在局域网里临时开一个上传服务)。不上架 Play 商店或国内应用市场,只以 GitHub Release 的 APK 形式分发,需要自己下载安装。
+面向**国行无 GMS 的 Android TV**(索尼/小米/TCL 等买不到 Google 服务的电视)的开源桌面替代品。外观照着 Google TV 做,内容只有你自己放上去的应用。全程不联网,唯一的例外是你自己按「检查更新」的那一刻(以及你打开「从手机添加」页时,电视在局域网里临时开一个上传服务)。不上架 Play 商店或国内应用市场,只以 GitHub Release 的 APK 形式分发,需要自己下载安装。
 
 包名 `com.uniteduone.launcher`,最低支持 Android 9(API 28)。**尚未正式发布**,还没有 GitHub Release;对外发布的第一个版本将是 1.0(APK 上的版本号 `1.0.0-beta` 是内部版本号,与发布版本号分开)。许可证见文末。
 
@@ -14,7 +14,7 @@
 - **设置**:右侧一列胶囊逐层进入,每一页最多 6 项;改卡片、壁纸时左边有实时预览。
 - **内置图**:随安装包附送 4 张壁纸、4 张屏保图、4 张卡片装饰图;三个选图页都分「内置 / 我的」两块。内置壁纸与屏保图是带增益图的 HDR 照片(Ultra HDR,Android 14 与 15+ 两种写法都有),在支持 HDR 界面的电视上高光更亮,其他电视上照常按普通照片显示。
 - **屏保**:照片缓慢推拉摇移、交叉淡化,也可以放短视频(静音,超过 60 秒只播前 60 秒);电视系统的「屏幕保护程序」里也能选 UnitedU,放的是同一个图库、接着同一张播。
-- **手机传输**:手机扫码,在浏览器里上传壁纸、卡片图、屏保照片与视频,或安装 APK,不用 U 盘、不用电脑。
+- **从手机添加**:手机扫码,在浏览器里上传壁纸、卡片图、屏保照片与视频,或安装 APK,不用 U 盘、不用电脑。
 - **三种界面语言**:简体中文 / 繁體中文 / English,可跟随系统。
 
 ## 安装
@@ -29,7 +29,7 @@ UnitedU 不在任何应用商店,需要自己把 APK 装到电视上,两种办�
 
    `-r` 是为了覆盖安装同包名的旧版本,首次安装也可以照写不影响。adb 装包不经过「未知来源」这一关,电视上不会弹任何确认。
 
-2. **手机传 APK,不用电脑**:如果电视上已经在跑 UnitedU(哪怕是别人帮你装的旧版本),打开「设置 → 通用 → 手机传输」,手机连上电视所在的 Wi-Fi,浏览器扫码或输入屏幕上的地址,切到「安装 APK」页签选文件上传(不超过 100 MB),电视上会弹出系统安装器。这条路更适合装其他应用或以后手动更新,**装第一份 UnitedU 本身还是得靠 adb**。
+2. **手机传 APK,不用电脑**:如果电视上已经在跑 UnitedU(哪怕是别人帮你装的旧版本),打开「设置 → 通用 → 从手机添加」,手机连上电视所在的 Wi-Fi,浏览器扫码或输入屏幕上的地址,切到「装应用」页签选文件上传(不超过 100 MB),电视上会弹出系统安装器。这条路更适合装其他应用或以后手动更新,**装第一份 UnitedU 本身还是得靠 adb**。
 
 「允许安装未知应用」只和第 2 种方式(以及以后在「关于」里装更新)有关:第一次由 UnitedU 把 APK 交给系统安装器时,电视会提示先去系统的「安装未知应用」设置里给 UnitedU 打开开关,打开后回来再在手机上重新上传一次即可。这个开关只需打开一次(每次安装时系统安装器自己的确认页照常会出现)。
 
@@ -60,32 +60,32 @@ UnitedU 不在任何应用商店,需要自己把 APK 装到电视上,两种办�
 - **移动位置**——就在首页上原地搬:左右键和邻卡换位,上下键换到相邻一行,确定放下,返回取消
 - **从这一行移出**——只是从这一行拿掉,应用本身不会被卸载
 
-增删行、给行改名换图标、在行与行之间整理,在「设置 → 布局 → 编辑分栏」里做。
+增删行、给行改名换图标、在行与行之间整理,在「设置 → 布局 → 编辑桌面」里做。
 
 ## 设置
 
-设置页是右侧一列胶囊:**上下键**移动,**确定**进下一层,**返回**回上一层,**菜单键**整个关掉;滑块胶囊用**左右键**直接调。带实时预览的页(布局、外观)左边是缩小的首页,选项一改就能看到效果,按确定保存、按返回不改。
+设置页是右侧一列胶囊:**上下键**移动,**确定**进下一层,**返回**回上一层,**菜单键**整个关掉;滑块胶囊用**左右键**直接调。光标停在哪一行,左边就用一两句话说明这一行是做什么的。带实时预览的页(布局、外观)左边是缩小的首页,选项一改就能看到效果,按确定保存、按返回不改。
 
 | 第一层 | 内容 |
 |---|---|
-| 通用 | 语言、设置默认桌面、手机传输、待机(子页:待机时长 关/1/3/5/10 分、待机显示 时钟/全黑/不淡出)、时钟显示(仅时间 / 时间与日期;12/24 小时制跟随系统)。系统动画缩放不是 1× 时会多一行提示,按确定跳到开发者选项 |
-| 布局 | 编辑分栏、卡片大小(大/中/小)、卡片标题、卡片饱和度、卡片亮度、卡片透明度(只作用于没被选中的卡) |
-| 外观 | 换壁纸、壁纸模糊、壁纸亮度(可调暗或调亮)、主题色(5 种浅色)、跟随壁纸主色 |
-| 屏保 | 立即开始屏保、屏保启动(待机后再过多久)、屏保轮播设置(换图间隔)、屏保图库、系统屏保(显示电视系统屏保的开关 / 来源 / 启动时间,确定跳系统设置)、关闭屏幕(只读显示电视「无操作多久后关屏」,并写出在电视设置里哪一项修改;确定打开系统设置首页) |
-| 系统设置 | 打开电视自己的 Android 设置 |
+| 通用 | 语言、默认桌面(右端显示现在的默认桌面是谁)、从手机添加、闲置画面(子页:进入闲置 从不/1/3/5/10 分钟后、闲置时显示 只留时钟/全黑/不变)、时钟显示(仅时间 / 时间与日期;12/24 小时制跟随系统)。系统动画速度不是 1× 时会多一行提示,按确定跳到开发者选项 |
+| 布局 | 编辑桌面、卡片大小(小/中/大 = 一行 8/6/5 张)、显示应用名、卡片饱和度、卡片亮度、卡片透明度(只作用于没被选中的卡) |
+| 外观 | 换壁纸、壁纸模糊、壁纸亮度(可调暗或调亮)、主题色(5 种浅色)、主题色跟随壁纸 |
+| 屏保 | 立即开始屏保、自动开始(闲置画面出现后再过多久)、每张停留(换图间隔)、屏保图库、系统屏保(显示电视系统屏保的开关 / 来源 / 启动时间,确定跳系统设置)、自动关屏(只读显示电视「无操作多久后关屏」,光标停在这一行时左边写出在电视设置里哪一项修改;确定打开系统设置首页) |
+| 电视设置 | 打开电视自己的 Android 设置(网络、画面、声音等) |
 | 关于 | 版本号、检查更新、恢复默认 |
 
 「恢复默认」会先弹确认,焦点默认停在「取消」;它只重置上面这些设置项,**不会**删除你放的应用分栏、改过的标题、卡片图或上传过的图片。UnitedU 只读取系统设置,不改任何系统设置。
 
-## 待机与屏保
+## 闲置画面与屏保
 
-首页无人操作达「待机时长」后进入**待机**:卡片行淡出,留下时钟(或全黑,或不淡出)。之后仍无人操作、再过「屏保启动」的时间,进入**自定义屏保**:全屏轮播屏保图库里的照片和视频。任意键回到首页,那一下按键只负责唤醒。
+首页无人操作达「进入闲置」的时间后显示**闲置画面**:卡片行淡出,只留时钟(或全黑,或不变)。之后仍无人操作、再过「自动开始」的时间,进入**自定义屏保**:全屏轮播屏保图库里的照片和视频。任意键回到首页,那一下按键只负责唤醒。
 
 屏保图库里内置图默认都参与轮播,长按(或按菜单键)某一张可以「不参与轮播」/「加入轮播」;你自己上传的照片和视频长按可以删除。电视系统的「屏幕保护程序」里选 UnitedU 时,放的是同一个图库。
 
-## 手机传输(上传图片、视频、APK)
+## 从手机添加(上传图片、视频、APK)
 
-设置 → 通用 → 手机传输(三个选图页「我的」一块第一格的「＋ 从手机添加」也会打开它),电视上显示一个地址和二维码;手机和电视连同一个 Wi-Fi,浏览器扫码或输入地址打开,按「壁纸 / 卡片图 / 屏保 / 安装 APK」四个页签上传、预览、删除。照片支持 jpg / png / webp(单张不超过 30 MB);屏保一类还收 mp4 / mov / webm 短视频(单个不超过 500 MB)。
+设置 → 通用 → 从手机添加(三个选图页「我的」一块第一格的「＋ 从手机添加」也会打开它),电视上左边写三步说明、右边是二维码和手输地址;手机和电视连同一个 Wi-Fi,相机扫码(或浏览器输入地址)打开「传到电视」网页,按「壁纸 / 卡片图 / 屏保 / 装应用」四个分页上传、查看、删除,网页跟随手机的深浅色、按钮用电视当前的主题色,传完电视上立刻能选到。照片支持 jpg / png / webp(单张不超过 30 MB);屏保一类还收 mp4 / mov / webm 短视频(单个不超过 500 MB)。
 
 这个服务**只在这一页开着的时候运行,不设密码**,按返回键关闭页面就会一并停掉,离开这一页局域网里其他设备就再连不上了。
 
@@ -137,4 +137,4 @@ Apache-2.0,见 `LICENSE`;第三方声明见 `NOTICE`。内置卡片装饰图里�
 
 ## In short (English)
 
-UnitedU is an open-source, ad-free Android TV launcher for GMS-less TVs (built and tested against a Chinese-market Sony A95L). It looks like Google TV but shows only the apps you put on it, and never phones home except when you manually press "Check for Updates" (or open the "Phone Transfer" page, which runs a local upload server while it is open). It isn't distributed through any app store and hasn't had a public release yet; once released, grab the APK from GitHub Releases and `adb install -r` it, or push a later APK from your phone via Settings → General → Phone Transfer once UnitedU is already running. Licensed under Apache-2.0 (`LICENSE`); third-party notices and trademark attributions for the built-in card art are in `NOTICE`.
+UnitedU is an open-source, ad-free Android TV launcher for GMS-less TVs (built and tested against a Chinese-market Sony A95L). It looks like Google TV but shows only the apps you put on it, and never phones home except when you manually press "Check for Updates" (or open the "Add from Phone" page, which runs a local upload server while it is open). It isn't distributed through any app store and hasn't had a public release yet; once released, grab the APK from GitHub Releases and `adb install -r` it, or push a later APK from your phone via Settings → General → Add from Phone once UnitedU is already running. Licensed under Apache-2.0 (`LICENSE`); third-party notices and trademark attributions for the built-in card art are in `NOTICE`.

@@ -160,15 +160,19 @@ fun Onboarding(
     }
 }
 
-/** 第 1 步:四个语言按钮(下标 0..3,顺序 = [VALID_LANGUAGES])+ 继续(4)+ 跳过(5)。 */
+/**
+ * 第 1 步:一句欢迎 + 四个语言按钮(下标 0..3,顺序 = [VALID_LANGUAGES])+ 继续(4)。
+ * R133:原来还有一颗「跳过」,与「继续」做的是同一件事(都进第 2 步),第一次用的人会停下来琢磨两颗有什么不同——删掉。
+ */
 @Composable
 private fun LanguageStep(language: String, nonce: Int, onLanguage: (String) -> Unit, onNext: () -> Unit) {
     val selected = languageIndex(language)
     val langs = LANGUAGE_OPTION_RES.size
     val next = langs
-    val skip = langs + 1
     // 初始焦点落在「已选」的那个语言上:确定键 = 保持当前语言进下一步,不会误改语言。
-    val focus = rememberStepFocus(count = langs + 2, initial = selected, nonce = nonce)
+    val focus = rememberStepFocus(count = langs + 1, initial = selected, nonce = nonce)
+    StepBody(stringResource(R.string.onb_step1_body))
+    Spacer(Modifier.height(14.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         LANGUAGE_OPTION_RES.forEachIndexed { i, res ->
             OnbButton(
@@ -185,8 +189,17 @@ private fun LanguageStep(language: String, nonce: Int, onLanguage: (String) -> U
         }
     }
     Spacer(Modifier.height(STEP_GAP))
-    // 从「继续 / 跳过」按上,回到已选的那个语言(而不是几何上最近的那一个)。
-    NextSkipRow(focus = focus, next = next, skip = skip, up = selected, onNext = onNext, onSkip = onNext)
+    // 从「继续」按上,回到已选的那个语言(而不是几何上最近的那一个)。
+    NextSkipRow(focus = focus, next = next, skip = null, up = selected, onNext = onNext, onSkip = {})
+}
+
+/** 每一步标题下的说明文字。 */
+@Composable
+private fun StepBody(text: String) {
+    BasicText(
+        text = text,
+        style = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 14.sp, lineHeight = 20.sp),
+    )
 }
 
 /** 第 2 步:说明 + 计划列表(不可聚焦)+ 继续(0)+ 跳过(1)。 */
@@ -203,16 +216,18 @@ private fun FillStep(revision: Int, nonce: Int, onFill: () -> Unit, onSkipFill: 
         }
     }
     val focus = rememberStepFocus(count = 2, initial = 0, nonce = nonce)
-    BasicText(
-        text = stringResource(R.string.onb_step2_body),
-        style = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 14.sp, lineHeight = 20.sp),
-    )
+    // R133:一个都没找到时说明换成「以后在所有应用里加」,主按钮写「继续」(没有东西可放,写「放到桌面」是空话)。
+    val empty = plan?.isEmpty() == true
+    StepBody(stringResource(if (empty) R.string.onb_step2_body_empty else R.string.onb_step2_body))
     Spacer(Modifier.height(14.dp))
     PlanPanel(plan)
     Spacer(Modifier.height(STEP_GAP))
-    // 「继续」不看屏幕上这份 plan,落盘时在 IO 线程重新按已装过滤(见 writeOnboardingLayout):
+    // 「放到桌面」不看屏幕上这份 plan,落盘时在 IO 线程重新按已装过滤(见 writeOnboardingLayout):
     // 列表还没读完就按下、或读完之后又装了应用,写下去的都是按下那一刻的真实情况。
-    NextSkipRow(focus = focus, next = 0, skip = 1, up = null, onNext = onFill, onSkip = onSkipFill)
+    NextSkipRow(
+        focus = focus, next = 0, skip = 1, up = null, onNext = onFill, onSkip = onSkipFill,
+        nextLabel = if (empty) R.string.onb_next else R.string.onb_add_to_home,
+    )
 }
 
 /** 第 2 步的计划列表:每行 = 行图标 + 行名(与首页行标题同一套)+ 这一行将放下的应用名。 */
@@ -273,14 +288,17 @@ private fun PlanPanel(plan: List<Pair<String, List<Pair<String, String>>>>?) {
     }
 }
 
-/** 第 3 步:当前默认桌面(不可聚焦)+ 去系统设置(0)+ 继续(1)+ 跳过(2)。 */
+/**
+ * 第 3 步:当前默认桌面(不可聚焦)+ 去系统设置(0)+ 完成(1)。
+ * R133:原来是「继续」「跳过」两颗,都是结束引导——换成一颗「完成」。
+ */
 @Composable
 private fun HomeStep(revision: Int, nonce: Int, onOpenHomeSettings: () -> Unit, onFinish: () -> Unit) {
     val ctx = LocalContext.current
     val home = rememberCurrentHome(revision)
     // 已经是默认桌面时,初始焦点给「继续」(确定键 = 完成);否则给「去系统设置」——这一步真正要做的事。
     val focus = rememberStepFocus(
-        count = 3,
+        count = 2,
         initial = if (home.pkg == ctx.packageName) 1 else 0,
         nonce = nonce,
     )
@@ -300,22 +318,26 @@ private fun HomeStep(revision: Int, nonce: Int, onOpenHomeSettings: () -> Unit, 
         style = TextStyle(fontFamily = Theme.Sans, color = Theme.FootnoteText, fontSize = 12.sp, lineHeight = 17.sp),
     )
     Spacer(Modifier.height(STEP_GAP))
-    NextSkipRow(focus = focus, next = 1, skip = 2, up = 0, onNext = onFinish, onSkip = onFinish)
+    NextSkipRow(focus = focus, next = 1, skip = null, up = 0, onNext = onFinish, onSkip = {}, nextLabel = R.string.onb_done)
 }
 
-/** 每步底部的「继续」「跳过」:左右互指,按上去 [up](null = 锁住),按下锁住。 */
+/**
+ * 每步底部的主按钮(缺省「继续」,[nextLabel] 可换)+ 可选的「跳过」:左右互指,按上去 [up](null = 锁住),按下锁住。
+ * [skip] 为 null = 只有主按钮(R133:第 1、3 步的「跳过」与主按钮做同一件事,删掉)。
+ */
 @Composable
 private fun NextSkipRow(
     focus: StepFocus,
     next: Int,
-    skip: Int,
+    skip: Int?,
     up: Int?,
     onNext: () -> Unit,
     onSkip: () -> Unit,
+    nextLabel: Int = R.string.onb_next,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         OnbButton(
-            label = stringResource(R.string.onb_next),
+            label = stringResource(nextLabel),
             focus = focus,
             index = next,
             up = up,
@@ -323,7 +345,7 @@ private fun NextSkipRow(
             minWidth = 140.dp,
             onClick = onNext,
         )
-        OnbButton(
+        if (skip != null) OnbButton(
             label = stringResource(R.string.onb_skip),
             focus = focus,
             index = skip,
@@ -537,7 +559,7 @@ internal fun installedDefaultApps(ctx: Context): Map<String, String> {
 @WorkerThread
 internal fun onboardingPlan(ctx: Context): List<Pair<String, List<Pair<String, String>>>> {
     val labels = installedDefaultApps(ctx)
-    return planView(plannedLayout(DEFAULT_LAYOUT, labels.keys), labels)
+    return planView(localizedDefaultRows(plannedLayout(DEFAULT_LAYOUT, labels.keys), defaultRowNames(ctx)), labels)
 }
 
 /**
@@ -548,5 +570,5 @@ internal fun onboardingPlan(ctx: Context): List<Pair<String, List<Pair<String, S
 internal fun writeOnboardingLayout(ctx: Context, fill: Boolean): Boolean = runCatching {
     val rows = if (fill) plannedLayout(DEFAULT_LAYOUT, installedDefaultApps(ctx).keys)
     else skippedLayout(DEFAULT_LAYOUT)
-    Layout.write(ctx, rows)
+    Layout.write(ctx, localizedDefaultRows(rows, defaultRowNames(ctx)))
 }.getOrDefault(false)

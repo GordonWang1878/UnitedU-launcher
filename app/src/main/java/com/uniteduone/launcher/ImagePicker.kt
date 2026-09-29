@@ -252,6 +252,11 @@ private fun PickerGrid(
     /** 没有任何图片(内置与我的都空,网格只剩「＋」)时标题下的一行说明;null = 不写。 */
     emptyHint: String? = null,
     /**
+     * 网格底下那一行操作提示(R131)。选图(壁纸 / 卡片图)是「按返回键取消」;屏保图库不是在选东西,
+     * 写的是「按确定预览 · 长按可删除或关闭 · 按返回键关闭」——长按那两件事原来哪里都没写。
+     */
+    backHint: Int = R.string.picker_back_to_cancel,
+    /**
      * 「我的」首格「＋ 从手机添加」的确定键(Ruling R63)。打开扫码页时 MainActivity 把本网格**替换**掉
      * (pickerTarget 换成扫码页),关掉扫码页再重新挂上本网格——所以回来时文件列表是重扫过的。
      */
@@ -598,7 +603,7 @@ private fun PickerGrid(
         }
 
         BasicText(
-            text = stringResource(R.string.picker_back_to_cancel),
+            text = stringResource(backHint),
             style = TextStyle(fontFamily = Theme.Sans, color = Theme.PickerFooterText, fontSize = 11.sp),
             modifier = Modifier.padding(top = 4.dp),
         )
@@ -931,6 +936,7 @@ fun ScreensaverPoolViewer(
                 covered = previewIndex >= 0 || deleteTarget != null || builtinMenu != null || rescanning,
                 onFocusedItem = onFocusedItem,
                 emptyHint = stringResource(R.string.picker_no_screensavers),
+                backHint = R.string.picker_back_to_close,
                 onAddFromPhone = onAddFromPhone,
                 landing = landing,
                 excludedBuiltins = excludedBuiltins,
