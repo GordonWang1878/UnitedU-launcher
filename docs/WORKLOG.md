@@ -1659,3 +1659,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - Gordon 电视上看 R129f:「截断修好了,淡入可以了」。**R129 线定案**:新焦点行延迟 220 ms、900 ms 匀速淡入;旧行不动;离屏图层四边撑大。
 - 清点待办(Gordon 问):ui-pending 21 条全部有结论;spec 裁定表里 R109 / R115 / R126 / R127 / R129 的过期「待看」状态已更新为定案。仍开着的:R128 待 Gordon 电视上看(待机子页、关于页恢复默认);英文「待机」最宽值可能被截(未上屏);1.0 相关(Release / 版本号 / #21 预编译 / 仓库改回公开与是否清历史)等 Gordon 通知;27 个本地提交未推。已并入 main 的 `gtv` 分支与 `.claude/worktrees/gtv` **没删**:工作区里有 3 组未提交、main 里没有的图标设计稿(09-23:`docs/design/icon-assets/` 一套 banner / 前景 / 背景,md5 与现用 `icon-masters` 不同;`icon-concepts/wordmark-round1/` 11 张、`wordmark-banner-round1/` 3 张,共约 4 MB),处置待 Gordon 定。
 - Gordon 定:gtv 工作区里的 3 组图标稿归档到仓库外 `~/unitedu-assets-originals/2026-09-23-icon-drafts/`(17 个文件 md5 核对一致)后删除工作区与 `gtv` 分支(已并入 main);29 个本地提交推到私有仓库(推前核对:全是 09-29 的提交,新增图片仅 6 张我们自己的界面截图,无 Google 内容)。
+- Gordon 电视上看过 R128:「没问题」,定案。至此本轮待办清空;剩余只有 1.0 相关(Release / 版本号 / #21 预编译 / 仓库改回公开与是否清历史)等 Gordon 通知,以及英文「待机」最宽值可能被截的小瑕疵(下次动设置页顺手修)。
