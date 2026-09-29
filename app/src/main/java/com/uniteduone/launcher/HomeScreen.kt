@@ -917,16 +917,19 @@ private fun CategoryRow(
     // 离屏层撤掉、柔光上下沿突然冒出来(R53 审查补那次记过同一个现象)。所以图层上下各撑大 APP_FOCUS_GLOW_DP:
     // 外层 layout 以**原尺寸**上报、把图层往上挪回同样的量,本行的布局框、卡片位置与焦点几何逐位不变,只有离屏层变大。
     // (不用 ModulateAlpha:它把 alpha 分别乘到卡片底色与上面的图上,实测淡入整体快 ≈ 15 %、半途底色透出来。)
+    // **左右也要撑大**(2026-09-29 Gordon 电视上看到:焦点下移到下一行**最右侧**那张卡时,淡入期间卡的右边被截掉一段、
+    // 淡完才恢复——Prime Video、emotn 都是行尾):行框的右缘就是最后一张卡的右缘,焦点卡放大 1.10 + 描边 + 柔光
+    // 越过它,被离屏层按行框裁掉。R129 当时只撑了上下。现在四边各撑 APP_FOCUS_GLOW_DP,外层仍按原尺寸上报。
     val glowPad = GtvLayout.APP_FOCUS_GLOW_DP.dp
     Box(
         Modifier
             .layout { measurable, constraints ->
                 val e = glowPad.roundToPx()
-                val p = measurable.measure(constraints.offset(vertical = 2 * e))
-                layout(p.width, (p.height - 2 * e).coerceAtLeast(0)) { p.place(0, -e) }
+                val p = measurable.measure(constraints.offset(horizontal = 2 * e, vertical = 2 * e))
+                layout((p.width - 2 * e).coerceAtLeast(0), (p.height - 2 * e).coerceAtLeast(0)) { p.place(-e, -e) }
             }
             .graphicsLayer { alpha = rowAlpha() * enterAlpha() }
-            .padding(vertical = glowPad),
+            .padding(horizontal = glowPad, vertical = glowPad),
     ) {
         // 水平中心 x = CONTENT_KEYLINE / 2(29 dp),纵向中心 = 卡片中心(上侧描边留白 + 半个卡高;
         // 卡片标题开着时标题在卡下方,不参与居中——效果图 A2 对齐的是卡片本身)。
