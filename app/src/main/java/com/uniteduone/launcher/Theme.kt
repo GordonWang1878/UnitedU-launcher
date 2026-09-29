@@ -234,19 +234,6 @@ object Theme {
     )
 
     /**
-     * **Ruling R129b**:下键换行时**旧焦点行**的进场乘子规格(起点 → 1):当前值 → 0 线性走
-     * [GtvLayout.ROW_EXIT_FADE_MS],停在 0 到 [GtvLayout.ROW_ENTER_DELAY_MS],再按 FastOutSlowIn 用
-     * [GtvLayout.ROW_ENTER_FADE_MS] 淡回 1——后半段与新焦点行的 [homeRowEnterSpec] 逐帧相同,两行一起浮现。
-     * 起点由调用方给(`animate(当前值, 1f, 这个 spec)`),正在淡入的行从当前值往下走,不会先跳高。
-     */
-    fun homeRowExitSpec(): androidx.compose.animation.core.KeyframesSpec<Float> =
-        androidx.compose.animation.core.keyframes {
-            durationMillis = GtvLayout.ROW_ENTER_DELAY_MS + GtvLayout.ROW_ENTER_FADE_MS
-            0f at GtvLayout.ROW_EXIT_FADE_MS using androidx.compose.animation.core.LinearEasing
-            0f at GtvLayout.ROW_ENTER_DELAY_MS using androidx.compose.animation.core.FastOutSlowInEasing
-        }
-
-    /**
      * 首页行图标焦点色(0→1 进度)的规格:与 [homeVerticalShiftSpec] 同一条曲线、同起同止(R47 的约定)。
      * 默认时返回的就是 [rowIconFocusSpec]。
      */
