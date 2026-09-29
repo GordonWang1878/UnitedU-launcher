@@ -351,6 +351,7 @@ fun SettingsShell(
             applyLanguage = { lang -> actions.applyLanguage(lang); written() },
             openScreensaverGallery = actions.openScreensaverGallery,
             openSystemScreensaver = actions.openSystemScreensaver,
+            openSystemScreenOff = actions.openSystemScreenOff,
             startScreensaver = actions.startScreensaver,
             openSystemAnimationSettings = actions.openSystemAnimationSettings,
         )
@@ -519,7 +520,7 @@ private fun optionLabel(row: ControlRow, i: Int): String {
  * 右端不画 › 的动作行:跳安卓原生设置页的(不进外壳的下一层,Gordon 定案第 1 条的例外),
  * 以及按下去当场生效、不打开任何界面的。› 只表示「会进到另一个界面」。
  */
-private val JUMP_ROWS = setOf("systemScreensaver", "systemAnimationScale", "startScreensaver")
+private val JUMP_ROWS = setOf("systemScreensaver", "screenOff", "systemAnimationScale", "startScreensaver")
 
 /**
  * 滑块展开时的短标签(交互测试 2026-09-23):聚焦的滑块胶囊里标签只剩约 104 dp,英文
@@ -590,6 +591,8 @@ private fun groupCapsule(row: RowSpec, onPush: (String, String?) -> Unit, follow
             Capsule(
                 id = row.id,
                 label = label,
+                // R127:标签下方的小字(「关闭屏幕」行写去哪改),与第一层的说明小字同一个样式;值照旧在右端。
+                hint = row.noteRes?.let { stringResource(it) },
                 trailing = when {
                     value != null -> Trailing.Value(value, chevron = !jump)
                     jump -> Trailing.None

@@ -48,6 +48,8 @@ class SystemStatusTest {
         assertNull(timeoutDisplay(null))
         assertNull(timeoutDisplay(0))
         assertNull(timeoutDisplay(-1))
+        // 屏保启动时间不拆「小时 + 分钟」(R127 的 HoursMinutes 只由 sleepTimeoutDisplay 产生)
+        assertEquals(TimeoutDisplay.Minutes(90), timeoutDisplay(5_400_000))
     }
 
     @Test fun unitScaleTolerance() {
@@ -117,6 +119,70 @@ class SystemStatusTest {
             screensaverSummary(on5.copy(screensaverEnabled = null)),
         )
         assertTrue(screensaverSummary(SystemUiStatus.UNKNOWN).isEmpty())
+    }
+
+    /** 屏保启动时间的格式化不拆「小时 + 分钟」(HoursMinutes 只给 R127 的关闭屏幕用);万一传进来折回整分钟。 */
+    @Test fun summaryFoldsHoursMinutesBackToMinutes() {
+        assertEquals(
+            HintPart.Res(R.string.settings_sys_minutes, listOf(90)),
+            screensaverSummary(on5.copy(screensaverStart = TimeoutDisplay.HoursMinutes(1, 30)))[2],
+        )
+    }
+
+    // ---- R127:「关闭屏幕」行(Settings.Secure.sleep_timeout)----
+
+    /** 从不:−1(AOSP 的「从不」)、0、≥ Int.MAX_VALUE,以及键没设过(平台缺省 −1)。 */
+    @Test fun sleepTimeoutNever() {
+        assertEquals(TimeoutDisplay.Never, sleepTimeoutDisplay(null))
+        assertEquals(TimeoutDisplay.Never, sleepTimeoutDisplay("-1"))
+        assertEquals(TimeoutDisplay.Never, sleepTimeoutDisplay("0"))
+        assertEquals(TimeoutDisplay.Never, sleepTimeoutDisplay("-86400000"))
+        assertEquals(TimeoutDisplay.Never, sleepTimeoutDisplay(Int.MAX_VALUE.toString()))
+        assertEquals(TimeoutDisplay.Never, sleepTimeoutDisplay(Long.MAX_VALUE.toString()))
+    }
+
+    /** 读到了但不是整数:读不到(null → 界面写「查看」),不猜。 */
+    @Test fun sleepTimeoutUnreadable() {
+        assertNull(sleepTimeoutDisplay(""))
+        assertNull(sleepTimeoutDisplay("  "))
+        assertNull(sleepTimeoutDisplay("abc"))
+        assertNull(sleepTimeoutDisplay("1.5"))
+        assertNull(sleepTimeoutDisplay("86400000ms"))
+    }
+
+    @Test fun sleepTimeoutHoursAndMinutes() {
+        // A95L 出厂值:24 小时
+        assertEquals(TimeoutDisplay.Hours(24), sleepTimeoutDisplay("86400000"))
+        assertEquals(TimeoutDisplay.Hours(24), sleepTimeoutDisplay(" 86400000\n"))
+        assertEquals(TimeoutDisplay.Hours(1), sleepTimeoutDisplay("3600000"))
+        assertEquals(TimeoutDisplay.Hours(4), sleepTimeoutDisplay("14400000"))
+        assertEquals(TimeoutDisplay.Minutes(30), sleepTimeoutDisplay("1800000"))
+        assertEquals(TimeoutDisplay.Minutes(15), sleepTimeoutDisplay("900000"))
+        // 超过 1 小时又不是整小时:拆成「N 小时 M 分钟」
+        assertEquals(TimeoutDisplay.HoursMinutes(1, 30), sleepTimeoutDisplay("5400000"))
+        assertEquals(TimeoutDisplay.HoursMinutes(25, 1), sleepTimeoutDisplay("90060000"))
+        // 不是整分钟:秒(四舍五入),同屏保启动时间
+        assertEquals(TimeoutDisplay.Seconds(90), sleepTimeoutDisplay("90000"))
+        assertEquals(TimeoutDisplay.Seconds(1), sleepTimeoutDisplay("1"))
+    }
+
+    @Test fun screenOffSummaryIsExactlyOnePart() {
+        assertEquals(listOf(HintPart.Res(R.string.settings_sys_idle_hours, listOf(24))), screenOffSummary(TimeoutDisplay.Hours(24)))
+        assertEquals(listOf(HintPart.Res(R.string.settings_sys_idle_minutes, listOf(30))), screenOffSummary(TimeoutDisplay.Minutes(30)))
+        assertEquals(
+            listOf(HintPart.Res(R.string.settings_sys_idle_hours_minutes, listOf(1, 30))),
+            screenOffSummary(TimeoutDisplay.HoursMinutes(1, 30)),
+        )
+        assertEquals(listOf(HintPart.Res(R.string.settings_sys_idle_seconds, listOf(90))), screenOffSummary(TimeoutDisplay.Seconds(90)))
+        assertEquals(listOf(HintPart.Res(R.string.settings_sys_never)), screenOffSummary(TimeoutDisplay.Never))
+        // 读不到:「查看」,与动画缩放行同一个字
+        assertEquals(listOf(HintPart.Res(R.string.settings_sys_view)), screenOffSummary(null))
+        assertEquals(listOf(HintPart.Res(R.string.settings_sys_view)), screenOffSummary(SystemUiStatus.UNKNOWN.screenOff))
+    }
+
+    /** 索尼没有直达「关闭显示屏」的公开入口:今天链上只有系统设置首页(以后找到入口加在最前面)。 */
+    @Test fun screenOffChainEndsAtSystemSettings() {
+        assertEquals(listOf(SystemPage(action = "android.settings.SETTINGS")), SCREEN_OFF_SETTINGS_PAGES)
     }
 
     /** 候选链的顺序与退路(理由见 DREAM_SETTINGS_PAGES 的 KDoc)。 */

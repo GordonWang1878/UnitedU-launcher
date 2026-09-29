@@ -91,7 +91,8 @@ data class SliderLook(
  * 焦点:上下在首末项 `Cancel`、左右恒 `Cancel`(焦点永远出不了这一列);得失都经 [onFocusChange] 上报(铁律 4)。
  * [onStep] 非空 = 滑块:左右键在 `onKeyEvent` 里消费(按下那一下调一格,抬起也吞掉),焦点一格不横移。
  *
- * @param hint Ruling R17 的第二行说明小字(外壳第一层用;null / 空白 = 单行)。
+ * @param hint Ruling R17 的第二行说明小字(外壳第一层用;R127 起屏保组「关闭屏幕」行也用,与右端的值同时出现;
+ *   null / 空白 = 单行)。
  * @param slider 非空且聚焦时画成滑块;未聚焦时照 [trailing] 画值。
  */
 @OptIn(ExperimentalComposeUiApi::class)
@@ -135,9 +136,11 @@ fun MenuPill(
     // 值放不进同一行(英文「System Animation Scale」配「1.5×, UI animations run slower」这类整句摘要)时,
     // 改成两行胶囊:值挪到标签下面当说明,右端只留 ›(交互测试 2026-09-23,评审 #4)。按**聚焦加粗**的宽度判,
     // 聚焦前后同一个结论,胶囊高度不会随焦点跳。
+    // R127:带说明小字([hint])的胶囊也可能带值(「关闭屏幕」行)——同一个判据:放得下就「标签 … 值」一行、说明在下;
+    // 放不下值挪到标签下面、说明再往下一行。
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
-    val valueWraps = trailing is Trailing.Value && hint.isNullOrBlank() && slider == null &&
+    val valueWraps = trailing is Trailing.Value && slider == null &&
         remember(label, trailing, density, type) {
             val style = TextStyle(fontFamily = Theme.Sans, fontSize = type.text.sp)
             val labelW = measurer.measure(label, style.copy(fontWeight = FontWeight.Medium)).size.width
@@ -149,13 +152,16 @@ fun MenuPill(
                 labelW + valueW + extras > inner
             }
         }
-    @Suppress("NAME_SHADOWING")
-    val hint = if (valueWraps) (trailing as Trailing.Value).text else hint
+    // 标签下面的小字行:挪下来的值在前,说明在后。没有带值的说明胶囊之前(R127 之前)这里最多一行,与原来逐位相同。
+    val secondary = listOfNotNull(
+        if (valueWraps) (trailing as Trailing.Value).text else null,
+        hint?.takeIf { it.isNotBlank() },
+    )
     @Suppress("NAME_SHADOWING")
     val trailing = if (valueWraps) {
         if ((trailing as Trailing.Value).chevron) Trailing.Chevron else Trailing.None
     } else trailing
-    val hasHint = !hint.isNullOrBlank()
+    val hasHint = secondary.isNotEmpty()
     Box(
         modifier = modifier
             .width(GtvLayout.MENU_ITEM_WIDTH.dp)
@@ -195,25 +201,33 @@ fun MenuPill(
             }
             if (hasHint) {
                 // 两行胶囊(外壳第一层):标题 + 说明占满剩余宽度,右端只可能是一个 ›(自然宽度)。
+                // R127:带值且放得下(valueWraps 已判过)时第一行是「标签 … 值」,说明在下面占满整宽。
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(GtvLayout.MENU_ITEM_HINT_GAP.dp),
                 ) {
-                    MenuPillLabel(label, focused, textColor, type)
-                    BasicText(
-                        text = hint!!,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(
-                            fontFamily = Theme.Sans,
-                            fontWeight = FontWeight.Normal,
-                            // 从属于标题的次要文字(R17):同一个文字色减透明度,两态都算得出更淡的版本。
-                            color = textColor.copy(alpha = 0.7f),
-                            fontSize = type.hint.sp,
-                        ),
-                    )
+                    if (trailing is Trailing.Value) {
+                        // 放得下才走到这里,值不设 VALUE_MAX_WIDTH 上限(那个上限是给单行胶囊「标签至少留一半」的)。
+                        LabelTrailingRow(label, trailing, focused, textColor, accent, type, valueMax = null, Modifier.fillMaxWidth())
+                    } else {
+                        MenuPillLabel(label, focused, textColor, type)
+                    }
+                    secondary.forEach { line ->
+                        BasicText(
+                            text = line,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            style = TextStyle(
+                                fontFamily = Theme.Sans,
+                                fontWeight = FontWeight.Normal,
+                                // 从属于标题的次要文字(R17):同一个文字色减透明度,两态都算得出更淡的版本。
+                                color = textColor.copy(alpha = 0.7f),
+                                fontSize = type.hint.sp,
+                            ),
+                        )
+                    }
                 }
-                if (trailing != Trailing.None) {
+                if (trailing != Trailing.None && trailing !is Trailing.Value) {
                     Spacer(Modifier.width(12.dp))
                     TrailingContent(trailing, focused, textColor, accent, type)
                 }
@@ -221,24 +235,41 @@ fun MenuPill(
                 if (trailing == Trailing.None) {
                     MenuPillLabel(label, focused, textColor, type)
                 } else {
-                    // 右端的值先量(上限 VALUE_MAX_WIDTH,再长才省略),标签拿剩下的宽度、放不下就省略号。
-                    // 交互测试 2026-09-23:原先标签先量、值拿剩下的,英文长标签(System Animation Scale、
-                    // Follow Wallpaper Color 聚焦加粗后)把值挤成「O…」或整个挤没——值是这一行要看的信息,优先保它。
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        MenuPillLabel(label, focused, textColor, type, Modifier.weight(1f, fill = false))
-                        Box(
-                            Modifier.padding(start = 12.dp).widthIn(max = VALUE_MAX_WIDTH.dp),
-                            contentAlignment = Alignment.CenterEnd,
-                        ) {
-                            TrailingContent(trailing, focused, textColor, accent, type)
-                        }
-                    }
+                    LabelTrailingRow(label, trailing, focused, textColor, accent, type, valueMax = VALUE_MAX_WIDTH, Modifier.weight(1f))
                 }
             }
+        }
+    }
+}
+
+/**
+ * 「标签 … 右端」同一行。右端先量(有 [valueMax] 时以它为上限,再长才省略),标签拿剩下的宽度、放不下就省略号。
+ * 交互测试 2026-09-23:原先标签先量、值拿剩下的,英文长标签(System Animation Scale、
+ * Follow Wallpaper Color 聚焦加粗后)把值挤成「O…」或整个挤没——值是这一行要看的信息,优先保它。
+ * 单行胶囊传 [VALUE_MAX_WIDTH];带说明的两行胶囊(R127)传 null。
+ */
+@Composable
+private fun LabelTrailingRow(
+    label: String,
+    trailing: Trailing,
+    focused: Boolean,
+    textColor: Color,
+    accent: Color,
+    type: PillType,
+    valueMax: Float?,
+    modifier: Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        MenuPillLabel(label, focused, textColor, type, Modifier.weight(1f, fill = false))
+        Box(
+            Modifier.padding(start = 12.dp).then(if (valueMax != null) Modifier.widthIn(max = valueMax.dp) else Modifier),
+            contentAlignment = Alignment.CenterEnd,
+        ) {
+            TrailingContent(trailing, focused, textColor, accent, type)
         }
     }
 }

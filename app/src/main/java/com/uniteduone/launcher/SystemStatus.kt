@@ -3,7 +3,7 @@ package com.uniteduone.launcher
 import java.math.BigDecimal
 
 /**
- * 设置页要显示的**系统**设置快照:系统屏保开关 / 来源 / 启动时间、三项动画缩放。
+ * 设置页要显示的**系统**设置快照:系统屏保开关 / 来源 / 启动时间、三项动画缩放、关闭屏幕的时间(R127)。
  *
  * 只读。我们不申请 WRITE_SECURE_SETTINGS / WRITE_SETTINGS(Gordon 2026-09-23 定:直接改写要 adb 授权,
  * 而且会覆盖用户有意调的无障碍动画设置),每一项只显示当前值 + 一键跳系统对应页。
@@ -33,6 +33,11 @@ data class SystemUiStatus(
     val transitionScale: Float? = null,
     /** `Settings.Global.window_animation_scale`:只影响窗口进出。 */
     val windowScale: Float? = null,
+    /**
+     * `Settings.Secure.sleep_timeout`(R127「关闭屏幕」行):无操作多久之后连屏保一起关掉显示屏,已解析成显示单位
+     * ([sleepTimeoutDisplay])。与其他字段一样 null = 读不到;键**没设过**不是读不到,是平台缺省「从不」。
+     */
+    val screenOff: TimeoutDisplay? = null,
 ) {
     companion object {
         /** 一项都没读到(读取器还没跑、或者整块被系统挡掉)。 */
@@ -46,12 +51,17 @@ sealed interface DreamSource {
     data class Other(val label: String) : DreamSource
 }
 
-/** 屏保启动时间的显示单位。整小时显示小时、整分钟显示分钟,否则显示秒;[Never] = 系统的「从不」。 */
+/**
+ * 系统时长的显示单位。整小时显示小时、整分钟显示分钟,否则显示秒;[Never] = 系统的「从不」。
+ * [HoursMinutes] 只由 [sleepTimeoutDisplay] 产生(R127:超过 1 小时又不是整小时的整分钟值,如「1 小时 30 分钟」);
+ * 屏保启动时间([timeoutDisplay])照旧写成「63 分钟」,不拆。
+ */
 sealed interface TimeoutDisplay {
     data object Never : TimeoutDisplay
     data class Seconds(val n: Int) : TimeoutDisplay
     data class Minutes(val n: Int) : TimeoutDisplay
     data class Hours(val n: Int) : TimeoutDisplay
+    data class HoursMinutes(val hours: Int, val minutes: Int) : TimeoutDisplay
 }
 
 /**
@@ -93,9 +103,42 @@ internal fun screensaverSummary(sys: SystemUiStatus): List<HintPart> {
         is TimeoutDisplay.Seconds -> HintPart.Res(R.string.settings_seconds, listOf(t.n))
         is TimeoutDisplay.Minutes -> HintPart.Res(R.string.settings_sys_minutes, listOf(t.n))
         is TimeoutDisplay.Hours -> HintPart.Res(R.string.settings_sys_hours, listOf(t.n))
+        // timeoutDisplay 不产生这一种;万一传进来,按屏保启动时间一贯的写法折回整分钟。
+        is TimeoutDisplay.HoursMinutes -> HintPart.Res(R.string.settings_sys_minutes, listOf(t.hours * 60 + t.minutes))
     }
     val enabled = if (sys.screensaverEnabled == true) HintPart.Res(R.string.settings_on) else null
     return listOfNotNull(enabled, source, start)
+}
+
+/**
+ * 「关闭屏幕」行的值(R127):「无操作 24 小时后」「无操作 1 小时 30 分钟后」「从不」;读不到写「查看」(同动画缩放行,
+ * 不猜)。永远正好一段——这一行没有「省略读不到的部分」可言,整行就是这一个值。
+ */
+internal fun screenOffSummary(t: TimeoutDisplay?): List<HintPart> = listOf(
+    when (t) {
+        null -> HintPart.Res(R.string.settings_sys_view)
+        TimeoutDisplay.Never -> HintPart.Res(R.string.settings_sys_never)
+        is TimeoutDisplay.Seconds -> HintPart.Res(R.string.settings_sys_idle_seconds, listOf(t.n))
+        is TimeoutDisplay.Minutes -> HintPart.Res(R.string.settings_sys_idle_minutes, listOf(t.n))
+        is TimeoutDisplay.Hours -> HintPart.Res(R.string.settings_sys_idle_hours, listOf(t.n))
+        is TimeoutDisplay.HoursMinutes -> HintPart.Res(R.string.settings_sys_idle_hours_minutes, listOf(t.hours, t.minutes))
+    },
+)
+
+/**
+ * `sleep_timeout`(毫秒)的原始字符串 → 显示单位(R127)。这个键是「无操作多久之后让设备睡眠」:屏保(Dream)开着时,
+ * 到点就连屏保一起关掉显示屏(A95L 的值是 86400000 = 24 小时,所以整夜停在屏保上)。
+ * - 键**没设过**(null):PowerManagerService 用缺省 −1 = 从不,不算读不到;
+ * - ≤ 0 或 ≥ `Int.MAX_VALUE`:从不(AOSP 的「从不」存 −1;≤ 0 一律被 PowerManagerService 当成不启用);
+ * - 不是整数(含空串):读不到 → null,界面写「查看」;
+ * - 其余复用 [timeoutDisplay] 定单位,超过 1 小时又不是整小时的整分钟值拆成 [TimeoutDisplay.HoursMinutes]。
+ */
+internal fun sleepTimeoutDisplay(raw: String?): TimeoutDisplay? {
+    if (raw == null) return TimeoutDisplay.Never
+    val ms = raw.trim().toLongOrNull() ?: return null
+    if (ms <= 0 || ms >= Int.MAX_VALUE) return TimeoutDisplay.Never
+    val d = timeoutDisplay(ms)
+    return if (d is TimeoutDisplay.Minutes && d.n > 60) TimeoutDisplay.HoursMinutes(d.n / 60, d.n % 60) else d
 }
 
 /** `screensaver_enabled` 的原始字符串 → 开关。只认 "0" / "1"(系统就写这两个),别的一律算读不到。 */
@@ -189,6 +232,17 @@ internal val DREAM_SETTINGS_PAGES = listOf(
 internal val ANIMATION_SETTINGS_PAGES = listOf(
     SystemPage(action = "android.settings.APPLICATION_DEVELOPMENT_SETTINGS"), // Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS
     SystemPage(action = "android.settings.SETTINGS"),
+)
+
+/**
+ * 「关闭屏幕」行(R127)的候选链。索尼 A95L 的「系统 → 电源和能耗 → 关闭显示屏」是 TvSettings 里
+ * `power_and_energy` 偏好页内部的一个 fragment(`com.android.tv.settings.device.display.daydream.EnergySaverFragment`),
+ * **没有公开的 intent 能直达**(2026-09-29 查过电视上 SonyTvSettings 的清单;`android.settings.DISPLAY_SETTINGS`
+ * 在索尼上解析到画质设置,不是电源),所以今天只有系统设置首页这一项(电视上解析到 `com.android.tv.settings/.MainSettings`),
+ * 行下的小字告诉人往哪走。仍写成链、走同一个 `openSystemPage`(弹回检测):以后找到直达电源页的入口,加在最前面即可。
+ */
+internal val SCREEN_OFF_SETTINGS_PAGES = listOf(
+    SystemPage(action = "android.settings.SETTINGS"), // Settings.ACTION_SETTINGS
 )
 
 /**

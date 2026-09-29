@@ -36,6 +36,8 @@ fun readSystemUiStatus(ctx: Context): SystemUiStatus {
     val start = safe("screen_off_timeout") {
         timeoutDisplay(Settings.System.getString(cr, Settings.System.SCREEN_OFF_TIMEOUT)?.trim()?.toLongOrNull())
     }
+    // R127:隐藏键(没有公开常量),字面量。没设过 → sleepTimeoutDisplay 返回「从不」;抛异常才是读不到(→「查看」)。
+    val screenOff = safe("sleep_timeout") { sleepTimeoutDisplay(Settings.Secure.getString(cr, "sleep_timeout")) }
     // 三项动画缩放是公开键(Settings.Global.*_SCALE);**没设过 = 系统默认 1×**(WindowManagerService
     // 的缺省值,文档写明),这与 screensaver_enabled「没设过 = 看厂商 overlay」不同,所以这里 null → 1。
     // 只有抛异常或值不是数字才算读不到。
@@ -50,6 +52,7 @@ fun readSystemUiStatus(ctx: Context): SystemUiStatus {
         animatorScale = scale(Settings.Global.ANIMATOR_DURATION_SCALE),
         transitionScale = scale(Settings.Global.TRANSITION_ANIMATION_SCALE),
         windowScale = scale(Settings.Global.WINDOW_ANIMATION_SCALE),
+        screenOff = screenOff,
     )
 }
 

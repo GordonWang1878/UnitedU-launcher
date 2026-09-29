@@ -178,6 +178,13 @@
     <string name="settings_sys_never">从不</string>
     <string name="settings_sys_minutes">%1$d 分钟</string>
     <string name="settings_sys_hours">%1$d 小时</string>
+    <!-- R127:屏保组「关闭屏幕」行(读 secure sleep_timeout,确定键开系统设置);路径取自索尼 TvSettings 的简体中文文案 -->
+    <string name="settings_screen_off">关闭屏幕</string>
+    <string name="settings_screen_off_where">在 系统 → 电源和能耗 → 关闭显示屏 里修改</string>
+    <string name="settings_sys_idle_hours">无操作 %1$d 小时后</string>
+    <string name="settings_sys_idle_minutes">无操作 %1$d 分钟后</string>
+    <string name="settings_sys_idle_hours_minutes">无操作 %1$d 小时 %2$d 分钟后</string>
+    <string name="settings_sys_idle_seconds">无操作 %1$d 秒后</string>
     <string name="settings_sys_anim_scale">系统动画缩放</string>
     <string name="settings_sys_anim_slower">%1$s×,界面动画会变慢</string>
     <string name="settings_sys_anim_faster">%1$s×,界面动画会变快</string>

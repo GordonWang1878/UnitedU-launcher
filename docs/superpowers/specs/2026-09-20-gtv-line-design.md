@@ -474,3 +474,18 @@ cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的�
 | 裁定 | 时间 / 来源 | 内容 | 现状 |
 |---|---|---|---|
 | R126 | 2026-09-29 Gordon | 卡片聚焦描边 2 → 1.5 dp(比 Google 细一档),间隙 2 dp 不变,聚焦溢出 −0.5 dp | 现行;待 Gordon 电视上看 |
+
+### 2026-09-29 屏保组「关闭屏幕」行(R127,Gordon 定)
+
+背景:A95L 整夜停在屏保上不关屏。管这件事的是系统的 `Settings.Secure.sleep_timeout`(无操作多久之后让设备睡眠;屏保开着时到点连屏保一起关掉显示屏),A95L 上是 86400000 = 24 小时。
+
+- **R127 屏保组「系统屏保」正下方加一行「关闭屏幕」**(常驻行,胶囊 id `screenOff`)。只读,不申请权限、不写任何系统设置。
+  - **值**(右端):`sleepTimeoutDisplay`(`SystemStatus.kt`)解析 `sleep_timeout`,复用 `timeoutDisplay` 定单位——「无操作 24 小时后」「无操作 30 分钟后」;超过 1 小时又不是整小时拆成「无操作 1 小时 30 分钟后」;−1 / 0 / ≥ `Int.MAX_VALUE` / 键没设过(PowerManagerService 缺省 −1)→「从不」;值不是整数或读取抛异常 →「查看」(同动画缩放行,不猜)。与「系统屏保」摘要同一份快照(`readSystemUiStatus`),`remember(focusNonce, covered)`——从系统设置回来 `onResume` 的 `focusNonce++` 就重读。
+  - **小字**(标签下方,外壳第一层说明小字同一个样式):「在 系统 → 电源和能耗 → 关闭显示屏 里修改」。三语路径取自电视上 SonyTvSettings 的字符串(`device_pref_category_title` / `power_and_energy` / `device_energy_saver_screen_off`):繁中「在 系統 → 開關和電源 → 關閉螢幕 裡修改」,英文「Change in System → Power & Energy → Turn off display」。标签 关闭屏幕 / 關閉螢幕 / Screen Off,值 无操作 N 小时后 / 閒置 N 小時後 / After N hr idle。
+  - **胶囊渲染**:`ActionRow` 加 `noteRes`,`groupCapsule` 传给 `Capsule.hint`。`MenuPill` 原来「有说明小字就不带值」:现在带说明 + 带值时按同一个 `valueWraps` 判据——放得下就「标签 … 值」一行、说明在下(这一行不设 `VALUE_MAX_WIDTH` 上限,「无操作 24 小时后」114 dp 超过 110 的单行上限);放不下(如「无操作 1 小时 30 分钟后」)值挪到标签下面、说明再往下一行。没有别的胶囊同时带说明和值,其余胶囊逐位不变。
+  - **确定键**:`openSystemPage(SCREEN_OFF_SETTINGS_PAGES)`,与系统屏保行同一个候选链 + 弹回检测。索尼的「关闭显示屏」是 TvSettings `power_and_energy` 偏好页内部的 fragment(`EnergySaverFragment`),没有公开 intent;`android.settings.DISPLAY_SETTINGS` 在索尼上是画质设置。所以链上今天只有 `android.settings.SETTINGS`(电视上 = `com.android.tv.settings/.MainSettings`),以后找到直达入口加在最前面。右端不画 ›(跳安卓原生设置,同 `JUMP_ROWS`)。
+- **模拟器验证**(`unitedu-tv-2`,emulator-5562,Android 14):`sleep_timeout` 读取不抛 SecurityException(targetSdk 35);86400000 →「无操作 24 小时后」、1800000 →「无操作 30 分钟后」、−1 与删掉键 →「从不」、`abc` →「查看」、5400000 → 值换到第二行「无操作 1 小时 30 分钟后」;每次都经「确定 → 系统设置(`mCurrentFocus` = `com.android.tv.settings/.MainSettings`)→ 返回」刷新,返回后焦点都落回这一颗(bounds 1172,835–1708,955)。繁中 / 英文各看一遍,放得下一行。截图 `docs/screenshots/r127-screen-off-row.jpg`。单测 565 → 572。
+
+| 裁定 | 时间 / 来源 | 内容 | 现状 |
+|---|---|---|---|
+| R127 | 2026-09-29 Gordon | 屏保组「系统屏保」下加「关闭屏幕」行:读 secure sleep_timeout(A95L = 24 小时)显示「无操作 N 后」,确定键开系统设置首页(索尼无直达「关闭显示屏」页的公开入口),小字写路径 | 现行;待 Gordon 电视上看 |
