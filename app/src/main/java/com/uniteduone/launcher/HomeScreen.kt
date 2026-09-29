@@ -2,6 +2,7 @@ package com.uniteduone.launcher
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -23,6 +24,8 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.offset
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
@@ -352,6 +355,43 @@ fun HomeScreen(
     // 不触发任何失效。
     SideEffect { onPageShiftState(shiftState) }
     DisposableEffect(Unit) { onDispose { onPageShiftState(null) } }
+    /**
+     * **Ruling R129(照 Google 首页实测,`docs/design/vertical-motion/2026-09-29-google-row-entry.md`)**:每行一个
+     * 「进场乘子」,静止时恒 1。上下换行时**新焦点行**若换行前看不见(屏外,或淡出带里透明度 < 0.5),它的乘子从
+     * 换行前的实际透明度起步(常见是 0),停 140 ms 再 250 ms 淡到 1,与 450 ms 整页位移同一刻起算;其余行不动。
+     * 乘到行的图层 alpha 上(R53 位置淡出、R86 卡片透明度都在各自那一层,照旧相乘),只在绘制阶段读。
+     *
+     * **不是闩(铁律 7)**:乘子 < 1 只可能出现在一段正在跑的淡入里,而每段淡入的终点都是 1;一行的淡入只会被
+     * **同一行**的下一段淡入取代(终点仍是 1),所以连按两下时上一行那段照样走完——没有哪一行会停在看不见。
+     * 行数一变整张表换新(全 1),旧的几段淡入写进没人读的旧状态,自然结束。
+     * **不碰焦点**:不改 `canFocus`、不挂 requester、不进任何效果的 key 或守卫;淡入中的行照常可聚焦。
+     */
+    val rowEnter = remember(rows.size) { List(rows.size.coerceAtLeast(1)) { mutableFloatStateOf(1f) } }
+    val rowEnterJobs = remember(rows.size) { arrayOfNulls<kotlinx.coroutines.Job>(rows.size.coerceAtLeast(1)) }
+    val rowEnterScope = rememberCoroutineScope()
+    /**
+     * R129:焦点刚换到 [row](卡片行之间的换行,由焦点回调在事件当下调,见 CategoryRow 的 onFocusChange)。
+     * 起点按**按键这一刻**的卡顶(静止卡顶 + 当前动画中的位移)与当前乘子算([GtvLayout.rowEnterStart]),
+     * 在回调里同步写进乘子——下一帧画出来就是它,不会先画一帧满透明度再掉下去。
+     */
+    fun startRowEnter(row: Int) {
+        val state = rowEnter.getOrNull(row) ?: return
+        val top = GtvLayout.restCardTop(row, cardSize, showTitles, screenHeightDp) + shiftState.value.value
+        val from = GtvLayout.rowEnterStart(
+            top, screenHeightDp, state.floatValue, clearOfNewAppsHint = (loaded?.third ?: 0) > 0,
+        ) ?: return
+        rowEnterJobs[row]?.cancel()
+        state.floatValue = from
+        rowEnterJobs[row] = rowEnterScope.launch {
+            // 与整页位移**同一帧**起算:位移的目标要等下一帧重组才换,animateDpAsState 的 tween 再下一帧才取起始时刻;
+            // 直接 animate 会比位移早一帧起步(2026-09-29 模拟器 mp4 pts 拟合:不等这一帧时淡入起点领先位移 ≈ 14 ms,
+            // 等了之后 +1 ~ +3 ms)。先空等一帧对齐。
+            withFrameNanos { }
+            androidx.compose.animation.core.animate(from, 1f, animationSpec = Theme.homeRowEnterSpec()) { v, _ ->
+                state.floatValue = v
+            }
+        }
+    }
     // **焦点看门狗。**判据取自真机日志:根节点的 onFocusChanged 里
     //   hasFocus=true && !isFocused  → 某个子节点持有焦点(正常)
     //   hasFocus=true &&  isFocused  → 焦点停在根上,即**没有任何卡片持有**(要补)
@@ -677,9 +717,20 @@ fun HomeScreen(
                         val restTop = GtvLayout.restCardTop(rowIndex, cardSize, showTitles, screenHeightDp)
                         ({ GtvLayout.homeRowAlpha(isActiveRow, restTop + shift.value, clearOfNewAppsHint = newAppsShown) })
                     },
+                    // R129:进场乘子(见 rowEnter)。**移动态一律 1**:被搬的卡永远不淡(M4b 的视觉只加描边与提示);
+                    // 进入移动态要长按 600 ms,早过了任何一段 390 ms 的淡入,这里只是兜底。
+                    enterAlpha = run {
+                        val state = rowEnter.getOrNull(rowIndex)
+                        if (moving != null || state == null) ({ 1f }) else ({ state.floatValue })
+                    },
                     onFocusChange = { idx, got ->
                         report(rowIndex, idx, got)
                         if (got) {
+                            // R129:卡片行之间真的换了行(用户按上 / 下,或丢焦点后落到别的行),新焦点行按规则淡入。
+                            // 与下面 tgtRow 同一条件:还原途中(Compose 抢先给的 (0,0)、浮层关掉后的回送)与移动态不算。
+                            // 顶栏 ↔ 行 0 不会走到这里的判据成立(药丸拿到焦点时 activeRow 已写成 0)。
+                            val prevRow = activeRow.coerceIn(0, rows.lastIndex.coerceAtLeast(0))
+                            if (rowIndex != prevRow && !restoring && movingNow == null) startRowEnter(rowIndex)
                             // 纵向锚定照常跟着焦点走:被搬的卡换到哪一行,那一行就被推到锚点上
                             activeRow = rowIndex
                             // 还原过程中不更新目标:否则 Compose 抢先把焦点给了第一张卡,
@@ -830,6 +881,8 @@ private fun CategoryRow(
     isFocusRow: Boolean,
     /** R53:本行(卡片 + 行图标)的 alpha,只在绘制阶段读(见 [GtvLayout.topFadeAlpha])。 */
     rowAlpha: () -> Float,
+    /** R129:本行的进场乘子(新焦点行换行后晚一拍淡入,见 HomeScreen 的 rowEnter),与 [rowAlpha] 相乘,只在绘制阶段读。 */
+    enterAlpha: () -> Float = { 1f },
     onFocusChange: (Int, Boolean) -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -859,7 +912,22 @@ private fun CategoryRow(
     // 整行左移(rowShiftX)时卡片从图标上面滑过、把它盖住,而不是图标压在卡片内容上。
     // R53:整行(图标 + 卡片)一起按卡顶位置在顶栏下淡出;graphicsLayer 的 block 在绘制阶段读 rowAlpha,
     // 不改布局、不碰焦点(焦点行的 rowAlpha 恒 1,见 HomeScreen / GtvLayout.homeRowAlpha)。
-    Box(Modifier.graphicsLayer { alpha = rowAlpha() }) {
+    // R129:再乘进场乘子。alpha < 1 时 graphicsLayer 把整行画进一张**以图层尺寸为界**的离屏图层;R129 让焦点行
+    // 也会 < 1(最多 390 ms),而焦点卡 60 dp 的柔光(drawBehind,画在卡外)按原来的行框会被裁掉,乘子到 1 那一帧
+    // 离屏层撤掉、柔光上下沿突然冒出来(R53 审查补那次记过同一个现象)。所以图层上下各撑大 APP_FOCUS_GLOW_DP:
+    // 外层 layout 以**原尺寸**上报、把图层往上挪回同样的量,本行的布局框、卡片位置与焦点几何逐位不变,只有离屏层变大。
+    // (不用 ModulateAlpha:它把 alpha 分别乘到卡片底色与上面的图上,实测淡入整体快 ≈ 15 %、半途底色透出来。)
+    val glowPad = GtvLayout.APP_FOCUS_GLOW_DP.dp
+    Box(
+        Modifier
+            .layout { measurable, constraints ->
+                val e = glowPad.roundToPx()
+                val p = measurable.measure(constraints.offset(vertical = 2 * e))
+                layout(p.width, (p.height - 2 * e).coerceAtLeast(0)) { p.place(0, -e) }
+            }
+            .graphicsLayer { alpha = rowAlpha() * enterAlpha() }
+            .padding(vertical = glowPad),
+    ) {
         // 水平中心 x = CONTENT_KEYLINE / 2(29 dp),纵向中心 = 卡片中心(上侧描边留白 + 半个卡高;
         // 卡片标题开着时标题在卡下方,不参与居中——效果图 A2 对齐的是卡片本身)。
         // 行名由 RowIcon 的 contentDescription 带给无障碍服务。图标不随 xShift 走。
