@@ -155,7 +155,8 @@ object GtvLayout {
      * 卡片标题行盒顶边离卡片布局框底边的距离(dp)——**随档位变,= [appFocusOverflow](卡高)**。
      *
      * **ui-pending #9(2026-09-23)**:此前是常量 `CARD_TITLE_GAP` = 4 dp。标题不随卡片缩放(`AppCard` 的标题是
-     * Card 的兄弟节点),聚焦描边外缘却在卡底下方 [appFocusOverflow](R121 起 SMALL 6.42 / MEDIUM 7.43 / LARGE 8.22;
+     * Card 的兄弟节点),聚焦描边外缘却在卡底下方 [appFocusOverflow](R126 描边 1.5 起 SMALL 5.92 / MEDIUM 6.93 / LARGE 7.72;
+     * R121 时 SMALL 6.42 / MEDIUM 7.43 / LARGE 8.22;
      * R59 时 SMALL 7.43 / MEDIUM 7.85 / LARGE 8.30,再之前 MEDIUM 8.30 / LARGE 9.40)处;
      * 14sp 标题的 cap 顶在行盒顶下约 3.5 dp(模拟器实测:三档都是卡底下 7.5 dp),于是描边压在标题字顶上——
      * 中档压 1 px、大档压 4 px、小档正好贴住(docs/screenshots/minor-3-title-stroke-before-*.jpg)。
@@ -544,8 +545,9 @@ object GtvLayout {
     /** app tile 聚焦描边本身的宽度(dp)。`dimen/card_focused_frame_outer_stroke_width = 2dp`——
      *  与内容卡的 [FOCUS_STROKE] 数值恰好相同,但这是两个分别命名的 Google 资源(content card
      *  与 app tile 各自的边框宽度只是刚好都是 2dp),不合并成一个常量,避免以后其中一个改了
-     *  而误伤另一个。 */
-    const val APP_FOCUS_STROKE = 2f
+     *  而误伤另一个。**R126(2026-09-29 Gordon「描边线条的厚度改小一点」)起 1.5dp**,比 Google 的 2dp 细一档;
+     *  间隙 [APP_FOCUS_GAP] 不动,描边外缘随之内收 0.5dp([appFocusOverflow] 跟着少 0.5)。 */
+    const val APP_FOCUS_STROKE = 1.5f
 
     /** app tile 聚焦时的视觉溢出量(缩放增量的一半 + 描边间隙 + 描边本身),给定卡片某一边的
      *  未缩放长度。纯几何,不含 Compose 类型,方便单测验证「聚焦时会不会碰到下一行卡片的描边留白带」
@@ -573,7 +575,7 @@ object GtvLayout {
      * `原半径 + d`。缩放后卡片的圆角是 `corner × scale`;描边中心线离缩放后边缘 `gap + stroke/2`;
      * 所以半径就是这三项之和。柔光每一圈同样按「描边外缘半径 + 该圈偏移」取,
      * `moving` 描边按「`corner × scale` + 它自己的外扩量」取——同一条不变量,三处共用。
-     * 纯函数、单位无关(调用方传 px 得 px),`GtvLayoutTest` 钉 8×1.10+2+1 = 11.8。
+     * 纯函数、单位无关(调用方传 px 得 px),`GtvLayoutTest` 钉 8×1.10+2+0.75 = 11.55(R126 描边 1.5;此前 +1 = 11.8)。
      */
     fun focusRingRadius(corner: Float, scale: Float, gap: Float, stroke: Float): Float =
         corner * scale + gap + stroke / 2f
@@ -749,6 +751,8 @@ object GtvLayout {
      * N = 5 → 150.50,N = 6 → 122.31,N = 8 → 86.96,各取整数 **150 / 122 / 86**。
      * 核对(聚焦第 N 张的视觉右缘,上限 902):大 58 + 750 + 80 + 11.5 = 899.5、中 58 + 732 + 100 + 10.1 = 900.1、
      * 小 58 + 688 + 140 + 8.3 = 894.3;第 N + 1 张从 908 / 910 / 906 dp 起露出 52 / 150、50 / 122、54 / 86。
+     * 以上按 R121 当时的 2 dp 描边推导;**R126 描边 1.5 后不重推卡宽**(小档理论上限变 87.02,刻意保持 86,
+     * Gordon 电视上确认的是这三个数),三档聚焦第 N 张照样不平移(视觉右缘各内收 0.5)。
      * 中档 122 恰好是 R59 的小档,所以「所有应用页」(一行 6 张)R121 起改借中档,观感逐像素不变(见 `AppsPageLayout`)。
      * 长按菜单左侧的 banner 自 R59 起读自己的 [MENU_BANNER_WIDTH](192),不跟档位。
      */
@@ -880,14 +884,14 @@ object GtvLayout {
      *
      * `= screenHeightDp − HOME_BOTTOM_MARGIN − (cardHeight + appFocusOverflow(cardHeight) + titleHeight)`,
      * 即焦点行放大后的视觉下沿(含卡片标题)离屏幕底边恰好 [HOME_BOTTOM_MARGIN]。960×540、中档、无标题
-     * = 540 − 32 − (68.625 + 7.431) = **431.94**(R121 起中档 122;R59 时中档 137 是 423.08,再之前 153 是 413.63)。
+     * = 540 − 32 − (68.625 + 6.931) = **432.44**(R126 描边 1.5 起;R121 起中档 122 时是 431.94;R59 时中档 137 是 423.08,再之前 153 是 413.63)。
      *
      * 规则:静止态(焦点在顶栏或行 0)行 0 卡顶 = 焦点线;焦点在行 n 时整页位移 [rowShiftY](n) = −n × pitch,
      * 所以焦点行卡顶**恒在**焦点线上。每换一行都走一整行,上下对称,不粘性、不看放不放得下。
      *
      * 「恰好只露一行」不是另外凑的:行 1 静止卡顶 = 焦点线 + pitch
      * = H − 32 − overflow − title + (14 + cardHeight + title + ROW_GAP) − cardHeight
-     * = H + 22 − overflow(与档位、卡片标题开关都无关;R121 起 LARGE 的 overflow 最大 8.22)≥ H + 13.7,
+     * = H + 22 − overflow(与档位、卡片标题开关都无关;R126 起 LARGE 的 overflow 最大 7.72)≥ H + 14.2,
      * 恒在屏幕之外。前提是 `ROW_GAP + 14 − HOME_BOTTOM_MARGIN > overflow`——R51 把 ROW_GAP 改回 40 之后才
      * 成立(8 的时候行 1 会露出 ~20 dp),两个常量要一起看(`GtvLayoutTest` 三档 × 标题开关钉住)。
      *
@@ -934,6 +938,8 @@ object GtvLayout {
      * ~~R59(中档 153 → 137)后多一类:中档开标题的上两行静止卡顶 77.4、α 0.185,整张淡卡压在胶囊之下~~
      * **R121(三档 150 / 122 / 86)起**:静止卡顶只有 ≥ 104.4 或 ≤ 64.1(全透明)两类;104.4 那一类现在是
      * **中档**开标题的上两行(中档 122 就是 R59 的小档,数值原样搬过来),R59 中档 77.4 那一类不再存在。
+     * **R126(聚焦描边 2 → 1.5)起**两类是 ≥ 106.4 / ≤ 64.6:焦点线下移 0.5、开标题行距少 0.5,那一类卡顶
+     * 104.4 → 106.4,与胶囊底(≈ 106.5)几乎齐平,不再压进胶囊。
      */
     const val MOVE_HINT_TOP = TOP_BAR_TOP + TOP_BAR_HEIGHT + 4f
 
@@ -980,6 +986,7 @@ object GtvLayout {
      * (docs/screenshots/minor-2-new-apps-transit-before.jpg)。修法:提示显示时 [topFadeAlpha] 的零点从 70
      * 下移到这里、全亮点仍是 110——卡顶到提示底边时已经完全透明。静止态 alpha 只有卡顶 104.4 的那一类
      * (R121 起是中档开标题的上两行;ui-pending #9 时是小档 122,同一个宽度)从 0.86 变成 0.69,其余不变(`GtvLayoutTest`)。
+     * R126(描边 1.5)起那一类卡顶是 106.4:0.91 → 0.80;另一类 ≤ 64.6。
      */
     const val NEW_APPS_HINT_BOTTOM = TOP_BAR_TOP + TOP_BAR_HEIGHT + NEW_APPS_HINT_GAP + NEW_APPS_HINT_LINE
 

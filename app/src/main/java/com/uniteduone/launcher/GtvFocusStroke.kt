@@ -285,7 +285,7 @@ fun Modifier.gtvAppFocusFrame(
                 // 被搬的卡上,scale 恒为 APP_FOCUS_SCALE,当时的 MEDIUM 卡横向外扩 153×0.05=7.65dp 已经
                 // 大于原来描边外缘的 6dp,左右整条被缩放后的卡片盖住,纵向也只露 1.5dp——这条描边
                 // 在它唯一该出现的场景里几乎不可见。现在描边中心线在缩放后边缘外 FOCUS_OUTSET 处,
-                // 正好贴在聚焦描边(外缘 = 缩放后边缘 + APP_FOCUS_GAP + APP_FOCUS_STROKE = 4dp)
+                // 正好贴在聚焦描边(外缘 = 缩放后边缘 + APP_FOCUS_GAP + APP_FOCUS_STROKE = 3.5dp,R126 起;此前 4dp)
                 // 的外侧、不重叠。未聚焦时 scale = 1,退化为原来的固定几何。
                 val growX = size.width * (scale - 1f) / 2f
                 val growY = size.height * (scale - 1f) / 2f

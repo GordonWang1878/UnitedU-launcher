@@ -348,7 +348,7 @@ private fun PickerGrid(
     val density = LocalDensity.current
     // 一份 val 两处用(fix round 1):下面 verticalArrangement 的行距与这里的位移算术必须是
     // 同一个数,分写两处迟早改一处漏一处、量出来的间距和实际渲染的间距对不上。
-    // P2(交互测试第二轮):聚焦格照首页卡片放大 + 描边,纵向溢出 = appFocusOverflow(缩略图高)≈ 8.8dp;
+    // P2(交互测试第二轮):聚焦格照首页卡片放大 + 描边,纵向溢出 = appFocusOverflow(缩略图高)≈ 8.3dp(96 高,R126 描边 1.5 起;此前 8.8);
     // 行距要大于它,聚焦描边才碰不到上一行的标签,视窗下面的纵向裁剪留白(= rowGap)也才盖得住描边。
     val rowGap = 16.dp
     val rowGapPx = with(density) { rowGap.roundToPx() }
