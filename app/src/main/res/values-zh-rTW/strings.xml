@@ -239,13 +239,13 @@
     <string name="about_ready_install">安裝更新</string>
     <string name="about_downloading">下載中 %1$d%%</string>
     <string name="about_downloading_unknown">下載中…</string>
-    <string name="about_verifying">驗證中…</string>
-    <string name="about_verify_failed">驗證失敗</string>
+    <string name="about_verifying">正在檢查更新套件…</string>
+    <string name="about_verify_failed">更新套件不完整或已損毀，請再試一次</string>
     <string name="about_download_failed">下載失敗，請稍後再試</string>
     <string name="about_install_failed">這個更新套件無法安裝</string>
     <string name="about_needs_permission">請在電視上允許「安裝未知應用程式」，然後重試</string>
-    <string name="about_net_failed">檢查失敗，請稍後再試</string>
-    <string name="about_bad_json">無法解析更新資訊</string>
+    <string name="about_net_failed">連不上更新伺服器，請檢查網路後再試</string>
+    <string name="about_bad_json">暫時無法取得更新資訊，請稍後再試</string>
     <string name="about_license_title">授權聲明</string>
     <string name="about_license">本專案以 Apache-2.0 授權發布。第三方元件：Google Sans Flex（OFL 1.1）、Material Icons（Apache-2.0）、NanoHTTPD（BSD-3-Clause）、ZXing（Apache-2.0）。</string>
     <string name="about_repo">專案網址 github.com/GordonWang1878/UnitedU-launcher</string>
@@ -267,7 +267,7 @@
 
     <!-- toast_* : 一次性提示 -->
     <string name="toast_cant_open_app">打不開「%1$s」，它可能已被解除安裝</string>
-    <string name="toast_storage_not_ready">外部儲存空間還沒準備好，稍後再試</string>
+    <string name="toast_storage_not_ready">電視儲存空間暫時無法使用，請稍後再試</string>
     <string name="toast_open_failed">打不開：%1$s</string>
     <string name="toast_wallpaper_changed">桌布已更換</string>
     <string name="toast_invalid_image">這個檔案不是可用的圖片</string>
