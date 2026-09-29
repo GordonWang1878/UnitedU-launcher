@@ -986,8 +986,12 @@ object GtvLayout {
      * 规格值(相对按键 / 位移起步):0.1 在 185 ms、0.5 在 228 ms、0.9 在 299 ms、390 ms 到满;此时整页位移
      * 在 140 ms 走了 40 %、299 ms 走了 92 %。
      * 视觉上是「旧的先走、位置空一下、新的再浮现」,而不是新的一行满透明度刚性滑进来。
+     *
+     * **R129c(2026-09-29 Gordon 电视上看:「迟滞有了,但不够明显」)起 140 → 220 ms**,刻意比 Google 晚:
+     * 0.5 在 308 ms、0.9 在 379 ms、470 ms 到满(整页位移 450 ms 停)。只动新焦点行——R129b 让旧焦点行
+     * 先淡出再淡回,在我们「上一行静止全亮」的布局里成了闪一下,已回滚,不要再加。
      */
-    const val ROW_ENTER_DELAY_MS = 140
+    const val ROW_ENTER_DELAY_MS = 220
 
     /** **R129**:新焦点行进场淡入的时长(ms),曲线 `FastOutSlowInEasing`,在 [ROW_ENTER_DELAY_MS] 之后起步。依据同上。 */
     const val ROW_ENTER_FADE_MS = 250

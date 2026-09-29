@@ -18,30 +18,30 @@ class RowEnterTest {
     private val sizes = GtvCardSize.values().toList()
     private val heights = listOf(540f, 720f, 1080f)
 
-    @Test fun `R129 数值——延迟 140、淡入 250 FastOutSlowIn、门槛 0点5`() {
-        assertEquals(140, GtvLayout.ROW_ENTER_DELAY_MS)
+    @Test fun `R129c 数值——延迟 220、淡入 250 FastOutSlowIn、门槛 0点5`() {
+        assertEquals(220, GtvLayout.ROW_ENTER_DELAY_MS)
         assertEquals(250, GtvLayout.ROW_ENTER_FADE_MS)
         assertEquals(0.5f, GtvLayout.ROW_ENTER_VISIBLE_MIN, 0f)
         val s = Theme.homeRowEnterSpec()
         assertEquals(250, s.durationMillis)
-        assertEquals(140, s.delay)
+        assertEquals(220, s.delay)
         assertEquals(FastOutSlowInEasing, s.easing)
         // 与整页位移同一次按键起算、位移曲线不变(R96 仍是 450 ms)
         assertEquals(450, GtvLayout.VMOTION_A_MS)
     }
 
-    @Test fun `R129 曲线——140 ms 前停在起点,0点9 约在 300 ms,390 ms 到满`() {
+    @Test fun `R129c 曲线——220 ms 前停在起点,0点9 约在 379 ms,470 ms 到满`() {
         val anim = TargetBasedAnimation(Theme.homeRowEnterSpec(), Float.VectorConverter, 0f, 1f)
         fun at(ms: Long) = anim.getValueFromNanos(ms * 1_000_000L)
         assertEquals(0f, at(0), 0f)
-        assertEquals(0f, at(140), 0.001f)
-        assertEquals(0.5f, at(228), 0.02f)
-        assertEquals(0.9f, at(299), 0.02f)
-        assertEquals(1f, at(390), 0.001f)
-        assertEquals(390L, anim.durationNanos / 1_000_000L)
+        assertEquals(0f, at(220), 0.001f)
+        assertEquals(0.5f, at(308), 0.02f)
+        assertEquals(0.9f, at(379), 0.02f)
+        assertEquals(1f, at(470), 0.001f)
+        assertEquals(470L, anim.durationNanos / 1_000_000L)
         // 单调不减
         var prev = 0f
-        for (ms in 0L..400L step 10) { val v = at(ms); assertTrue(v >= prev - 1e-6f); prev = v }
+        for (ms in 0L..480L step 10) { val v = at(ms); assertTrue(v >= prev - 1e-6f); prev = v }
     }
 
     @Test fun `下键——下一行静止时恒在屏外,从 0 淡入(三档 × 标题开关 × 三种屏高 × 前几行)`() {
