@@ -978,7 +978,7 @@ object GtvLayout {
     /**
      * **Ruling R129(2026-09-29,Gordon:「照 Google」)**:首页上下换行时,**新焦点行**的进场淡入要等多久(ms)。
      * 从按键后整页位移([VMOTION_A_MS] 450 ms)起步的同一刻算起,这段时间里新焦点行的进场乘子停在起点
-     * (通常是 0),之后按 `tween(`[ROW_ENTER_FADE_MS]`, FastOutSlowIn)` 淡到 1([Theme.homeRowEnterSpec])。位移曲线不变。
+     * (通常是 0),之后按 `tween(`[ROW_ENTER_FADE_MS]`)` 淡到 1([Theme.homeRowEnterSpec];R129e 起匀速,首版是 FastOutSlowIn)。位移曲线不变。
      *
      * 依据:`docs/design/vertical-motion/2026-09-29-google-row-entry.md`(`unitedu-gtv` 上的 launcherx,`-gpu host`
      * 录屏 ≈ 52 fps、mp4 pts + 模板匹配):上键两次,新焦点行在整页开始动后 **+133 / +150 ms** 才第一次被找到
@@ -993,7 +993,7 @@ object GtvLayout {
      */
     const val ROW_ENTER_DELAY_MS = 220
 
-    /** **R129**:新焦点行进场淡入的时长(ms),曲线 `FastOutSlowInEasing`,在 [ROW_ENTER_DELAY_MS] 之后起步。依据同上。
+    /** **R129**:新焦点行进场淡入的时长(ms),在 [ROW_ENTER_DELAY_MS] 之后起步(首版曲线 `FastOutSlowInEasing`,R129e 起匀速)。依据同上。
      *  **R129d(2026-09-29 Gordon:「淡入的时机 OK,但淡入的速度可以再慢一些」)起 250 → 400**:220 ms 起步、620 ms 到满。
      *  **R129e(同日,Gordon 对 R129d「没有感受到变化」)起 400 → 600,曲线改匀速**([Theme.homeRowEnterSpec]):
      *  0.5 在 520 ms、0.9 在 760 ms、820 ms 到满(R129d 电视实测 0.5 ≈ 370 ms、0.9 ≈ 570 ms)。

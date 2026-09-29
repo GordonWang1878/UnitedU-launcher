@@ -49,7 +49,7 @@ data class Settings(
      */
     val wallpaperFile: String = "",
     // (「壁纸自动切换」wallpaperRotateMs / wallpaperRotatedAt 2026-09-23 删掉,gtv spec R61;旧文件里的键按未知键忽略。)
-    /** 模糊 0–100,步 10。 */
+    /** 模糊 0–50,步 5(R119;见 [WALLPAPER_BLUR_MAX] / [WALLPAPER_BLUR_STEP])。 */
     val wallpaperBlur: Int = 0,
     /** 亮度 −50…+50,步 10:0 = 原片,负 = 压暗,正 = 提亮(2026-09-16 Gordon 定,取代原 0–100「压暗」)。 */
     val wallpaperBrightness: Int = 0,

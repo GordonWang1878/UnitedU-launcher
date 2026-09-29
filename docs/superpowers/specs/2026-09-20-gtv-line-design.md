@@ -1,5 +1,6 @@
 # spec:gtv 线 —— 全 app 复刻 Google TV 外观
 
+> **现状(2026-09-29)**:gtv 线 2026-09-23 被选为正式界面,已并入 main,包名回到 `com.uniteduone.launcher`、应用名 UnitedU(WORKLOG 2026-09-23「1.0 定线」);下面 §0 第 4、5 条(分支 / 不推)与 §1(独立包名 `.gtv`)是开线时的历史。**现行规格以 §12 裁定索引与其后各节为准**(最新到 R129f);设置页逐页现状见 `docs/design/settings-inventory.md`。
 > **这是什么**:在 main 之外单开一条 UI 线,把 UnitedU 的全部界面换成 Google TV(`launcherx` 1.0.976298245)的外观,做完与现在的 UnitedU 并排比,由 Gordon 挑一套当 1.0。
 > **依据**:尺寸与画法来自实测报告 `docs/research/2026-09-20-google-tv-launcherx-measurements.md`;每一项取舍的裁定见 `docs/research/2026-09-20-gtv-vs-unitedu-comparison.md` §D,本文不重复论证,只写落地。
 > **对照图**:`docs/screenshots/gtv/`(带 `INDEX.md`)。

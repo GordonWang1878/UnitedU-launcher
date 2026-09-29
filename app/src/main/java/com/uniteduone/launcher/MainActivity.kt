@@ -32,7 +32,7 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.withContext
 
 /**
- * 桌面主界面。统筹待机计时、返回键不退出、齿轮菜单入口,以及设置页/选择器/引导等浮层的开关状态。
+ * 桌面主界面。统筹待机计时、返回键不退出、设置外壳(R69 起取代齿轮菜单)入口,以及设置页/选择器/引导等浮层的开关状态。
  * 视觉全在 HomeScreen / AppCard / Clock 里,规格见 docs/DESIGN-unitedu-open-source.md §4。
  */
 private const val PICK_WALLPAPER = "__wallpaper__"
