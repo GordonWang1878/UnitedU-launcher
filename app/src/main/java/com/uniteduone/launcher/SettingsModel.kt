@@ -81,6 +81,11 @@ data class ActionRow(
      * 那一行要把开关、来源(可能是别的应用的名字,没有资源 id)、启动时间拼成一串,单个资源 id 表达不了。
      */
     val hintParts: List<HintPart> = emptyList(),
+    /**
+     * 标签下方的一行小字(胶囊的第二行,与外壳第一层的说明小字同一个样式);null = 不画。
+     * 只有「关闭屏幕」行用它(R127):那一页在系统设置里没有直达入口,小字写去哪改。
+     */
+    val noteRes: Int? = null,
     val onActivate: () -> Unit,
 ) : RowSpec
 
@@ -115,6 +120,8 @@ class SettingsActions(
     val openScreensaverGallery: () -> Unit,
     /** M5:跳系统屏保设置页;解析不到退到系统设置首页,两个都打不开 toast(spec §3)。 */
     val openSystemScreensaver: () -> Unit,
+    /** R127:屏保组「关闭屏幕」行——跳系统设置(候选链 [SCREEN_OFF_SETTINGS_PAGES],今天只有首页)。 */
+    val openSystemScreenOff: () -> Unit = {},
     /** R93:屏保组第一行「立即开始屏保」(原顶栏屏保按钮):图库空 → 提示;有图 → 关设置、进自定义屏保。 */
     val startScreensaver: () -> Unit = {},
     // ~~restoreHiddenInputs~~(R92):布局组「恢复隐藏的输入源」行随首页输入源行一起删掉,挪到「输入源」页列表末尾。
@@ -149,9 +156,9 @@ fun settingsGroups(
     /** 屏保图库张数(M5:「屏保启动」行的提示要分「图库为空」);−1 = 设置页还没数完。 */
     screensaverImages: Int,
     /**
-     * 系统设置快照:「系统屏保 ▸」行的摘要与「通用」组的动画缩放提示行(R56/R57)。默认 [SystemUiStatus.UNKNOWN]——
-     * 既有调用点不关心,不必逐一改;UNKNOWN 下系统屏保行不显示值、
-     * 动画缩放那一项读不到 → 提示行出现并写「查看」。
+     * 系统设置快照:「系统屏保 ▸」行的摘要、「关闭屏幕」行的值(R127)与「通用」组的动画缩放提示行(R56/R57)。
+     * 默认 [SystemUiStatus.UNKNOWN]——既有调用点不关心,不必逐一改;UNKNOWN 下系统屏保行不显示值、
+     * 「关闭屏幕」行写「查看」、动画缩放那一项读不到 → 提示行出现并写「查看」。
      */
     system: SystemUiStatus = SystemUiStatus.UNKNOWN,
 ): List<GroupSpec> {
@@ -358,6 +365,17 @@ fun settingsGroups(
                     hintRes = null,
                     hintParts = screensaverSummary(system),
                     onActivate = { actions.openSystemScreensaver() },
+                ),
+                // R127(2026-09-29 Gordon):紧跟「系统屏保」。值读 secure sleep_timeout(「无操作 24 小时后」;读不到「查看」),
+                // 小字写系统里去哪改(索尼没有直达那一页的公开入口),确定键开系统设置首页。只读,不写任何系统设置。
+                // 常驻行(不是条件行),胶囊 id 就是行 id。
+                ActionRow(
+                    "screenOff",
+                    R.string.settings_screen_off,
+                    hintRes = null,
+                    hintParts = screenOffSummary(system.screenOff),
+                    noteRes = R.string.settings_screen_off_where,
+                    onActivate = { actions.openSystemScreenOff() },
                 ),
             ),
         ),

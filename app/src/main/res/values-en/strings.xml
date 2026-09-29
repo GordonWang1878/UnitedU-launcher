@@ -186,6 +186,13 @@
     <string name="settings_sys_never">Never</string>
     <string name="settings_sys_minutes">%1$d min</string>
     <string name="settings_sys_hours">%1$d hr</string>
+    <!-- R127: Screensaver group "Screen Off" row (reads secure sleep_timeout, OK opens system settings); the path uses Sony TvSettings' English labels -->
+    <string name="settings_screen_off">Screen Off</string>
+    <string name="settings_screen_off_where">Change in System → Power &amp; Energy → Turn off display</string>
+    <string name="settings_sys_idle_hours">After %1$d hr idle</string>
+    <string name="settings_sys_idle_minutes">After %1$d min idle</string>
+    <string name="settings_sys_idle_hours_minutes">After %1$d hr %2$d min idle</string>
+    <string name="settings_sys_idle_seconds">After %1$d s idle</string>
     <string name="settings_sys_anim_scale">System Animation Scale</string>
     <string name="settings_sys_anim_slower">%1$s×, UI animations run slower</string>
     <string name="settings_sys_anim_faster">%1$s×, UI animations run faster</string>

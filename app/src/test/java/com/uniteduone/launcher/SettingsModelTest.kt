@@ -25,6 +25,7 @@ class SettingsModelTest {
             applyLanguage = { lang -> languages += lang },
             openScreensaverGallery = { fired += "openScreensaverGallery" },
             openSystemScreensaver = { fired += "openSystemScreensaver" },
+            openSystemScreenOff = { fired += "openSystemScreenOff" },
             startScreensaver = { fired += "startScreensaver" },
             openSystemAnimationSettings = { fired += "openSystemAnimationSettings" },
         )
@@ -49,8 +50,8 @@ class SettingsModelTest {
     @Test fun rowCountsPerGroup() {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
         // 布局 1 动作(R69 编辑分栏)+ 2(R92 删掉「输入源行」开关)+ 3 卡片色彩滑块(R120 从外观挪来)/ 通用 7(R60 手机传输挪进来)+ 动画缩放条件行(默认 UNKNOWN = 读不到 → 出「查看」)/
-        // 外观 1 动作 + 2 壁纸滑块(自动切换 R61 删掉)+ 2 主题(主题化卡片 R58 删掉;卡片淡化 R70 / 不透明度 R86 三条 R120 挪走)/ 屏保 1 动作(R93 立即开始屏保)+ 2 控件 + 2 动作
-        assertEquals(listOf(6, 8, 5, 5), g.map { it.rows.size })
+        // 外观 1 动作 + 2 壁纸滑块(自动切换 R61 删掉)+ 2 主题(主题化卡片 R58 删掉;卡片淡化 R70 / 不透明度 R86 三条 R120 挪走)/ 屏保 1 动作(R93 立即开始屏保)+ 2 控件 + 3 动作(R127 关闭屏幕)
+        assertEquals(listOf(6, 8, 5, 6), g.map { it.rows.size })
     }
 
     @Test fun rowIdsAreUnique() {
@@ -184,11 +185,12 @@ class SettingsModelTest {
         (row(g, "restoreDefaults") as ActionRow).onActivate()
         (row(g, "screensaverGallery") as ActionRow).onActivate()
         (row(g, "systemScreensaver") as ActionRow).onActivate()
+        (row(g, "screenOff") as ActionRow).onActivate()
         (row(g, "startScreensaver") as ActionRow).onActivate()
         assertEquals(
             listOf(
                 "openEdit", "pickWallpaper", "openImport", "setDefaultHome", "restoreDefaults",
-                "openScreensaverGallery", "openSystemScreensaver", "startScreensaver",
+                "openScreensaverGallery", "openSystemScreensaver", "openSystemScreenOff", "startScreensaver",
             ),
             r.fired,
         )
@@ -208,8 +210,8 @@ class SettingsModelTest {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
         val ss = g.first { it.id == GroupId.SCREENSAVER }.rows
         assertEquals(
-            // R93:「立即开始屏保」(原顶栏屏保按钮)放最上面
-            listOf("startScreensaver", "screensaverAfter", "screensaverInterval", "screensaverGallery", "systemScreensaver"),
+            // R93:「立即开始屏保」(原顶栏屏保按钮)放最上面;R127:「关闭屏幕」紧跟「系统屏保」
+            listOf("startScreensaver", "screensaverAfter", "screensaverInterval", "screensaverGallery", "systemScreensaver", "screenOff"),
             ss.map { it.id },
         )
         assertTrue(ss.first() is ActionRow)
@@ -330,8 +332,30 @@ class SettingsModelTest {
         val r = Recorder()
         val g = rowsWith(allNormal.copy(animatorScale = 1.25f), r)
         (row(g, "systemScreensaver") as ActionRow).onActivate()
+        (row(g, "screenOff") as ActionRow).onActivate()
         (row(g, "systemAnimationScale") as ActionRow).onActivate()
-        assertEquals(listOf("openSystemScreensaver", "openSystemAnimationSettings"), r.fired)
+        assertEquals(listOf("openSystemScreensaver", "openSystemScreenOff", "openSystemAnimationSettings"), r.fired)
+    }
+
+    /**
+     * R127:「关闭屏幕」常驻在「系统屏保」正下方;值来自 sleep_timeout 的快照(一段),小字写去哪改;
+     * 快照读不到(UNKNOWN)时值是「查看」、行照样在(不是条件行)。
+     */
+    @Test fun screenOffRowCarriesSleepTimeoutAndWhereToChange() {
+        val g = rowsWith(allNormal.copy(screenOff = TimeoutDisplay.Hours(24)))
+        val ss = g.first { it.id == GroupId.SCREENSAVER }.rows.map { it.id }
+        assertEquals(listOf("systemScreensaver", "screenOff"), ss.takeLast(2))
+        val row = row(g, "screenOff") as ActionRow
+        assertEquals(R.string.settings_screen_off, row.labelRes)
+        assertNull(row.hintRes)
+        assertEquals(listOf(HintPart.Res(R.string.settings_sys_idle_hours, listOf(24))), row.hintParts)
+        assertEquals(R.string.settings_screen_off_where, row.noteRes)
+        val never = row(rowsWith(allNormal.copy(screenOff = TimeoutDisplay.Never)), "screenOff") as ActionRow
+        assertEquals(listOf(HintPart.Res(R.string.settings_sys_never)), never.hintParts)
+        val unknown = row(rowsWith(SystemUiStatus.UNKNOWN), "screenOff") as ActionRow
+        assertEquals(listOf(HintPart.Res(R.string.settings_sys_view)), unknown.hintParts)
+        // 其余动作行都不带小字
+        assertTrue(rowsOf(g).filterIsInstance<ActionRow>().filter { it.id != "screenOff" }.all { it.noteRes == null })
     }
 
     // ---- R69 / R70 / R71:设置页外壳用到的模型部分 ----

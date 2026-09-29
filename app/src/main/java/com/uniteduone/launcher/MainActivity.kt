@@ -428,6 +428,11 @@ class MainActivity : ComponentActivity() {
                     // R93:屏保组「立即开始屏保」(原顶栏屏保按钮)。
                     startScreensaver = ::startScreensaverNow,
                     openSystemScreensaver = { openSystemScreensaverSettings() },
+                    // R127:屏保组「关闭屏幕」行 → 系统设置(同一套候选链 + 弹回检测;索尼没有直达「关闭显示屏」的入口,
+                    // 今天链上只有首页)。回来时 onResume 的 focusNonce++ 让外壳落回这一行、并重读 sleep_timeout。
+                    openSystemScreenOff = {
+                        openSystemPage(SCREEN_OFF_SETTINGS_PAGES, R.string.toast_system_settings_unavailable)
+                    },
                     // ui-pending #16:「系统」组动画缩放提示行 → 开发者选项(同一套候选链 + 弹回检测)。
                     openSystemAnimationSettings = {
                         openSystemPage(ANIMATION_SETTINGS_PAGES, R.string.toast_system_settings_unavailable)
