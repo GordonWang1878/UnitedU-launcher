@@ -28,14 +28,14 @@
 | 壁纸处理缓存 `cache/wallpapers/<hash>.jpg` | `Wallpapers.processed`(IO) | 临时文件名由 key 派生,同 key 的两次渲染会往同一个 `.tmp` 里交错写出半张 JPEG(Android 能把截断的 JPEG 解成下半截发灰的图) | **本轮改走 `writeFileAtomically`**。现在只有一个 `Wallpaper` 组合会调它,实际触发概率很低 |
 | 内置壁纸铺入 `library/wallpapers/unitedu-*.jpg` + `.seeded` | `Wallpapers.seedBuiltins`(IO) | 清单目前为空,这段代码不会执行 | 铺图改走 `writeFileAtomically`;`.seeded` 用的是 `writeText` 直接写(不是原子写),写坏的最坏后果是补铺一次,**没改** |
 | 旧壁纸 / 旧屏保迁移(`wallpaper.jpg` → library、`screensaver.jpg` → library) | `Wallpapers.prepare` / `scanScreensaverLibrary`(IO) | 一次性同卷 rename,旧文件名以后不再有人写 | 无需修 |
-| 上传 APK `cache/apk/upload.apk` | `UploadServer.serveApk`(请求线程) | 路径固定:两个 APK 上传并发时,后到的会覆盖或删掉先到的文件,而系统安装器可能还在读。只是缓存,不丢用户数据;安装器会显示包信息,装错也看得见 | **没改**(见下面「没改的」) |
+| 上传 APK `cache/apk/upload.apk` | `UploadServer.serveApk`(请求线程) | 路径固定:两个 APK 上传并发时,后到的会覆盖或删掉先到的文件,而系统安装器可能还在读。只是缓存,不丢用户数据;安装器会显示包信息,装错也看得见 | ~~没改~~ → **2026-09-30 已修**(Codex 评审 P2):每次上传独占 `upload-<唯一名>.apk`,复用 `UpdateFiles` 登记簿(前缀 `upload-`),交给安装器的文件本进程内不删、下次开服务清扫 |
 | 更新包 `cache/apk/update-<uuid>.{part,apk}` | `Update.download`(IO) | `UpdateFiles` 已经做到每次独立文件名 + 进程内登记簿 + 锁内 promote 和 sweep | 无需修 |
 | NanoHTTPD multipart 临时文件 `cache/upload/` | NanoHTTPD | 每个请求独立;开服时清掉超过 60 s 的 | 无需修 |
 | 屏保视频原始上传临时文件 `cache/upload/raw*.part`(R103,2026-09-27) | `UploadServer.serveRawUpload`(请求线程) | 每次 `File.createTempFile` 独立命名;按 Content-Length 流式写入、fsync;`finally` 删除;校验过后经 `saveIntoLibrary` 移入(同卷 rename,跨卷回落 `writeFileAtomically`) | 新增即按铁律写;进程被杀留下的由开服 `sweepStale`(> 60 s)清掉。模拟器实测 300 MB 上传 5 s、Java 堆全程 ~7 MB、上传后目录为空 |
 
 ## 没改的,以及理由
 
-- **`upload.apk` 固定路径**:要彻底修就得给每次上传一个独立文件名,再决定什么时候删(安装器读完的时间我们拿不到)。这就要重做一套 `UpdateFiles` 那样的登记簿,改动面和收益不成比例:触发条件是两个 APK 并发上传,而且最坏后果只是这次安装失败或弹窗包信息不对,用户看得见、可以重试。
+- ~~**`upload.apk` 固定路径**~~(2026-09-30 已修,见上表;登记簿直接复用 `UpdateFiles` 加前缀参数,改动面比当时估计的小):要彻底修就得给每次上传一个独立文件名,再决定什么时候删(安装器读完的时间我们拿不到)。这就要重做一套 `UpdateFiles` 那样的登记簿,改动面和收益不成比例:触发条件是两个 APK 并发上传,而且最坏后果只是这次安装失败或弹窗包信息不对,用户看得见、可以重试。
 - **`.seeded` 标记**:内置壁纸清单目前为空,这段代码不会执行;写坏的最坏后果是多补铺一次。
 - **`handlePick` 在主线程做文件 IO**:这是性能问题,不在本轮范围内。
 

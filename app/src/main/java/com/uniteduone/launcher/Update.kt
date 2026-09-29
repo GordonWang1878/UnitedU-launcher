@@ -295,14 +295,20 @@ object Update {
  * 交给安装器的文件**本进程内不再注销**:安装器经 FileProvider 异步读它,什么时候读完我们无从得知;
  * 它会在下一次冷启动(包括更新成功后新进程的那一次)被 [sweep] 清掉。
  */
-class UpdateFiles(private val dir: File) {
+class UpdateFiles(
+    private val dir: File,
+    /** 预留文件名的前缀;手机传 APK(M6)复用这个登记簿时是 `upload-`(2026-09-30 Codex 评审 P2)。 */
+    private val prefix: String = "update-",
+    /** [sweep] 只碰哪些文件名(未登记的才删)。 */
+    private val owns: (String) -> Boolean = ::isUpdateFileName,
+) {
     private val inUse = HashSet<String>()
 
     /** 预留一个独占文件名并登记。只动内存,不碰磁盘(主线程可调)。 */
     fun reserve(suffix: String): File = synchronized(this) {
         var file: File
         do {
-            file = File(dir, "update-" + UUID.randomUUID() + suffix)
+            file = File(dir, prefix + UUID.randomUUID() + suffix)
         } while (file.name in inUse)
         inUse += file.name
         file
@@ -324,7 +330,7 @@ class UpdateFiles(private val dir: File) {
 
     /** 删掉目录里所有**未登记**的更新文件([isUpdateFileName]),返回删掉的个数。目录不存在返回 0。 */
     fun sweep(): Int = synchronized(this) {
-        dir.listFiles()?.count { it.isFile && isUpdateFileName(it.name) && it.name !in inUse && it.delete() } ?: 0
+        dir.listFiles()?.count { it.isFile && owns(it.name) && it.name !in inUse && it.delete() } ?: 0
     }
 
     fun isInUse(file: File): Boolean = synchronized(this) { file.name in inUse }

@@ -51,12 +51,13 @@ class UploadServer(
 
     /**
      * 开服前扫一遍上一条命留下的垃圾:进程被杀在安装流程中间时(系统安装器在前台,我们在后台被回收),
-     * `cacheDir/apk/upload.apk` 与 multipart 临时文件都没人删,几十上百 MB 就那么占着。
+     * `cacheDir/apk/upload-*.apk`(旧版是固定的 upload.apk)与 multipart 临时文件都没人删,几十上百 MB 就那么占着。
      * 临时文件按 60 s 老化判定:本轮正在传的文件由 `TempFileManager.clear()` 自己收,
      * 不能被同一进程里后开的服务误删——不过这两件事本就不会同时发生(服务寿命 = 导入页寿命)。
      */
     private fun sweepStale() = runCatching {
-        File(File(ctx.cacheDir, "apk"), "upload.apk").delete()
+        // 手机传来的 APK:未登记的(上一条命留下的、上一版固定名的 upload.apk)删;本进程交给过安装器的仍登记着,不碰
+        uploadApks(ctx).sweep()
         val cutoff = System.currentTimeMillis() - 60_000
         tmpDir.listFiles()?.forEach { if (it.isFile && it.lastModified() < cutoff) it.delete() }
         // 跨卷回落复制途中被杀、留在图库里的临时文件(见 saveIntoLibrary);60 s 内的可能正在写,不碰
@@ -260,7 +261,7 @@ class UploadServer(
     }
 
     /**
-     * 传 APK:存到 cacheDir/apk/upload.apk(FileProvider 只开放这个目录)→ 校验是 APK →
+     * 传 APK:存到 cacheDir/apk/upload-<唯一名>.apk(FileProvider 只开放这个目录;每次上传独占一个文件,见 [uploadApks])→ 校验是 APK →
      * 主线程调 [ApkInstaller.install](startActivity 不能在请求线程)→ 把结果告诉手机。
      * STARTED 路径的 [onNotice] 在 `startActivity` **之前**、同一个主线程回合里调用——先撑开
      * `suppressStopUntil` 窗口再放系统安装器出场,不然安装器自己的 ON_STOP 可能抢在窗口插上之前
@@ -292,9 +293,13 @@ class UploadServer(
         val tmpPath = files["apk"] ?: return json(Response.Status.BAD_REQUEST, jsonFail("invalid"))
         val tmp = File(tmpPath)
         if (tmp.length() > MAX_APK_BYTES) { tmp.delete(); return json(Response.Status.OK, jsonFail("size")) }
-        val dst = File(File(ctx.cacheDir, "apk").also { it.mkdirs() }, "upload.apk")
-        if (!moveInto(tmp, dst)) { dst.delete(); return json(Response.Status.OK, jsonFail("write")) }
-        val info = ApkInstaller.archiveInfo(ctx, dst) ?: run { dst.delete(); return json(Response.Status.OK, jsonFail("invalid")) }
+        // 每次上传一个独占文件(2026-09-30 Codex 评审 P2):原来都写固定的 upload.apk,两台手机同时传时,
+        // 后一个请求会在前一个解析完、安装器还没读之前把文件换掉,失败分支还会删掉别人的文件。
+        // 交给安装器的文件本进程内不注销(安装器经 FileProvider 异步读,读完时刻不可知),下次开服务的 sweep 清。
+        val apks = uploadApks(ctx)
+        val dst = apks.reserve(".apk").also { it.parentFile?.mkdirs() }
+        if (!moveInto(tmp, dst)) { apks.release(dst); return json(Response.Status.OK, jsonFail("write")) }
+        val info = ApkInstaller.archiveInfo(ctx, dst) ?: run { apks.release(dst); return json(Response.Status.OK, jsonFail("invalid")) }
         val task = java.util.concurrent.FutureTask {
             if (!isAlive || !isForeground()) return@FutureTask ApkInstaller.Result.BACKGROUND
             onNotice(R.string.import_apk_started)
@@ -310,7 +315,7 @@ class UploadServer(
             }
             ApkInstaller.Result.INVALID -> json(Response.Status.OK, jsonFail("invalid"))
             // 没装,暂存文件立刻删掉:窗口没被续,页面照原到期时间关,这个文件也不该留到下次。
-            ApkInstaller.Result.BACKGROUND -> { dst.delete(); json(Response.Status.OK, jsonFail("background")) }
+            ApkInstaller.Result.BACKGROUND -> { apks.release(dst); json(Response.Status.OK, jsonFail("background")) }
         }
     }
 
@@ -485,4 +490,19 @@ fun webStringsJson(ctx: Context): String {
     )
     return (keys.mapValues { ctx.getString(it.value) } + plurals).entries
         .joinToString(",", "{", "}") { (k, v) -> "${jsonStr(k)}:${jsonStr(v)}" }
+}
+
+/** 手机传来的 APK 的文件名:每次上传 `upload-<唯一名>.apk`,以及旧版固定名 `upload.apk`(清扫时一并清掉)。 */
+fun isUploadApkName(name: String): Boolean =
+    name == "upload.apk" || (name.startsWith("upload-") && name.endsWith(".apk"))
+
+@Volatile private var uploadApkRegistry: UpdateFiles? = null
+
+/**
+ * `cacheDir/apk/` 里手机传 APK 的**进程内唯一**登记簿(与检查更新的 [Update.files] 同一个类、同一个目录,
+ * 前缀不同、清扫互不越界)。进程内唯一的理由同 [Update.files]:导入页可能在两个 MainActivity 实例里各开一次。
+ */
+fun uploadApks(ctx: Context): UpdateFiles = uploadApkRegistry ?: synchronized(UploadServer::class.java) {
+    uploadApkRegistry ?: UpdateFiles(File(ctx.applicationContext.cacheDir, "apk"), "upload-", ::isUploadApkName)
+        .also { uploadApkRegistry = it }
 }

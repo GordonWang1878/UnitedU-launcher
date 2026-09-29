@@ -1664,3 +1664,7 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 
 **2026-09-30**
 - **全量文档更新 + 项目体检**(Gordon:更新所有文档、做体检、提交,之后交 GPT 做 Code Review)。两个代理并行:文档对齐(README 按现状重写并补「从源码构建」、DESIGN 标注被取代处、CLAUDE.md 补 `-gpu host` 录屏 / 离屏图层裁切 / 「抄动效先对照终态」、settings-inventory / ui-pending / builtin-assets / 动效实测文档校正;新增评审导读 `docs/REVIEW-GUIDE.md`)与体检(报告 `docs/design/health-check-2026-09-29.md`)。体检结论:构建 + 590 单测绿、无密钥入库、焦点与落盘铁律抽查无违规;欠账:`lintRelease` 22 个 Error(21 误报 + QUERY_ALL_PACKAGES 有意,`lintVitalRelease` 过)、无 Gradle wrapper、主线程少量文件 IO、超大组合函数(EditScreen 883 / HomeScreen 796 / onCreate 576 行)、局域网上传服务无鉴权(M6 已接受)。顺手修了 3 处过期代码注释(`GtvLayout` 淡入曲线、`Settings.wallpaperBlur` 范围、`MainActivity` 顶部「齿轮菜单」),只改注释,590 测试绿。未处理、留给评审 / 后续:死代码 `HeroClock`、`Theme.cardMetrics` 仅测试在用、spec R115 行对短名规则的旧描述。
+- **Codex(GPT)Code Review(基于 `4c7b2ea`)两条 P2,逐条核实均成立,已修**:
+  1. 编辑页连续保存会写回已卸载应用(`EditScreen.persist`):写盘成功后 `knownOnDisk` 被换成「这次写下的」,刚被 `dropRemovedElsewhere` 滤掉的已卸载包随之出集合;内存 `rows` 仍留着它(R67 看不见的包留原下标),第二次保存它被当成「本页新加」写回。修:`knownAfterWrite` = 旧集合 ∪ 写下的(只增不减);单测 `secondSaveDoesNotResurrectPackageRemovedElsewhere` 按 persist 真实顺序模拟两次保存。
+  2. 并发 APK 上传互相覆盖(`UploadServer.serveApk` 固定写 `cacheDir/apk/upload.apk`,NanoHTTPD 每请求一线程):后到的请求可在前一个解析后、安装器读取前换掉文件,失败 / 后台分支还会删掉别人的。修:`UpdateFiles` 加前缀 / 归属参数,手机传 APK 用独立登记簿 `uploadApks`(`upload-<UUID>.apk`),失败分支 `release`,交给安装器的不注销、下次开服务 `sweep`;两套前缀清扫互不越界(`UpdateFilesTest` 新增用例)。`persistence-audit.md` 里当初「没改」的那一行同步改为已修。
+  593 测试绿。均为静态审查结论,未在真机复现(并发上传需两台手机)。

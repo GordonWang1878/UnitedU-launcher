@@ -109,4 +109,23 @@ class UpdateFilesTest {
     @Test fun sweepOfAMissingDirectoryIsANoOp() {
         assertEquals(0, UpdateFiles(File(dir, "nope")).sweep())
     }
+
+    /** 2026-09-30 Codex 评审 P2:手机传 APK 复用同一个登记簿,每次上传独占文件;两套前缀清扫互不越界。 */
+    @Test fun uploadRegistryGivesDistinctFilesAndSweepsOnlyUnregisteredUploads() {
+        val uploads = UpdateFiles(dir, "upload-", ::isUploadApkName)
+        val a = uploads.reserve(".apk").apply { writeText("a") }
+        val b = uploads.reserve(".apk").apply { writeText("b") }
+        assertNotEquals(a.name, b.name)
+        assertTrue(isUploadApkName(a.name))
+        assertFalse(isUpdateFileName(a.name))
+        val legacy = File(dir, "upload.apk").apply { writeText("old") }
+        val stale = File(dir, "upload-stale.apk").apply { writeText("old") }
+        val update = File(dir, "update-x.apk").apply { writeText("u") }
+        assertEquals(2, uploads.sweep())
+        assertTrue(a.exists() && b.exists() && update.exists())
+        assertFalse(legacy.exists() || stale.exists())
+        // 检查更新那一套也不碰手机传的文件
+        UpdateFiles(dir).sweep()
+        assertTrue(a.exists() && b.exists())
+    }
 }

@@ -278,7 +278,8 @@ fun EditScreen(
                     dropRemovedElsewhere(snapshot, disk, knownOnDisk.get()) { Apps.isInstalled(ctx, it) }
                         .also { written = it }
                 }
-                if (landed) written?.let { w -> knownOnDisk.set(w.flatMapTo(HashSet()) { it.apps }) }
+                // 只增不减(knownAfterWrite):换成「这次写下的」会把刚滤掉的已卸载包从集合里丢掉,下一次写盘又写回去。
+                if (landed) written?.let { w -> knownOnDisk.set(knownAfterWrite(knownOnDisk.get(), w)) }
                 landed
             }
             if (!ok) android.widget.Toast.makeText(

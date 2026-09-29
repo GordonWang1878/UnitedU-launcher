@@ -81,6 +81,15 @@ internal fun dropRemovedElsewhere(
 }
 
 /**
+ * 一次写盘成功之后,「上次确知在盘上」的包集合怎么更新(2026-09-30 Codex 评审 P2):**只增不减** = 旧集合 ∪ 这次写下的。
+ * 原来直接换成「这次写下的」:第一次写盘按 [dropRemovedElsewhere] 滤掉了已卸载的包,集合里也随之没了它,
+ * 而编辑页内存里的 `rows` 仍留着它(看不见的包留原下标,R67);第二次写盘它就被当成「本页新加、还没落过盘」保留,
+ * 又写回了布局——以后重装会意外回到旧位置。只增不减之后,它每次都满足「曾在盘上、此刻不在、没装」,每次都被滤掉。
+ */
+internal fun knownAfterWrite(known: Set<String>, written: List<LayoutRow>): Set<String> =
+    written.flatMapTo(HashSet(known)) { it.apps }
+
+/**
  * 编辑页的一格要不要画(Ruling R67,2026-09-23:已卸载的应用不占位、不画「未安装」)。与首页 `buildRows` 同一口径:
  * 只画 `Apps.load` 认得出的(已安装、可启动)包。[checked] = 上一次 `Apps.load` 查过的包(null = 一次都还没查完),
  * [found] = 其中查到的。三种情况:

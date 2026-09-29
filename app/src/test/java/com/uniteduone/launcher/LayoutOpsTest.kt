@@ -1,6 +1,7 @@
 package com.uniteduone.launcher
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertSame
 import org.junit.Test
 
@@ -92,5 +93,27 @@ class LayoutOpsTest {
 
     @Test fun nothingRemovedElsewhereReturnsTheSameList() {
         assertSame(snap, dropRemovedElsewhere(snap, snap, setOf("a", "gone", "b", "c")) { false })
+    }
+
+    /**
+     * 2026-09-30 Codex 评审 P2:编辑页开着时某包被卸载、被别处清掉;第一次保存滤掉它,第二次保存不能再把它写回去。
+     * 按 EditScreen.persist 的真实顺序模拟两次保存:内存 rows 始终留着这个包(看不见的包留原下标)。
+     */
+    @Test fun secondSaveDoesNotResurrectPackageRemovedElsewhere() {
+        val rows = listOf(LayoutRow("VIDEO", apps = listOf("installed.app", "removed.app")))
+        var known = setOf("installed.app", "removed.app")          // 进页时读到的
+        var disk = listOf(LayoutRow("VIDEO", apps = listOf("installed.app")))  // 卸载接收器已把它从盘上清掉
+        val installed: (String) -> Boolean = { it == "installed.app" }
+        repeat(2) { n ->
+            val written = dropRemovedElsewhere(rows, disk, known, installed)
+            assertEquals("第 ${n + 1} 次保存", listOf("installed.app"), written.flatMap { it.apps })
+            disk = written
+            known = knownAfterWrite(known, written)
+        }
+        assertTrue("removed.app" in known)
+    }
+
+    @Test fun knownAfterWriteOnlyGrows() {
+        assertEquals(setOf("a", "b", "c"), knownAfterWrite(setOf("a", "b"), listOf(LayoutRow("X", apps = listOf("b", "c")))))
     }
 }
