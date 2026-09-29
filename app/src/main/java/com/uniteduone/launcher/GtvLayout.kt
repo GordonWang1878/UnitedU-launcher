@@ -992,6 +992,25 @@ object GtvLayout {
     /** **R129**:新焦点行进场淡入的时长(ms),曲线 `FastOutSlowInEasing`,在 [ROW_ENTER_DELAY_MS] 之后起步。依据同上。 */
     const val ROW_ENTER_FADE_MS = 250
 
+    /**
+     * **Ruling R129b(2026-09-29,Gordon 真机看 R129:「迟滞效果已经有了,但是还不够明显」)**:下键换行时,**旧焦点行**
+     * 先在这么多毫秒内(线性)淡到 0,停在 0,到 [ROW_ENTER_DELAY_MS] 再与新焦点行一起按 `tween(`[ROW_ENTER_FADE_MS]`,
+     * FastOutSlowIn)` 淡回 1([Theme.homeRowExitSpec])。R129 只照搬了 Google 的一半(新行晚一拍浮现),旧行却满透明度
+     * 一路滑到上一行的位置,「位置空一下」就没了。
+     *
+     * 依据:`docs/design/vertical-motion/2026-09-29-google-row-entry.md`「下键,旧焦点行往上离场」:Top picks → Your apps
+     * 旧焦点行第一帧(+10 ms)透明度 0.50、+27 ms 0.22、+43 ms 起找不到——几乎当场淡掉,原位置留空;约 +140 ms 后才在
+     * 上方重新出现。50 ms 线性 ≈ +10 ms 0.8、+27 ms 0.46、+43 ms 0.14、+50 ms 0(比 Google 略慢半拍,不至于一闪就没)。
+     * 上键不加(我们的几何下上一行静止全亮,见 [rowEnterStart])。
+     */
+    const val ROW_EXIT_FADE_MS = 50
+
+    /**
+     * **R129b**:这次换行要不要让旧焦点行先淡出。只在**下键**(新焦点行在旧行下面)时成立;上键、同一行都不成立。
+     * 触发的其余条件(卡片行之间、不在还原途中、不在移动态)与 R129 同一条,由 `HomeScreen` 的焦点回调判。
+     */
+    fun rowExitOnChange(oldRow: Int, newRow: Int): Boolean = newRow > oldRow
+
     /** **R129**「换行前看得见」的门槛:新焦点行换行前的实际透明度(位置淡出 × 进场乘子;在屏外算 0)低于它才淡入。
      *  取 0.5 = 规格原文「在顶部淡出带里透明度 < 0.5」。 */
     const val ROW_ENTER_VISIBLE_MIN = 0.5f

@@ -100,4 +100,43 @@ class RowEnterTest {
             assertTrue(start < GtvLayout.ROW_ENTER_VISIBLE_MIN)
         }
     }
+
+    // ---- R129b:下键时旧焦点行先淡出、停住,再与新行一起浮现 ----
+
+    @Test fun `R129b 只在下键时旧行淡出`() {
+        assertEquals(50, GtvLayout.ROW_EXIT_FADE_MS)
+        assertTrue(GtvLayout.rowExitOnChange(oldRow = 0, newRow = 1))
+        assertTrue(GtvLayout.rowExitOnChange(oldRow = 2, newRow = 3))
+        assertTrue(!GtvLayout.rowExitOnChange(oldRow = 1, newRow = 0))   // 上键不加
+        assertTrue(!GtvLayout.rowExitOnChange(oldRow = 1, newRow = 1))
+    }
+
+    @Test fun `R129b 曲线——50 ms 线性到 0,停到 140,之后与新行的淡入逐点相同,390 到满`() {
+        val exit = TargetBasedAnimation(Theme.homeRowExitSpec(), Float.VectorConverter, 1f, 1f)
+        val enter = TargetBasedAnimation(Theme.homeRowEnterSpec(), Float.VectorConverter, 0f, 1f)
+        fun ex(ms: Long) = exit.getValueFromNanos(ms * 1_000_000L)
+        fun en(ms: Long) = enter.getValueFromNanos(ms * 1_000_000L)
+        assertEquals(390L, exit.durationNanos / 1_000_000L)
+        assertEquals(1f, ex(0), 1e-6f)
+        assertEquals(0.5f, ex(25), 1e-3f)
+        assertEquals(0f, ex(50), 1e-6f)
+        assertEquals(0f, ex(100), 1e-6f)
+        assertEquals(0f, ex(140), 1e-6f)
+        for (ms in 140L..390L step 10) assertEquals("ms=$ms", en(ms), ex(ms), 1e-3f)
+        assertEquals(1f, ex(390), 1e-6f)
+    }
+
+    @Test fun `R129b 正在淡入的旧行从当前值往下走,不先跳高`() {
+        for (from in listOf(0f, 0.05f, 0.3f, 0.7f)) {
+            val exit = TargetBasedAnimation(Theme.homeRowExitSpec(), Float.VectorConverter, from, 1f)
+            var prev = from
+            for (ms in 0L..140L step 5) {
+                val v = exit.getValueFromNanos(ms * 1_000_000L)
+                assertTrue("from=$from ms=$ms v=$v", v <= prev + 1e-6f && v <= from + 1e-6f)
+                prev = v
+            }
+            assertEquals(0f, exit.getValueFromNanos(50L * 1_000_000L), 1e-6f)
+            assertEquals(1f, exit.getValueFromNanos(390L * 1_000_000L), 1e-6f)
+        }
+    }
 }

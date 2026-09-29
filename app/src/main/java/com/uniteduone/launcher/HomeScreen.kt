@@ -358,7 +358,8 @@ fun HomeScreen(
     /**
      * **Ruling R129(照 Google 首页实测,`docs/design/vertical-motion/2026-09-29-google-row-entry.md`)**:每行一个
      * 「进场乘子」,静止时恒 1。上下换行时**新焦点行**若换行前看不见(屏外,或淡出带里透明度 < 0.5),它的乘子从
-     * 换行前的实际透明度起步(常见是 0),停 140 ms 再 250 ms 淡到 1,与 450 ms 整页位移同一刻起算;其余行不动。
+     * 换行前的实际透明度起步(常见是 0),停 140 ms 再 250 ms 淡到 1,与 450 ms 整页位移同一刻起算。**R129b**:下键时
+     * **旧焦点行**从当前值 50 ms 淡到 0、停到 140 ms,再与新行同一条曲线淡回 1([startRowExit]);其余行不动。
      * 乘到行的图层 alpha 上(R53 位置淡出、R86 卡片透明度都在各自那一层,照旧相乘),只在绘制阶段读。
      *
      * **不是闩(铁律 7)**:乘子 < 1 只可能出现在一段正在跑的淡入里,而每段淡入的终点都是 1;一行的淡入只会被
@@ -374,12 +375,12 @@ fun HomeScreen(
      * 起点按**按键这一刻**的卡顶(静止卡顶 + 当前动画中的位移)与当前乘子算([GtvLayout.rowEnterStart]),
      * 在回调里同步写进乘子——下一帧画出来就是它,不会先画一帧满透明度再掉下去。
      */
-    fun startRowEnter(row: Int) {
+    /**
+     * 让 [row] 的乘子从 [from] 按 [spec] 走到 1。同一行正在跑的那段先取消(**只有同一行的新一段能取代旧一段**,
+     * 终点都是 1——R129 / R129b 的共同不变量)。[from] 在回调里同步写进乘子,下一帧画出来就是它。
+     */
+    fun runRowEnter(row: Int, from: Float, spec: androidx.compose.animation.core.AnimationSpec<Float>) {
         val state = rowEnter.getOrNull(row) ?: return
-        val top = GtvLayout.restCardTop(row, cardSize, showTitles, screenHeightDp) + shiftState.value.value
-        val from = GtvLayout.rowEnterStart(
-            top, screenHeightDp, state.floatValue, clearOfNewAppsHint = (loaded?.third ?: 0) > 0,
-        ) ?: return
         rowEnterJobs[row]?.cancel()
         state.floatValue = from
         rowEnterJobs[row] = rowEnterScope.launch {
@@ -387,10 +388,25 @@ fun HomeScreen(
             // 直接 animate 会比位移早一帧起步(2026-09-29 模拟器 mp4 pts 拟合:不等这一帧时淡入起点领先位移 ≈ 14 ms,
             // 等了之后 +1 ~ +3 ms)。先空等一帧对齐。
             withFrameNanos { }
-            androidx.compose.animation.core.animate(from, 1f, animationSpec = Theme.homeRowEnterSpec()) { v, _ ->
-                state.floatValue = v
-            }
+            androidx.compose.animation.core.animate(from, 1f, animationSpec = spec) { v, _ -> state.floatValue = v }
         }
+    }
+    fun startRowEnter(row: Int) {
+        val state = rowEnter.getOrNull(row) ?: return
+        val top = GtvLayout.restCardTop(row, cardSize, showTitles, screenHeightDp) + shiftState.value.value
+        val from = GtvLayout.rowEnterStart(
+            top, screenHeightDp, state.floatValue, clearOfNewAppsHint = (loaded?.third ?: 0) > 0,
+        ) ?: return
+        runRowEnter(row, from, Theme.homeRowEnterSpec())
+    }
+    /**
+     * **R129b**:下键换行时的**旧焦点行**——从它**当前的**乘子(通常 1;正在 R129 淡入时是那个中间值,只往下走、不先跳高)
+     * 线性 50 ms 淡到 0,停到 140 ms,再与新焦点行同一条曲线淡回 1([Theme.homeRowExitSpec])。「旧的先走、位置空一下、
+     * 新的再浮现」里「旧的先走」这一半(Google 实测旧行 +43 ms 就找不到了)。
+     */
+    fun startRowExit(row: Int) {
+        val state = rowEnter.getOrNull(row) ?: return
+        runRowEnter(row, state.floatValue, Theme.homeRowExitSpec())
     }
     // **焦点看门狗。**判据取自真机日志:根节点的 onFocusChanged 里
     //   hasFocus=true && !isFocused  → 某个子节点持有焦点(正常)
@@ -729,8 +745,12 @@ fun HomeScreen(
                             // R129:卡片行之间真的换了行(用户按上 / 下,或丢焦点后落到别的行),新焦点行按规则淡入。
                             // 与下面 tgtRow 同一条件:还原途中(Compose 抢先给的 (0,0)、浮层关掉后的回送)与移动态不算。
                             // 顶栏 ↔ 行 0 不会走到这里的判据成立(药丸拿到焦点时 activeRow 已写成 0)。
+                            // R129b:下键时旧焦点行先淡出、停一下,再与新行一起浮现(上键不加)。
                             val prevRow = activeRow.coerceIn(0, rows.lastIndex.coerceAtLeast(0))
-                            if (rowIndex != prevRow && !restoring && movingNow == null) startRowEnter(rowIndex)
+                            if (rowIndex != prevRow && !restoring && movingNow == null) {
+                                startRowEnter(rowIndex)
+                                if (GtvLayout.rowExitOnChange(prevRow, rowIndex)) startRowExit(prevRow)
+                            }
                             // 纵向锚定照常跟着焦点走:被搬的卡换到哪一行,那一行就被推到锚点上
                             activeRow = rowIndex
                             // 还原过程中不更新目标:否则 Compose 抢先把焦点给了第一张卡,
