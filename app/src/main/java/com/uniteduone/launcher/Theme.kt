@@ -223,6 +223,17 @@ object Theme {
     }
 
     /**
+     * **Ruling R129**:首页换行时新焦点行的进场乘子(起点 → 1)的规格——先停 [GtvLayout.ROW_ENTER_DELAY_MS],
+     * 再 `tween(`[GtvLayout.ROW_ENTER_FADE_MS]`, FastOutSlowIn)`。与整页位移([homeVerticalShiftSpec])在同一次按键里
+     * 同时起算;位移曲线不受影响。数值依据见 [GtvLayout.ROW_ENTER_DELAY_MS]。
+     */
+    fun homeRowEnterSpec(): androidx.compose.animation.core.TweenSpec<Float> = androidx.compose.animation.core.tween(
+        GtvLayout.ROW_ENTER_FADE_MS,
+        delayMillis = GtvLayout.ROW_ENTER_DELAY_MS,
+        easing = androidx.compose.animation.core.FastOutSlowInEasing,
+    )
+
+    /**
      * 首页行图标焦点色(0→1 进度)的规格:与 [homeVerticalShiftSpec] 同一条曲线、同起同止(R47 的约定)。
      * 默认时返回的就是 [rowIconFocusSpec]。
      */
