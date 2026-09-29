@@ -560,5 +560,5 @@ cap-height 反推值——但那是 Google 快捷设置面板里刻意放大的�
 | R129c | 2026-09-29 Gordon | 新焦点行淡入延迟 140 → 220 ms,旧行不动 | 现行;Gordon:「淡入的时机 OK」 |
 | R129d | 2026-09-29 Gordon | 淡入时长 250 → 400 ms(「淡入的速度可以再慢一些」),220 ms 起步、620 ms 满 | 被 R129e 取代:Gordon「没有感受到变化」;A95L 录屏(被动,Gordon 自己按键)证实已生效——0 到 ≈ 230 ms、0.44 在 367 ms、0.62 在 400 ms、0.88 在 534 ms;FastOutSlowIn 前 35 % 时长就到 0.5,拉长只改了画面停下后的尾巴 |
 | R129e | 2026-09-29 Gordon | 淡入 400 → 600 ms,曲线 FastOutSlowIn → 匀速:0.5 在 520 ms、0.9 在 760 ms、820 ms 满 | Gordon「好了一些,但还是不够」→ R129f |
-| R129f | 2026-09-29 Gordon | 淡入 600 → 900 ms 匀速(0.5 在 670、0.9 在 1030、1120 ms 满);**修行尾卡被裁**:行的离屏图层原来只上下撑大 `APP_FOCUS_GLOW_DP`,焦点落到行尾那张卡时放大 + 描边 + 柔光越过行框右缘,淡入期间被裁(Gordon:Prime Video、emotn),现四边都撑大、外层仍按原尺寸上报。慢放对比 `docs/screenshots/r129f-row-end-clip-before-after.jpg`(上改前、下改后) | 现行;A95L 待 Gordon 看 |
+| R129f | 2026-09-29 Gordon | 淡入 600 → 900 ms 匀速(0.5 在 670、0.9 在 1030、1120 ms 满);**修行尾卡被裁**:行的离屏图层原来只上下撑大 `APP_FOCUS_GLOW_DP`,焦点落到行尾那张卡时放大 + 描边 + 柔光越过行框右缘,淡入期间被裁(Gordon:Prime Video、emotn),现四边都撑大、外层仍按原尺寸上报。慢放对比 `docs/screenshots/r129f-row-end-clip-before-after.jpg`(上改前、下改后) | 现行;Gordon 电视上看过:截断修好、淡入可以,R129 线定案 |
 
