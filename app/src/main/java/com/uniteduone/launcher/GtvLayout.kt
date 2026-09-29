@@ -993,8 +993,9 @@ object GtvLayout {
      */
     const val ROW_ENTER_DELAY_MS = 220
 
-    /** **R129**:新焦点行进场淡入的时长(ms),曲线 `FastOutSlowInEasing`,在 [ROW_ENTER_DELAY_MS] 之后起步。依据同上。 */
-    const val ROW_ENTER_FADE_MS = 250
+    /** **R129**:新焦点行进场淡入的时长(ms),曲线 `FastOutSlowInEasing`,在 [ROW_ENTER_DELAY_MS] 之后起步。依据同上。
+     *  **R129d(2026-09-29 Gordon:「淡入的时机 OK,但淡入的速度可以再慢一些」)起 250 → 400**:220 ms 起步、620 ms 到满。 */
+    const val ROW_ENTER_FADE_MS = 400
 
     /** **R129**「换行前看得见」的门槛:新焦点行换行前的实际透明度(位置淡出 × 进场乘子;在屏外算 0)低于它才淡入。
      *  取 0.5 = 规格原文「在顶部淡出带里透明度 < 0.5」。 */
