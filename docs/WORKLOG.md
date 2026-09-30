@@ -1683,3 +1683,6 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
   - 引导在「已有布局 + `onboardingDone = false`」下走完会把布局写回默认三行(这是我为了看引导手动造的状态,真实用户到不了:老用户缺键按已完成算);测试布局已重新推回。
   - 未验证:电视上没看过(装包后只做了 install + 编译,未按键)。
   - 我自己的裁定(Gordon 未看,可回退):确认页整屏化、选图页不再透出首页、引导语言步改四颗胶囊、淡入淡出沿用设置外壳的 500 / 400 / 300 ms、所有应用页卡片名 13 → 14 sp。
+  - 提交 `1b1d1c5`,装 A95L(`adb install` Success,APK md5 与电视上的 `base.apk` 一致)。装包时电视 `mWakefulness=Asleep`,未按任何键。编译:`compile -m speed-profile -f` 返回 Success 后立刻读 `dumpsys package dexopt` 是 `status=verify`(reason=cmdline);再跑一次 `compile -m speed -f` 后读到 `status=speed-profile`。原因没有查清(可能是第一次读早了,也可能刚装完没有画像);**装完要读一次状态确认,不要只看命令返回 Success**。
+  - 模拟器收尾:15 个占位应用 `test.dummy.app*` 全部卸载,界面语言改回跟随系统,`unitedu-tv`(5560)已关;`long_press_timeout` 400、`animator_duration_scale` 缺省。
+  - 待 Gordon 电视上看:R134–R136(连同上一轮的 R130–R133)。未推送(等「推」):本地领先远端 9 个提交(含本条记录)。
