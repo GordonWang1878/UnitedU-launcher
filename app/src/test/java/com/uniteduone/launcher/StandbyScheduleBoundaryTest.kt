@@ -3,6 +3,7 @@ package com.uniteduone.launcher
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Ignore
 import org.junit.Test
 
 /**
@@ -49,5 +50,17 @@ class StandbyScheduleBoundaryTest {
         assertEquals(StandbyPlan(Long.MAX_VALUE, null), standbyPlan(Long.MAX_VALUE, 0L))
         assertEquals(StandbyPlan(null, Long.MAX_VALUE), standbyPlan(0L, Long.MAX_VALUE))
         assertEquals(StandbyPlan(null, Long.MAX_VALUE), standbyPlan(-5L, Long.MAX_VALUE))
+    }
+
+    /**
+     * 待机 + 屏保两个大值相加越过 Long.MAX_VALUE:现在绕成负数(standbyPlan(1, MAX) 的屏保时刻 = Long.MIN_VALUE,
+     * 比待机还早)。**走不到**:Settings 读盘时把两个值夹回合法档位表(最大 10 分 + 30 分);而且 MainActivity
+     * 只用差值 delay(screensaverAt − standbyAt),补码减法恰好还原出 screensaverAfterMs,电视上行为不变。
+     * 只是这个纯函数自己的返回值违反了「屏保不早于待机」;要不要改成饱和加法留给维护者定。
+     */
+    @Ignore("潜在溢出,Settings 的档位表使其不可达;是否改成饱和加法待定")
+    @Test fun hugeSumsSaturateInsteadOfWrappingIntoThePast() {
+        assertEquals(StandbyPlan(1L, Long.MAX_VALUE), standbyPlan(1L, Long.MAX_VALUE))
+        assertEquals(StandbyPlan(Long.MAX_VALUE, Long.MAX_VALUE), standbyPlan(Long.MAX_VALUE, Long.MAX_VALUE))
     }
 }
