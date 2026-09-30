@@ -1692,4 +1692,7 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
   - 三件补做:R137 名字表 `assets/builtin/names.txt` + `builtin_names_lang` 资源选列 + `BuiltinNamesTest`;R138 编辑页以残影多留一个淡入时长(菜单在里面原样开着,选择器在上面淡入)+ `OverlayStack` 换层垫不透明底;R139 应用内提示条 `AppToast.kt`(不在前台 / 打开原厂桌面那一条仍用系统 Toast)。
   - 端到端:`scripts/e2e/`(本轮写成、进仓库;`fixtures.py` 现造测试 APK 与上传素材,`run_all.py` 跑六段旅程)。整套回归(R137–R140 全部改完、第六位评审的修复之前的最后一版)**240/240 通过**:首页 35、编辑桌面 42、从手机添加 40、设置 82、所有应用 14、输入源 9、首次引导 18;单段调试时出的失败都是脚本自己的(选项层初始焦点在当前值、提示条里带着输入源名字、滑块胶囊标签更短等),已改脚本。第六位评审(只看 R137–R140 新代码)找到 1 条 Minor:「恢复默认」把语言改回跟随系统而重建时,提示条画在即将销毁的实例里、看不见了——改为经 Bundle 带到新实例、用新语言补发,模拟器实测(简体 → 恢复默认 → 英文界面上出现「Defaults restored」)。
   - 另一个会话在这期间重写了 main 的历史并推到 GitHub(剥离与产品无关的电视笔记,新顶端 `88432e4`);本轮的分支 `look-followups` 已快进到它之上再提交,文档里只用新提交号。
+  - 提交 `037787e`,快进并入 main;装 A95L(`adb install` Success,APK md5 与电视上 `base.apk` 一致)。编译:刚装完 `compile -m speed-profile -f` 读回仍是 `status=verify`(ART 在还没有画像时把 speed-profile 降成 verify,上一轮「读早了」的猜测不对),改跑 `compile -m speed -f` 后读回 `speed-profile`(已编译)。装包没有把 UnitedU 拉到前台(`RelaunchAfterUpdate` 日志:默认桌面且没有悬浮窗权限 → skip relaunch)。我没有向电视发任何按键。
+  - 模拟器收尾:测试包全部卸载(`scripts/e2e/fixtures.py --uninstall`),界面语言改回跟随系统,`unitedu-tv` 已关;临时 worktree `UnitedU-launcher-followups` 与分支 `look-followups` 已删。
+  - 待 Gordon 电视上看:R137–R140(连同 R130–R136)。Gordon 回「推」:`037787e` 与本条记录推到私有仓库(推前核对:没有「先不推」的内容,删掉了一句与产品无关的电视使用记录)。
 
