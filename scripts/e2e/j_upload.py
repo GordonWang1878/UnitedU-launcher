@@ -5,13 +5,14 @@ from lib import *
 from j_edit import open_settings
 
 H = ["-H", "X-Requested-With: UnitedU"]
-LOCAL = 18090
+# 每台模拟器一个本机端口(emulator-5560 → 18150):两台模拟器并行跑时互不抢端口(2026-09-30 测试轮)
+LOCAL = 18090 + (int(DEV.rsplit("-", 1)[1]) % 100 if DEV.startswith("emulator-") else 0)
 
 def forward_from_screen():
     s = screen()
     addr = next((t for t in s.texts() if re.search(r"\d+\.\d+\.\d+\.\d+:\d+", t)), None)
     port = int(re.search(r":(\d+)", addr).group(1)) if addr else None
-    adb("forward", "--remove-all")
+    adb("forward", "--remove", f"tcp:{LOCAL}")   # 只拆自己的:--remove-all 会把别的设备的转发一起拆掉
     if port: adb("forward", f"tcp:{LOCAL}", f"tcp:{port}")
     return port
 
@@ -129,7 +130,8 @@ def run():
     s = screen()
     check("回到图库,焦点落在视频", "e2e-clip" in s.label(), s.label())
     check("视频格有时长角标(▶ 0:03)", "▶" in s.label(), s.label())
-    key("ok"); time.sleep(0.8)
+    key("ok"); time.sleep(0.3)
+    # 名字只显示 3 s,而视频在放时 uiautomator 要等界面空闲,宿主负载高时一次读屏 2 s 多:先睡久了就读不到
     s = screen()
     check("全屏预览左下角写名字", any(t.startswith("e2e-clip") for t in s.texts()), s.texts()[:5])
     check("预览单个焦点", s.count_focused() == 1, s.count_focused())
