@@ -78,16 +78,31 @@ fun uploadKeys(fileKeys: Set<String>, paramKeys: Set<String>): List<String> =
             ),
         )
 
-/** a.jpg 已存在 → a-1.jpg → a-2.jpg … */
+/**
+ * a.jpg 已存在 → a-1.jpg → a-2.jpg …
+ *
+ * **比较不分大小写**(2026-09-30 测试轮 B-03):图库在 `/sdcard/Android/data/…` 下,Android 11+ 的外置存储是
+ * casefold 的(模拟器实测 `ls PHOTO.JPG` 找得到 photo.jpg)。按字面比较时 `BEACH.JPG` 被当成新名字,
+ * [saveIntoLibrary] 的 rename 当场盖掉已有的 `Beach.jpg`——用户的旧图没了,也没有任何提示。
+ * 折叠口径见 [nameFoldKey]。
+ */
 fun uniqueName(existing: Set<String>, name: String): String {
-    if (name !in existing) return name
+    val taken = existing.mapTo(HashSet()) { nameFoldKey(it) }
+    if (nameFoldKey(name) !in taken) return name
     val dot = name.lastIndexOf('.')
     val stem = if (dot > 0) name.substring(0, dot) else name
     val ext = if (dot > 0) name.substring(dot) else ""
     var i = 1
-    while ("$stem-$i$ext" in existing) i++
+    while (nameFoldKey("$stem-$i$ext") in taken) i++
     return "$stem-$i$ext"
 }
+
+/**
+ * 「文件系统眼里是不是同一个名字」的比较键:NFC 规范化 + 大小写折叠(先转大写再转小写,ß → SS → ss 这类也折到一起)。
+ * 近似 ext4 casefold(utf8 NFD + casefold)——多判成「重名」只会多加一个 `-1`,少判才会覆盖用户的文件。
+ */
+internal fun nameFoldKey(name: String): String =
+    java.text.Normalizer.normalize(name, java.text.Normalizer.Form.NFC).uppercase().lowercase()
 
 /** 图库落盘的进程内锁:「挑不重名的名字 → 移入」必须一口气做完,见 [saveIntoLibrary]。 */
 private val libraryLock = Any()
