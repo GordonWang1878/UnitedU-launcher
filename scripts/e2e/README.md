@@ -35,7 +35,7 @@ python3 scripts/e2e/fixtures.py --uninstall   # 测完卸掉测试包
 | `j_overlays.py` | 同上:34 个浮层逐个按 HOME / 按返回(收干净、单个焦点、落回打开它的地方),引导里的 HOME / 返回 |
 | `j_recreate.py` | 同上:8 个界面开着时字体缩放触发 Activity 重建两次;浮层开着时 force-stop 冷启动 |
 | `j_idle.py` | 同上:闲置 1 分钟只留时钟、唤醒键被吞、再 1 分钟自动屏保、退出屏保键被吞、设置开着不进待机(约 4 分钟) |
-| `j_i18n.py` | 同上:en / zh-CN / zh-TW 各 11 个界面,找越出屏幕 / 胶囊的文字并截图(`E2E_OUT/i18n-*.png`) |
+| `j_i18n.py` | 同上:en / zh-CN / zh-TW 各 11 个界面,找越出屏幕 / 胶囊的文字并截图(`E2E_OUT/i18n-*.png`);`I18N_LANGS=en,zh-TW`、`I18N_PAGES=settings,layout` 只跑一部分 |
 | `j_monkey.py` | 同上:adb monkey 只发方向 / 确定 / 返回 / 菜单,8 个种子 × 500 事件;每个种子后查崩溃 / ANR / 焦点 / 落盘(`MONKEY_SEEDS`、`MONKEY_EVENTS` 可调) |
 
 `run_all.py` 按上表顺序全跑(约 1 小时 45 分);只跑几段:`E2E_ONLY=j_persist,j_pkg python3 scripts/e2e/run_all.py`。

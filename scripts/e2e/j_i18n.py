@@ -12,7 +12,8 @@ from j_overlays import (o_settings_root, o_group, o_standby, o_about, o_restore_
                         o_lang_options, o_standby_options)
 
 W, H_ = 1920, 1080
-LANGS = ["en", "zh-CN", "zh-TW"]
+# I18N_LANGS=en,zh-TW / I18N_PAGES=settings,layout 只跑一部分(整段约 8 分钟)
+LANGS = [x for x in os.environ.get("I18N_LANGS", "en,zh-CN,zh-TW").split(",") if x]
 PAGES = [
     ("home", lambda: (home_intent(), key("down", "up"))),
     ("settings", o_settings_root), ("layout", o_group("settings_group_layout")), ("general", o_group("settings_group_general")),
@@ -62,7 +63,8 @@ def run():
         journey(f"i18n-{lang}")
         set_lang(lang)      # 导航用的标签跟着界面语言换
         restart(settings_patch={"language": lang, "onboardingDone": True, "showTitles": True}, layout=LAYOUT)
-        for name, opener in PAGES:
+        only = [x for x in os.environ.get("I18N_PAGES", "").split(",") if x]
+        for name, opener in [p for p in PAGES if not only or p[0] in only]:
             try:
                 restart(layout=LAYOUT) if name.startswith("edit") else home_intent()
                 opener(); time.sleep(0.8)
