@@ -128,6 +128,15 @@ class SettingsFadeTypeTest {
         assertEquals("越界夹紧", 1f, homeLayerAlpha(-1f, 2f), 0f)
     }
 
+    /** R147:预览框放大 / 缩回途中外壳内容不叠在框上——原位全亮,离开原位很快隐去。 */
+    @Test fun `外壳内容随预览框几何隐去`() {
+        assertEquals("原位", 1f, shellContentZoomAlpha(1f), 0f)
+        assertEquals("整屏", 0f, shellContentZoomAlpha(0f), 0f)
+        assertEquals("到阈值已看不见", 0f, shellContentZoomAlpha(SHELL_CONTENT_ZOOM_FROM), 1e-6f)
+        assertEquals("阈值与原位正中", 0.5f, shellContentZoomAlpha((1f + SHELL_CONTENT_ZOOM_FROM) / 2f), 1e-5f)
+        assertEquals("越界夹紧", 1f, shellContentZoomAlpha(1.3f), 0f)
+    }
+
     @Test fun `关掉,v 冻结,z 缩回整屏 150 ms`() {
         val m = previewMotion(shown = false, preview = false, fresh = false, vNow = 1f)
         assertNull("v 冻结", m.vTarget)
@@ -144,12 +153,13 @@ class SettingsFadeTypeTest {
         assertNull(m.zTarget)
     }
 
-    /** R136:编辑页回来不再「整屏缩进预览框」(深 → 整屏亮壁纸 → 深会闪),首页当场就在预览框里,外壳在周围淡入。 */
-    @Test fun `从完全关着打开到有预览的页(编辑页回来),v、z 直接 1,不做缩放`() {
+    /** R147:编辑页回来,整层从整屏缩回预览框(编辑页残影盖在上面淡出,不闪亮壁纸);v 直接 1,z 不瞬移、从现在的值动过去。 */
+    @Test fun `从完全关着打开到有预览的页(编辑页回来),v 直接 1,z 从整屏缩回预览框`() {
         val m = previewMotion(shown = true, preview = true, fresh = true, vNow = 0f)
         assertEquals(1f, m.vSnap!!, 0f)
-        assertEquals(1f, m.zSnapFirst!!, 0f)
-        assertNull("不从整屏缩进去", m.zTarget)
+        assertNull("z 不瞬移(R136 时是瞬移到 1)", m.zSnapFirst)
+        assertEquals(1f, m.zTarget!!, 0f)
+        assertEquals(GtvLayout.SETTINGS_FADE_IN_MS, m.zMs)
         assertNull(m.vTarget)
     }
 

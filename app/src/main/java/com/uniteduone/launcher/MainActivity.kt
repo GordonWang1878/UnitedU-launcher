@@ -735,7 +735,56 @@ class MainActivity : ComponentActivity() {
             //
             // 唯一的例外:**编辑页仍然独占那一层** —— 它是首页的编辑态(同一批卡片的另一种摆法),
             // 不是盖在首页上的浮层。
-            if (editing) {
+            // **R147(2026-09-30 Gordon:「弹出的动效卡断,突兀,很廉价;退出时……直接跳回」)**:首页 ↔ 编辑页不再在同一帧硬换。
+            // 两份各包一个 FadeSwitch:打开时编辑页在放大的预览框里淡入、首页残影在它底下淡出(z 的放大照旧是外壳关掉那一轮);
+            // 退出时新的一份首页当场在底下、编辑页残影盖在上面淡出,同时整层从整屏缩回预览框(previewMotion 的 fresh && preview)。
+            // 残影照 LocalPageGhost 让路:首页残影 previewing(不可聚焦、不收键、看门狗让路),编辑页残影见 EditScreen 的 ghost(R138)。
+            // 编辑页画在首页之后:两种方向上盖在上面的都是编辑页(淡入的新页 / 淡出的残影)。
+            FadeSwitch(
+                state = if (!editing) Unit else null,
+                enterMs = 0,
+                exitMs = GtvLayout.EDIT_SWAP_MS,
+                scaleFrom = 1f,
+            ) {
+                HomeScreen(
+                    // 残影(进编辑页那 EDIT_SWAP_MS)也当作被盖住:不可聚焦、不收键、看门狗让路
+                    previewing = overlayOpen || LocalPageGhost.current,
+                    idle = idle,
+                    screensaver = screensaverActive,
+                    idleContent = homeSettings.idleContent,
+                    // 顶栏「设置」药丸 = 打开设置外壳第一层(R69,取代嵌在首页里的齿轮菜单)。
+                    onSettings = ::openSettings,
+                    // R89:顶栏「应用 / 输入源」两颗。R89 前这里是屏保按钮(screensaverRequests++),
+                    // 挪进「设置 → 屏保 → 立即开始屏保」([startScreensaverNow])。
+                    onApps = ::openApps,
+                    onInputs = ::openInputs,
+                    focusNonce = focusNonce,
+                    revision = revision,
+                    showDate = homeSettings.showDate,
+                    cardsPerRow = homeSettings.cardsPerRow,
+                    showTitles = homeSettings.showTitles,
+                    newAppsSeenAt = homeSettings.newAppsSeenAt,
+                    onFocusedCard = { focusedCard = it },
+                    cardMenu = cardMenu,
+                    cardMenuItems = remember(cardMenu) { cardMenu?.let { cardMenuItems(it) } ?: emptyList() },
+                    onCardMenuDismiss = ::closeCardMenu,
+                    renameTarget = renameTarget,
+                    onRenameSave = ::onRenameSave,
+                    onRenameCancel = { renameTarget = null; focusNonce++ },
+                    moving = moving,
+                    moveLanding = moveLanding,
+                    onRowsShown = { shownRows = it },
+                    onPageShiftState = { pageShiftState = it },
+                    gradientInBackdrop = gradientBaked,
+                    onContentAlpha = { backdrop.homeContentAlpha = it },
+                )
+            }
+            FadeSwitch(
+                state = if (editing) Unit else null,
+                enterMs = GtvLayout.EDIT_SWAP_MS,
+                exitMs = GtvLayout.EDIT_SWAP_MS,
+                scaleFrom = 1f,
+            ) {
                 // **编辑页开着时,选择器替换它,不叠加**(M7 终审 C1)。EditScreen 没有 `covered`
                 // 这个让路开关:叠在它上面的话,它的看门狗与重定位会跟选择器抢焦点。所以回到 M7 之前
                 // 的替换语义——选择器开着时 EditScreen 整个不在组合里,关掉后重建,由 `editTarget`
@@ -771,39 +820,8 @@ class MainActivity : ComponentActivity() {
                 // 编辑页里能打开的只有「换卡片图」(pt = 包名);其余几种选择器只能从首页 / 设置页
                 // 打开,编辑态下不会出现。仍然整段复用 PickerLayer,不在这里另写一份只认包名的分支。
                 // R136:选择器淡入淡出(关掉时编辑页当场重建、照 editTarget 落焦,选择器的残影盖在上面淡出)。
-                PickerStack(pt)
-            } else {
-                HomeScreen(
-                    previewing = overlayOpen,
-                    idle = idle,
-                    screensaver = screensaverActive,
-                    idleContent = homeSettings.idleContent,
-                    // 顶栏「设置」药丸 = 打开设置外壳第一层(R69,取代嵌在首页里的齿轮菜单)。
-                    onSettings = ::openSettings,
-                    // R89:顶栏「应用 / 输入源」两颗。R89 前这里是屏保按钮(screensaverRequests++),
-                    // 挪进「设置 → 屏保 → 立即开始屏保」([startScreensaverNow])。
-                    onApps = ::openApps,
-                    onInputs = ::openInputs,
-                    focusNonce = focusNonce,
-                    revision = revision,
-                    showDate = homeSettings.showDate,
-                    cardsPerRow = homeSettings.cardsPerRow,
-                    showTitles = homeSettings.showTitles,
-                    newAppsSeenAt = homeSettings.newAppsSeenAt,
-                    onFocusedCard = { focusedCard = it },
-                    cardMenu = cardMenu,
-                    cardMenuItems = remember(cardMenu) { cardMenu?.let { cardMenuItems(it) } ?: emptyList() },
-                    onCardMenuDismiss = ::closeCardMenu,
-                    renameTarget = renameTarget,
-                    onRenameSave = ::onRenameSave,
-                    onRenameCancel = { renameTarget = null; focusNonce++ },
-                    moving = moving,
-                    moveLanding = moveLanding,
-                    onRowsShown = { shownRows = it },
-                    onPageShiftState = { pageShiftState = it },
-                    gradientInBackdrop = gradientBaked,
-                    onContentAlpha = { backdrop.homeContentAlpha = it },
-                )
+                // 残影(退出编辑页那 EDIT_SWAP_MS)里不再画选择器:这时从外壳打开的选择器归外面那一份 PickerStack
+                PickerStack(if (LocalPageGhost.current) null else pt)
             }
             }
             // **设置页外壳**(R69)叠在首页那一层之上。选择器 / 扫码页 / 关于页 / 引导盖在它上面时它让路(`covered`,铁律 3),
@@ -814,11 +832,15 @@ class MainActivity : ComponentActivity() {
             if (shellShown) shellLast[0] = shellStack
             if (shellVisible && shellLast[0].isNotEmpty()) {
                 val live = shellShown
+                // R147:这一份(活着的或残影)停在有预览的页时,外壳内容的不透明度还要乘 [shellContentZoomAlpha]——
+                // 预览框放大到整屏(进编辑页、从预览页直接关掉)或从整屏缩回来(编辑页回来)的途中,框会盖过页名和胶囊列,
+                // 两套界面叠在一起(模拟器 1× 录像:「布局」与「编辑桌面」两个标题、胶囊字压在编辑页的卡片上约 300 ms)。
+                val contentPreview = pageHasPreview((if (live) shellStack else shellLast[0]).last().page)
                 // R113:外壳内容淡入同时从 SETTINGS_ENTER_SCALE 放大到 1(底色、首页 / 预览那一层不缩放)
                 Box(
                     Modifier.fillMaxSize().graphicsLayer {
                         val t = shellMotion.a.value
-                        alpha = t
+                        alpha = if (contentPreview) t * shellContentZoomAlpha(shellMotion.zNow) else t
                         val sc = GtvLayout.SETTINGS_ENTER_SCALE + (1f - GtvLayout.SETTINGS_ENTER_SCALE) * t
                         scaleX = sc; scaleY = sc
                     },

@@ -211,10 +211,22 @@ fun <S : Any> OverlayStack(
  * - 第一层 → 布局 / 外观:首页先瞬移进预览框(此刻 v = 0,看不见)再淡入;返回反过来,淡完(v 到 0)才瞬移回整屏;
  * - 从有预览的页直接关掉(MENU / HOME / 进编辑页):v 冻在 1,首页不透明度恒为 1,z 从 1 缩放回 0(150 ms)——
  *   预览框里的首页放大回整屏,外壳在它周围淡出,不闪;
- * - 从编辑页回到「布局」(外壳重新打开、落在有预览的页):首页**当场**就在预览框里(z 直接取 1、v 直接取 1),外壳在它周围淡入。
- *   R136 之前是「z 从 0 缩进预览框」:编辑页(深色整屏)一关,首页先以整屏露出来再缩进去——壁纸亮的话,
- *   深 → 整屏亮壁纸 → 深,电视上就是闪一下(模拟器 1× 录像实测,内置壁纸「夏日数码门」)。
+ * - 从编辑页回到「布局」(外壳重新打开、落在有预览的页):v 直接取 1,z 从整屏缩回预览框(SETTINGS_FADE_IN_MS),外壳在它周围淡入。
+ *   R136 时改成过「当场落在预览框里、不缩放」:那时编辑页一关,首页先以整屏露出来再缩进去——壁纸亮的话,
+ *   深 → 整屏亮壁纸 → 深,电视上就是闪一下(模拟器 1× 录像实测,内置壁纸「夏日数码门」)。R147 起编辑页的残影盖在
+ *   缩小的那一层上淡出,整屏时看到的仍是编辑页,缩放回来了(Gordon:「退出时……没有动效,直接跳回」)。
  */
+
+/**
+ * 停在有预览的页时,外壳内容(页名、胶囊列、说明)随预览框几何 [z] 的不透明度系数(R147)。预览框在原位(z = 1)时为 1;
+ * 框往整屏放大时很快降到 0(z ≤ [SHELL_CONTENT_ZOOM_FROM] 时已完全看不见),缩回来时要等框差不多到位才出现——
+ * 放大 / 缩小途中框会盖过页名和胶囊列,两套界面不能叠在一起。
+ */
+fun shellContentZoomAlpha(z: Float): Float =
+    ((z - SHELL_CONTENT_ZOOM_FROM) / (1f - SHELL_CONTENT_ZOOM_FROM)).coerceIn(0f, 1f)
+
+/** 见 [shellContentZoomAlpha]:z 低于它(框已放大到约 40% 以上的行程)外壳内容完全隐去。 */
+const val SHELL_CONTENT_ZOOM_FROM = 0.6f
 
 /** 首页那一层的不透明度(见上)。 */
 fun homeLayerAlpha(a: Float, v: Float): Float {
@@ -248,8 +260,10 @@ data class PreviewMotion(
  */
 fun previewMotion(shown: Boolean, preview: Boolean, fresh: Boolean, vNow: Float): PreviewMotion = when {
     !shown -> PreviewMotion(zTarget = 0f, zMs = GtvLayout.SETTINGS_FADE_OUT_MS)
-    // R136:不再从整屏缩进预览框(见上:编辑页回来会闪一下亮壁纸),首页当场落在预览框里
-    fresh && preview -> PreviewMotion(vSnap = 1f, zSnapFirst = 1f)
+    // 编辑页回来(外壳重新打开、落在有预览的页):R136 起首页当场落在预览框里——整屏缩进去会先露一帧整屏亮壁纸。
+    // R147 起那一层上还盖着编辑页的残影(MainActivity 首页 / 编辑页各一个 FadeSwitch),一开始整屏仍是深色的编辑页,
+    // 整层从整屏缩回预览框、编辑页在缩小的框里淡出:亮壁纸只在越来越小的框里渐渐露出来,不闪;z 从现在的值(整屏 = 0)动过去
+    fresh && preview -> PreviewMotion(vSnap = 1f, zTarget = 1f, zMs = GtvLayout.SETTINGS_FADE_IN_MS)
     fresh -> PreviewMotion(vSnap = 0f, zSnapFirst = 0f)
     preview -> PreviewMotion(
         zSnapFirst = if (vNow <= 0f) 1f else null,
