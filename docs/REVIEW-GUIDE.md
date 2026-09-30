@@ -25,12 +25,13 @@
 - **进程模型**:所有组件(`MainActivity`、清单里的 `PackageRemovedReceiver` / `RelaunchAfterUpdate`、系统屏保 `UnitedUDream`、上传服务的请求线程)同一进程,所以文件锁用进程内锁就够(`LockedFile`)。
 - **纯函数 / Android 分文件**:凡是能在 JVM 上测的规则都拆成不碰 Android 的文件(`*Pure.kt`、`*Model.kt`、`*Math.kt`、`PickerCells.kt`、`StandbySchedule.kt`、`UpdateChecker.kt`……),Compose / IO 那一半只接线。评审「规则对不对」看纯函数和它的单测,评审「接线 / 生命周期对不对」看 Compose 文件。
 
-## 4. 文件地图(`app/src/main/java/com/uniteduone/launcher/`,79 个文件)
+## 4. 文件地图(`app/src/main/java/com/uniteduone/launcher/`,80 个文件)
 
 **入口与全局状态**
 - `MainActivity.kt`(2100+ 行):浮层状态机、按键分发、待机计时、Bundle 保存 / 还原、包变动广播、语言切换 `recreate()`。评审重点文件。
 - `LocaleOverride.kt`:应用内语言(不用 AppCompat per-app locale);`SettingsRestorePolicy.kt`:重建时要不要把设置外壳从 Bundle 种回。
 - `AppToast.kt`:应用内提示条(R139:`ToastHost` 画在整棵树最上层,页面经 `LocalToast` 发,MainActivity 的 `toast()` 也走它)。
+- `RelaunchAfterUpdate.kt` / `RelaunchPolicy.kt` / `RelaunchMarks.kt`:更新本应用会删掉首页任务;更新后要不要要求一次 HOME 把桌面拉回来(R151:仍是默认桌面 + 有「显示在其他应用上层」权限 + 被杀那一刻桌面 / 屏保在屏幕上或刚从关于页发起更新;别的应用在前台时不拉)。
 - `Ambient.kt`:整屏页的氛围底(R142:当前壁纸的模糊影子,`pageBackdrop()`;纯计算 `ambientPixels` 有 JVM 单测)。
 
 **首页、行、卡片**

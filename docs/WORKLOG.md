@@ -1755,4 +1755,8 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
   - 能补救的只有 `RelaunchAfterUpdate`(更新后立刻要求一次 HOME)。索尼固件不豁免默认桌面的后台启动,要「显示在其他应用上层」权限才放行;应用从没向用户要过这个权限,Gordon 电视上 `appops get … SYSTEM_ALERT_WINDOW` 是 default(没授权)→ 每次都跳过。电视上有这个权限的设置页(`com.android.tv.settings/.device.apps.specialaccess.SystemAlertActivity`,`ACTION_MANAGE_OVERLAY_PERMISSION` 解析得到)。
   - 就算授了权,现在的写法在「别的应用在前台时更新」也会把桌面拉到最前、打断正在看的 YouTube——要改成只在「更新时桌面就在前台」或「刚从关于页发起更新」时拉回。
   - 方案待 Gordon 定:①改拉回的条件(小改,无副作用);②应用内更新发起前,没授权就先引导用户开一次「显示在其他应用上层」(多一步授权)。
+- Gordon 选了:品牌名**维持 R148**(看了左上角 / 左下角 / 左栏底部三个方案的对比图 `docs/screenshots/r150-brand-options.jpg`);更新问题**两步都做**。语言选项改成「简体中文 / 繁體中文」。记为 R150 / R151。
+- R151 实现:`RelaunchMarks`(一份很小的 SharedPreferences,commit 同步写)记「桌面在不在屏幕上」(MainActivity onStart/onStop)、「系统屏保开着」(UnitedUDream 开 / 关 / 拆窗)、「刚从关于页交给安装器」(时刻,30 分钟内有效);`RelaunchAfterUpdate` 读完就清,规则在 `shouldRelaunchHome`。关于页交给安装器前,没有悬浮窗权限就先打开它的设置页(`ACTION_MANAGE_OVERLAY_PERMISSION`,每次打开关于页只问一次),停在「安装更新」并提示;不开也照装。
+- 模拟器验证(停用原厂 tvlauncher、给权限,测完还原):桌面在前台、下面压着电视设置时覆盖安装 → 装完仍是 UnitedU;同样场景不给权限 → 露出电视设置(改前的样子);占位应用在前台时覆盖安装 → 日志 `skip relaunch … onScreen=false`,占位应用不受打扰。单测 789。
+- 电视还是旧包(R149 + 未装的语言改动):装包会因为旧包不写标记、电视没授权而跳到 HDMI,等 Gordon 说可以再装。
 
