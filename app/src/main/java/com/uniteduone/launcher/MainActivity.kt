@@ -628,7 +628,7 @@ class MainActivity : ComponentActivity() {
                     .graphicsLayer {
                         // 不透明度与几何都在绘制阶段读动画值,淡入淡出每帧只改 RenderNode,不重组首页(R108)。
                         alpha = homeLayerAlpha(shellMotion.a.value, shellMotion.v.value)
-                        val zoom = shellMotion.z.value
+                        val zoom = shellMotion.zNow
                         if (zoom <= 0f) return@graphicsLayer
                         val scale = 1f + (pr.width.dp.toPx() / size.width - 1f) * zoom
                         transformOrigin = TransformOrigin(0f, 0f)
@@ -709,6 +709,9 @@ class MainActivity : ComponentActivity() {
                 // 的替换语义——选择器开着时 EditScreen 整个不在组合里,关掉后重建,由 `editTarget`
                 // (layout 行号, 包名)这颗种子把焦点送回刚才那张卡(铁律 5:目标在打开选择器那一刻
                 // 就定下,重建期间 Compose 抢先给出的焦点事件改写不了它;见 onPickIcon)。
+                // R136:编辑态下这一层自己垫一块 MenuBg——选择器淡入 / 淡出的那几百毫秒里,它后面不是壁纸而是同一个底色
+                // (编辑页与选择器都是 MenuBg 的整屏页,深对深地换,不闪一下壁纸)。
+                Box(Modifier.fillMaxSize().background(GtvTokens.MenuBg))
                 if (pt == null) {
                     EditScreen(
                         // 选择器真的打开了(存储就绪)才记种子:打不开时编辑页留在原地,
@@ -722,11 +725,11 @@ class MainActivity : ComponentActivity() {
                         initialTarget = editTarget,
                         onCarryingChange = { editCarrying = it },
                     )
-                } else {
-                    // 编辑页里能打开的只有「换卡片图」(pt = 包名);其余几种选择器只能从首页 / 设置页
-                    // 打开,编辑态下不会出现。仍然整段复用 PickerLayer,不在这里另写一份只认包名的分支。
-                    PickerLayer(pt)
                 }
+                // 编辑页里能打开的只有「换卡片图」(pt = 包名);其余几种选择器只能从首页 / 设置页
+                // 打开,编辑态下不会出现。仍然整段复用 PickerLayer,不在这里另写一份只认包名的分支。
+                // R136:选择器淡入淡出(关掉时编辑页当场重建、照 editTarget 落焦,选择器的残影盖在上面淡出)。
+                PickerStack(pt)
             } else {
                 HomeScreen(
                     previewing = overlayOpen,
@@ -805,7 +808,8 @@ class MainActivity : ComponentActivity() {
                 }
             }
             // 叠在首页 / 外壳之上的那一层(编辑态下同一个 PickerLayer 改为替换编辑页,见上)。
-            if (!editing && pt != null) PickerLayer(pt)
+            // R136:淡入淡出;网格 ↔ 扫码页(从「＋」进出)是同一摞里换层,交叉淡化。
+            if (!editing) PickerStack(pt)
             // **所有应用页**(R90)。叠在常驻首页之上,首页因 previewing(overlayOpen)让路;焦点归它自己的网格。
             // 长按菜单盖在上面时 covered 让路,菜单关掉 focusNonce++ 后网格把焦点接回那张卡。
             // R108:打开淡入 200 ms、关掉淡出 150 ms(FadeSwitch;残影不可聚焦、不收返回键,见 SettingsFade.kt)。
@@ -823,14 +827,15 @@ class MainActivity : ComponentActivity() {
                     onBack = ::closeApps,
                 )
             }
-            if (appsPage && !editing) {
-                val am = appsMenu
-                if (am != null) {
-                    // key:两层菜单是两个 GearMenu 实例,各自从第一项起落焦点(第二层不继承第一层的 focusedIdx)。
-                    key(am.rows == null) {
-                        GearMenu(items = appsMenuItems(am), onDismiss = ::closeAppsMenu, nonce = focusNonce, title = am.app.label, app = am.app)
-                    }
-                }
+            // R136:菜单淡入淡出;两层菜单(打开 / 卸载 / 加到桌面… → 选一行)是两个 GearMenu 实例、交叉淡化,
+            // 各自从第一项起落焦点(第二层不继承第一层的 focusedIdx)。菜单项在组合期算好带进状态,残影画的是关掉前那一份。
+            val am = appsMenu?.takeIf { appsPage && !editing }
+            val amItems = am?.let { appsMenuItems(it) }
+            OverlayStack(
+                state = if (am != null && amItems != null) am to amItems else null,
+                layerKey = { it.first.rows == null },
+            ) { (menu, items) ->
+                GearMenu(items = items, onDismiss = ::closeAppsMenu, nonce = focusNonce, title = menu.app.label, app = menu.app)
             }
             // **输入源页**(R91)。叠在常驻首页之上,首页因 previewing(overlayOpen)让路;焦点归它自己的胶囊列。
             // 胶囊菜单 / 改名对话框盖在它上面时 covered 让路,那一层关掉 focusNonce++ 后它把焦点接回同一颗(按 id)。
@@ -853,22 +858,31 @@ class MainActivity : ComponentActivity() {
                     onBack = ::closeInputs,
                 )
             }
-            if (inputsPage && !editing) {
-                val im = inputMenu
-                if (im != null) {
-                    GearMenu(items = inputMenuItems(im), onDismiss = ::closeInputMenu, nonce = focusNonce, title = im.label)
-                }
-                val ir = inputRename
-                if (ir != null) {
-                    TitleDialog(
-                        key = ir.id,
-                        current = remember(ir) { Titles.read(this@MainActivity)[ir.id] ?: "" },
+            // R136:输入源的胶囊菜单与改名页是一摞,淡入淡出、菜单 → 改名交叉淡化。
+            val inputsLive = inputsPage && !editing
+            val ir = inputRename?.takeIf { inputsLive }
+            val im = inputMenu?.takeIf { inputsLive }
+            val inputsTitle = stringResource(R.string.inputs_page_title)
+            val inputOverlay: InputOverlay? = when {
+                ir != null -> InputOverlay.Rename(ir, remember(ir) { Titles.read(this@MainActivity)[ir.id] ?: "" })
+                im != null -> InputOverlay.Menu(im, inputMenuItems(im))
+                else -> null
+            }
+            OverlayStack(state = inputOverlay, layerKey = { it.layer }) { ov ->
+                when (ov) {
+                    is InputOverlay.Menu -> GearMenu(
+                        items = ov.items, onDismiss = ::closeInputMenu, nonce = focusNonce,
+                        title = ov.input.label, eyebrow = inputsTitle,
+                    )
+                    is InputOverlay.Rename -> TitleDialog(
+                        key = ov.input.id,
+                        current = ov.current,
                         heading = stringResource(R.string.input_menu_rename),
                         hint = stringResource(R.string.title_dialog_hint_input),
-                        onSave = { onInputRenameSave(ir, it) },
+                        onSave = { onInputRenameSave(ov.input, it) },
                         onCancel = { inputRename = null; focusNonce++ },
                         nonce = focusNonce,
-                        subtitle = ir.label,
+                        subtitle = ov.input.label,
                     )
                 }
             }
@@ -901,10 +915,16 @@ class MainActivity : ComponentActivity() {
             // 首次引导(T10,spec §8)。画在最上层,而且**放在 editing 的 if/else 之外**:引导开着时
             // 本来就进不了编辑页(菜单、长按都被挡),但万一两者同时为真,也绝不能出现「引导状态是开的、
             // 画面上却没有它」——那会是一个吞掉全部焦点的黑洞。其余整屏浮层在引导期间都打不开。
-            if (onboarding) {
+            // R136:结束时整页淡出(残影冻结在最后那一步,不可聚焦、不收返回键);换步的交叉淡化在页面自己里面。
+            // 冷启动就开着引导、切语言重建后仍开着:第一次组合就在,不淡入(FadeSwitch 的约定)。
+            FadeSwitch(
+                state = if (onboarding) onbStep to homeSettings.language else null,
+                enterMs = GtvLayout.SETTINGS_FADE_IN_MS,
+                exitMs = GtvLayout.SETTINGS_FADE_OUT_MS,
+            ) { (step, language) ->
                 Onboarding(
-                    step = onbStep,
-                    language = homeSettings.language,
+                    step = step,
+                    language = language,
                     revision = revision,
                     nonce = focusNonce,
                     onLanguage = ::chooseOnboardingLanguage,
@@ -933,8 +953,21 @@ class MainActivity : ComponentActivity() {
      * 每个子界面自己负责自己的焦点(nonce 初始焦点循环,铁律 3);关掉时 `focusNonce++`,
      * 让底下那一层——或重建出来的编辑页——把焦点接回离开前那一格。
      */
+    /**
+     * 选择器那一层的淡入淡出(R136,[OverlayStack]):[target] = [pickerTarget],null = 关着。换层 = 网格 ↔ 扫码页。
+     * 残影画的是关掉前那一份:扫码页的分类(标题写「用手机添加壁纸」还是通用那句)随状态一起冻住——关掉那一刻
+     * `importOrigin` 已经清空了。
+     */
     @Composable
-    private fun PickerLayer(target: String) {
+    private fun PickerStack(target: String?) {
+        OverlayStack(
+            state = target?.let { PickerShown(it, importOrigin?.type) },
+            layerKey = { it.target },
+        ) { shown -> PickerLayer(shown.target, shown.importCategory) }
+    }
+
+    @Composable
+    private fun PickerLayer(target: String, importCategory: String? = importOrigin?.type) {
         when (target) {
             PICK_WALLPAPER -> WallpaperPicker(
                 directory = Paths.wallpaperLibrary(this),
@@ -973,7 +1006,7 @@ class MainActivity : ComponentActivity() {
             VIEW_IMPORT -> ImportScreen(
                 onExit = ::closeImport,
                 focusNonce = focusNonce,
-                category = importOrigin?.type,
+                category = importCategory,
                 onUploaded = { type, name -> if (type == importOrigin?.type) importUploads += name },
             )
             // 其余取值都是包名 = 换这张卡的图。
@@ -2113,5 +2146,19 @@ class MainActivity : ComponentActivity() {
                 }
             }
         })
+    }
+}
+
+/** 选择器那一层正画着什么(R136,给 `PickerStack` 当状态):目标 + 扫码页的分类。 */
+private data class PickerShown(val target: String, val importCategory: String?)
+
+/** 输入源页上叠着的那一层(R136):胶囊菜单,或改名页。 */
+private sealed interface InputOverlay {
+    val layer: String
+    class Menu(val input: InputEntry, val items: List<MenuItem>) : InputOverlay {
+        override val layer get() = "menu:${input.id}"
+    }
+    class Rename(val input: InputEntry, val current: String) : InputOverlay {
+        override val layer get() = "rename:${input.id}"
     }
 }

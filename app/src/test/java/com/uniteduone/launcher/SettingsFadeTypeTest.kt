@@ -14,37 +14,22 @@ import org.junit.Test
  * 只能装机验(模拟器实测见 spec R108 一节:淡出期间按键全部落在首页 / 活着的那一层)。
  */
 class SettingsFadeTypeTest {
-    // ---------- R109 字号 ----------
+    // ---------- R109 字号(R134 起并入 Type,见 TypeScaleTest)----------
 
     @Test fun `R109 只有一个数,SETTINGS_TYPE_STEP = -1`() {
         assertEquals(-1f, GtvLayout.SETTINGS_TYPE_STEP, 0f)
     }
 
-    @Test fun `R109 设置类页面字号 = 基准 + step`() {
-        assertEquals("左栏页名 32 → 31", 31f, GtvLayout.settingsSp(GtvLayout.SETTINGS_TITLE_TEXT), 0f)
-        assertEquals("左栏路径 16 → 15", 15f, GtvLayout.settingsSp(16f), 0f)
-        assertEquals("左栏说明 14 → 13", 13f, GtvLayout.settingsSp(14f), 0f)
-        // 关于页 15 / 14 / 13 / 12 / 11 → 14 / 13 / 12 / 11 / 10
-        assertEquals(listOf(14f, 13f, 12f, 11f, 10f), listOf(15f, 14f, 13f, 12f, 11f).map(GtvLayout::settingsSp))
-        // 默认桌面卡:名字 15 → 14、「当前」11 → 10(CurrentHomeRow 的 textStep)
-        assertEquals(14f, 15f + GtvLayout.SETTINGS_TYPE_STEP, 0f)
-        assertEquals(10f, 11f + GtvLayout.SETTINGS_TYPE_STEP, 0f)
+    @Test fun `R109 定下的三个值就是 Type 里的页名、标签、胶囊第二行`() {
+        assertEquals("页名 32 → 31", Type.TITLE, GtvLayout.settingsSp(GtvLayout.SETTINGS_TITLE_TEXT), 0f)
+        assertEquals("路径 / 胶囊标签 16 → 15", Type.LABEL, GtvLayout.settingsSp(GtvLayout.MENU_ITEM_TEXT), 0f)
+        assertEquals("胶囊第二行 12 → 11", Type.MICRO, GtvLayout.settingsSp(GtvLayout.MENU_ITEM_HINT_TEXT), 0f)
     }
 
-    @Test fun `R109 设置页胶囊,标签 15、说明 11、右端 › 按比例`() {
-        val t = PillType(GtvLayout.SETTINGS_TYPE_STEP)
-        assertEquals(15f, t.text, 0f)
-        assertEquals(11f, t.hint, 0f)
-        assertEquals(15f * 1.25f, t.chevron, 1e-4f)
-    }
-
-    @Test fun `R109 长按 - 编辑页菜单不传 step,与改前逐位相同(16 - 12 - 20)`() {
-        val t = PillType()
-        assertEquals(GtvLayout.MENU_ITEM_TEXT, t.text, 0f)
-        assertEquals(16f, t.text, 0f)
-        assertEquals(12f, t.hint, 0f)
-        assertEquals("R71 起 › = 标签 + 4 = 20", 20f, t.chevron, 0f)
-        assertEquals("长按菜单左上的页名仍读基准 32", 32f, GtvLayout.SETTINGS_TITLE_TEXT, 0f)
+    @Test fun `R134 所有胶囊同一套字号,标签 15、第二行 11、右端 › 按比例`() {
+        assertEquals(15f, PillType.text, 0f)
+        assertEquals(11f, PillType.hint, 0f)
+        assertEquals(15f * 1.25f, PillType.chevron, 1e-4f)
     }
 
     // ---------- R108 时长 ----------
@@ -159,11 +144,13 @@ class SettingsFadeTypeTest {
         assertNull(m.zTarget)
     }
 
-    @Test fun `从完全关着打开到有预览的页(编辑页回来),v 直接 1,z 200 ms 缩进预览框`() {
+    /** R136:编辑页回来不再「整屏缩进预览框」(深 → 整屏亮壁纸 → 深会闪),首页当场就在预览框里,外壳在周围淡入。 */
+    @Test fun `从完全关着打开到有预览的页(编辑页回来),v、z 直接 1,不做缩放`() {
         val m = previewMotion(shown = true, preview = true, fresh = true, vNow = 0f)
         assertEquals(1f, m.vSnap!!, 0f)
-        assertEquals(1f, m.zTarget!!, 0f)
-        assertEquals(GtvLayout.SETTINGS_FADE_IN_MS, m.zMs)
+        assertEquals(1f, m.zSnapFirst!!, 0f)
+        assertNull("不从整屏缩进去", m.zTarget)
+        assertNull(m.vTarget)
     }
 
     @Test fun `第一层进布局,先把首页瞬移进预览框(此刻看不见),再 150 ms 淡入`() {

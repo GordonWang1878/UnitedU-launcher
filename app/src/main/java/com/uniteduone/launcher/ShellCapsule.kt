@@ -1,6 +1,7 @@
 package com.uniteduone.launcher
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -110,13 +111,8 @@ fun MenuPill(
     onStep: ((Int) -> Unit)? = null,
     /** 标签前的色点(主题色选项层:每一档画自己的预设色)。 */
     leadingDot: Color? = null,
-    /**
-     * 字号在基准([GtvLayout.MENU_ITEM_TEXT] / [GtvLayout.MENU_ITEM_HINT_TEXT])上加多少 sp(R109):设置类页面的胶囊列
-     * ([CapsuleColumn])传 [GtvLayout.SETTINGS_TYPE_STEP];长按 / 编辑页菜单不传,仍是基准。胶囊高度不变。
-     */
-    textStep: Float = 0f,
 ) {
-    val type = PillType(textStep)
+    // R134:所有胶囊同一套字号([PillType]:标签 15 / 第二行 11);此前设置页 15 / 11(R109)、长按与编辑页菜单 16 / 12。
     var focused by remember { mutableStateOf(false) }
     val accent = LocalThemeColors.current.accent
     // Fix 3(owner 反馈 R2,2026-09-20):填色 150 ms 过渡,时长与曲线与卡片焦点共用(见 GtvLayout.FOCUS_FADE_IN_MS)。
@@ -141,8 +137,8 @@ fun MenuPill(
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
     val valueWraps = trailing is Trailing.Value && slider == null &&
-        remember(label, trailing, density, type) {
-            val style = TextStyle(fontFamily = Theme.Sans, fontSize = type.text.sp)
+        remember(label, trailing, density) {
+            val style = TextStyle(fontFamily = Theme.Sans, fontSize = PillType.text.sp)
             val labelW = measurer.measure(label, style.copy(fontWeight = FontWeight.Medium)).size.width
             val valueW = measurer.measure(trailing.text, style).size.width
             with(density) {
@@ -191,7 +187,7 @@ fun MenuPill(
         contentAlignment = Alignment.CenterStart,
     ) {
         if (focused && slider != null) {
-            SliderContent(slider.label ?: label, slider, textColor, type)
+            SliderContent(slider.label ?: label, slider, textColor)
         } else Row(verticalAlignment = Alignment.CenterVertically) {
             if (leadingDot != null) {
                 // 细描边:聚焦时胶囊填的就是主题色,光标停在某个预设上时它的色点与底色同色,没有这圈描边就看不见了。
@@ -210,9 +206,9 @@ fun MenuPill(
                 ) {
                     if (trailing is Trailing.Value) {
                         // 放得下才走到这里,值不设 VALUE_MAX_WIDTH 上限(那个上限是给单行胶囊「标签至少留一半」的)。
-                        LabelTrailingRow(label, trailing, focused, textColor, accent, type, valueMax = null, Modifier.fillMaxWidth())
+                        LabelTrailingRow(label, trailing, focused, textColor, accent, valueMax = null, Modifier.fillMaxWidth())
                     } else {
-                        MenuPillLabel(label, focused, textColor, type)
+                        MenuPillLabel(label, focused, textColor)
                     }
                     secondary.forEach { line ->
                         BasicText(
@@ -224,20 +220,20 @@ fun MenuPill(
                                 fontWeight = FontWeight.Normal,
                                 // 从属于标题的次要文字(R17):同一个文字色减透明度,两态都算得出更淡的版本。
                                 color = textColor.copy(alpha = 0.7f),
-                                fontSize = type.hint.sp,
+                                fontSize = PillType.hint.sp,
                             ),
                         )
                     }
                 }
                 if (trailing != Trailing.None && trailing !is Trailing.Value) {
                     Spacer(Modifier.width(12.dp))
-                    TrailingContent(trailing, focused, textColor, accent, type)
+                    TrailingContent(trailing, focused, textColor, accent)
                 }
             } else {
                 if (trailing == Trailing.None) {
-                    MenuPillLabel(label, focused, textColor, type)
+                    MenuPillLabel(label, focused, textColor)
                 } else {
-                    LabelTrailingRow(label, trailing, focused, textColor, accent, type, valueMax = VALUE_MAX_WIDTH, Modifier.weight(1f))
+                    LabelTrailingRow(label, trailing, focused, textColor, accent, valueMax = VALUE_MAX_WIDTH, Modifier.weight(1f))
                 }
             }
         }
@@ -257,7 +253,6 @@ private fun LabelTrailingRow(
     focused: Boolean,
     textColor: Color,
     accent: Color,
-    type: PillType,
     valueMax: Float?,
     modifier: Modifier,
 ) {
@@ -266,23 +261,23 @@ private fun LabelTrailingRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        MenuPillLabel(label, focused, textColor, type, Modifier.weight(1f, fill = false))
+        MenuPillLabel(label, focused, textColor, Modifier.weight(1f, fill = false))
         Box(
             Modifier.padding(start = 12.dp).then(if (valueMax != null) Modifier.widthIn(max = valueMax.dp) else Modifier),
             contentAlignment = Alignment.CenterEnd,
         ) {
-            TrailingContent(trailing, focused, textColor, accent, type)
+            TrailingContent(trailing, focused, textColor, accent)
         }
     }
 }
 
 @Composable
-private fun TrailingContent(trailing: Trailing, focused: Boolean, textColor: Color, accent: Color, type: PillType) {
+private fun TrailingContent(trailing: Trailing, focused: Boolean, textColor: Color, accent: Color) {
     val faded = textColor.copy(alpha = 0.55f)
-    val style = TextStyle(fontFamily = Theme.Sans, fontSize = type.text.sp, color = faded)
+    val style = TextStyle(fontFamily = Theme.Sans, fontSize = PillType.text.sp, color = faded)
     when (trailing) {
         Trailing.None -> Unit
-        Trailing.Chevron -> BasicText("›", style = style.copy(fontSize = type.chevron.sp))
+        Trailing.Chevron -> BasicText("›", style = style.copy(fontSize = PillType.chevron.sp))
         Trailing.Check -> BasicText(
             "✓",
             style = style.copy(color = if (focused) textColor else accent, fontWeight = FontWeight.Medium),
@@ -301,7 +296,7 @@ private fun TrailingContent(trailing: Trailing, focused: Boolean, textColor: Col
             )
             if (trailing.chevron) {
                 Spacer(Modifier.width(8.dp))
-                BasicText("›", style = style.copy(fontSize = type.chevron.sp))
+                BasicText("›", style = style.copy(fontSize = PillType.chevron.sp))
             }
         }
     }
@@ -309,7 +304,7 @@ private fun TrailingContent(trailing: Trailing, focused: Boolean, textColor: Col
 
 /** 聚焦的滑块胶囊:标签 · 轨道 + 把手 · `‹ 值 ›`。标签过长(英文)时省略,轨道至少留 28 dp。 */
 @Composable
-private fun SliderContent(label: String, look: SliderLook, textColor: Color, type: PillType) {
+private fun SliderContent(label: String, look: SliderLook, textColor: Color) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         BasicText(
             text = label,
@@ -320,13 +315,13 @@ private fun SliderContent(label: String, look: SliderLook, textColor: Color, typ
                 fontFamily = Theme.Sans,
                 fontWeight = FontWeight.Medium,
                 color = textColor,
-                fontSize = type.text.sp,
+                fontSize = PillType.text.sp,
             ),
         )
         Spacer(Modifier.width(10.dp))
         SliderTrack(look, textColor, Modifier.weight(1f).widthIn(min = 28.dp))
         Spacer(Modifier.width(8.dp))
-        val arrow = TextStyle(fontFamily = Theme.Sans, fontSize = type.text.sp)
+        val arrow = TextStyle(fontFamily = Theme.Sans, fontSize = PillType.text.sp)
         // 到头的那一侧箭头更淡:告诉人这个方向已经按不动了。
         BasicText("‹", style = arrow.copy(color = textColor.copy(alpha = if (look.canDecrease) 0.45f else 0.15f)))
         Spacer(Modifier.width(4.dp))
@@ -337,7 +332,7 @@ private fun SliderContent(label: String, look: SliderLook, textColor: Color, typ
                 fontFamily = Theme.Sans,
                 fontWeight = FontWeight.Medium,
                 color = textColor,
-                fontSize = type.text.sp,
+                fontSize = PillType.text.sp,
             ),
         )
         Spacer(Modifier.width(4.dp))
@@ -349,6 +344,13 @@ private fun SliderContent(label: String, look: SliderLook, textColor: Color, typ
 @Composable
 private fun SliderTrack(look: SliderLook, color: Color, modifier: Modifier) {
     val knob = 11.dp
+    // R136(动效):调一格时把手滑过去(120 ms),不再一帧跳到新位置。数值文字与首页预览照旧当场变——
+    // 值是立刻生效的,滑的只是把手。在测量阶段读动画值,每帧只重排这一条轨道。
+    val fraction by animateFloatAsState(
+        targetValue = look.fraction,
+        animationSpec = tween(SLIDER_KNOB_MS, easing = Theme.AppFocusEasing),
+        label = "sliderKnob",
+    )
     Layout(
         modifier = modifier.height(knob),
         content = {
@@ -362,25 +364,28 @@ private fun SliderTrack(look: SliderLook, color: Color, modifier: Modifier) {
         val trackH = 3.dp.roundToPx()
         val usable = (w - k).coerceAtLeast(1)
         val at = { f: Float -> (k / 2 + usable * f.coerceIn(0f, 1f)).toInt() }
-        val lo = minOf(at(look.fraction), at(look.zero))
-        val hi = maxOf(at(look.fraction), at(look.zero))
+        val lo = minOf(at(fraction), at(look.zero))
+        val hi = maxOf(at(fraction), at(look.zero))
         val bg = measurables[0].measure(androidx.compose.ui.unit.Constraints.fixed(w, trackH))
         val filled = measurables[1].measure(androidx.compose.ui.unit.Constraints.fixed((hi - lo).coerceAtLeast(0), trackH))
         val kn = measurables[2].measure(androidx.compose.ui.unit.Constraints.fixed(k, k))
         layout(w, k) {
             bg.place(0, (k - trackH) / 2)
             filled.place(lo, (k - trackH) / 2)
-            kn.place(at(look.fraction) - k / 2, 0)
+            kn.place(at(fraction) - k / 2, 0)
         }
     }
 }
+
+/** 滑块把手滑到新位置的时长(ms,R136)。比胶囊填色的 150 ms 略短:按住左右键连调时把手跟得上。 */
+private const val SLIDER_KNOB_MS = 120
 
 /** 单行胶囊右端值的宽度上限(约内宽 220 dp 的一半):值优先量,再长的摘要省略,标签至少留一半。 */
 private const val VALUE_MAX_WIDTH = 110f
 
 /** [MenuPill] 的标题行,单行/两行两种布局共用,避免样式在两处漂移。 */
 @Composable
-private fun MenuPillLabel(label: String, focused: Boolean, textColor: Color, type: PillType, modifier: Modifier = Modifier) {
+private fun MenuPillLabel(label: String, focused: Boolean, textColor: Color, modifier: Modifier = Modifier) {
     BasicText(
         text = label,
         modifier = modifier,
@@ -390,7 +395,7 @@ private fun MenuPillLabel(label: String, focused: Boolean, textColor: Color, typ
             fontFamily = Theme.Sans,
             fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
             color = textColor,
-            fontSize = type.text.sp,
+            fontSize = PillType.text.sp,
         ),
     )
 }
@@ -399,10 +404,10 @@ private fun MenuPillLabel(label: String, focused: Boolean, textColor: Color, typ
  * 一颗胶囊里各处文字的字号(sp,R109):标签 / 值 / ✓ / 滑块数值与 ‹ › = [text],第二行说明 = [hint],右端 › = [chevron]
  * (标签 × [GtvLayout.CHEVRON_SCALE],按比例)。[step] = 0 时与 R109 之前逐位相同(16 / 12 / 20)。
  */
-data class PillType(val step: Float = 0f) {
-    val text: Float get() = GtvLayout.MENU_ITEM_TEXT + step
-    val hint: Float get() = GtvLayout.MENU_ITEM_HINT_TEXT + step
-    val chevron: Float get() = text * GtvLayout.CHEVRON_SCALE
+object PillType {
+    const val text: Float = Type.LABEL
+    const val hint: Float = Type.MICRO
+    const val chevron: Float = text * GtvLayout.CHEVRON_SCALE
 }
 
 /** 按 WCAG 相对亮度选深/浅文字色,不写死一种——accent 是用户选的,白/黑两端都可能出现。 */

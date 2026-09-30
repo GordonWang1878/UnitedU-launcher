@@ -14,6 +14,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -141,6 +142,42 @@ fun <S : Any> FadeSwitch(
     }
 }
 
+/**
+ * **一摞整屏浮层**(R136,2026-09-30 外观轮「动效统一」):打开淡入、关掉淡出(与设置外壳同一个时长与轻微放大),
+ * 摞里换一层(菜单 → 改名页、选图页 → 扫码页、应用菜单第一层 → 第二层)新旧交叉淡化(与设置里层与层之间同一个时长)。
+ *
+ * 外观轮之前只有设置外壳、关于页、所有应用页、输入源页有淡入淡出(R108);长按菜单、确认页、改名页、行图标、
+ * 添加应用、选图页、扫码页、引导都是硬切。现在全部走这里,时长只有 [GtvLayout] 里那三个数。
+ *
+ * [state] == null = 关着;[layerKey] 相同 = 同一层(输入原地更新)。焦点规矩同 R108:逻辑状态当场变,画面另起残影淡出;
+ * 残影里 [LocalPageGhost] 为真,**放进来的每一种页面都必须照它让路**(不可聚焦、不抢焦点、不收返回键、不回调)——
+ * `GearMenu` / `CapsuleColumn` / `PickerGrid` / `TitleDialog` / `RowIconPicker` / 添加应用列表 / 扫码页 / 全屏预览都已照做;
+ * 新加页面时先做这一条,再放进来。
+ *
+ * 两层 [FadeSwitch]:外层管开 / 关(key 恒定,关掉后冻结在最后那一层),里层管换层。第一次开时里层不淡入(只有外层那一次)。
+ */
+@Composable
+fun <S : Any> OverlayStack(
+    state: S?,
+    layerKey: (S) -> Any? = { Unit },
+    content: @Composable (S) -> Unit,
+) {
+    FadeSwitch(
+        state = state,
+        enterMs = GtvLayout.SETTINGS_FADE_IN_MS,
+        exitMs = GtvLayout.SETTINGS_FADE_OUT_MS,
+    ) { s ->
+        FadeSwitch(
+            state = s,
+            enterMs = GtvLayout.SETTINGS_LAYER_FADE_MS,
+            exitMs = GtvLayout.SETTINGS_LAYER_FADE_MS,
+            scaleFrom = GtvLayout.SETTINGS_LAYER_SCALE,
+            contentKey = layerKey,
+            content = content,
+        )
+    }
+}
+
 /*
  * **设置外壳的整体淡入淡出 + 预览(R73)的进出**。外壳不止它自己那层内容:底色 `MenuBg` 铺在首页那一层**之下**,
  * 首页那一层在没有预览的页整层透明、在有预览的页整层缩进预览框。三样东西要一起动,所以由三个量驱动:
@@ -153,7 +190,9 @@ fun <S : Any> FadeSwitch(
  * - 第一层 → 布局 / 外观:首页先瞬移进预览框(此刻 v = 0,看不见)再淡入;返回反过来,淡完(v 到 0)才瞬移回整屏;
  * - 从有预览的页直接关掉(MENU / HOME / 进编辑页):v 冻在 1,首页不透明度恒为 1,z 从 1 缩放回 0(150 ms)——
  *   预览框里的首页放大回整屏,外壳在它周围淡出,不闪;
- * - 从编辑页回到「布局」(外壳重新打开、落在有预览的页):z 从 0 缩进预览框(200 ms),v 直接取 1。
+ * - 从编辑页回到「布局」(外壳重新打开、落在有预览的页):首页**当场**就在预览框里(z 直接取 1、v 直接取 1),外壳在它周围淡入。
+ *   R136 之前是「z 从 0 缩进预览框」:编辑页(深色整屏)一关,首页先以整屏露出来再缩进去——壁纸亮的话,
+ *   深 → 整屏亮壁纸 → 深,电视上就是闪一下(模拟器 1× 录像实测,内置壁纸「夏日数码门」)。
  */
 
 /** 首页那一层的不透明度(见上)。 */
@@ -188,7 +227,8 @@ data class PreviewMotion(
  */
 fun previewMotion(shown: Boolean, preview: Boolean, fresh: Boolean, vNow: Float): PreviewMotion = when {
     !shown -> PreviewMotion(zTarget = 0f, zMs = GtvLayout.SETTINGS_FADE_OUT_MS)
-    fresh && preview -> PreviewMotion(vSnap = 1f, zTarget = 1f, zMs = GtvLayout.SETTINGS_FADE_IN_MS)
+    // R136:不再从整屏缩进预览框(见上:编辑页回来会闪一下亮壁纸),首页当场落在预览框里
+    fresh && preview -> PreviewMotion(vSnap = 1f, zSnapFirst = 1f)
     fresh -> PreviewMotion(vSnap = 0f, zSnapFirst = 0f)
     preview -> PreviewMotion(
         zSnapFirst = if (vNow <= 0f) 1f else null,
@@ -204,6 +244,17 @@ class ShellMotion(initialShown: Boolean, initialPreview: Boolean) {
     val v = Animatable(if (initialShown && initialPreview) 1f else 0f)
     val z = Animatable(if (initialShown && initialPreview) 1f else 0f)
 
+    /**
+     * **同一帧的瞬移**(R136)。[run] 里的 `snapTo` 在效果里跑,比「外壳重新打开」那次组合晚一帧——从编辑页回到「布局」时,
+     * 那一帧首页以整屏画出来(亮壁纸闪一帧,模拟器 1× 录像实测),下一帧才缩进预览框。[rememberShellMotion] 在组合阶段
+     * 把这一次要瞬移到的值先写在这里,绘制阶段读 [zNow];效果里的瞬移落地后清掉。不是闩:每次 [run] 结束都清。
+     */
+    var zHold by mutableStateOf<Float?>(null)
+        internal set
+
+    /** 首页那一层此刻的几何(绘制阶段读):有 [zHold] 用它,否则是动画值。 */
+    val zNow: Float get() = zHold ?: z.value
+
     suspend fun run(shown: Boolean, preview: Boolean) = coroutineScope {
         val fresh = shown && a.value <= 0f
         launch {
@@ -217,6 +268,7 @@ class ShellMotion(initialShown: Boolean, initialPreview: Boolean) {
         m.vTarget?.let { t -> v.animateTo(t, tween(m.vMs, easing = FastOutSlowInEasing)) }
         zJob?.join()
         m.zSnapAfter?.let { z.snapTo(it) }
+        zHold = null
     }
 }
 
@@ -224,6 +276,12 @@ class ShellMotion(initialShown: Boolean, initialPreview: Boolean) {
 @Composable
 fun rememberShellMotion(shown: Boolean, preview: Boolean): ShellMotion {
     val m = remember { ShellMotion(shown, preview) }
+    // 这一次要不要先把首页瞬移进预览框:在**这一次组合**里定下来(见 ShellMotion.zHold)。zHold 只在绘制阶段被读,
+    // 组合阶段写它不会造成「先读后写」。shown / preview 没变的重组不重算。
+    remember(shown, preview) {
+        val fresh = shown && m.a.value <= 0f
+        m.zHold = previewMotion(shown, preview, fresh, m.v.value).zSnapFirst
+    }
     LaunchedEffect(shown, preview) { m.run(shown, preview) }
     return m
 }

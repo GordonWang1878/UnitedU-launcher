@@ -54,6 +54,12 @@ data class MenuItem(val label: String, val hint: String, val action: () -> Unit)
  * @param app 左半 banner 的取图来源;只取 [AppEntry.card] / [AppEntry.isWide] / [AppEntry.fallbackColor]
  *   三个字段,取图判断逻辑与 [AppCard] 一致(有横幅铺满 / 方图标居中留边 / 都没有回落纯色底)。
  *   名字仍由 [title] 给——调用方那份已经处理过改名覆盖、查不到时退回包名的兜底,这里不重复一遍。
+ * @param eyebrow 页名上方的一行小字(R135):这页属于谁(「编辑桌面」「屏保图库」);只在没有 banner 时画。
+ * @param body 页名下方的说明(R135):确认页写后果(「这一行的 3 个应用会从桌面移除,不会卸载」);只在没有 banner 时画。
+ *
+ * **R135(2026-09-30 外观轮)**:两按钮确认框 [ConfirmDialog] 也画成这一页(左边问题 + 后果,右边「取消 / 删除」两颗胶囊),
+ * 与设置里「恢复默认」的确认层(R74)同一个样子;原来是屏幕中间的小面板 + 带描边的方按钮。
+ * **淡出中的残影**([LocalPageGhost],R108 的约定):两个焦点循环让路、每颗胶囊 `canFocus = false`、不收返回键、点击不回调。
  */
 @Composable
 fun GearMenu(
@@ -62,7 +68,10 @@ fun GearMenu(
     nonce: Int = 0,
     title: String? = null,
     app: AppEntry? = null,
+    eyebrow: String? = null,
+    body: String? = null,
 ) {
+    val ghost = LocalPageGhost.current
     val rowFocus = remember(items.size) { List(items.size.coerceAtLeast(1)) { FocusRequester() } }
     // 下面两个循环都在协程里跑,读的必须是**当前**这一份 requester:items.size 一变 remember 就换新表,
     // 捕获启动时那一份的话,旧表挂不上任何节点,requestFocus 次次抛、被 runCatching 吞掉,循环空转。
@@ -70,7 +79,8 @@ fun GearMenu(
     var focusedIdx by remember { mutableStateOf(0) }
     /** 现在持有焦点的那一项(只信控件自报,铁律 4);null = 菜单里没有。与 focusedIdx(回来落哪)分开(铁律 5)。 */
     var holder by remember { mutableStateOf<Int?>(null) }
-    LaunchedEffect(nonce) {
+    LaunchedEffect(nonce, ghost) {
+        if (ghost) return@LaunchedEffect
         val i = focusedIdx.coerceIn(0, requesters.lastIndex)
         var frames = 0
         while (holder == null && frames < 60) {
@@ -89,8 +99,8 @@ fun GearMenu(
     // FocusableInNonTouchMode(canFocus = inputMode != Touch);之前的指针事件(触摸屏、鼠标都算)
     // 让窗口进了触摸模式,这个状态跨冷启动带进新窗口,而 MENU 既不是导航键也不是打字键,不会让窗口
     // 离开触摸模式。第一下方向键才让框架退出触摸模式、把默认焦点给最上面那项,并吃掉这一下。
-    LaunchedEffect(holder == null) {
-        if (holder != null) return@LaunchedEffect
+    LaunchedEffect(holder == null, ghost) {
+        if (ghost || holder != null) return@LaunchedEffect
         repeat(3) { withFrameNanos { } }   // 换项时 lost / got 可能分属相邻两帧,中间那一帧的 null 不算丢
         var frames = 0
         while (holder == null && frames < 60) {
@@ -100,7 +110,7 @@ fun GearMenu(
         }
     }
 
-    androidx.activity.compose.BackHandler { onDismiss() }
+    androidx.activity.compose.BackHandler(enabled = !ghost) { onDismiss() }
 
     Box(
         modifier = Modifier
@@ -117,7 +127,10 @@ fun GearMenu(
                 modifier = Modifier.weight(1f).fillMaxHeight(),
                 contentAlignment = Alignment.Center,
             ) {
-                MenuBanner(app = app, name = title ?: stringResource(R.string.menu_settings_title))
+                val name = title ?: stringResource(R.string.menu_settings_title)
+                // 没有 banner(行菜单、确认页):与设置外壳没有预览的页同一个画法——路径小字、页名、说明。
+                if (app == null) ShellTitle(path = eyebrow, title = name, extra = body?.let { { ShellBody(it) } })
+                else MenuBanner(app = app, name = name)
             }
             Box(
                 modifier = Modifier.weight(1f).fillMaxHeight(),
@@ -127,8 +140,8 @@ fun GearMenu(
                     items.forEachIndexed { i, item ->
                         MenuPill(
                             label = item.label,
-                            onClick = item.action,
-                            modifier = Modifier.focusRequester(rowFocus[i]),
+                            onClick = if (ghost) ({}) else item.action,
+                            modifier = Modifier.focusRequester(rowFocus[i]).focusProperties { if (ghost) canFocus = false },
                             onFocusChange = { got ->
                                 // 得失顺序保护(同 HomeScreen.report):只有「本项仍是持有者」时 lost 才作废
                                 if (got) { holder = i; focusedIdx = i } else if (holder == i) holder = null
@@ -143,85 +156,63 @@ fun GearMenu(
     }
 }
 
-/**
- * 左半:banner + 应用名。[app] 为 null(齿轮设置菜单、编辑页行菜单)时没有具体应用,只画 [name],
- * 而且它此时是整页标题(R44:32 sp 的 [GtvLayout.SETTINGS_TITLE_TEXT]),不是 12 sp 的图片注脚。
- */
+/** 左半:banner + 应用名(长按卡片菜单、应用页菜单)。没有 banner 的页走 [ShellTitle],不经这里。 */
 @Composable
-private fun MenuBanner(app: AppEntry?, name: String) {
+private fun MenuBanner(app: AppEntry, name: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        if (app != null) {
-            // banner 尺寸:参考图像素量测约 196×110dp,取 192×108dp。R59 之前直接借 LARGE 卡片档位(当时正是 192);
-            // R59 把大档改成 153 之后改读自己的常量,菜单观感不随首页档位变(见 GtvLayout.MENU_BANNER_WIDTH)。
-            val bannerWidth = GtvLayout.MENU_BANNER_WIDTH.dp
-            val bannerHeight = (GtvLayout.MENU_BANNER_WIDTH * 9f / 16f).dp
-            val bmp = app.card
-            val fallback = app.fallbackColor
-            val scheme = MaterialTheme.colorScheme
-            // 取图逻辑复用自 AppCard.kt 的 Box 内容分支:有横幅铺满卡、方图标居中留边、
-            // 都没有就回落纯色底——**这里不重复画文字**,应用名已经在下面单独一行。
-            val container = when {
-                fallback != null && bmp != null -> Color(fallback)  // R107:同 appCardContainer
-                bmp != null -> Color.Transparent
-                else -> scheme.surfaceVariant
-            }
-            Box(
-                modifier = Modifier
-                    .size(bannerWidth, bannerHeight)
-                    .clip(RoundedCornerShape(GtvLayout.CARD_CORNER.dp))
-                    // R49:banner 与首页卡片同一档淡化(B4),同一张卡在首页与长按菜单里因此颜色一致
-                    // (「主题化卡片」2026-09-23 删掉之后没有例外了,gtv spec R58)。
-                    .gtvCardFade(LocalCardFade.current)
-                    .background(container),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (bmp != null && app.isWide) {
-                    Image(
-                        bitmap = bmp.asImageBitmap(),
-                        contentDescription = name,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.size(bannerWidth, bannerHeight),
-                    )
-                } else if (bmp != null) {
-                    Image(
-                        bitmap = bmp.asImageBitmap(),
-                        contentDescription = name,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.size(bannerHeight),
-                    )
-                }
-            }
-            Spacer(Modifier.height(GtvLayout.MENU_BANNER_NAME_GAP.dp))
+        // banner 尺寸:参考图像素量测约 196×110dp,取 192×108dp。R59 之前直接借 LARGE 卡片档位(当时正是 192);
+        // R59 把大档改成 153 之后改读自己的常量,菜单观感不随首页档位变(见 GtvLayout.MENU_BANNER_WIDTH)。
+        val bannerWidth = GtvLayout.MENU_BANNER_WIDTH.dp
+        val bannerHeight = (GtvLayout.MENU_BANNER_WIDTH * 9f / 16f).dp
+        val bmp = app.card
+        val fallback = app.fallbackColor
+        val scheme = MaterialTheme.colorScheme
+        // 取图逻辑复用自 AppCard.kt 的 Box 内容分支:有横幅铺满卡、方图标居中留边、
+        // 都没有就回落纯色底——**这里不重复画文字**,应用名已经在下面单独一行。
+        val container = when {
+            fallback != null && bmp != null -> Color(fallback)  // R107:同 appCardContainer
+            bmp != null -> Color.Transparent
+            else -> scheme.surfaceVariant
         }
-        // Ruling R44(owner 真机反馈 Round 10):「点击齿轮设置按钮进来后……左侧中文'设置'这两个字过于小了」。
+        Box(
+            modifier = Modifier
+                .size(bannerWidth, bannerHeight)
+                .clip(RoundedCornerShape(GtvLayout.CARD_CORNER.dp))
+                // R49:banner 与首页卡片同一档淡化(B4),同一张卡在首页与长按菜单里因此颜色一致
+                // (「主题化卡片」2026-09-23 删掉之后没有例外了,gtv spec R58)。
+                .gtvCardFade(LocalCardFade.current)
+                .background(container),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (bmp != null && app.isWide) {
+                Image(
+                    bitmap = bmp.asImageBitmap(),
+                    contentDescription = name,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(bannerWidth, bannerHeight),
+                )
+            } else if (bmp != null) {
+                Image(
+                    bitmap = bmp.asImageBitmap(),
+                    contentDescription = name,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(bannerHeight),
+                )
+            }
+        }
+        Spacer(Modifier.height(GtvLayout.MENU_BANNER_NAME_GAP.dp))
         // 12 sp 是 Google 长按菜单里**应用 banner 的注脚**(docs/screenshots/gtv/16-app-longpress-menu.png),
-        // 字小是因为上面有一整张图;没有图时(齿轮设置菜单、编辑页行菜单)这行字就是整页唯一的标题,
-        // 改用与「UnitedU 设置」页大标题同一个常量 SETTINGS_TITLE_TEXT(32 sp,Google 二级页大标题)、
-        // 同字重同颜色。有图的长按菜单保持 12 sp 注脚不变。
-        val isPageTitle = app == null
+        // 字小是因为上面有一整张图(Round 5 实测);没有图的页走 ShellTitle 的 31 sp 页名(R44 → R134)。
         BasicText(
             text = name,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            style = if (isPageTitle) {
-                TextStyle(
-                    fontFamily = Theme.Sans,
-                    fontWeight = FontWeight.Medium,
-                    color = Theme.EmphasisText,
-                    fontSize = GtvLayout.SETTINGS_TITLE_TEXT.sp,
-                    lineHeight = (GtvLayout.SETTINGS_TITLE_TEXT * 1.2f).sp,
-                    textAlign = TextAlign.Center,
-                )
-            } else {
-                TextStyle(
-                    fontFamily = Theme.Sans,
-                    fontWeight = FontWeight.Medium,
-                    color = LocalThemeColors.current.highlight,
-                    fontSize = GtvLayout.MENU_BANNER_NAME_TEXT.sp,
-                    letterSpacing = GtvLayout.MENU_BANNER_NAME_LETTER_SPACING.sp,
-                    textAlign = TextAlign.Center,
-                )
-            },
+            style = Type.caption.copy(
+                fontWeight = FontWeight.Medium,
+                color = LocalThemeColors.current.highlight,
+                letterSpacing = GtvLayout.MENU_BANNER_NAME_LETTER_SPACING.sp,
+                textAlign = TextAlign.Center,
+            ),
         )
     }
 }

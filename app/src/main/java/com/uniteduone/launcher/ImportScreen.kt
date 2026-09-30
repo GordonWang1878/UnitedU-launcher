@@ -90,6 +90,9 @@ fun ImportScreen(
     onUploaded: (type: String, name: String) -> Unit = { _, _ -> },
 ) {
     val ctx = LocalContext.current
+    // 淡出中的残影(R136 起本页也淡入淡出):不可聚焦、不收返回键、不再回调;服务照旧随本页离开组合而停(晚一个淡出时长)。
+    val ghost = LocalPageGhost.current
+    val ghostNow by androidx.compose.runtime.rememberUpdatedState(ghost)
     // 服务只在挂载时起一次(下面那个 DisposableEffect(Unit)),回调读最新的一份。
     val uploaded by androidx.compose.runtime.rememberUpdatedState(onUploaded)
     var received by remember { mutableStateOf(0) }
@@ -119,7 +122,7 @@ fun ImportScreen(
         } else {
             server = UploadServer.startOnFreePort(
                 ctx,
-                onSaved = { type, name -> received++; lastName = name; notice = null; uploaded(type, name) },
+                onSaved = { type, name -> received++; lastName = name; notice = null; if (!ghostNow) uploaded(type, name) },
                 // **只有前台才撑窗**(spec §4):窗的用途是「别把正在进行的安装流程关掉」,
                 // 页面本就不在前台时没有这样的流程可护——照撑的话,局域网上任何人每 30 s 传一次
                 // APK 就能让这个无密码服务在用户已经切去看视频之后无限期活着。
@@ -150,7 +153,7 @@ fun ImportScreen(
     // 服务寿命必须与本页组合寿命绑死在同一个 onDispose 上,拆开就会出现「页面还在、服务已停」。
     DisposableEffect(lifecycle) {
         val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
-            if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP && !ghostNow) {
                 if (System.currentTimeMillis() > suppressStopUntil) onExit()
                 // 窗内压下的这次交给下面的到期复查效果兜底,而不是就此不管。
                 else suppressedStopTick++
@@ -169,7 +172,7 @@ fun ImportScreen(
         while (System.currentTimeMillis() < suppressStopUntil) {
             kotlinx.coroutines.delay((suppressStopUntil - System.currentTimeMillis()).coerceAtLeast(0L))
         }
-        if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) onExit()
+        if (!ghostNow && !lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) onExit()
     }
 
     val qr by produceState<Bitmap?>(null, url) {
@@ -179,9 +182,9 @@ fun ImportScreen(
     val fr = remember { FocusRequester() }
     var focused by remember { mutableStateOf(false) }
     val highlight = LocalThemeColors.current.highlight   // 地址与提示文字跟主题 highlight
-    androidx.activity.compose.BackHandler { onExit() }
-    LaunchedEffect(focusNonce, focused) {
-        if (focused) return@LaunchedEffect
+    androidx.activity.compose.BackHandler(enabled = !ghost) { onExit() }
+    LaunchedEffect(focusNonce, focused, ghost) {
+        if (ghost || focused) return@LaunchedEffect
         var frames = 0
         while (!focused && frames < 60) {
             withFrameNanos { }
@@ -198,6 +201,7 @@ fun ImportScreen(
             .background(GtvTokens.MenuBg)
             .focusRequester(fr)
             .focusProperties {
+                if (ghost) canFocus = false
                 up = FocusRequester.Cancel; down = FocusRequester.Cancel
                 left = FocusRequester.Cancel; right = FocusRequester.Cancel
             }
@@ -205,85 +209,76 @@ fun ImportScreen(
             .focusable(),
     ) {
         val err = error
-        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-            Column(
-                modifier = Modifier.weight(1f).padding(start = 96.dp, end = 40.dp),
-                verticalArrangement = Arrangement.spacedBy(0.dp),
-            ) {
-                BasicText(
-                    text = stringResource(importTitleFor(category)),
-                    style = TextStyle(
-                        fontFamily = Theme.Sans, fontWeight = FontWeight.Medium, color = Theme.EmphasisText,
-                        fontSize = GtvLayout.SETTINGS_TITLE_TEXT.sp, lineHeight = (GtvLayout.SETTINGS_TITLE_TEXT * 1.25f).sp,
-                    ),
-                )
-                Spacer(Modifier.height(32.dp))
-                if (err != null) {
-                    BasicText(text = stringResource(err), style = importBody.copy(color = Theme.DialogBodyText))
-                } else {
-                    val steps = listOf(R.string.import_step_wifi, R.string.import_step_scan, R.string.import_step_pick)
-                    steps.forEachIndexed { i, res ->
-                        if (i > 0) Spacer(Modifier.height(18.dp))
-                        ImportStep(n = i + 1, text = stringResource(res))
-                    }
-                    Spacer(Modifier.height(36.dp))
-                    // 状态:没收到时「等待手机发送…」,收到后 ✓ 已收到 N 个文件 · 最近:名字;APK 的提示压在下面一行。
-                    val last = lastName
-                    if (received == 0) {
-                        StatusLine(dot = Theme.SecondaryText, text = stringResource(R.string.import_waiting), color = Theme.SecondaryText)
-                    } else {
-                        StatusLine(
-                            dot = highlight,
-                            text = pluralStringResource(R.plurals.import_received, received, received) +
-                                (if (last != null) " · " + stringResource(R.string.import_last, last) else ""),
-                            color = highlight,
-                        )
-                    }
-                    val n = notice
-                    if (n != null) {
-                        Spacer(Modifier.height(10.dp))
-                        BasicText(text = stringResource(n), style = importBody.copy(color = highlight))
+        // R135:与设置各层同一个版式(左右 1:1)——左半屏正中是页名,下面是三步说明与状态(这一块整体居中、块内左对齐);
+        // 右半屏正中是二维码与手输地址。R130 时左边整块贴左(距屏幕左缘 96 dp),页名位置与别的页对不上。
+        ShellScaffold(
+            left = {
+                ShellTitle(path = null, title = stringResource(importTitleFor(category))) {
+                    Column(Modifier.width(IMPORT_STEPS_WIDTH.dp)) {
+                        if (err != null) {
+                            BasicText(text = stringResource(err), style = importBody)
+                        } else {
+                            val steps = listOf(R.string.import_step_wifi, R.string.import_step_scan, R.string.import_step_pick)
+                            steps.forEachIndexed { i, res ->
+                                if (i > 0) Spacer(Modifier.height(16.dp))
+                                ImportStep(n = i + 1, text = stringResource(res))
+                            }
+                            Spacer(Modifier.height(28.dp))
+                            // 状态:没收到时「等待手机发送…」,收到后「已收到 N 个文件 · 最近:名字」;APK 的提示压在下面一行。
+                            val last = lastName
+                            if (received == 0) {
+                                StatusLine(dot = Ink.Secondary, text = stringResource(R.string.import_waiting), color = Ink.Secondary)
+                            } else {
+                                StatusLine(
+                                    dot = highlight,
+                                    text = pluralStringResource(R.plurals.import_received, received, received) +
+                                        (if (last != null) " · " + stringResource(R.string.import_last, last) else ""),
+                                    color = highlight,
+                                )
+                            }
+                            val n = notice
+                            if (n != null) {
+                                Spacer(Modifier.height(10.dp))
+                                BasicText(text = stringResource(n), style = Type.body.copy(color = highlight))
+                            }
+                        }
+                        Spacer(Modifier.height(24.dp))
+                        BasicText(text = stringResource(R.string.import_hint_back), style = Type.caption)
                     }
                 }
-                Spacer(Modifier.height(36.dp))
-                BasicText(
-                    text = stringResource(R.string.import_hint_back),
-                    style = TextStyle(fontFamily = Theme.Sans, color = Theme.HintText, fontSize = 15.sp),
-                )
-            }
-            if (err == null) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
+            },
+            right = {
+                if (err == null) Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(
                         modifier = Modifier
-                            .size(288.dp)
+                            .size(IMPORT_QR_SIZE.dp)
                             .clip(RoundedCornerShape(24.dp))
                             .background(Color.White)
-                            .padding(18.dp),
+                            .padding(16.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         qr?.let { Image(bitmap = it.asImageBitmap(), contentDescription = null, modifier = Modifier.fillMaxSize()) }
                     }
-                    Spacer(Modifier.height(24.dp))
-                    BasicText(
-                        text = stringResource(R.string.import_url_hint),
-                        style = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 15.sp),
-                    )
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(20.dp))
+                    BasicText(text = stringResource(R.string.import_url_hint), style = Type.body)
+                    Spacer(Modifier.height(4.dp))
                     BasicText(
                         // 手机浏览器地址栏认得不带 http:// 的「IP:端口」;二维码里仍是完整网址。
                         text = url?.let { displayAddress(it) } ?: "",
-                        style = TextStyle(fontFamily = Theme.Sans, fontWeight = FontWeight.Medium, color = Theme.EmphasisText, fontSize = 24.sp),
+                        style = Type.headline,
                     )
                 }
-            }
-        }
+            },
+        )
     }
 }
 
-private val importBody = TextStyle(fontFamily = Theme.Sans, color = Theme.DialogBodyText, fontSize = 18.sp, lineHeight = 26.sp)
+/** 左边三步说明那一块的宽度(dp;[ShellTitle] 的内容上限是 400)。 */
+private const val IMPORT_STEPS_WIDTH = 360f
+/** 二维码白底方块的边长(dp)。 */
+private const val IMPORT_QR_SIZE = 264f
+
+private val importBody = Type.lead
 
 /** 地址栏里给人手输的样子:去掉 `http://` 与末尾的 `/`(R130)。二维码仍编码完整网址。 */
 internal fun displayAddress(url: String): String = url.removePrefix("http://").removeSuffix("/")
@@ -294,16 +289,16 @@ private fun ImportStep(n: Int, text: String) {
     val accent = LocalThemeColors.current.accent
     Row(verticalAlignment = Alignment.Top) {
         Box(
-            modifier = Modifier.size(30.dp).clip(CircleShape).background(accent),
+            modifier = Modifier.size(28.dp).clip(CircleShape).background(accent),
             contentAlignment = Alignment.Center,
         ) {
             BasicText(
                 text = n.toString(),
-                style = TextStyle(fontFamily = Theme.Sans, fontWeight = FontWeight.Medium, color = contrastingTextColor(accent), fontSize = 16.sp),
+                style = Type.label.copy(fontWeight = FontWeight.Medium, color = contrastingTextColor(accent)),
             )
         }
-        Spacer(Modifier.width(16.dp))
-        BasicText(text = text, modifier = Modifier.padding(top = 2.dp), style = importBody)
+        Spacer(Modifier.width(14.dp))
+        BasicText(text = text, modifier = Modifier.padding(top = 1.dp), style = importBody)
     }
 }
 
@@ -313,6 +308,6 @@ private fun StatusLine(dot: Color, text: String, color: Color) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(10.dp).clip(CircleShape).background(dot))
         Spacer(Modifier.width(12.dp))
-        BasicText(text = text, style = TextStyle(fontFamily = Theme.Sans, color = color, fontSize = 17.sp))
+        BasicText(text = text, style = Type.label.copy(color = color))
     }
 }

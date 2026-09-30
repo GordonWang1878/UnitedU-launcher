@@ -1,6 +1,8 @@
 package com.uniteduone.launcher
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -143,17 +145,22 @@ fun GtvTopBar(
                 .height(GtvLayout.TOP_BAR_HEIGHT.dp)
                 .clip(RoundedCornerShape(percent = 50))
                 .background(GtvTokens.PillTrack)
+                // R136(动效):在三颗之间换时,小胶囊的宽度跟着名字长短平滑变、名字交叉淡化,不再一帧跳到新宽度。
+                .animateContentSize(tween(GtvLayout.TOP_NAV_FADE_OUT_MS, easing = Theme.AppFocusEasing))
                 .padding(horizontal = GtvLayout.TOP_BAR_LABEL_PAD_H.dp),
             contentAlignment = Alignment.Center,
         ) {
-            BasicText(
-                text = stringResource(TOP_PILLS[labelPill].descriptionRes),
-                style = TextStyle(
-                    fontFamily = Theme.Sans,
-                    fontSize = GtvLayout.TOP_BAR_CLOCK_TEXT.sp,
-                    color = LocalThemeColors.current.accent,
-                ),
-            )
+            Crossfade(
+                targetState = labelPill,
+                animationSpec = tween(GtvLayout.TOP_NAV_FADE_IN_MS, easing = Theme.AppFocusEasing),
+                label = "topBarPillName",
+            ) { pill ->
+                BasicText(
+                    text = stringResource(TOP_PILLS[pill].descriptionRes),
+                    maxLines = 1,
+                    style = Type.clock.copy(color = LocalThemeColors.current.accent),
+                )
+            }
         }
         // Google 在这条留白里放搜索 / Home / Apps 三个 tab;我们没有搜索与 Home tab(spec §9),
         // 「应用」R89 起做成药丸组里的一颗(打开所有应用页),不另起一组 tab。
@@ -337,9 +344,7 @@ internal fun ClockWordmark(
     BasicText(
         text = text,
         modifier = modifier,
-        style = TextStyle(
-            fontFamily = Theme.Sans,
-            fontSize = GtvLayout.TOP_BAR_CLOCK_TEXT.sp,
+        style = Type.clock.copy(
             color = accent,
             shadow = if (shadow && strongShadow) {
                 Shadow(color = Color.Black.copy(alpha = shadowAlpha), offset = Offset(0f, 0f), blurRadius = 4f)

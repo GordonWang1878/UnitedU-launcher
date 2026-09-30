@@ -60,6 +60,8 @@ object Theme {
     val RowTitle = Color(0xFFFFFFFF)
 
     // ---- UI chrome palette (M2 Task A: consolidated, values unchanged) ----
+    // **R134(2026-09-30 外观轮)**:下面的文字色不再各有各的值,一律指到 [Ink] 的四档(见 Type.kt);名字留着是因为
+    // 调用点很多、名字本身说明了用途。新代码直接用 `Type.*` 的样式,不再挑这里的颜色。
     // 以下常量是从 ImagePicker/EditScreen/HomeSettingsCard/GearMenu/AppCard 里
     // 原样搬来的 Color(0x..) 字面量,按用途命名、纯搬家——没有改过任何一个值。
     // 同一色值在多处作同一种用途时共用一个常量;视觉意图不同的即使撞色也分开命名。
@@ -86,30 +88,30 @@ object Theme {
     val PendingCardFocusedBackground = Color(0xFF3A3A3C)
     /** 弹窗底部「返回关闭」一类提示文字:关于页、默认桌面卡片共用(gtv 线 Task 8 起齿轮菜单不再用——
      *  换皮后是全屏 banner + 药丸,不留这行提示)。 */
-    val FooterHintText = Color(0xFF4A4A4A)
+    val FooterHintText = Ink.Tertiary
     /** 图片选择器底部「返回关闭/取消」提示文字。 */
-    val PickerFooterText = Color(0xFF666666)
+    val PickerFooterText = Ink.Tertiary
     /** 次要说明文字:编辑页应用包名、默认桌面卡片注释行共用。 */
-    val FootnoteText = Color(0xFF7A7A7A)
+    val FootnoteText = Ink.Tertiary
     /** 图片选择器缩略图加载中的「...」占位文字。 */
-    val ThumbLoadingText = Color(0xFF888888)
+    val ThumbLoadingText = Ink.Tertiary
     /** 提示性文字:图片选择器 adb 提示、默认桌面卡片「当前」标签共用。 */
-    val HintText = Color(0xFF8A8A8A)
+    val HintText = Ink.Tertiary
     /** 编辑页次要文字:顶部提示、加载中占位卡片包名、选应用弹窗加载/空态提示共用。 */
-    val SecondaryText = Color(0xFF9A9A9A)
+    val SecondaryText = Ink.Secondary
     /** 图片选择器缩略图标签(未聚焦)。 */
-    val ThumbLabelText = Color(0xFFAAAAAA)
+    val ThumbLabelText = Ink.Label
     /** 关于页检查更新的失败提示(网络 / 格式 / 下载 / 校验 / 安装失败)。 */
     val StatusErrorText = Color(0xFFB08080)
     /** 齿轮菜单条目标题(未聚焦)。 */
-    val MenuItemText = Color(0xFFB0B0B0)
+    val MenuItemText = Ink.Label
     /** 默认桌面卡片主按钮文字(未聚焦)。 */
-    val ButtonText = Color(0xFFCFCFCF)
+    val ButtonText = Ink.Label
     /** 弹窗正文文字:图片选择器空态提示、选应用弹窗条目标题(未聚焦)共用。 */
-    val DialogBodyText = Color(0xFFE8E8E8)
+    val DialogBodyText = Ink.Primary
     /** 强调/高亮文字:确认框、默认桌面卡片当前标签共用(gtv 线 Task 8 起齿轮菜单聚焦项改填主题
      *  accent、文字按亮度取黑/白对比色,不再固定用这个值)。 */
-    val EmphasisText = Color(0xFFF5F5F5)
+    val EmphasisText = Ink.Primary
 
     // 注:曾按 Projectivy 资源表的 default_icon_bg(#333333)与 icons_scale(0.8)给方形图标
     // 加底色并缩放,复审用像素证明参考图里两者都没有生效——资源存在不代表用在这个位置。
@@ -126,7 +128,7 @@ object Theme {
             rowVerticalPad = HomeLayout.rowVerticalPad(n).dp,
             titleGap = HomeLayout.CARD_TITLE_GAP.dp,
             titleLine = HomeLayout.CARD_TITLE_LINE.dp,
-            titleSize = 12.sp,   // bodySmall
+            titleSize = Type.CAPTION.sp,   // bodySmall
         )
     }
 
@@ -145,7 +147,7 @@ object Theme {
         // ui-pending #9:标题让到聚焦描边外缘之下(随档位变),见 GtvLayout.cardTitleGap
         titleGap = GtvLayout.cardTitleGap(size).dp,
         titleLine = GtvLayout.CARD_TITLE_LINE.dp,
-        titleSize = 14.sp,
+        titleSize = Type.BODY.sp,
     )
 
     val SidePadding = HomeLayout.SIDE_PADDING.dp

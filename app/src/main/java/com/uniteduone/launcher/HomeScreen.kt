@@ -545,10 +545,9 @@ fun HomeScreen(
         DisposableEffect(Unit) { onDispose { onContentAlpha(0f) } }
         val surface = androidx.tv.material3.MaterialTheme.colorScheme.surface
         // 首页提示文字的字样:空桌面求救那句与移动态底部提示共用一份(M4b spec §0-10「沿用现有提示文字样式」)
-        val hintStyle = TextStyle(
-            fontFamily = Theme.Sans,
+        val hintStyle = Type.label.copy(
             color = androidx.tv.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
-            fontSize = 15.sp,
+            lineHeight = 22.sp,
         )
         // Ruling R24(终审 2026-09-21,owner 真机走查 Round 3):**2D 背景衰减**,取代 R22 的纯横向
         // 渐变加 Round 2 那版跟着行位移走的竖直 scrim。owner 指出 Google 的暗色区域是「右上角一块图,
@@ -797,13 +796,12 @@ fun HomeScreen(
             val newCount = loaded?.third ?: 0
             if (newCount > 0) {
                 BasicText(
-                    text = stringResource(R.string.home_new_apps, newCount),
+                    text = androidx.compose.ui.res.pluralStringResource(R.plurals.home_new_apps, newCount, newCount),
                     modifier = Modifier
                         .padding(start = GtvLayout.CONTENT_KEYLINE.dp, top = GtvLayout.NEW_APPS_HINT_GAP.dp)
                         .alpha(contentAlpha),
-                    style = androidx.tv.material3.MaterialTheme.typography.labelSmall.copy(
-                        color = androidx.tv.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-                    ),
+                    // R134:原来借库的 labelSmall(11 sp、带字距);改读 Type.caption,颜色照旧。
+                    style = Type.caption.copy(color = androidx.tv.material3.MaterialTheme.colorScheme.onSurfaceVariant),
                 )
             }
         }
@@ -827,33 +825,62 @@ fun HomeScreen(
         // 长按卡片菜单。**嵌在首页里而不是替换首页**:替换掉的话整棵卡片树被销毁,
         // tgtRow/tgtIdx 这些「记住的那一格」跟着 remember 一起没了,关菜单后焦点回到第一张卡。
         // 标题用该卡的显示名;取不到(极端情况下 label 为空)退回包名,绝不留一行空标题。
+        // 「修改标题」页(Task 5,spec §3)。同样嵌在首页里而不是替换首页,理由同上。
+        //
+        // **R136:两层一摞,淡入淡出**([OverlayStack]):打开 / 关掉淡入淡出,菜单 →「修改标题」交叉淡化。
+        // 残影画的是关掉前最后那一份([HomeOverlay] 把要画的东西都带上:菜单项、banner、标题草稿的初值),
+        // 不读此刻已经清空的 cardMenu / renameTarget。
         val cm = cardMenu
-        if (cm != null) {
-            GearMenu(
+        val rt = renameTarget
+        val overlay: HomeOverlay? = when {
+            // 两个同时非空时画后开的那一层(「修改标题」是从菜单里点出来的)
+            rt != null -> HomeOverlay.Rename(
+                rt, titles[rt.pkg] ?: "",
+                appLabel = rows.getOrNull(rt.rowIndex)?.apps?.getOrNull(rt.colIndex)?.label?.takeIf { it.isNotBlank() },
+            )
+            cm != null -> HomeOverlay.Menu(
+                ref = cm,
                 items = cardMenuItems,
-                onDismiss = onCardMenuDismiss,
-                nonce = focusNonce,
-                title = cm.label.ifBlank { cm.pkg },
                 // gtv 线 Task 8:左半 banner 就是这张卡当前画的那个 AppEntry,按行列坐标原样取,
                 // 不用另起一份按 pkg 查的 map——rows 已经是这次组合画出来的那一份,行列必然对得上。
                 app = rows.getOrNull(cm.rowIndex)?.apps?.getOrNull(cm.colIndex),
             )
+            else -> null
         }
+        OverlayStack(state = overlay, layerKey = { it.layer }) { ov ->
+            when (ov) {
+                is HomeOverlay.Menu -> GearMenu(
+                    items = ov.items,
+                    onDismiss = onCardMenuDismiss,
+                    nonce = focusNonce,
+                    title = ov.ref.label.ifBlank { ov.ref.pkg },
+                    app = ov.app,
+                )
+                is HomeOverlay.Rename -> TitleDialog(
+                    key = ov.ref.pkg,
+                    current = ov.current,
+                    heading = stringResource(R.string.title_dialog_title),
+                    hint = stringResource(R.string.title_dialog_hint),
+                    onSave = { onRenameSave(ov.ref, it) },
+                    onCancel = onRenameCancel,
+                    nonce = focusNonce,
+                    subtitle = ov.ref.label.ifBlank { ov.ref.pkg },
+                    // 清空 = 恢复应用名:空着时把应用名淡淡地垫在输入框里
+                    placeholder = ov.appLabel,
+                )
+            }
+        }
+    }
+}
 
-        // 「修改标题」对话框(Task 5,spec §3)。同样嵌在首页里而不是替换首页,理由同上。
-        val rt = renameTarget
-        if (rt != null) {
-            TitleDialog(
-                key = rt.pkg,
-                current = titles[rt.pkg] ?: "",
-                heading = stringResource(R.string.title_dialog_title),
-                hint = stringResource(R.string.title_dialog_hint),
-                onSave = { onRenameSave(rt, it) },
-                onCancel = onRenameCancel,
-                nonce = focusNonce,
-                subtitle = rt.label.ifBlank { rt.pkg },
-            )
-        }
+/** 首页上叠着的那一层(R136,给 [OverlayStack] 当状态):长按卡片菜单,或「修改标题」页。[layer] 区分是哪一层。 */
+private sealed interface HomeOverlay {
+    val layer: String
+    class Menu(val ref: CardRef, val items: List<MenuItem>, val app: AppEntry?) : HomeOverlay {
+        override val layer get() = "menu:${ref.pkg}"
+    }
+    class Rename(val ref: CardRef, val current: String, val appLabel: String?) : HomeOverlay {
+        override val layer get() = "rename:${ref.pkg}"
     }
 }
 

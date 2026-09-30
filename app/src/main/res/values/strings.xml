@@ -41,7 +41,7 @@
     <string name="import_title">用手机传到电视</string>
     <string name="import_title_wallpapers">用手机添加壁纸</string>
     <string name="import_title_cards">用手机添加卡片图</string>
-    <string name="import_title_screensavers">用手机添加屏保照片和视频</string>
+    <string name="import_title_screensavers">用手机添加\n屏保照片和视频</string>
     <string name="import_step_wifi">手机连上和电视相同的 Wi-Fi</string>
     <string name="import_step_scan">用手机相机扫描右边的二维码</string>
     <string name="import_step_pick">在打开的网页里选好文件，电视这边马上就能用</string>
@@ -129,7 +129,10 @@
 
     <!-- home_* : 首页与默认桌面设置卡 -->
     <string name="home_empty_apps_hint">桌面上还没有应用\n选左上角的「所有应用」，长按想要的应用，再选「加到桌面」</string>
-    <string name="home_new_apps">有 %1$d 个新应用</string>
+    <plurals name="home_new_apps">
+        <item quantity="one">「所有应用」里有 %1$d 个新应用</item>
+        <item quantity="other">「所有应用」里有 %1$d 个新应用</item>
+    </plurals>
     <string name="home_settings_title">默认桌面</string>
     <string name="home_settings_current_label">当前</string>
     <string name="home_settings_change_button">去系统设置更改</string>
@@ -140,11 +143,14 @@
     <string name="picker_wallpaper_title">选一张壁纸</string>
     <string name="picker_card_image_title">选一张卡片图</string>
     <string name="picker_no_images">还没有图片可选</string>
-    <string name="picker_back_to_close">按确定预览 · 长按可删除或关闭 · 按返回键关闭</string>
-    <string name="picker_back_to_cancel">按返回键取消</string>
+    <string name="picker_back_to_close">按确定预览，长按可删除或关闭</string>
+    <string name="picker_back_to_cancel">按确定选用，按返回键取消</string>
     <string name="picker_restore_original">恢复原图</string>
     <string name="picker_add_from_phone">从手机添加</string>
-    <string name="picker_screensaver_pool_title">屏保图库 · %1$d 项</string>
+    <plurals name="picker_screensaver_pool_title">
+        <item quantity="one">屏保图库 · %1$d 项</item>
+        <item quantity="other">屏保图库 · %1$d 项</item>
+    </plurals>
     <string name="picker_screensaver_title">屏保图库</string>
     <string name="picker_no_screensavers">还没有屏保照片或视频</string>
     <!-- R115:选图页「内置 / 我的」两块的分组标题;内置屏保图关掉之后的角标与胶囊菜单(R117) -->
@@ -308,7 +314,10 @@
     <string name="edit_row_rename_hint">确定保存 · 返回取消 · 清空不会改名</string>
     <string name="edit_row_icon_heading">选择行图标</string>
     <string name="edit_row_delete_confirm_title">删除「%1$s」？</string>
-    <string name="edit_row_delete_confirm_body">这一行的 %1$d 个应用会从桌面移除，不会卸载。</string>
+    <plurals name="edit_row_delete_confirm_body">
+        <item quantity="one">这一行的 %1$d 个应用会从桌面移除，不会卸载。</item>
+        <item quantity="other">这一行的 %1$d 个应用会从桌面移除，不会卸载。</item>
+    </plurals>
     <string name="edit_row_delete_ok">删除</string>
     <string name="row_icon_movie">影片</string>
     <string name="row_icon_tv">电视</string>

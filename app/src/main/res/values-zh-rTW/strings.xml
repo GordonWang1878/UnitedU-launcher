@@ -41,7 +41,7 @@
     <string name="import_title">用手機傳到電視</string>
     <string name="import_title_wallpapers">用手機新增桌布</string>
     <string name="import_title_cards">用手機新增卡片圖</string>
-    <string name="import_title_screensavers">用手機新增螢幕保護相片和影片</string>
+    <string name="import_title_screensavers">用手機新增\n螢幕保護相片和影片</string>
     <string name="import_step_wifi">手機連上和電視相同的 Wi-Fi</string>
     <string name="import_step_scan">用手機相機掃描右邊的 QR 碼</string>
     <string name="import_step_pick">在開啟的網頁裡選好檔案，電視這邊馬上就能使用</string>
@@ -129,7 +129,10 @@
 
     <!-- home_* : 首頁與預設桌面設定卡 -->
     <string name="home_empty_apps_hint">桌面上還沒有應用程式\n選左上角的「所有應用程式」，長按想要的應用程式，再選「加到桌面」</string>
-    <string name="home_new_apps">有 %1$d 個新應用程式</string>
+    <plurals name="home_new_apps">
+        <item quantity="one">「所有應用程式」裡有 %1$d 個新應用程式</item>
+        <item quantity="other">「所有應用程式」裡有 %1$d 個新應用程式</item>
+    </plurals>
     <string name="home_settings_title">預設桌面</string>
     <string name="home_settings_current_label">目前</string>
     <string name="home_settings_change_button">前往系統設定變更</string>
@@ -140,12 +143,15 @@
     <string name="picker_wallpaper_title">選一張桌布</string>
     <string name="picker_card_image_title">選一張卡片圖</string>
     <string name="picker_no_images">還沒有圖片可選</string>
-    <string name="picker_back_to_close">按確定預覽 · 長按可刪除或關閉 · 按返回鍵關閉</string>
-    <string name="picker_back_to_cancel">按返回鍵取消</string>
+    <string name="picker_back_to_close">按確定預覽，長按可刪除或關閉</string>
+    <string name="picker_back_to_cancel">按確定選用，按返回鍵取消</string>
     <string name="picker_restore_original">恢復原圖</string>
     <string name="picker_add_from_phone">從手機新增</string>
-    <string name="picker_screensaver_pool_title">螢幕保護圖庫 · %1$d 項</string>
-    <string name="picker_screensaver_title">螢幕保護程式圖庫</string>
+    <plurals name="picker_screensaver_pool_title">
+        <item quantity="one">螢幕保護圖庫 · %1$d 項</item>
+        <item quantity="other">螢幕保護圖庫 · %1$d 項</item>
+    </plurals>
+    <string name="picker_screensaver_title">螢幕保護圖庫</string>
     <string name="picker_no_screensavers">還沒有螢幕保護程式相片或影片</string>
     <!-- R115:選圖頁「內建 / 我的」兩塊的分組標題;內建螢幕保護圖關掉之後的角標與膠囊選單(R117) -->
     <string name="picker_section_builtin">內建</string>
@@ -251,7 +257,7 @@
     <string name="about_repo">專案網址 github.com/GordonWang1878/UnitedU-launcher</string>
     <!-- onb_* : 首次啟動引導(T10,spec §8);第 1 步的語言按鈕沿用 settings_lang_* -->
     <string name="onb_step1_title">選擇語言</string>
-    <string name="onb_step2_title">把已安裝的應用程式放到桌面</string>
+    <string name="onb_step2_title">把應用程式放到桌面</string>
     <string name="onb_step2_body">先放這些。其他應用程式之後可以在「所有應用程式」裡加到桌面。</string>
     <string name="onb_step3_title">把 UnitedU 設為預設桌面</string>
     <string name="onb_next">繼續</string>
@@ -308,7 +314,10 @@
     <string name="edit_row_rename_hint">確定儲存 · 返回取消 · 清空不會改名</string>
     <string name="edit_row_icon_heading">選擇列圖示</string>
     <string name="edit_row_delete_confirm_title">刪除「%1$s」？</string>
-    <string name="edit_row_delete_confirm_body">這一列的 %1$d 個應用程式會從桌面移除，不會解除安裝。</string>
+    <plurals name="edit_row_delete_confirm_body">
+        <item quantity="one">這一列的 %1$d 個應用程式會從桌面移除，不會解除安裝。</item>
+        <item quantity="other">這一列的 %1$d 個應用程式會從桌面移除，不會解除安裝。</item>
+    </plurals>
     <string name="edit_row_delete_ok">刪除</string>
     <string name="row_icon_movie">影片</string>
     <string name="row_icon_tv">電視</string>

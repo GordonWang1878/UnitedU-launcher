@@ -1,6 +1,6 @@
 # 代码评审入口(给外部评审者)
 
-2026-09-29 写,对应 main `e3bf917` 之后。先读这一份,再按需要跳到它指的文件;这里只讲「是什么、在哪、哪些看起来像 bug 其实是刻意的」,不重复设计论证。
+2026-09-29 写,对应 main `e3bf917` 之后;2026-09-30 外观轮(R134–R136:字号 / 版式 / 动效统一)后更新。先读这一份,再按需要跳到它指的文件;这里只讲「是什么、在哪、哪些看起来像 bug 其实是刻意的」,不重复设计论证。
 
 ## 1. 这是什么
 
@@ -13,7 +13,7 @@
 ## 2. 怎么构建、测试
 
 - 需要 JDK 17、Android SDK(compileSdk 35、build-tools **35.0.0**,`app/build.gradle.kts` 里显式钉了)、Gradle 8.14.x。**仓库里没有 Gradle Wrapper**。作者机器上工具链刻意不进 PATH,用 `source scripts/env.sh` 注入(路径是作者本机的,仅供参考)。
-- 构建:`gradle --no-daemon assembleRelease`;单测:`gradle --no-daemon testReleaseUnitTest`(`app/src/test/`,53 个文件、约 590 个 JVM 单测;**没有仪器测试**,界面行为靠模拟器脚本 + 真机验收,记录在 `WORKLOG.md`)。
+- 构建:`gradle --no-daemon assembleRelease`;单测:`gradle --no-daemon testReleaseUnitTest`(`app/src/test/`,55 个文件、约 610 个 JVM 单测;**没有仪器测试**,界面行为靠模拟器脚本 + 真机验收,记录在 `WORKLOG.md`)。
 - 没有 `~/.unitedu/release.jks` 时 release 自动用 debug keystore 签名(`-PrequireReleaseKey=true` 时改为构建失败,`scripts/release.sh` 总带这个参数)。R8 开着(`proguard-rules.pro`),资源裁剪关着(理由见 `build.gradle.kts` 注释)。
 - lint:`lintVitalRelease` 通过;完整 `lintRelease` 报 22 个 error,其中 21 个是误报(`ProduceStateDoesNotAssignValue` ×16、`dispatchKeyEvent` 上的 `RestrictedApi` ×5),1 个是刻意的(`QUERY_ALL_PACKAGES`,桌面必须列出全部应用)。详见同日体检报告 [`design/health-check-2026-09-29.md`](design/health-check-2026-09-29.md)。
 - 内置壁纸 / 屏保图有一道构建前置:`app/src/main/assets/builtin/{wallpapers,screensavers}/` 里的图必须先经 `scripts/hdr-assets.py --in-place` 转成双写法 HDR JPEG,否则单测 `BuiltinHdrAssetsTest` 失败(见 §5)。
@@ -25,7 +25,7 @@
 - **进程模型**:所有组件(`MainActivity`、清单里的 `PackageRemovedReceiver` / `RelaunchAfterUpdate`、系统屏保 `UnitedUDream`、上传服务的请求线程)同一进程,所以文件锁用进程内锁就够(`LockedFile`)。
 - **纯函数 / Android 分文件**:凡是能在 JVM 上测的规则都拆成不碰 Android 的文件(`*Pure.kt`、`*Model.kt`、`*Math.kt`、`PickerCells.kt`、`StandbySchedule.kt`、`UpdateChecker.kt`……),Compose / IO 那一半只接线。评审「规则对不对」看纯函数和它的单测,评审「接线 / 生命周期对不对」看 Compose 文件。
 
-## 4. 文件地图(`app/src/main/java/com/uniteduone/launcher/`,75 个文件)
+## 4. 文件地图(`app/src/main/java/com/uniteduone/launcher/`,77 个文件)
 
 **入口与全局状态**
 - `MainActivity.kt`(2100+ 行):浮层状态机、按键分发、待机计时、Bundle 保存 / 还原、包变动广播、语言切换 `recreate()`。评审重点文件。
@@ -35,24 +35,24 @@
 - `HomeScreen.kt`:首页(壁纸层 + 卡片行 + 顶栏)、纵向 / 横向位移自算、焦点看门狗与还原、R129 换行淡入;`CategoryRow` 是一行。
 - `AppCard.kt`:卡片(tv-material `Card`)、卡片淡化 `gtvCardFade`;`GtvFocusStroke.kt`:焦点描边 + 柔光;`CardColor.kt`:图标回落底色 / 横幅判据。
 - `GtvTopBar.kt`:顶栏三颗胶囊(设置 / 应用 / 输入源)+ 右侧时钟字标;`Clock.kt`:时钟格式与跳变监听。
-- `GtvLayout.kt`(几何与动效常量,1100+ 行,KDoc 里是每个数的出处)、`GtvTokens.kt`(颜色)、`Theme.kt`(动画规格、`CardMetrics`)、`ThemePresets.kt` / `ThemeResolve.kt` / `UnitedUTheme.kt`(主题色)、`HomeLayout.kt`(旧 main 线几何,只剩少量引用)。
+- `GtvLayout.kt`(几何与动效常量,1100+ 行,KDoc 里是每个数的出处)、`GtvTokens.kt`(颜色)、`Type.kt`(R134:全应用的字号七档 `Type` 与文字色四档 `Ink`,界面代码不许再写死字号)、`PageChrome.kt`(R135:整屏页两种版式里「页头 + 网格」那一种的页头 `PageHeader`、「＋」图标)、`Theme.kt`(动画规格、`CardMetrics`;旧的文字色名字都指到 `Ink`)、`ThemePresets.kt` / `ThemeResolve.kt` / `UnitedUTheme.kt`(主题色)、`HomeLayout.kt`(旧 main 线几何,只剩少量引用)。
 - `HomeBackdrop.kt` + `Wallpapers.kt` + `WallpaperMath.kt`:壁纸解码 / 模糊亮度处理 / 缓存 / 两张缓存图层。
 - `Move.kt`:首页原地移动态;`CardMenu.kt`:长按菜单项;`GearMenu.kt`:菜单浮层(名字是历史遗留,现在给长按卡片菜单、编辑页菜单等用)。
 - `Apps.kt`(枚举可启动应用、选卡片图)、`Model.kt`、`PickerGroups.kt`(「应用 / 系统工具」分组、「新」应用计数)。
 - `AppsPage.kt`:所有应用页;`Inputs.kt` + `InputPrefs.kt` + `InputsPage.kt`:输入源枚举、CEC 去重、调谐器合并、改名 / 隐藏、输入源页。
 
 **编辑与数据**
-- `EditScreen.kt`(1280 行):编辑分栏页(行管理、搬运模式、添加应用列表 `AppPicker`);`LayoutOps.kt`:行的增删改纯函数;`RowIcons.kt` / `RowIcon.kt` / `RowIconPicker.kt`:行图标。
+- `EditScreen.kt`(1350 行):编辑分栏页(行管理、搬运模式、添加应用列表 `AppPicker`);`LayoutOps.kt`:行的增删改纯函数;`RowIcons.kt` / `RowIcon.kt` / `RowIconPicker.kt`:行图标。
 - `Layout.kt`(`layout.json` 读写、`layoutWrites` 串行调度器)、`Titles.kt`、`Settings.kt`(`Settings` 数据类、合法值表、`SettingsStore`)、`LockedFile.kt`(多写者文件锁 + 原子写)、`Paths.kt`。
 - `PackagePruning.kt`(卸载后清理 + `PackageRemovedReceiver`)、`PrunePure.kt`(回到前台清理未安装包的判据,含「缺得太多就不清」的保护)。
 
 **设置外壳**
-- `SettingsModel.kt`(四组、每行、写入函数,纯数据)、`ShellModel.kt`(导航栈、页 id、每页缺省焦点、`MAX_CAPSULES_PER_PAGE`、预览状态机,纯模型)、`SettingsShell.kt`(`CapsuleColumn`:外壳每一层的焦点账本)、`ShellCapsule.kt`(`MenuPill` 胶囊渲染)、`SettingsFade.kt`(淡入淡出、残影 `LocalPageGhost`、`ShellMotion`)。
-- `AboutScreen.kt` + `Update.kt` + `UpdateChecker.kt` + `ApkInstaller.kt`:关于页与手动检查更新(判定全在 `UpdateChecker.kt`,纯函数);`HomeSettingsCard.kt`:当前默认桌面;`SystemStatus.kt` + `SystemStatusReader.kt`:只读系统屏保 / 动画缩放 / `sleep_timeout` 快照;`TitleDialog.kt` / `ConfirmDialog.kt`。
-- `Onboarding.kt` + `OnboardingPure.kt`:首次引导三步。
+- `SettingsModel.kt`(四组、每行、写入函数,纯数据)、`ShellModel.kt`(导航栈、页 id、每页缺省焦点、`MAX_CAPSULES_PER_PAGE`、预览状态机,纯模型)、`SettingsShell.kt`(`CapsuleColumn`:外壳每一层的焦点账本)、`ShellCapsule.kt`(`MenuPill` 胶囊渲染)、`SettingsFade.kt`(淡入淡出 `FadeSwitch`、残影 `LocalPageGhost`、`ShellMotion`;R136 起所有浮层经 `OverlayStack` 走同一套)。
+- `AboutScreen.kt` + `Update.kt` + `UpdateChecker.kt` + `ApkInstaller.kt`:关于页与手动检查更新(判定全在 `UpdateChecker.kt`,纯函数);`HomeSettingsCard.kt`:当前默认桌面;`SystemStatus.kt` + `SystemStatusReader.kt`:只读系统屏保 / 动画缩放 / `sleep_timeout` 快照;`TitleDialog.kt`(改名页)/ `ConfirmDialog.kt`(R135 起只是 `GearMenu` 的薄封装:两颗胶囊「取消 / 确定」)。
+- `Onboarding.kt` + `OnboardingPure.kt`:首次引导三步(R135 起每步一份 `CapsuleColumn`,不再自带焦点账本)。
 
 **选图、导入、上传**
-- `ImagePicker.kt`(1080 行):壁纸 / 卡片图选择器、屏保图库(`PickerGrid` 一个网格一套焦点,内置 + 「＋」+ 我的);`PickerCells.kt`:格子号换算。
+- `ImagePicker.kt`(1100 行):壁纸 / 卡片图选择器、屏保图库(`PickerGrid` 一个网格一套焦点,内置 + 「＋」+ 我的);`PickerCells.kt`:格子号换算。
 - `BuiltinCatalog.kt`(内置图命名规则,纯函数)+ `BuiltinImages.kt`(assets 发现与读取、伪路径 `/android_asset/…` 解码)。
 - `ImportScreen.kt`(扫码页)、`UploadServer.kt`(NanoHTTPD,端口 8090–8099,只在扫码页开着时运行)、`UploadPure.kt`(类型 / 文件名清洗 / 上限)、网页在 `app/src/main/assets/web/index.html`(R130 起:服务端注入 `__STRINGS__` 文案表 `WEB_STRING_KEYS` / `WEB_PLURALS`、`__DEFAULT_TAB__`、`__ACCENT__` 主题色、`__LANG__`;网页每 6 秒拉一次列表兼做连接检测)。文案防线在 `CopyTest`:三语 key 与占位符一致、网页用到的每个 `S.xxx` 都已注入、设置每一行都有说明。
 
@@ -79,6 +79,8 @@
 - **落盘**:有多个写者的状态文件(layout / titles / hidden-inputs / settings)一律经 `LockedFile`;读 → 改 → 写整段在锁里(`update`);整份快照写盘还要走串行调度器 `layoutWrites`;rename 失败不删正式文件(先有 `.prev`)。排查表 [`design/persistence-audit.md`](design/persistence-audit.md)。起因是一次真机事故:卸载一个应用,整个首页被换成默认布局。
 - **外置存储没挂时不写盘**(`Paths.baseOrNull` 为 null → 内存默认值、不落盘),不是漏写。
 - **没有 `ModulateAlpha`、行图层四边撑大 `APP_FOCUS_GLOW_DP`**:alpha < 1 的 `graphicsLayer` 会把内容画进以图层尺寸为界的离屏层,焦点卡的放大 / 描边 / 柔光越界会被裁(R129f)。
+- **字号与文字色只有 `Type.kt` 一处**(R134):界面代码里出现 `fontSize = 数字.sp`、Bold、`Theme.Sans` 以外的字体都会被单测 `TypeScaleTest` 拦下(它扫源码)。字重只用 Normal / Medium 是刻意的:中文回落到系统 Noto Sans CJK(只有 Regular),Bold 会被合成加粗。
+- **放进 `OverlayStack` / `FadeSwitch` 的页面必须照 `LocalPageGhost` 让路**(R108 / R136):关掉后同一棵子树还要画一个淡出时长,这期间它不可聚焦、不请求焦点、不收返回键、不回调;状态对象把要显示的内容带在身上(残影不按下标现查)。看到 `if (ghost) …` 到处都是,不是重复代码。
 - **设置页每页胶囊 ≤ 6**(R128),由 `SettingsPageLimitTest` 按界面用的同一份表逐页数;新加条件行要把触发它的系统状态加进测试。
 - **只读系统设置,从不写**:系统屏保、动画缩放、`sleep_timeout` 都只显示并跳系统页;需要 `WRITE_SECURE_SETTINGS` 的做法被刻意否掉。
 - **HDR**:内置图是 Ultra HDR(XMP `hdrgm` + ISO 21496-1 双写法),解码保留增益图、处理链单独处理增益图(R122–R125)。模拟器与 A95L 的显示器都不报 HDR/SDR 比例,Android 14 会把 HDR 窗口静默降成 sRGB——**在这两处看不到 HDR 是预期**,验证只能靠 `Bitmap.hasGainmap()` 日志。
@@ -89,13 +91,13 @@
 - **局域网上传服务没有鉴权 / token**(M6 设计时接受):只在扫码页开着时运行、关页即停,端口 8090–8099。若评审认为风险需要重估,欢迎给具体建议。
 - **指针输入(飞鼠 / 触摸)会让窗口进触摸模式**:用 foundation `clickable` 的菜单 / 设置行在触摸模式下拒绝 `requestFocus()`,要等第一下方向键才恢复焦点;看门狗对此无能为力。目标设备的遥控器没有指针,未修(WORKLOG「遗留修复批」Ruling R7)。
 - **`MainActivity` 同时挂 `LEANBACK_LAUNCHER` 与 `HOME`**:API 29+ 上可能出现两个实例(例如先 `am start -n` 再发 HOME intent);建议过跳板 Activity,未做。
-- **「关闭屏幕」行确定键只能开系统设置首页**:那一页(TvSettings 的 `EnergySaverFragment`)在 AOSP 与索尼上都没有外部 intent 入口;行下小字从电视自己的设置应用里读真实菜单名(R127c)。
-- **英文「Standby」摘要最宽值「10 min · No Fade」可能被截**(估约 112 dp,单行上限 110 dp,未上屏确认;ui-pending #24)。
+- **「自动关屏」行(R132 前叫「关闭屏幕」)确定键只能开系统设置首页**:那一页(TvSettings 的 `EnergySaverFragment`)在 AOSP 与索尼上都没有外部 intent 入口;行下小字从电视自己的设置应用里读真实菜单名(R127c)。
+- **内置壁纸 / 屏保图的名字在英文界面里仍是中文**(名字来自文件名,没有译名表);**从编辑页的卡片菜单进「换卡片图」是先切到深色底、选图页再淡入**,不是交叉淡化(选图页替换编辑页,菜单的残影随编辑页离开组合)。都是已知取舍。
 - **R129 换行淡入按几何只在下键触发**:我们的焦点线在屏幕下部,上一行静止时全亮,单按上键不满足「换行前看不见」的条件(连按时才会);这是规则的结果,不是漏写。
 - **A95L 界面层显示不了 HDR**(见 §5),内置 HDR 图在它上面等于 SDR。
 - **主线程 / 组合期的文件 IO**:有几处小文件读取在主线程或组合期里(`MainActivity.kt` 约 468 / 1449 / 1498 / 1822 行、`EditScreen.kt` 约 135 行),体检报告里列了;目前文件都很小,未改。
 - **超大 composable**:`EditScreen` 约 880 行、`HomeScreen` 约 800 行、`MainActivity.onCreate` 约 580 行。拆分是已知的技术债,不是本轮目标。
-- **遗留代码**:`Clock.kt` 的 `HeroClock` 已无调用点(大字时钟 R23 / R26 撤掉);`Theme.cardMetrics` / `HomeLayout` 是旧 main 线几何,只剩测试与少量常量引用。
+- **遗留代码**:`Theme.cardMetrics` / `HomeLayout` 是旧 main 线几何,只剩测试与少量常量引用;`GtvLayout.SETTINGS_TYPE_STEP` / `settingsSp` 是 R109 的记录,界面代码不再读(`Clock.kt` 的 `HeroClock` 已在 R134 删掉)。
 - **代码注释里的少量过时描述**:例如 `GtvLayout.kt` 约 981 行 `ROW_ENTER_*` 的 KDoc 仍写 `FastOutSlowIn`(R129e 起实际是 `LinearEasing`,见 `Theme.homeRowEnterSpec` 与同处 R129e 注释);`Settings.kt` 里 `wallpaperBlur` 注释写「0–100,步 10」(R119 起 0–50、步 5,以 `WALLPAPER_BLUR_MAX` / `_STEP` 为准);`MainActivity` 顶部 KDoc 仍提「齿轮菜单入口」(R69 起是设置外壳)。以代码为准。
 - **更新通道未配置镜像**:缺省只查 GitHub Release,而仓库还没有 Release,「检查更新」现在只会显示「检查失败」(COS 地址在 `gradle.properties` 里仍是注释)。
 

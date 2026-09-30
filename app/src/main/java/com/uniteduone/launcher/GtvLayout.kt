@@ -788,6 +788,9 @@ object GtvLayout {
     const val PICKER_PANEL_MAX_HEIGHT = 480f
     /** 小卡片与右侧名字的间距(dp)。 */
     const val PICKER_CARD_NAME_GAP = 16f
+    /** R135:「添加应用」整屏页右半那一列的宽度(dp)与上下内边距。300 居中 = 570–870,卡片左缘与别的页的胶囊左缘(586)大致对齐。 */
+    const val PICKER_LIST_WIDTH = 300f
+    const val PICKER_LIST_PAD_V = 36f
 
     fun cardHeight(size: GtvCardSize): Float = cardWidth(size) * 9f / 16f
 

@@ -1,6 +1,8 @@
 package com.uniteduone.launcher
 
 import android.util.Log
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusGroup
@@ -180,7 +182,6 @@ fun CapsuleColumn(
                     slider = c.slider,
                     onStep = c.onStep,
                     leadingDot = c.leadingDot,
-                    textStep = GtvLayout.SETTINGS_TYPE_STEP,
                 )
             }
         },
@@ -209,24 +210,13 @@ fun ShellScaffold(left: @Composable BoxScope.() -> Unit, right: @Composable () -
     }
 }
 
-// R109:设置类页面的字号一律「基准 + GtvLayout.SETTINGS_TYPE_STEP」(settingsSp)。基准:路径 16、页名 32、说明 14 / 行距 20。
-private val pathStyle = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = GtvLayout.settingsSp(16f).sp)
-private val titleStyle = TextStyle(
-    fontFamily = Theme.Sans,
-    fontWeight = FontWeight.Medium,
-    color = Theme.EmphasisText,
-    fontSize = GtvLayout.settingsSp(GtvLayout.SETTINGS_TITLE_TEXT).sp,
-    lineHeight = (GtvLayout.settingsSp(GtvLayout.SETTINGS_TITLE_TEXT) * 1.2f).sp,
-)
-internal val shellBodyStyle = TextStyle(
-    fontFamily = Theme.Sans, color = Theme.SecondaryText,
-    fontSize = GtvLayout.settingsSp(14f).sp, lineHeight = GtvLayout.settingsSp(20f).sp,
-)
-/** R131:光标所在那一行的说明文字(比 [shellBodyStyle] 大一档,坐在沙发上读得清)。 */
-private val shellDescStyle = TextStyle(
-    fontFamily = Theme.Sans, color = Theme.SecondaryText,
-    fontSize = GtvLayout.settingsSp(15f).sp, lineHeight = GtvLayout.settingsSp(22f).sp,
-)
+// R134:字号与文字色一律取自 [Type](路径 15、页名 31、说明 14 / 行距 21——R109 定下的值;原来 13 sp 的 shellBodyStyle 并进说明这一档)。
+private val pathStyle = Type.eyebrow
+private val titleStyle = Type.title
+/** 页名下方居中的说明:均衡折行(末行不落单,见 [Type.Balanced])。 */
+internal val shellBodyStyle = Type.body.copy(lineBreak = Type.Balanced)
+/** R131:光标所在那一行的说明文字(居中,均衡折行)。 */
+private val shellDescStyle = shellBodyStyle
 
 /**
  * 说明块的固定高度(dp,R131):最长的说明(英文)三行 + 一行状态小字。**固定高**是为了光标在说明长短不同的行之间
@@ -241,11 +231,19 @@ private const val DESC_BLOCK_DP = 96f
 @Composable
 private fun RowDescription(text: String?, note: String? = null) {
     val highlight = LocalThemeColors.current.highlight
-    Column(Modifier.height(DESC_BLOCK_DP.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        if (text != null) BasicText(text, maxLines = 3, style = shellDescStyle.copy(textAlign = TextAlign.Center))
-        if (note != null) {
-            Spacer(Modifier.height(8.dp))
-            BasicText(note, maxLines = 2, style = shellDescStyle.copy(color = highlight, textAlign = TextAlign.Center))
+    // R136(动效):光标换行时说明文字交叉淡化(与胶囊填色同一个 150 ms),不再是一帧换一段字。
+    Crossfade(
+        targetState = text to note,
+        animationSpec = tween(GtvLayout.FOCUS_FADE_IN_MS),
+        label = "rowDescription",
+        modifier = Modifier.height(DESC_BLOCK_DP.dp),
+    ) { (t, n) ->
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (t != null) BasicText(t, maxLines = 3, style = shellDescStyle.copy(textAlign = TextAlign.Center))
+            if (n != null) {
+                Spacer(Modifier.height(8.dp))
+                BasicText(n, maxLines = 2, style = shellDescStyle.copy(color = highlight, textAlign = TextAlign.Center))
+            }
         }
     }
 }
@@ -288,6 +286,12 @@ fun BoxScope.ShellTitle(path: String?, title: String, extra: (@Composable () -> 
     }
 }
 
+/** 没有预览的页页名下方的一段说明(居中):确认页的后果、默认桌面页的注释。 */
+@Composable
+fun ShellBody(text: String) {
+    BasicText(text, style = shellBodyStyle.copy(textAlign = TextAlign.Center))
+}
+
 /**
  * 有预览的页(R73):路径 + 页名压在预览框上方;预览框本身是 MainActivity 缩小进来的真首页,这里只画 1 dp 14% 白
  * 描边(产品默认无壁纸时首页底色与 `MenuBg` 几乎一样,没有描边预览会融进背景,README 第 3 条);框下方一行
@@ -323,13 +327,17 @@ fun BoxScope.ShellPreviewFrame(path: String, title: String, pending: String?, de
             Spacer(Modifier.width(8.dp))
             BasicText(pending, maxLines = 1, style = shellBodyStyle)
         }
-    } else if (desc != null) {
+    } else {
         // R131:光标所在那一行的说明,与「● 预览:…」同一个位置(两者不同时出现:有未保存的预览时先说预览)。
-        BasicText(
-            desc, maxLines = 3,
+        // R136:换行时交叉淡化(同没有预览的页)。
+        Crossfade(
+            targetState = desc,
+            animationSpec = tween(GtvLayout.FOCUS_FADE_IN_MS),
+            label = "previewDescription",
             modifier = Modifier.offset(r.x.dp, (r.y + r.height + 12f).dp).width(r.width.dp),
-            style = shellDescStyle,
-        )
+        ) { d ->
+            if (d != null) BasicText(d, maxLines = 3, style = shellDescStyle)
+        }
     }
 }
 
@@ -548,7 +556,7 @@ fun SettingsShell(
                     left = {
                         ShellTitle(settingsTitle + " · " + stringResource(R.string.settings_group_general), stringResource(R.string.home_settings_title)) {
                             Column(Modifier.width(360.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                CurrentHomeRow(home, textStep = GtvLayout.SETTINGS_TYPE_STEP)
+                                CurrentHomeRow(home)
                                 Spacer(Modifier.height(14.dp))
                                 BasicText(stringResource(R.string.home_settings_note), style = shellBodyStyle.copy(textAlign = TextAlign.Center))
                             }

@@ -373,13 +373,8 @@ fun AppsPage(
         AppsPagePerf.gridShown(items.size)
     }
 
-    // R109:卡片名与标题按「基准 + SETTINGS_TYPE_STEP」画(卡片名基准 14 = 首页卡片标题同一个数);卡片与行高不变。
-    val baseMetrics = Theme.gtvCardMetrics(AppsPageLayout.CARD_SIZE)
-    val metrics = baseMetrics.copy(titleSize = GtvLayout.settingsSp(baseMetrics.titleSize.value).sp)
-    val titleStyle = TextStyle(
-        fontFamily = Theme.Sans, fontWeight = FontWeight.Medium, color = Theme.EmphasisText,
-        fontSize = GtvLayout.settingsSp(GtvLayout.SETTINGS_TITLE_TEXT).sp,
-    )
+    // R134:卡片名与首页卡片标题同一个字号(14,Type.BODY);R109 时这一页单独小了 1 sp(13),同一张卡在两页上名字大小不一。
+    val metrics = Theme.gtvCardMetrics(AppsPageLayout.CARD_SIZE)
     Box(Modifier.fillMaxSize().background(GtvTokens.MenuBg)) {
         Column(
             modifier = Modifier
@@ -398,12 +393,7 @@ fun AppsPage(
                         Modifier.height(AppsPageLayout.TITLE_LINE.dp).padding(start = GtvLayout.CONTENT_KEYLINE.dp),
                         verticalAlignment = Alignment.Top,
                     ) {
-                        BasicText(stringResource(R.string.apps_page_title), style = titleStyle)
-                        BasicText(
-                            stringResource(R.string.apps_page_hint),
-                            style = shellBodyStyle,
-                            modifier = Modifier.padding(start = 20.dp, top = 16.dp),
-                        )
+                        PageHeader(stringResource(R.string.apps_page_title), stringResource(R.string.apps_page_hint))
                     }
                     AppsLine.ToolsHeader -> Box(
                         Modifier.height(AppsPageLayout.HEADER_LINE.dp).padding(start = GtvLayout.CONTENT_KEYLINE.dp),
@@ -411,7 +401,7 @@ fun AppsPage(
                     ) {
                         BasicText(
                             stringResource(R.string.edit_picker_system_tools),
-                            style = TextStyle(fontFamily = Theme.Sans, fontWeight = FontWeight.Medium, color = Theme.SecondaryText, fontSize = GtvLayout.settingsSp(18f).sp),
+                            style = Type.section,
                             modifier = Modifier.padding(bottom = 4.dp),
                         )
                     }

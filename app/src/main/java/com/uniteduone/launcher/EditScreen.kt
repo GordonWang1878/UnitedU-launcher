@@ -40,6 +40,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -619,7 +620,7 @@ fun EditScreen(
     Box(
         Modifier
             .fillMaxSize()
-            .background(Theme.EditScreenBackground)
+            .background(GtvTokens.MenuBg)   // R135:与所有整屏页同一个底(原来是 #0A0A0A)
             // 搬运中的按键截获(见 onCarryKey)。不在搬运时它只吞「搬运里按下、结束后才松开」的那一下 UP,其余原样放行
             .onPreviewKeyEvent { onCarryKey(it.nativeKeyEvent) },
     ) {
@@ -641,16 +642,18 @@ fun EditScreen(
                 .focusProperties { canFocus = !overlayOpen }
                 .padding(top = EditEdgePad, bottom = EditEdgePad)
         ) {
+            // R135:页头与所有应用页同一个样子——31 sp 页名 + 14 sp 说明(原来是 20 sp 主题色页名 + 12 sp 说明)。
+            // 说明限宽 640 dp,两句话折成两行,不再是贴着屏幕右缘的一长条。
             Column(Modifier.onSizeChanged { headerPx = it.height }) {
                 BasicText(
                     text = stringResource(R.string.edit_title),
-                    modifier = Modifier.padding(start = Theme.SidePadding, bottom = 4.dp),
-                    style = TextStyle(fontFamily = Theme.Sans, color = LocalThemeColors.current.highlight, fontSize = 20.sp),
+                    modifier = Modifier.padding(start = Theme.SidePadding, bottom = 6.dp),
+                    style = Type.title,
                 )
                 BasicText(
                     text = stringResource(R.string.edit_hint),
-                    modifier = Modifier.padding(start = Theme.SidePadding, bottom = 18.dp),
-                    style = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 12.sp),
+                    modifier = Modifier.padding(start = Theme.SidePadding, bottom = 20.dp).widthIn(max = 640.dp),
+                    style = Type.body,
                 )
             }
             viewRows.forEachIndexed { ri, row ->
@@ -676,10 +679,7 @@ fun EditScreen(
                         horizontalArrangement = Arrangement.spacedBy(Theme.EditRowIconGap),
                     ) {
                         RowIcon(name, row.icon, tint = LocalThemeColors.current.accent)
-                        BasicText(
-                            text = name,
-                            style = TextStyle(fontFamily = Theme.Sans, color = Color.White, fontSize = 13.sp),
-                        )
+                        BasicText(text = name, maxLines = 1, style = Type.label.copy(color = Ink.Primary))
                     }
                     // 同首页:**不能用 LazyRow**,可滚动容器会挡住纵向焦点外出,
                     // 表现为「进编辑界面后按下键焦点就没了,之后按什么都没反应」。
@@ -803,7 +803,7 @@ fun EditScreen(
             val scheme = androidx.tv.material3.MaterialTheme.colorScheme
             BasicText(
                 text = stringResource(R.string.home_move_hint),
-                style = TextStyle(fontFamily = Theme.Sans, color = scheme.onSurface.copy(alpha = 0.75f), fontSize = 15.sp),
+                style = Type.label.copy(color = scheme.onSurface.copy(alpha = 0.75f)),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = HomeLayout.PILL_TOP.dp)
@@ -822,157 +822,218 @@ fun EditScreen(
         LaunchedEffect(rowOverlayStale) {
             if (rowOverlayStale) { rowMenu = null; renamingRow = null; iconRow = null; confirmDeleteRow = null }
         }
-        acting?.let { (ri, pi) ->
-            val pkg = actingPkg ?: return@let
-            GearMenu(
-                items = buildList {
-                    // 「移动位置」= 进入搬运(M4b spec §0-18,取代原来的「往左移 / 往右移」):先收菜单,再进搬运,
-                    // 同一个回调里写完——overlayOpen 与 carry 在同一次重组里一关一开,「浮层开着就取消」的效果不会误触。
-                    add(MenuItem(stringResource(R.string.card_menu_move), stringResource(R.string.edit_move_desc)) {
-                        acting = null
-                        startCarry(ri, pi)
-                    })
-                    add(MenuItem(stringResource(R.string.edit_change_image), stringResource(R.string.edit_change_image_desc)) {
-                        // retarget 只服务「选择器没打开」(存储没就绪、已 toast)那条路:本页留在原地,焦点回这张卡。
-                        // 打开了的话本页随即被选择器替换,回来时由调用方把 (ri, pkg) 当 initialTarget 喂回来。
-                        acting = null; retarget(ri, pi); onPickIcon(ri, pkg)
-                    })
-                    add(MenuItem(stringResource(R.string.edit_remove), stringResource(R.string.edit_remove_desc)) {
-                        // **按包名移出**(R67):pi 是看得见的列号,不是 layout.json 下标;包名在一行里唯一
-                        rows = rows.mapIndexed { i, r -> if (i == ri) r.copy(apps = r.apps - pkg) else r }
-                        // 移出之后那一格没了,焦点落到它原来位置的前一格(行空了就是加号)
-                        persist(); acting = null; retarget(ri, (pi - 1).coerceAtLeast(0))
-                    })
-                },
-                onDismiss = {
-                    acting = null; retarget(ri, pi)
-                },
-                nonce = focusNonce,
-                // 标题用这张卡的显示名,不传的话 GearMenu 落回「设置」标题(M4b-R13,终审 Important #2)——
-                // 与首页长按卡片菜单同一套取法:自定义标题优先,查不到就用应用名,再查不到用包名兜底。
-                title = titles[pkg] ?: all?.get(pkg)?.label ?: pkg,
-                // gtv 线 Task 8:左半 banner。all 就是这份数据本来的来源,按 pkg 查。
-                app = all?.get(pkg),
-            )
+        // **R136:编辑页的六种浮层是一摞,淡入淡出**([OverlayStack]):打开 / 关掉淡入淡出,换一层(行菜单 → 改名页 /
+        // 图标页 / 确认页 / 添加应用)交叉淡化。残影画的是关掉前最后那一份——[EditOverlay] 把要显示的字(行名、卡片名、
+        // 应用数)与 banner 都带上,不读此刻可能已经变了的 rows(删完一行之后同一个行号已经是另一行)。
+        // 残影里的菜单项点不动、不可聚焦(各页面照 LocalPageGhost 让路),下面这些回调只有活着的那一层会调到。
+        val editTitle = stringResource(R.string.edit_title)
+        val overlay: EditOverlay? = run {
+            val a = acting
+            val rm = rowMenu; val rn = renamingRow; val ic = iconRow; val cd = confirmDeleteRow; val pk = picking
+            when {
+                a != null && actingPkg != null -> EditOverlay.Card(
+                    a.first, a.second, actingPkg,
+                    // 标题用这张卡的显示名(M4b-R13,终审 Important #2)——与首页长按卡片菜单同一套取法:
+                    // 自定义标题优先,查不到就用应用名,再查不到用包名兜底。
+                    title = titles[actingPkg] ?: all?.get(actingPkg)?.label ?: actingPkg,
+                    // gtv 线 Task 8:左半 banner。all 就是这份数据本来的来源,按 pkg 查。
+                    app = all?.get(actingPkg),
+                )
+                rm != null && rm in rows.indices -> EditOverlay.RowMenu(rm, rows[rm].name, rows.size)
+                rn != null && rn in rows.indices -> EditOverlay.Rename(rn, rows[rn].name)
+                ic != null && ic in rows.indices ->
+                    EditOverlay.Icon(ic, rows[ic].name, effectiveRowIconId(rows[ic].name, rows[ic].icon))
+                cd != null && cd in rows.indices ->
+                    EditOverlay.Confirm(cd, rows[cd].name, viewRows.getOrNull(cd)?.apps?.size ?: 0)
+                pk != null -> EditOverlay.Pick(pk, rows.getOrNull(pk)?.name, rows.flatMap { it.apps }.toSet())
+                else -> null
+            }
         }
+        OverlayStack(state = overlay, layerKey = { it.layer }) { ov ->
+            when (ov) {
+                is EditOverlay.Card -> {
+                    val ri = ov.row; val pi = ov.col; val pkg = ov.pkg
+                    GearMenu(
+                        items = buildList {
+                            // 「移动位置」= 进入搬运(M4b spec §0-18,取代原来的「往左移 / 往右移」):先收菜单,再进搬运,
+                            // 同一个回调里写完——overlayOpen 与 carry 在同一次重组里一关一开,「浮层开着就取消」的效果不会误触。
+                            add(MenuItem(stringResource(R.string.card_menu_move), stringResource(R.string.edit_move_desc)) {
+                                acting = null
+                                startCarry(ri, pi)
+                            })
+                            add(MenuItem(stringResource(R.string.edit_change_image), stringResource(R.string.edit_change_image_desc)) {
+                                // retarget 只服务「选择器没打开」(存储没就绪、已 toast)那条路:本页留在原地,焦点回这张卡。
+                                // 打开了的话本页随即被选择器替换,回来时由调用方把 (ri, pkg) 当 initialTarget 喂回来。
+                                acting = null; retarget(ri, pi); onPickIcon(ri, pkg)
+                            })
+                            add(MenuItem(stringResource(R.string.edit_remove), stringResource(R.string.edit_remove_desc)) {
+                                // **按包名移出**(R67):pi 是看得见的列号,不是 layout.json 下标;包名在一行里唯一
+                                rows = rows.mapIndexed { i, r -> if (i == ri) r.copy(apps = r.apps - pkg) else r }
+                                // 移出之后那一格没了,焦点落到它原来位置的前一格(行空了就是加号)
+                                persist(); acting = null; retarget(ri, (pi - 1).coerceAtLeast(0))
+                            })
+                        },
+                        onDismiss = {
+                            acting = null; retarget(ri, pi)
+                        },
+                        nonce = focusNonce,
+                        title = ov.title,
+                        app = ov.app,
+                    )
+                }
 
-        // **行菜单**(M4b spec §0-2):行尾「+」打开。与卡片的 acting 菜单同一个浮层机制、同一套让路;
-        // 焦点归 GearMenu 自己(初始循环 + 看门狗)。每个动作先收菜单再改数据,然后经 retarget 落焦点——
-        // 改名 / 换图标 / 添加应用是「换一层浮层」,焦点交给下一层,那一层关掉时再落回本行的「+」。
-        rowMenu?.let { ri ->
-            val row = rows.getOrNull(ri) ?: return@let
-            val newRowName = stringResource(R.string.edit_new_row_name)
-            GearMenu(
-                items = buildList {
-                    add(MenuItem(stringResource(R.string.edit_row_add_app), stringResource(R.string.edit_row_add_app_desc)) {
-                        rowMenu = null; picking = ri
-                    })
-                    add(MenuItem(stringResource(R.string.edit_row_rename), stringResource(R.string.edit_row_rename_desc)) {
-                        rowMenu = null; renamingRow = ri
-                    })
-                    add(MenuItem(stringResource(R.string.edit_row_icon), stringResource(R.string.edit_row_icon_desc)) {
-                        rowMenu = null; iconRow = ri
-                    })
-                    // 焦点跟着这一行走,落在它的「+」(M4b spec §0-8)
-                    if (ri > 0) add(MenuItem(stringResource(R.string.edit_row_up), stringResource(R.string.edit_row_up_desc)) {
-                        rowMenu = null
-                        rows = swapRows(rows, ri, ri - 1); swapRowState(ri, ri - 1); persist()
-                        toRowEnd(ri - 1)
-                    })
-                    if (ri < rows.lastIndex) add(MenuItem(stringResource(R.string.edit_row_down), stringResource(R.string.edit_row_down_desc)) {
-                        rowMenu = null
-                        rows = swapRows(rows, ri, ri + 1); swapRowState(ri, ri + 1); persist()
-                        toRowEnd(ri + 1)
-                    })
-                    // 新行是空行,(ri + 1, 0) 就是它的「+」(M4b spec §0-3)
-                    if (rows.size < MAX_ROWS) add(MenuItem(stringResource(R.string.edit_row_new), stringResource(R.string.edit_row_new_desc)) {
-                        rowMenu = null
-                        rows = addRowBelow(rows, ri, newRowName); persist()
-                        retarget(ri + 1, 0)
-                    })
-                    // 空行直接删;非空行先确认(M4b spec §0-4)
-                    if (rows.size > MIN_ROWS) add(MenuItem(stringResource(R.string.edit_row_delete), stringResource(R.string.edit_row_delete_desc)) {
-                        rowMenu = null
-                        // 按看得见的算(R67):只剩看不见的包(被停用的)的行,在用户眼里就是空行
-                        if (view().getOrNull(ri)?.apps.isNullOrEmpty()) deleteRowAt(ri) else confirmDeleteRow = ri
-                    })
-                },
-                onDismiss = { rowMenu = null; toRowEnd(ri) },
-                nonce = focusNonce,
-                title = row.name,
-            )
+                // **行菜单**(M4b spec §0-2):行尾「+」打开。与卡片的 acting 菜单同一个浮层机制、同一套让路;
+                // 焦点归 GearMenu 自己(初始循环 + 看门狗)。每个动作先收菜单再改数据,然后经 retarget 落焦点——
+                // 改名 / 换图标 / 添加应用是「换一层浮层」,焦点交给下一层,那一层关掉时再落回本行的「+」。
+                is EditOverlay.RowMenu -> {
+                    val ri = ov.row
+                    val newRowName = stringResource(R.string.edit_new_row_name)
+                    GearMenu(
+                        items = buildList {
+                            add(MenuItem(stringResource(R.string.edit_row_add_app), stringResource(R.string.edit_row_add_app_desc)) {
+                                rowMenu = null; picking = ri
+                            })
+                            add(MenuItem(stringResource(R.string.edit_row_rename), stringResource(R.string.edit_row_rename_desc)) {
+                                rowMenu = null; renamingRow = ri
+                            })
+                            add(MenuItem(stringResource(R.string.edit_row_icon), stringResource(R.string.edit_row_icon_desc)) {
+                                rowMenu = null; iconRow = ri
+                            })
+                            // 焦点跟着这一行走,落在它的「+」(M4b spec §0-8)
+                            if (ri > 0) add(MenuItem(stringResource(R.string.edit_row_up), stringResource(R.string.edit_row_up_desc)) {
+                                rowMenu = null
+                                rows = swapRows(rows, ri, ri - 1); swapRowState(ri, ri - 1); persist()
+                                toRowEnd(ri - 1)
+                            })
+                            if (ri < ov.rowCount - 1) add(MenuItem(stringResource(R.string.edit_row_down), stringResource(R.string.edit_row_down_desc)) {
+                                rowMenu = null
+                                rows = swapRows(rows, ri, ri + 1); swapRowState(ri, ri + 1); persist()
+                                toRowEnd(ri + 1)
+                            })
+                            // 新行是空行,(ri + 1, 0) 就是它的「+」(M4b spec §0-3)
+                            if (ov.rowCount < MAX_ROWS) add(MenuItem(stringResource(R.string.edit_row_new), stringResource(R.string.edit_row_new_desc)) {
+                                rowMenu = null
+                                rows = addRowBelow(rows, ri, newRowName); persist()
+                                retarget(ri + 1, 0)
+                            })
+                            // 空行直接删;非空行先确认(M4b spec §0-4)
+                            if (ov.rowCount > MIN_ROWS) add(MenuItem(stringResource(R.string.edit_row_delete), stringResource(R.string.edit_row_delete_desc)) {
+                                rowMenu = null
+                                // 按看得见的算(R67):只剩看不见的包(被停用的)的行,在用户眼里就是空行
+                                if (view().getOrNull(ri)?.apps.isNullOrEmpty()) deleteRowAt(ri) else confirmDeleteRow = ri
+                            })
+                        },
+                        onDismiss = { rowMenu = null; toRowEnd(ri) },
+                        nonce = focusNonce,
+                        title = ov.name,
+                        eyebrow = editTitle,
+                    )
+                }
+
+                // **改行名**(M4b spec §0-7):通用化后的 TitleDialog;清空 = 不改(renameRow 挡住空名)。
+                // 以「这一层还开着、而且是这一行」当守卫:IME 的 Done 与确定键在极端时序下可能各触发一次,第二次直接忽略。
+                is EditOverlay.Rename -> {
+                    val ri = ov.row
+                    TitleDialog(
+                        key = "row-$ri",
+                        current = ov.name,
+                        heading = stringResource(R.string.edit_row_rename_heading),
+                        hint = stringResource(R.string.edit_row_rename_hint),
+                        onSave = { text ->
+                            if (renamingRow == ri) {
+                                renamingRow = null
+                                val renamed = renameRow(rows, ri, text)
+                                if (renamed !== rows) { rows = renamed; persist() }
+                                toRowEnd(ri)
+                            }
+                        },
+                        onCancel = { renamingRow = null; toRowEnd(ri) },
+                        nonce = focusNonce,
+                        subtitle = ov.name,
+                        // 清空 = 不改名:空着时把现在的行名淡淡地垫在输入框里
+                        placeholder = ov.name,
+                    )
+                }
+
+                // **行图标选择器**(M4b spec §0-6):当前图标(没存 id 的旧行按名字回落)预先聚焦,焦点归它自己。
+                is EditOverlay.Icon -> {
+                    val ri = ov.row
+                    RowIconPicker(
+                        current = ov.current,
+                        nonce = focusNonce,
+                        rowName = ov.name,
+                        onPick = { id ->
+                            if (iconRow == ri) {
+                                iconRow = null
+                                rows = setRowIcon(rows, ri, id); persist()
+                                toRowEnd(ri)
+                            }
+                        },
+                        onDismiss = { iconRow = null; toRowEnd(ri) },
+                    )
+                }
+
+                // **删非空行的确认页**(M4b spec §0-4):焦点默认在「取消」。
+                is EditOverlay.Confirm -> {
+                    val ri = ov.row
+                    ConfirmDialog(
+                        title = stringResource(R.string.edit_row_delete_confirm_title, ov.name),
+                        body = androidx.compose.ui.res.pluralStringResource(R.plurals.edit_row_delete_confirm_body, ov.apps, ov.apps),
+                        okLabel = stringResource(R.string.edit_row_delete_ok),
+                        cancelLabel = stringResource(R.string.dialog_cancel),
+                        nonce = focusNonce,
+                        eyebrow = editTitle,
+                        onOk = { if (confirmDeleteRow == ri) { confirmDeleteRow = null; deleteRowAt(ri) } },
+                        onCancel = { confirmDeleteRow = null; toRowEnd(ri) },
+                    )
+                }
+
+                is EditOverlay.Pick -> {
+                    val ri = ov.row
+                    AppPicker(
+                        nonce = focusNonce,
+                        ctx = ctx,
+                        rowName = ov.name,
+                        exclude = ov.exclude,
+                        onPick = { pkg ->
+                            rows = rows.mapIndexed { i, r ->
+                                if (i == ri) r.copy(apps = r.apps.toMutableList().also { it.add(pkg) }) else r
+                            }
+                            // 刚加进来的那张卡就是新的行尾(看得见的那份里也是:它还没查过,画成占位),焦点落到它身上
+                            persist(); picking = null
+                            retarget(ri, (view().getOrNull(ri)?.apps?.lastIndex ?: 0).coerceAtLeast(0))
+                        },
+                        // 注:AppPicker 自己没有 BackHandler,取消走的是本文件上方那个 —— 目标也在那里设。
+                    )
+                }
+            }
         }
+    }
+}
 
-        // **改行名**(M4b spec §0-7):通用化后的 TitleDialog;清空 = 不改(renameRow 挡住空名)。
-        // 以「这一层还开着、而且是这一行」当守卫:IME 的 Done 与确定键在极端时序下可能各触发一次,第二次直接忽略。
-        renamingRow?.let { ri ->
-            val row = rows.getOrNull(ri) ?: return@let
-            TitleDialog(
-                key = "row-$ri",
-                current = row.name,
-                heading = stringResource(R.string.edit_row_rename_heading),
-                hint = stringResource(R.string.edit_row_rename_hint),
-                onSave = { text ->
-                    if (renamingRow == ri) {
-                        renamingRow = null
-                        val renamed = renameRow(rows, ri, text)
-                        if (renamed !== rows) { rows = renamed; persist() }
-                        toRowEnd(ri)
-                    }
-                },
-                onCancel = { renamingRow = null; toRowEnd(ri) },
-                nonce = focusNonce,
-            )
-        }
-
-        // **行图标选择器**(M4b spec §0-6):当前图标(没存 id 的旧行按名字回落)预先聚焦,焦点归它自己。
-        iconRow?.let { ri ->
-            val row = rows.getOrNull(ri) ?: return@let
-            RowIconPicker(
-                current = effectiveRowIconId(row.name, row.icon),
-                nonce = focusNonce,
-                onPick = { id ->
-                    if (iconRow == ri) {
-                        iconRow = null
-                        rows = setRowIcon(rows, ri, id); persist()
-                        toRowEnd(ri)
-                    }
-                },
-                onDismiss = { iconRow = null; toRowEnd(ri) },
-            )
-        }
-
-        // **删非空行的确认框**(M4b spec §0-4):ConfirmDialog 自己负责焦点(默认在「取消」)。
-        confirmDeleteRow?.let { ri ->
-            val row = rows.getOrNull(ri) ?: return@let
-            ConfirmDialog(
-                title = stringResource(R.string.edit_row_delete_confirm_title, row.name),
-                body = stringResource(R.string.edit_row_delete_confirm_body, viewRows.getOrNull(ri)?.apps?.size ?: 0),
-                okLabel = stringResource(R.string.edit_row_delete_ok),
-                cancelLabel = stringResource(R.string.dialog_cancel),
-                nonce = focusNonce,
-                onOk = { if (confirmDeleteRow == ri) { confirmDeleteRow = null; deleteRowAt(ri) } },
-                onCancel = { confirmDeleteRow = null; toRowEnd(ri) },
-            )
-        }
-
-        picking?.let { ri ->
-            AppPicker(
-                nonce = focusNonce,
-                ctx = ctx,
-                exclude = rows.flatMap { it.apps }.toSet(),
-                onPick = { pkg ->
-                    rows = rows.mapIndexed { i, r ->
-                        if (i == ri) r.copy(apps = r.apps.toMutableList().also { it.add(pkg) }) else r
-                    }
-                    // 刚加进来的那张卡就是新的行尾(看得见的那份里也是:它还没查过,画成占位),焦点落到它身上
-                    persist(); picking = null
-                    retarget(ri, (view().getOrNull(ri)?.apps?.lastIndex ?: 0).coerceAtLeast(0))
-                },
-                // 注:AppPicker 自己没有 BackHandler,取消走的是本文件上方那个 —— 目标也在那里设。
-
-            )
-        }
+/**
+ * 编辑页上叠着的那一层(R136,给 [OverlayStack] 当状态)。每一种都带上自己要显示的东西:关掉之后残影还要画一个淡出时长,
+ * 那时 `rows` 可能已经变了(删完一行,同一个行号指到了下一行)。[layer] 区分是哪一层(换层 = 交叉淡化)。
+ */
+private sealed interface EditOverlay {
+    val layer: String
+    class Card(val row: Int, val col: Int, val pkg: String, val title: String, val app: AppEntry?) : EditOverlay {
+        override val layer get() = "card:$row:$pkg"
+    }
+    class RowMenu(val row: Int, val name: String, val rowCount: Int) : EditOverlay {
+        override val layer get() = "rowMenu:$row"
+    }
+    class Rename(val row: Int, val name: String) : EditOverlay {
+        override val layer get() = "rename:$row"
+    }
+    class Icon(val row: Int, val name: String, val current: String) : EditOverlay {
+        override val layer get() = "icon:$row"
+    }
+    class Confirm(val row: Int, val name: String, val apps: Int) : EditOverlay {
+        override val layer get() = "confirm:$row"
+    }
+    class Pick(val row: Int, val name: String?, val exclude: Set<String>) : EditOverlay {
+        override val layer get() = "pick:$row"
     }
 }
 
@@ -1014,7 +1075,7 @@ private fun AddCard(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        BasicText("＋", style = TextStyle(fontFamily = Theme.Sans, color = highlight, fontSize = 26.sp))
+        PlusGlyph(color = highlight)
     }
 }
 
@@ -1047,7 +1108,7 @@ private fun PendingCard(
     ) {
         BasicText(
             text = pkg.substringAfterLast('.'),
-            style = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 11.sp, textAlign = TextAlign.Center),
+            style = Type.micro.copy(color = Ink.Secondary, textAlign = TextAlign.Center),
             modifier = Modifier.padding(6.dp),
         )
     }
@@ -1063,7 +1124,11 @@ private fun AppPicker(
     ctx: Context,
     exclude: Set<String>,
     onPick: (String) -> Unit,
+    /** 加到哪一行(页名上方的小字);null = 不画。 */
+    rowName: String? = null,
 ) {
+    // 淡出中的残影(R108 的约定):不再请求焦点、每一项不可聚焦、点击不回调。
+    val ghost = LocalPageGhost.current
     // 打开列表那一刻的基线:本次列表按打开前的时间戳标「新」,同时把时间戳推到现在(先算后写)。
     val seenAtBefore = remember { SettingsStore.read(ctx).newAppsSeenAt }
     LaunchedEffect(Unit) {
@@ -1097,8 +1162,8 @@ private fun AppPicker(
     // (它必须让路,否则会去抢焦点),所以列表开着时丢了焦点没有别人会捞。
     // key 接 nonce —— 触发情形是真实发生过的那一种:列表开着时电视进系统屏保、
     // 或切到别的应用再回来。判据用 focusedItem(正反都报),已经有焦点时一次都不跑。
-    LaunchedEffect(nonce, candidates) {
-        if (candidates.isNullOrEmpty()) return@LaunchedEffect
+    LaunchedEffect(nonce, candidates, ghost) {
+        if (ghost || candidates.isNullOrEmpty()) return@LaunchedEffect
         val i = focusedIdx.coerceIn(0, rowFocus.lastIndex)
         var frames = 0
         while (focusedItem == null && frames < 60) {
@@ -1111,63 +1176,61 @@ private fun AppPicker(
     // 「系统工具」分组标题画在该组第一项里(不可聚焦,见 PickerRow 的 header)。
     val firstTool = list.indexOfFirst { it.group == PickerGroup.SYSTEM_TOOLS }
 
+    // R135 换皮:与设置各层同一个版式——整屏 MenuBg,左边页名(上方一行小字写加到哪一行,下方写「正在读取 / 没有可添加的」),
+    // 右边一列应用。此前是屏幕中间 460 dp 的小面板、标题 16 sp。列表本身(LazyColumn + 逐项 requester)未动。
     Box(
         Modifier
             .fillMaxSize()
-            .focusGroup()   // 同 GearMenu:不圈起来焦点会跑到蒙版后面
-            .background(Color.Black.copy(alpha = 0.8f)),
-        contentAlignment = Alignment.Center,
+            .focusGroup()   // 同 GearMenu:不圈起来焦点会跑到底下那一层
+            .background(GtvTokens.ScrimOverlay)
+            .background(GtvTokens.MenuBg),
     ) {
-        Column(
-            Modifier
-                .clip(RoundedCornerShape(14.dp))
-                .background(Theme.DialogSurface)
-                .padding(14.dp)
-                .width(GtvLayout.PICKER_PANEL_WIDTH.dp)
-                .heightIn(max = GtvLayout.PICKER_PANEL_MAX_HEIGHT.dp),
-        ) {
-            BasicText(
-                stringResource(R.string.edit_add_app_title),
-                modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
-                style = TextStyle(fontFamily = Theme.Sans, color = LocalThemeColors.current.highlight, fontSize = 16.sp),
-            )
-            if (candidates == null) {
-                BasicText(
-                    stringResource(R.string.edit_loading_apps),
-                    modifier = Modifier.padding(10.dp),
-                    style = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 13.sp),
-                )
-            } else if (candidates!!.isEmpty()) {
-                BasicText(
-                    stringResource(R.string.edit_no_more_apps),
-                    modifier = Modifier.padding(10.dp),
-                    style = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 13.sp),
-                )
-            }
-            // 仍是 LazyColumn(2026-09-11 起真机验证过的写法:逐项 requester + 四向锁边界),R83 只换每一项的画法。
-            // **聚焦放大不被裁**:LazyColumn 在纵向上按自身边界硬裁,而 bringIntoView 只保证「聚焦节点的布局框」
-            // 完整可见——所以聚焦节点是整行(不是卡片本身),行内上下各留一个聚焦溢出量(PickerRow 的 padV):
-            // 放大 + 描边后的卡片永远落在行的布局框里,行被带进视窗时它也就完整可见。横向 LazyColumn 本来就外扩 15dp
-            // 再裁,行内左右同样各留一个溢出量。代价同图片网格:R28 的柔光(纯绘制、60dp)在列表上下边被硬切。
-            LazyColumn {
-                itemsIndexed(list, key = { _, c -> c.app.packageName }) { i, c ->
-                    PickerRow(
-                        app = c.app,
-                        header = if (i == firstTool) stringResource(R.string.edit_picker_system_tools) else null,
-                        modifier = Modifier.focusRequester(rowFocus[i.coerceIn(0, rowFocus.lastIndex)]),
-                        onFocusChange = { got ->
-                            if (got) { focusedItem = i; focusedIdx = i }
-                            else if (focusedItem == i) focusedItem = null
-                        },
-                        isFirst = i == 0,
-                        isLast = i == list.lastIndex,
-                        // 候选本来就不在桌面上(pickerCandidates 已经把 layout.json 里的包 exclude 掉了)。
-                        isNew = isNewApp(c.app.firstInstallTime, seenAtBefore, onLayout = false),
-                        onClick = { onPick(c.app.packageName) },
-                    )
-                }
-            }
+        val status = when {
+            candidates == null -> stringResource(R.string.edit_loading_apps)
+            list.isEmpty() -> stringResource(R.string.edit_no_more_apps)
+            else -> null
         }
+        ShellScaffold(
+            left = {
+                ShellTitle(
+                    path = rowName,
+                    title = stringResource(R.string.edit_add_app_title),
+                    extra = status?.let { { ShellBody(it) } },
+                )
+            },
+            right = {
+                // 仍是 LazyColumn(2026-09-11 起真机验证过的写法:逐项 requester + 四向锁边界),R83 只换每一项的画法。
+                // **聚焦放大不被裁**:LazyColumn 在纵向上按自身边界硬裁,而 bringIntoView 只保证「聚焦节点的布局框」
+                // 完整可见——所以聚焦节点是整行(不是卡片本身),行内上下各留一个聚焦溢出量(PickerRow 的 padV):
+                // 放大 + 描边后的卡片永远落在行的布局框里,行被带进视窗时它也就完整可见。横向 LazyColumn 本来就外扩 15dp
+                // 再裁,行内左右同样各留一个溢出量。代价同图片网格:R28 的柔光(纯绘制、60dp)在列表上下边被硬切。
+                // 项数少于一屏时整列竖直居中(与胶囊列一样坐在右半屏正中);多于一屏时照常从头滚。
+                LazyColumn(
+                    modifier = Modifier.width(GtvLayout.PICKER_LIST_WIDTH.dp).fillMaxHeight(),
+                    verticalArrangement = Arrangement.Center,
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = GtvLayout.PICKER_LIST_PAD_V.dp),
+                ) {
+                    itemsIndexed(list, key = { _, c -> c.app.packageName }) { i, c ->
+                        PickerRow(
+                            app = c.app,
+                            header = if (i == firstTool) stringResource(R.string.edit_picker_system_tools) else null,
+                            modifier = Modifier
+                                .focusRequester(rowFocus[i.coerceIn(0, rowFocus.lastIndex)])
+                                .focusProperties { if (ghost) canFocus = false },
+                            onFocusChange = { got ->
+                                if (got) { focusedItem = i; focusedIdx = i }
+                                else if (focusedItem == i) focusedItem = null
+                            },
+                            isFirst = i == 0,
+                            isLast = i == list.lastIndex,
+                            // 候选本来就不在桌面上(pickerCandidates 已经把 layout.json 里的包 exclude 掉了)。
+                            isNew = isNewApp(c.app.firstInstallTime, seenAtBefore, onLayout = false),
+                            onClick = { if (!ghost) onPick(c.app.packageName) },
+                        )
+                    }
+                }
+            },
+        )
     }
 }
 
@@ -1180,7 +1243,7 @@ private val PickerCardMetrics = CardMetrics(
     rowVerticalPad = 0.dp,
     titleGap = 0.dp,
     titleLine = 0.dp,
-    titleSize = 14.sp,
+    titleSize = Type.BODY.sp,
 )
 
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
@@ -1237,8 +1300,8 @@ private fun PickerRow(
         if (header != null) {
             BasicText(
                 header,
-                modifier = Modifier.padding(start = 6.dp, top = 10.dp, bottom = 2.dp),
-                style = TextStyle(fontFamily = Theme.Sans, color = Theme.SecondaryText, fontSize = 13.sp),
+                modifier = Modifier.padding(start = padH, top = 14.dp, bottom = 4.dp),
+                style = Type.section,
             )
         }
         Row(
@@ -1269,16 +1332,15 @@ private fun PickerRow(
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 // 未聚焦的名字压成次要灰、聚焦行提到主题 highlight:光靠近白与近白的差别,
                 // 模拟器截图上认不出哪一行是焦点行(卡片放大在左边,读名字的人眼睛在右边)。
-                style = TextStyle(
-                    fontFamily = Theme.Sans,
-                    color = if (focused) highlight else Theme.SecondaryText,
-                    fontSize = GtvLayout.MENU_ITEM_TEXT.sp,
+                style = Type.label.copy(
+                    color = if (focused) highlight else Ink.Label,
+                    fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
                 ),
             )
             if (isNew) Box(
                 Modifier.clip(RoundedCornerShape(4.dp)).background(highlight.copy(alpha = 0.22f)).padding(horizontal = 6.dp, vertical = 1.dp),
             ) {
-                BasicText(text = stringResource(R.string.edit_badge_new), style = TextStyle(fontFamily = Theme.Sans, color = highlight, fontSize = 10.sp))
+                BasicText(text = stringResource(R.string.edit_badge_new), style = Type.micro.copy(color = highlight, fontWeight = FontWeight.Medium))
             }
         }
     }

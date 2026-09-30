@@ -232,10 +232,7 @@ internal fun AppCardImage(app: AppEntry, metrics: CardMetrics) {
         } else {
             BasicText(
                 text = app.label,
-                style = TextStyle(
-                    fontFamily = Theme.Sans, color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 15.sp, textAlign = TextAlign.Center,
-                ),
+                style = Type.label.copy(color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center),
             )
         }
     }

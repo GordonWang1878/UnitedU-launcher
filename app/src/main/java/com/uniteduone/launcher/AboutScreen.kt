@@ -410,7 +410,7 @@ fun AboutScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         BasicText(
                             text = stringResource(R.string.about_version, versionName, versionCode),
-                            style = TextStyle(fontFamily = Theme.Sans, color = Theme.EmphasisText, fontSize = GtvLayout.settingsSp(15f).sp),
+                            style = Type.body.copy(color = Ink.Primary),
                         )
                         // 结果区。第一行始终占位(空白态也留一行高),下面的许可声明不会因为「检查中 → 已是最新」上下跳。
                         Spacer(Modifier.height(10.dp))
@@ -418,11 +418,9 @@ fun AboutScreen(
                         val headline = headline(state)
                         BasicText(
                             text = headline?.first ?: "",
-                            style = TextStyle(
-                                fontFamily = Theme.Sans,
+                            style = Type.body.copy(
                                 fontWeight = FontWeight.Medium,
-                                color = headline?.second?.color(highlight) ?: Theme.EmphasisText,
-                                fontSize = GtvLayout.settingsSp(14f).sp,
+                                color = headline?.second?.color(highlight) ?: Ink.Primary,
                                 textAlign = TextAlign.Center,
                             ),
                             modifier = Modifier.heightIn(min = 22.dp),
@@ -432,23 +430,14 @@ fun AboutScreen(
                             Spacer(Modifier.height(4.dp))
                             BasicText(
                                 text = outcome.first,
-                                style = TextStyle(
-                                    fontFamily = Theme.Sans, color = outcome.second.color(highlight), fontSize = GtvLayout.settingsSp(13f).sp,
-                                    textAlign = TextAlign.Center,
-                                ),
+                                style = Type.body.copy(color = outcome.second.color(highlight), textAlign = TextAlign.Center, lineBreak = Type.Balanced),
                             )
                         }
                         if (info != null && info.notes.isNotBlank()) {
                             Spacer(Modifier.height(6.dp))
                             BasicText(
                                 text = info.notes,
-                                style = TextStyle(
-                                    fontFamily = Theme.Sans,
-                                    color = Theme.SecondaryText,
-                                    fontSize = GtvLayout.settingsSp(12f).sp,
-                                    lineHeight = GtvLayout.settingsSp(17f).sp,
-                                    textAlign = TextAlign.Center,
-                                ),
+                                style = Type.caption.copy(color = Ink.Secondary, textAlign = TextAlign.Center),
                                 maxLines = 4,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -456,25 +445,17 @@ fun AboutScreen(
                         Spacer(Modifier.height(18.dp))
                         BasicText(
                             text = stringResource(R.string.about_license_title),
-                            style = TextStyle(
-                                fontFamily = Theme.Sans,
-                                fontWeight = FontWeight.Medium,
-                                color = Theme.HintText,
-                                fontSize = GtvLayout.settingsSp(11f).sp,
-                            ),
+                            style = Type.micro.copy(fontWeight = FontWeight.Medium),
                         )
                         Spacer(Modifier.height(4.dp))
                         BasicText(
                             text = stringResource(R.string.about_license),
-                            style = TextStyle(
-                                fontFamily = Theme.Sans, color = Theme.FootnoteText, fontSize = GtvLayout.settingsSp(11f).sp, lineHeight = GtvLayout.settingsSp(16f).sp,
-                                textAlign = TextAlign.Center,
-                            ),
+                            style = Type.micro.copy(textAlign = TextAlign.Center, lineBreak = Type.Balanced),
                         )
                         Spacer(Modifier.height(8.dp))
                         BasicText(
                             text = stringResource(R.string.about_repo),
-                            style = TextStyle(fontFamily = Theme.Sans, color = Theme.FootnoteText, fontSize = GtvLayout.settingsSp(11f).sp),
+                            style = Type.micro,
                         )
                     }
                 }

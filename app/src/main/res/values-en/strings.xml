@@ -137,7 +137,10 @@
 
     <!-- home_* : home screen and default-home settings card -->
     <string name="home_empty_apps_hint">No apps on your home screen yet\nOpen All Apps at the top left, hold OK on an app, then choose Add to Home</string>
-    <string name="home_new_apps">%1$d new app(s)</string>
+    <plurals name="home_new_apps">
+        <item quantity="one">%1$d new app in All Apps</item>
+        <item quantity="other">%1$d new apps in All Apps</item>
+    </plurals>
     <string name="home_settings_title">Default Home App</string>
     <string name="home_settings_current_label">Current</string>
     <string name="home_settings_change_button">Change in System Settings</string>
@@ -148,11 +151,14 @@
     <string name="picker_wallpaper_title">Choose a Wallpaper</string>
     <string name="picker_card_image_title">Choose a Card Image</string>
     <string name="picker_no_images">No images available yet</string>
-    <string name="picker_back_to_close">Press OK to preview · Hold OK to delete or turn off · Press Back to close</string>
-    <string name="picker_back_to_cancel">Press Back to cancel</string>
+    <string name="picker_back_to_close">Press OK to preview, hold OK to delete or turn off</string>
+    <string name="picker_back_to_cancel">Press OK to choose, Back to cancel</string>
     <string name="picker_restore_original">Restore Original</string>
     <string name="picker_add_from_phone">Add from Phone</string>
-    <string name="picker_screensaver_pool_title">Screensaver Gallery · %1$d items</string>
+    <plurals name="picker_screensaver_pool_title">
+        <item quantity="one">Screensaver Gallery · %1$d item</item>
+        <item quantity="other">Screensaver Gallery · %1$d items</item>
+    </plurals>
     <string name="picker_screensaver_title">Screensaver Gallery</string>
     <string name="picker_no_screensavers">No screensaver photos or videos yet</string>
     <!-- R115: section titles of the "Built-in / Mine" blocks in the image pickers; off badge and capsule menu for built-in screensaver images (R117) -->
@@ -316,7 +322,10 @@
     <string name="edit_row_rename_hint">OK saves · Back cancels · empty keeps the current name</string>
     <string name="edit_row_icon_heading">Choose Row Icon</string>
     <string name="edit_row_delete_confirm_title">Delete “%1$s”?</string>
-    <string name="edit_row_delete_confirm_body">The %1$d app(s) in this row leave the home screen. Nothing is uninstalled.</string>
+    <plurals name="edit_row_delete_confirm_body">
+        <item quantity="one">The app in this row leaves your home screen. It won\'t be uninstalled.</item>
+        <item quantity="other">The %1$d apps in this row leave your home screen. They won\'t be uninstalled.</item>
+    </plurals>
     <string name="edit_row_delete_ok">Delete</string>
     <string name="row_icon_movie">Movies</string>
     <string name="row_icon_tv">TV</string>

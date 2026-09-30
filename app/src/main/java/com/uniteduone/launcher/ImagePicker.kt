@@ -21,8 +21,10 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -80,10 +82,10 @@ sealed class PoolFocus {
  * 格子行必须等高;而 10 sp 的中文标签比英文 / 数字文件名高 2 dp(模拟器实测 14.5 vs 12.5 dp)。首格「从手机添加」
  * 在中文界面下恒是中文,那一行因此恒比别的行高,翻页时累计差出几个像素、把顶上那行的卡片边裁掉。
  */
-private val THUMB_LABEL_HEIGHT = 16.dp
+private val THUMB_LABEL_HEIGHT = 18.dp   // R134:标签 10 → 12 sp,行高随之 16 → 18
 
 /** 分组标题「内置 / 我的」那一行的固定高度(R115;同 [THUMB_LABEL_HEIGHT] 的理由:中英文字高不一样,行高要钉死)。 */
-private val SECTION_TITLE_HEIGHT = 20.dp
+private val SECTION_TITLE_HEIGHT = 28.dp   // R134:分组标题 13 → 17 sp
 
 /** 不参与轮播的内置屏保图(R117)画得多暗:缩略图内容的不透明度。 */
 private const val EXCLUDED_THUMB_ALPHA = 0.35f
@@ -126,19 +128,16 @@ fun WallpaperPicker(
     // 从扫码页回来时本组合是新挂上的(扫码页替换了它),这里自然按盘上实况重读。
     val files = remember(directory) { listImages(directory) }
     val builtins = rememberBuiltins(BuiltinKind.WALLPAPERS)
-    androidx.activity.compose.BackHandler { onDismiss() }
-    Box(
-        modifier = Modifier.fillMaxSize().focusGroup()
-            .background(Color.Black.copy(alpha = 0.85f)),
-        contentAlignment = Alignment.Center,
-    ) {
+    val ghost = LocalPageGhost.current
+    androidx.activity.compose.BackHandler(enabled = !ghost) { onDismiss() }
+    PickerPage {
         if (builtins != null) PickerGrid(
             builtins = builtins.map { PickerItem.Builtin(it) },
             items = files.map { PickerItem.Library(it) },
             title = title,
-            columns = 3,
-            thumbWidth = 170.dp,
-            thumbHeight = 96.dp,
+            columns = PICKER_PHOTO_COLUMNS,
+            thumbWidth = PICKER_PHOTO_WIDTH,
+            thumbHeight = PICKER_PHOTO_HEIGHT,
             nonce = nonce,
             onSelectFile = onSelect,
             onRestoreOriginal = null,
@@ -177,19 +176,16 @@ fun IconPicker(
             addAll(files.map { PickerItem.Library(it) })
         }
     }
-    androidx.activity.compose.BackHandler { onDismiss() }
-    Box(
-        modifier = Modifier.fillMaxSize().focusGroup()
-            .background(Color.Black.copy(alpha = 0.85f)),
-        contentAlignment = Alignment.Center,
-    ) {
+    val ghost = LocalPageGhost.current
+    androidx.activity.compose.BackHandler(enabled = !ghost) { onDismiss() }
+    PickerPage {
         if (builtins != null) PickerGrid(
             builtins = builtins.map { PickerItem.Builtin(it) },
             items = items,
             title = stringResource(R.string.picker_card_image_title),
-            columns = 4,
-            thumbWidth = 130.dp,
-            thumbHeight = 73.dp,
+            columns = PICKER_CARD_COLUMNS,
+            thumbWidth = PICKER_CARD_WIDTH,
+            thumbHeight = PICKER_CARD_HEIGHT,
             nonce = nonce,
             onSelectFile = onSelect,
             onRestoreOriginal = onRestoreOriginal,
@@ -275,6 +271,11 @@ private fun PickerGrid(
     /** 不参与轮播的内置屏保图 ID(R117,只有屏保图库传):这几格画暗 + 「已关」角标。 */
     excludedBuiltins: Set<String> = emptySet(),
 ) {
+    // 淡出中的残影(R108 的约定,R136 起选图页也淡入淡出):当作被盖住——定位效果与看门狗让路(守卫与 key 读的是
+    // 同一个合并后的 covered,铁律 6);下面每一格再 canFocus = false、点击与焦点上报一律不接。
+    val ghost = LocalPageGhost.current
+    @Suppress("NAME_SHADOWING")
+    val covered = covered || ghost
     // 格子 = 内置 + 「＋」+ 我的(换算见 PickerCells.kt)。下面 focusedIdx / holderIdx / focusRequesters / interactionSources
     // 全用格子下标,只有 onFocusedItem 上报、落点种子这两处要认「是哪一类」。
     val builtinCount = builtins.size
@@ -391,11 +392,10 @@ private fun PickerGrid(
     val shownScroll = if (measuredNow) scrollPx.coerceAtMost(maxScroll(topsNow, contentHeight(topsNow, heightsNow), viewportPx)) else 0
     val yShift by animateDpAsState(
         targetValue = with(density) { (-shownScroll).toDp() },
-        // Ruling R27(owner 反馈 Round 7)**刻意没有改这一处**:首页行位移与编辑页纵向位移换成了
-        // Google 的 browse 曲线(Theme.BrowseEasing + GtvLayout.BROWSE_SHIFT_MS),这里是图片网格
-        // 的翻页位移——不是首页那个 browse 场景,Google 那边也没有对应物可照抄,继续用通用的
-        // Theme.MotionEasing。这条不一致是明知故留,不是漏改。
-        animationSpec = tween(Theme.MotionInMs, easing = Theme.MotionEasing),
+        // R136(动效统一):图片网格的翻页与首页换行、编辑页、所有应用页同一根 browse 弹簧(Theme.browseShiftSpec)。
+        // R27 时这里刻意留在 tween(300, MotionEasing)——当时它是面板里的小网格;现在是整屏网格,与所有应用页同一个版式,
+        // 翻页手感理应一样。
+        animationSpec = Theme.browseShiftSpec(),
         label = "pickerYShift",
     )
 
@@ -465,7 +465,9 @@ private fun PickerGrid(
     // items 变 → 这里按新列表再报一次。离开组合(关图库 / 删空换成空态)报 null,不留过期文件。
     // 「＋」与「恢复原图」报 null(R63):长按那一支(MainActivity.dispatchKeyEvent 的 poolBare)因此不成立。
     if (onFocusedItem != null) {
-        LaunchedEffect(holderIdx, cells) {
+        val ghostNow by rememberUpdatedState(ghost)
+        LaunchedEffect(holderIdx, cells, ghost) {
+            if (ghost) return@LaunchedEffect
             onFocusedItem(
                 when (val item = holderIdx?.let { cells.getOrNull(it) }) {
                     is PickerItem.Library -> PoolFocus.Mine(item.file)
@@ -474,44 +476,35 @@ private fun PickerGrid(
                 },
             )
         }
-        DisposableEffect(Unit) { onDispose { onFocusedItem(null) } }
+        // 残影离场时不报:关掉又马上打开时,它的这一声 null 会盖掉新页刚报上去的那一张(同所有应用页)。
+        DisposableEffect(Unit) { onDispose { if (!ghostNow) onFocusedItem(null) } }
     }
 
+    // **R135 换皮**:页头 + 网格的整屏页(与所有应用页同一个版式)——页名 31 sp 在左上角基准线上,操作提示跟在页名右边
+    // (原来在面板最底下、11 sp 深灰);下面的网格铺满屏宽。此前是屏幕中间一块 ≤ 700 dp 的面板、页名 16 sp。
+    // 网格的焦点 / 翻页机制一行没动:视窗仍是「量出来的高度 + 整块自算位移」。
     Column(
         modifier = Modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(Theme.DialogSurface)
-            .padding(16.dp)
-            .widthIn(max = 700.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .fillMaxSize()
+            .padding(start = GtvLayout.CONTENT_KEYLINE.dp, end = GtvLayout.CONTENT_KEYLINE.dp, top = AppsPageLayout.PAGE_TOP.dp),
     ) {
-        BasicText(
-            text = title,
-            style = TextStyle(fontFamily = Theme.Sans, color = LocalThemeColors.current.highlight, fontSize = 16.sp),
-            modifier = Modifier.padding(bottom = 4.dp),
+        PageHeader(
+            title = title,
+            // 一张图都没有时说明换成「还没有图片可选」(原来是标题下单独一行)。
+            hint = if (emptyHint != null && builtins.isEmpty() && items.isEmpty()) emptyHint else stringResource(backHint),
         )
-        if (emptyHint != null && builtins.isEmpty() && items.isEmpty()) {
-            BasicText(
-                text = emptyHint,
-                style = TextStyle(fontFamily = Theme.Sans, color = Theme.DialogBodyText, fontSize = 14.sp),
-                modifier = Modifier.padding(bottom = 4.dp),
-            )
-        }
 
         Box(
             modifier = Modifier
-                // weight(fill = false)(R63 顺手修):600dp 上限比 540dp 高的屏还高,行数一多视窗把整块撑满屏,
-                // 底下的「按返回键取消」被挤成 0 高、看不见,可见行数也按屏外的高度算。带权重的子项最后量,
-                // 标题和底注先拿到自己的高度,视窗只分剩下的。
-                .weight(1f, fill = false)
-                .heightIn(max = 600.dp)
+                // 视窗拿页头以下的全部高度(带权重的子项最后量);底下留 PICKER_BOTTOM_PAD,末行的标签不贴屏幕底边。
+                .weight(1f)
+                .padding(bottom = PICKER_BOTTOM_PAD)
                 // P2:原来是 clipToBounds()。聚焦格放大后描边 + 柔光伸出格子外(描边横向 ≈ 12.5dp、纵向 ≈ 8.8dp),
                 // 贴着视窗边的那一格会被裁掉。横向放开(左右由外层面板 16dp 内边距 + 圆角裁剪兜底,描边溢出 < 16dp);
                 // 纵向**固定**外扩一个聚焦溢出量 appFocusOverflow(缩略图高),与页码无关。
                 // 不能按翻页位置决定「这一侧要不要裁」(第二轮初版这么做过,夜间评审 Important):位置在得焦那一刻
-                // 就跳到新页,yShift 却要 300ms 才走到——翻回首页 / 翻到末页的途中,整行缩略图从视窗外滑过、
-                // 压在标题或「按返回键取消」上。外扩量 ≈ 8.8dp < 标题下方与底注上方各 12dp 的间隙,描边完整、碰不到文字;
-                // 代价是柔光在视窗上下边被硬切。
+                // 就跳到新页,yShift 却要几百毫秒才走到——翻回首页 / 翻到末页的途中,整行缩略图从视窗外滑过、
+                // 压在页头上。外扩量 ≈ 9dp < 页头下方的留白,描边完整、碰不到文字;代价是柔光在视窗上下边被硬切。
                 .drawWithContent {
                     val m = focusOverflowPx
                     clipRect(left = -size.width, top = -m, right = size.width * 2, bottom = size.height + m) {
@@ -559,6 +552,7 @@ private fun PickerGrid(
                                 cellModifier = Modifier
                                     .focusRequester(focusRequesters[idx])
                                     .focusProperties {
+                                        if (ghost) canFocus = false
                                         // 左右到行头 / 行尾钉死(不斜跳到别的行);上下只在整个网格的第一 / 最后一行钉死,
                                         // 两块之间的上下交给默认的二维搜索(标题不可聚焦,自然跳过)
                                         if (colIdx == 0) left = FocusRequester.Cancel
@@ -586,7 +580,7 @@ private fun PickerGrid(
                                         interactionSource = interactionSources[idx],
                                         indication = null,
                                     ) {
-                                        when (item) {
+                                        if (!ghost) when (item) {
                                             is PickerItem.Original -> onRestoreOriginal?.invoke()
                                             is PickerItem.Library -> onSelectFile(item.file)
                                             is PickerItem.Builtin -> onSelectFile(item.image.file)
@@ -601,21 +595,35 @@ private fun PickerGrid(
         }
         }
         }
-
-        BasicText(
-            text = stringResource(backHint),
-            style = TextStyle(fontFamily = Theme.Sans, color = Theme.PickerFooterText, fontSize = 11.sp),
-            modifier = Modifier.padding(top = 4.dp),
-        )
     }
 }
+
+/** 选图页的底:与所有整屏页同一个 [GtvTokens.MenuBg](R135;原来是 85% 黑的蒙版,后面透出压暗的首页)。 */
+@Composable
+private fun PickerPage(content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxSize().focusGroup()
+            .background(GtvTokens.ScrimOverlay).background(GtvTokens.MenuBg),
+    ) { content() }
+}
+
+// R135 网格几何:屏宽 960 − 左右基准线 2 × 58 = 844 dp。
+// 照片(壁纸、屏保图库)一行 4 张:4 × 196 + 3 × 20 = 844;卡片图一行 5 张:5 × 152 + 4 × 20 = 840。
+// 此前面板里是 3 × 170 与 4 × 130。
+private const val PICKER_PHOTO_COLUMNS = 4
+private val PICKER_PHOTO_WIDTH = 196.dp
+private val PICKER_PHOTO_HEIGHT = 110.dp
+private const val PICKER_CARD_COLUMNS = 5
+private val PICKER_CARD_WIDTH = 152.dp
+private val PICKER_CARD_HEIGHT = 86.dp
+private val PICKER_BOTTOM_PAD = 20.dp
 
 /** 分组标题「内置 / 我的」(R115):不可聚焦,固定行高([SECTION_TITLE_HEIGHT])。 */
 @Composable
 private fun SectionTitle(text: String, modifier: Modifier = Modifier) {
     BasicText(
         text = text,
-        style = TextStyle(fontFamily = Theme.Sans, color = Theme.DialogBodyText, fontSize = 13.sp),
+        style = Type.section,
         maxLines = 1,
         modifier = modifier.height(SECTION_TITLE_HEIGHT).wrapContentHeight(Alignment.CenterVertically),
     )
@@ -638,10 +646,7 @@ private fun VideoBadge(durationMs: Long?, modifier: Modifier = Modifier) {
             .background(Color.Black.copy(alpha = 0.6f))
             .padding(horizontal = 5.dp, vertical = 1.dp),
     ) {
-        BasicText(
-            text = "▶ $text",
-            style = TextStyle(fontFamily = Theme.Sans, color = Color.White, fontSize = 10.sp),
-        )
+        BasicText(text = "▶ $text", style = Type.micro.copy(color = Color.White))
     }
 }
 
@@ -658,10 +663,7 @@ private fun OffBadge(modifier: Modifier = Modifier) {
             .background(Color.Black.copy(alpha = 0.7f))
             .padding(horizontal = 5.dp, vertical = 1.dp),
     ) {
-        BasicText(
-            text = stringResource(R.string.picker_builtin_off_badge),
-            style = TextStyle(fontFamily = Theme.Sans, color = Color.White, fontSize = 10.sp),
-        )
+        BasicText(text = stringResource(R.string.picker_builtin_off_badge), style = Type.micro.copy(color = Color.White))
     }
 }
 
@@ -772,27 +774,31 @@ private fun ThumbCard(
                     modifier = Modifier.fillMaxSize().alpha(contentAlpha),
                 )
             } else if (current == null) {
-                BasicText("...", style = TextStyle(color = Theme.ThumbLoadingText, fontSize = 12.sp))
+                BasicText("…", style = Type.caption)
             }
             if (isVideo && current != null) VideoBadge(current.videoMs, Modifier.align(Alignment.BottomEnd))
             if (dimmed) OffBadge(Modifier.align(Alignment.TopStart))
         }
 
-        BasicText(
-            text = label,
-            style = TextStyle(
-                fontFamily = Theme.Sans,
-                color = if (focused) highlight else Theme.ThumbLabelText,
-                fontSize = 10.sp,
-                textAlign = TextAlign.Center,
-            ),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().height(THUMB_LABEL_HEIGHT).wrapContentHeight(),
-        )
+        ThumbLabel(label, focused)
     }
 }
 
+/** 缩略图下的名字(R134:10 → 12 sp;聚焦 = 主题 highlight + Medium)。固定行高见 [THUMB_LABEL_HEIGHT]。 */
+@Composable
+private fun ThumbLabel(label: String, focused: Boolean) {
+    BasicText(
+        text = label,
+        style = Type.caption.copy(
+            color = if (focused) LocalThemeColors.current.highlight else Ink.Label,
+            fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
+            textAlign = TextAlign.Center,
+        ),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.fillMaxWidth().height(THUMB_LABEL_HEIGHT).wrapContentHeight(),
+    )
+}
 
 /**
  * P2(交互测试 2026-09-23 第二轮):图片网格的聚焦格与首页卡片同一套表现——缩略图本身走
@@ -830,23 +836,9 @@ private fun AddFromPhoneCard(focused: Boolean, thumbWidth: Dp, thumbHeight: Dp, 
                 .clearAndSetSemantics { },
             contentAlignment = Alignment.Center,
         ) {
-            BasicText(
-                "＋",
-                style = TextStyle(fontFamily = Theme.Sans, color = if (focused) highlight else Theme.ThumbLabelText, fontSize = 30.sp),
-            )
+            PlusGlyph(color = if (focused) highlight else Ink.Label, size = 30.dp)
         }
-        BasicText(
-            text = label,
-            style = TextStyle(
-                fontFamily = Theme.Sans,
-                color = if (focused) highlight else Theme.ThumbLabelText,
-                fontSize = 10.sp,
-                textAlign = TextAlign.Center,
-            ),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().height(THUMB_LABEL_HEIGHT).wrapContentHeight(),
-        )
+        ThumbLabel(label, focused)
     }
 }
 
@@ -908,24 +900,21 @@ fun ScreensaverPoolViewer(
     var previewIndex by remember { mutableStateOf(-1) }
     val total = builtins.size + files.size
 
-    androidx.activity.compose.BackHandler { onDismiss() }
-    Box(
-        modifier = Modifier.fillMaxSize().focusGroup()
-            .background(Color.Black.copy(alpha = 0.85f)),
-        contentAlignment = Alignment.Center,
-    ) {
+    val ghost = LocalPageGhost.current
+    androidx.activity.compose.BackHandler(enabled = !ghost) { onDismiss() }
+    PickerPage {
         when {
-            // 首次扫描中(几十毫秒):只有半透明底。**网格要等扫完才挂**——R63 的落点种子只在挂载那一刻读一次,
+            // 首次扫描中(几十毫秒):只有底色。**网格要等扫完才挂**——R63 的落点种子只在挂载那一刻读一次,
             // 挂早了拿到的是空列表,新传的图永远找不到。
             scanned == null -> Unit
             else -> PickerGrid(
                 builtins = builtins.map { PickerItem.Builtin(it) },
                 items = files.map { PickerItem.Library(it) },
                 title = if (total == 0) stringResource(R.string.picker_screensaver_title)
-                else stringResource(R.string.picker_screensaver_pool_title, total),
-                columns = 3,
-                thumbWidth = 170.dp,
-                thumbHeight = 96.dp,
+                else pluralStringResource(R.plurals.picker_screensaver_pool_title, total, total),
+                columns = PICKER_PHOTO_COLUMNS,
+                thumbWidth = PICKER_PHOTO_WIDTH,
+                thumbHeight = PICKER_PHOTO_HEIGHT,
                 nonce = nonce,
                 onSelectFile = { file ->
                     val idx = previewFiles.indexOf(file)
@@ -944,46 +933,67 @@ fun ScreensaverPoolViewer(
         }
     }
 
-    if (previewIndex in previewFiles.indices) {
-        ScreensaverPreview(
-            files = previewFiles,
-            startIndex = previewIndex,
-            nonce = nonce,
-            onDismiss = { previewIndex = -1 },
-        )
-    }
-
-    // 删除确认框(spec §5):画在最上层;BackHandler 比查看器的更晚注册,返回键先关它。
+    // **R136:图库上叠着的三种浮层是一摞,淡入淡出**([OverlayStack]):全屏预览、删除确认页、内置图的胶囊菜单。
+    // 它们的 BackHandler 比查看器的更晚注册,返回键先关它们;关掉后淡出的残影不收返回键(各页面照 LocalPageGhost 让路)。
+    // 残影画的是关掉前最后那一份([PoolOverlay] 把文件名、菜单上那一颗的字都带上)。
+    val galleryTitle = stringResource(R.string.picker_screensaver_title)
     val target = deleteTarget
-    if (target != null) {
-        ConfirmDialog(
-            title = stringResource(R.string.pool_delete_title),
-            body = stringResource(R.string.pool_delete_body, target.name),
-            okLabel = stringResource(R.string.pool_delete_ok),
-            cancelLabel = stringResource(R.string.dialog_cancel),
-            nonce = nonce,
-            onOk = { onConfirmDelete(target) },
-            onCancel = onCancelDelete,
-        )
-    }
-
-    // 内置图的胶囊菜单(R117):同长按卡片菜单一个样子(整屏底 + 左侧名字 + 右侧药丸),只有一颗——
-    // 参与轮播时「不参与轮播」,已关的「加入轮播」。BackHandler 同样晚于查看器注册,返回键先关它。
     val menuTarget = builtinMenu
-    if (menuTarget != null) {
-        val off = menuTarget.id in excludedBuiltins
-        GearMenu(
-            items = listOf(
-                MenuItem(
-                    label = stringResource(if (off) R.string.pool_builtin_include else R.string.pool_builtin_exclude),
-                    hint = "",
-                    action = { onToggleBuiltin(menuTarget) },
+    val overlay: PoolOverlay? = when {
+        target != null -> PoolOverlay.Delete(target)
+        menuTarget != null -> PoolOverlay.Menu(menuTarget, off = menuTarget.id in excludedBuiltins)
+        previewIndex in previewFiles.indices -> PoolOverlay.Preview(previewFiles, previewIndex)
+        else -> null
+    }
+    OverlayStack(state = overlay, layerKey = { it.layer }) { ov ->
+        when (ov) {
+            is PoolOverlay.Preview -> ScreensaverPreview(
+                files = ov.files,
+                startIndex = ov.start,
+                nonce = nonce,
+                onDismiss = { previewIndex = -1 },
+            )
+            // 删除确认页(spec §5)
+            is PoolOverlay.Delete -> ConfirmDialog(
+                title = stringResource(R.string.pool_delete_title),
+                body = stringResource(R.string.pool_delete_body, ov.file.name),
+                okLabel = stringResource(R.string.pool_delete_ok),
+                cancelLabel = stringResource(R.string.dialog_cancel),
+                nonce = nonce,
+                eyebrow = galleryTitle,
+                onOk = { onConfirmDelete(ov.file) },
+                onCancel = onCancelDelete,
+            )
+            // 内置图的胶囊菜单(R117):只有一颗——参与轮播时「不参与轮播」,已关的「加入轮播」。
+            is PoolOverlay.Menu -> GearMenu(
+                items = listOf(
+                    MenuItem(
+                        label = stringResource(if (ov.off) R.string.pool_builtin_include else R.string.pool_builtin_exclude),
+                        hint = "",
+                        action = { onToggleBuiltin(ov.image) },
+                    ),
                 ),
-            ),
-            onDismiss = onCloseBuiltinMenu,
-            nonce = nonce,
-            title = menuTarget.label,
-        )
+                onDismiss = onCloseBuiltinMenu,
+                nonce = nonce,
+                title = ov.image.label,
+                eyebrow = galleryTitle,
+            )
+        }
+    }
+}
+
+/** 屏保图库上叠着的那一层(R136,给 [OverlayStack] 当状态)。 */
+private sealed interface PoolOverlay {
+    val layer: String
+    /** 全屏预览:同一次预览里左右翻页不换层([layer] 不含页码),翻页由预览自己交叉淡化。 */
+    class Preview(val files: List<File>, val start: Int) : PoolOverlay {
+        override val layer get() = "preview"
+    }
+    class Delete(val file: File) : PoolOverlay {
+        override val layer get() = "delete:${file.name}"
+    }
+    class Menu(val image: BuiltinImage, val off: Boolean) : PoolOverlay {
+        override val layer get() = "menu:${image.id}"
     }
 }
 
@@ -998,14 +1008,17 @@ private fun ScreensaverPreview(
     var index by remember { mutableStateOf(startIndex) }
     val fr = remember { FocusRequester() }
     var focused by remember { mutableStateOf(false) }
+    // 淡出中的残影(R136):不可聚焦、不收返回键、不再请求焦点。
+    val ghost = LocalPageGhost.current
 
-    androidx.activity.compose.BackHandler { onDismiss() }
+    androidx.activity.compose.BackHandler(enabled = !ghost) { onDismiss() }
 
     Box(
         Modifier
             .fillMaxSize()
             .background(Color.Black)
             .focusRequester(fr)
+            .focusProperties { if (ghost) canFocus = false }
             .onFocusChanged { focused = it.isFocused }
             .onKeyEvent { event ->
                 if (event.type == KeyEventType.KeyDown) {
@@ -1041,11 +1054,7 @@ private fun ScreensaverPreview(
                 BasicText(
                     // 内置图(R115)显示标签(去掉序号前缀),与网格里同一个名字
                     text = "${builtinImageOf(file)?.label ?: file.nameWithoutExtension}  (${index + 1}/${files.size})",
-                    style = TextStyle(
-                        fontFamily = Theme.Sans,
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 14.sp,
-                    ),
+                    style = Type.body.copy(color = Color.White.copy(alpha = 0.7f)),
                 )
             }
         }
@@ -1053,7 +1062,8 @@ private fun ScreensaverPreview(
 
     // 以 nonce 为 key(原来是 Unit,只落一次地):回到前台时 nonce 变,预览自己把焦点要回来。
     // 判据是自报的 focused(得失都报),不是只写 true 的 landed——已经有焦点时这里一次都不请求。
-    LaunchedEffect(nonce) {
+    LaunchedEffect(nonce, ghost) {
+        if (ghost) return@LaunchedEffect
         var frames = 0
         while (!focused && frames < 60) {
             withFrameNanos { }
@@ -1083,7 +1093,7 @@ private fun PreviewVideo(file: File, active: Boolean) {
         if (failed) {
             BasicText(
                 text = stringResource(R.string.preview_video_failed),
-                style = TextStyle(fontFamily = Theme.Sans, color = Color.White.copy(alpha = 0.85f), fontSize = 16.sp),
+                style = Type.label.copy(color = Color.White.copy(alpha = 0.85f)),
                 modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Color.Black.copy(alpha = 0.6f))
                     .padding(horizontal = 16.dp, vertical = 8.dp),
             )

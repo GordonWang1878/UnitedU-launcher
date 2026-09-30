@@ -68,12 +68,13 @@ fun rememberCurrentHome(revision: Int, refresh: Int = 0): CurrentHome {
  * 设置外壳「设置默认桌面」页(R74,取代原 HomeSettingsCard 浮层)与首次引导第 3 步共用,
  * 两处长得一模一样,不各画一份。图标在 IO 线程取,取不到只留占位底。
  */
+/** 左半屏信息块(当前默认桌面、引导的计划列表)的圆角(dp,R135)。 */
+internal const val INFO_PANEL_CORNER = 16f
+
 @Composable
 fun CurrentHomeRow(
     home: CurrentHome,
     modifier: Modifier = Modifier,
-    /** 字号在基准(「当前」11、名字 15)上加多少 sp:设置外壳「默认桌面」页传 [GtvLayout.SETTINGS_TYPE_STEP](R109),引导不传。 */
-    textStep: Float = 0f,
 ) {
     val ctx = LocalContext.current
     val icon by produceState<Bitmap?>(null, home.pkg) {
@@ -86,8 +87,8 @@ fun CurrentHomeRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(Theme.InfoRowBackground)
+            .clip(RoundedCornerShape(INFO_PANEL_CORNER.dp))
+            .background(GtvTokens.MenuItemIdle)   // R135:信息块与未聚焦的胶囊同一个底
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -110,18 +111,11 @@ fun CurrentHomeRow(
             }
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            BasicText(
-                text = stringResource(R.string.home_settings_current_label),
-                style = TextStyle(fontFamily = Theme.Sans, color = Theme.HintText, fontSize = (11f + textStep).sp),
-            )
+            BasicText(text = stringResource(R.string.home_settings_current_label), style = Type.micro)
             BasicText(
                 text = home.label,
-                style = TextStyle(
-                    fontFamily = Theme.Sans,
-                    fontWeight = FontWeight.Medium,
-                    color = Theme.EmphasisText,
-                    fontSize = (15f + textStep).sp,
-                ),
+                maxLines = 1,
+                style = Type.label.copy(fontWeight = FontWeight.Medium, color = Ink.Primary),
             )
         }
     }

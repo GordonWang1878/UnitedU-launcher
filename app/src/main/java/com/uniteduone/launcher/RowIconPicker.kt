@@ -1,17 +1,18 @@
 package com.uniteduone.launcher
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,21 +32,28 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 /** 选择器一行几格:12 个图标排成 4 × 3,一屏放得下,不需要任何滚动(铁律 1)。 */
 private const val ICON_COLUMNS = 4
 
+/** 一格的宽高与格距(dp,R135):4 × 96 + 3 × 12 = 420,放在右半屏(480)正中。 */
+private const val ICON_CELL_WIDTH = 96f
+private const val ICON_CELL_HEIGHT = 84f
+private const val ICON_CELL_GAP = 12f
+private const val ICON_CELL_CORNER = 18f
+
 /**
- * 行图标选择器(M4b spec §0-6):整屏半透明底 + 4 × 3 图标格,打开时 [current] 那一格预先聚焦。
+ * 行图标选择器(M4b spec §0-6):4 × 3 图标格,打开时 [current] 那一格预先聚焦。
  * 确定 = [onPick](图标 id,见 [ROW_ICON_IDS]);返回 = [onDismiss]。
+ *
+ * **R135(2026-09-30 外观轮)换皮**:与设置各层同一个版式——整屏 `MenuBg`,左边页名、上方一行小字写是哪一行([rowName]),
+ * 右边图标格;每一格与胶囊同一个焦点画法(聚焦填主题色、图标与字取对比色,150 ms 过渡)。此前是屏幕中间的小面板、
+ * 标题 16 sp 带字距、聚焦画外扩描边、底部 10 sp 深灰的「按返回键取消」。焦点账本逐字未动。
  *
  * 焦点账本(与 [GearMenu] 同一写法;这个浮层开着时编辑页的看门狗让路,**丢了焦点只能靠它自己**,铁律 3):
  * - 逐格一个 [FocusRequester];
@@ -53,19 +61,29 @@ private const val ICON_COLUMNS = 4
  *   [holder] =「现在谁持有」(只信控件自报,失去就清,铁律 4)——两者分开(铁律 5);
  * - `LaunchedEffect(nonce)` 初始循环:打开 / nonce 变时把焦点送到 [focusedIdx],直到有人自报持有,最多 60 帧(铁律 2);
  * - 看门狗以 `holder == null` 同时当 key 与守卫(铁律 6),落地后再丢自然重新武装,不是闩(铁律 7);
- * - 四边 `FocusRequester.Cancel`:按到头原地不动,焦点不会冒泡到蒙版后面的编辑页。
+ * - 四边 `FocusRequester.Cancel`:按到头原地不动,焦点不会冒泡到底下的编辑页;
+ * - **淡出中的残影**([LocalPageGhost]):两个循环让路、每格 `canFocus = false`、不收返回键、点击不回调。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
-fun RowIconPicker(current: String, nonce: Int, onPick: (String) -> Unit, onDismiss: () -> Unit) {
+fun RowIconPicker(
+    current: String,
+    nonce: Int,
+    onPick: (String) -> Unit,
+    onDismiss: () -> Unit,
+    /** 这是哪一行的图标(页名上方的小字);null = 不画。 */
+    rowName: String? = null,
+) {
     val ids = ROW_ICON_IDS
     val rowFocus = remember(ids.size) { List(ids.size) { FocusRequester() } }
     // 两个循环都在协程里跑,读的必须是当前这一份 requester(同 GearMenu 的 requesters)
     val requesters by rememberUpdatedState(rowFocus)
     var focusedIdx by remember { mutableStateOf(ids.indexOf(current).coerceAtLeast(0)) }
     var holder by remember { mutableStateOf<Int?>(null) }
+    val ghost = LocalPageGhost.current
 
-    LaunchedEffect(nonce) {
+    LaunchedEffect(nonce, ghost) {
+        if (ghost) return@LaunchedEffect
         val i = focusedIdx.coerceIn(0, requesters.lastIndex)
         var frames = 0
         while (holder == null && frames < 60) {
@@ -74,8 +92,8 @@ fun RowIconPicker(current: String, nonce: Int, onPick: (String) -> Unit, onDismi
             frames++
         }
     }
-    LaunchedEffect(holder == null) {
-        if (holder != null) return@LaunchedEffect
+    LaunchedEffect(holder == null, ghost) {
+        if (ghost || holder != null) return@LaunchedEffect
         repeat(3) { withFrameNanos { } }   // 换格时 lost / got 可能分属相邻两帧,中间那一帧的 null 不算丢
         var frames = 0
         while (holder == null && frames < 60) {
@@ -85,61 +103,45 @@ fun RowIconPicker(current: String, nonce: Int, onPick: (String) -> Unit, onDismi
         }
     }
 
-    androidx.activity.compose.BackHandler { onDismiss() }
+    androidx.activity.compose.BackHandler(enabled = !ghost) { onDismiss() }
 
     val rowsOfIds = ids.chunked(ICON_COLUMNS)
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .focusGroup()   // 同 GearMenu:不圈起来焦点会跑到蒙版后面
-            .background(Color.Black.copy(alpha = 0.72f)),
-        contentAlignment = Alignment.Center,
+            .focusGroup()   // 同 GearMenu:不圈起来焦点会跑到底下那一层
+            .background(GtvTokens.ScrimOverlay)
+            .background(GtvTokens.MenuBg),
     ) {
-        Column(
-            modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
-                .background(Theme.DialogSurface)
-                .padding(horizontal = 24.dp, vertical = 20.dp),
-        ) {
-            BasicText(
-                text = stringResource(R.string.edit_row_icon_heading),
-                style = TextStyle(
-                    fontFamily = Theme.Sans,
-                    fontWeight = FontWeight.Medium,
-                    color = LocalThemeColors.current.highlight,
-                    fontSize = 16.sp,
-                    letterSpacing = 1.sp,
-                ),
-            )
-            Spacer(Modifier.height(16.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                rowsOfIds.forEachIndexed { r, rowIds ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        rowIds.forEachIndexed { c, id ->
-                            val idx = r * ICON_COLUMNS + c
-                            IconCell(
-                                id = id,
-                                modifier = Modifier.focusRequester(rowFocus[idx]),
-                                onFocusChange = { got ->
-                                    // 得失顺序保护(同 GearMenu):只有「本格仍是持有者」时 lost 才作废
-                                    if (got) { holder = idx; focusedIdx = idx } else if (holder == idx) holder = null
-                                },
-                                edgeLeft = c == 0,
-                                edgeRight = c == rowIds.lastIndex,
-                                edgeTop = r == 0,
-                                edgeBottom = r == rowsOfIds.lastIndex,
-                                onClick = { onPick(id) },
-                            )
+        ShellScaffold(
+            left = { ShellTitle(path = rowName, title = stringResource(R.string.edit_row_icon_heading)) },
+            right = {
+                Column(verticalArrangement = Arrangement.spacedBy(ICON_CELL_GAP.dp)) {
+                    rowsOfIds.forEachIndexed { r, rowIds ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(ICON_CELL_GAP.dp)) {
+                            rowIds.forEachIndexed { c, id ->
+                                val idx = r * ICON_COLUMNS + c
+                                IconCell(
+                                    id = id,
+                                    modifier = Modifier
+                                        .focusRequester(rowFocus[idx])
+                                        .focusProperties { if (ghost) canFocus = false },
+                                    onFocusChange = { got ->
+                                        // 得失顺序保护(同 GearMenu):只有「本格仍是持有者」时 lost 才作废
+                                        if (got) { holder = idx; focusedIdx = idx } else if (holder == idx) holder = null
+                                    },
+                                    edgeLeft = c == 0,
+                                    edgeRight = c == rowIds.lastIndex,
+                                    edgeTop = r == 0,
+                                    edgeBottom = r == rowsOfIds.lastIndex,
+                                    onClick = { if (!ghost) onPick(id) },
+                                )
+                            }
                         }
                     }
                 }
-            }
-            Spacer(Modifier.height(14.dp))
-            BasicText(
-                text = stringResource(R.string.picker_back_to_cancel),
-                style = TextStyle(fontFamily = Theme.Sans, color = Theme.FooterHintText, fontSize = 10.sp),
-            )
-        }
+            },
+        )
     }
 }
 
@@ -158,45 +160,45 @@ private fun IconCell(
 ) {
     var focused by remember { mutableStateOf(false) }
     val accent = LocalThemeColors.current.accent
+    // 与胶囊同一个焦点画法(R135):聚焦填主题色、内容取对比色;填色 150 ms 过渡,内容色两态瞬切(见 MenuPill)。
+    val fill by animateColorAsState(
+        targetValue = if (focused) accent else GtvTokens.MenuItemIdle,
+        animationSpec = tween(
+            durationMillis = if (focused) GtvLayout.FOCUS_FADE_IN_MS else GtvLayout.FOCUS_FADE_OUT_MS,
+            easing = Theme.AppFocusEasing,
+        ),
+        label = "rowIconCellFill",
+    )
+    val ink = if (focused) contrastingTextColor(accent) else Ink.Label
     Column(
         modifier = modifier
-            .width(96.dp)
+            .size(ICON_CELL_WIDTH.dp, ICON_CELL_HEIGHT.dp)
             .focusProperties {
                 if (edgeLeft) left = FocusRequester.Cancel
                 if (edgeRight) right = FocusRequester.Cancel
                 if (edgeTop) up = FocusRequester.Cancel
                 if (edgeBottom) down = FocusRequester.Cancel
             }
-            // Ruling R18(终审 2026-09-20):原来聚焦底色 = highlight 12% 透明填充,注释还说它抄的是
-            // 「菜单项(GearMenu.MenuRow)同一个 highlight 12%」——那份 MenuRow 早在 Task 8 换皮时
-            // 就被 MenuPill 取代(浅色实填 / 未聚焦深色两态,不是半透明叠色),这里既没跟着换皮改,
-            // 注释引用的类型也已经不存在。改用外扩 accent 描边,不透明度叠色。
-            // **owner 反馈 Round 4(2026-09-21)起与 AppCard/AddCard/MissingCard 分道**:那三个改成
-            // 了 Google 的 app tile 处理(gtvAppFocusFrame,缩放 + 贴边描边);这里是行图标选择器的
-            // 小网格格子,不是应用图标,继续留 content-card 式的静态外扩描边(gtvFocusStroke)——
-            // 密集网格里让格子跟着缩放,行间距/列间距都要重新核算会不会互相撞,权衡后判定不值得,
-            // 是一次明确的选择,不是漏改。
-            .gtvFocusStroke(focused, accent, GtvLayout.CARD_CORNER.dp)
-            .clip(RoundedCornerShape(GtvLayout.CARD_CORNER.dp))
+            .clip(RoundedCornerShape(ICON_CELL_CORNER.dp))
+            .background(fill)
             .onFocusChanged { focused = it.isFocused; onFocusChange(it.isFocused) }
-            .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
+            // 聚焦由填色表达;clickable 默认的聚焦蒙层会把主题色压暗一层,关掉(同 MenuPill)。
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
     ) {
         Image(
             imageVector = rowIconVector(id),
             contentDescription = null,   // 名字就在下面一行
-            colorFilter = ColorFilter.tint(LocalThemeColors.current.accent),
-            modifier = Modifier.size(32.dp),
+            colorFilter = ColorFilter.tint(if (focused) ink else accent),
+            modifier = Modifier.size(28.dp),
         )
         BasicText(
             text = stringResource(rowIconLabel(id)),
-            style = TextStyle(
-                fontFamily = Theme.Sans,
+            maxLines = 1,
+            style = Type.caption.copy(
                 fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
-                color = if (focused) Theme.EmphasisText else Theme.MenuItemText,
-                fontSize = 12.sp,
+                color = ink,
                 textAlign = TextAlign.Center,
             ),
         )
