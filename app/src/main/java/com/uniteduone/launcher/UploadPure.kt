@@ -129,27 +129,12 @@ fun uniqueName(existing: Set<String>, name: String): String {
     }
 }
 
-/** ext4 / f2fs 单个文件名的字节上限(NAME_MAX,按 UTF-8 **字节**算,不是字符)。 */
-private const val FS_NAME_MAX_BYTES = 255
-
 /**
- * `stem + tail` 超过 [FS_NAME_MAX_BYTES] 时从主名尾部按码点截短(不劈开代理对,至少留一个码点)
+ * `stem + tail` 超过 [MAX_UPLOAD_NAME_BYTES] 时从主名尾部按码点截短(不劈开代理对,至少留一个码点;截法同 [truncateStem])
  * (测试轮 B-05):能落盘的最长名字(接近 255 字节)撞名加上 `-1` 就超限,rename 与复制回落都建不出文件、整张图被拒。
  */
-private fun fitFileName(stem: String, tail: String): String {
-    val budget = FS_NAME_MAX_BYTES - tail.toByteArray(Charsets.UTF_8).size
-    if (stem.toByteArray(Charsets.UTF_8).size <= budget) return stem + tail
-    var end = 0
-    var bytes = 0
-    while (end < stem.length) {
-        val next = end + Character.charCount(stem.codePointAt(end))
-        val size = stem.substring(end, next).toByteArray(Charsets.UTF_8).size
-        if (end > 0 && bytes + size > budget) break
-        end = next
-        bytes += size
-    }
-    return stem.substring(0, end) + tail
-}
+private fun fitFileName(stem: String, tail: String): String =
+    truncateStem(stem, Int.MAX_VALUE, MAX_UPLOAD_NAME_BYTES - utf8Size(tail)) + tail
 
 /**
  * 「文件系统眼里是不是同一个名字」的比较键:NFC 规范化 + 大小写折叠(先转大写再转小写,ß → SS → ss 这类也折到一起)。
