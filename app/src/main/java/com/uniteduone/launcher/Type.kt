@@ -98,6 +98,9 @@ object Type {
     val caption = TextStyle(fontFamily = Theme.Sans, color = Ink.Tertiary, fontSize = CAPTION.sp, lineHeight = 16.sp)
     /** 胶囊第二行、角标、许可声明。 */
     val micro = TextStyle(fontFamily = Theme.Sans, color = Ink.Tertiary, fontSize = MICRO.sp, lineHeight = 15.sp)
-    /** 顶栏时钟与字标、顶栏焦点名字。颜色由调用方给(主题 accent)。 */
-    val clock = TextStyle(fontFamily = Theme.Sans, fontSize = CLOCK.sp)
+    /**
+     * 顶栏时钟与字标、顶栏焦点名字。颜色由调用方给(主题 accent)。
+     * 等宽数字(`tnum`,R141):比例数字下「1」比「0」窄,每分钟跳字时整串时间与后面的日期、字标会左右挪一下。
+     */
+    val clock = TextStyle(fontFamily = Theme.Sans, fontSize = CLOCK.sp, fontFeatureSettings = "tnum")
 }

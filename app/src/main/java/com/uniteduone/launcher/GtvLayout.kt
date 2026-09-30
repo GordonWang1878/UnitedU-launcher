@@ -230,6 +230,17 @@ object GtvLayout {
 
     /** 长按 / 齿轮菜单(GearMenu,Task 8):药丸尺寸,实测报告 §7,268×55 dp,全圆角(h/2)。 */
     const val MENU_ITEM_WIDTH = 268f
+    /**
+     * 胶囊聚焦时放大到的倍数(R141,2026-09-30「视觉高级感」)。Google 实测(`docs/screenshots/gtv/16-app-longpress-menu.png`,
+     * 1080p 逐行扫):聚焦药丸 564 × 112 px、未聚焦 536 × 104 px,即 282 × 56 dp 对 268 × 52 dp,宽高都约 1.05×;
+     * 聚焦那颗外缘 2–6 px 还有一圈比底色暗 3 级的影子([MENU_ITEM_FOCUS_SHADOW_DP])。此前我们只换填色、不放大。
+     */
+    const val MENU_ITEM_FOCUS_SCALE = 1.05f
+    /** 聚焦胶囊的投影高度(dp,R141):Google 那圈影子很淡(外缘比底色暗 3/255),画在深底上几乎看不见,在亮一点的底上才显。 */
+    const val MENU_ITEM_FOCUS_SHADOW_DP = 3f
+    /** 卡片边缘亮边(R141):宽 1 dp、白 16%(卡片淡化后约 11%),画在卡片圆角里面。只为勾出深色横幅的轮廓,亮色卡上看不见。 */
+    const val CARD_HAIRLINE_DP = 1f
+    const val CARD_HAIRLINE_ALPHA = 0.16f
     const val MENU_ITEM_HEIGHT = 55f
     /** 药丸之间的纵向间距。报告没给这一项,按参考图 docs/screenshots/gtv/16-app-longpress-menu.png
      *  像素量测(两药丸间隙 y 355→384 px,该图 1:1 对应 320dpi 实机,/2 得 dp)≈ 14.5 dp,取整 16。 */

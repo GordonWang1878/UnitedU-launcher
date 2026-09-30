@@ -17,7 +17,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.invalidateDraw
@@ -164,6 +169,18 @@ fun AppCard(
             border = border,
         ) {
             AppCardImage(app, metrics)
+            // R141:卡片边缘一圈极细的亮边(白 16%,1 dp,画在卡片里面)。深色横幅(黑底的 NETFLIX、深色的腾讯视频)压在首页
+            // 底部压暗的那一段上,原来连卡片边都看不出来;这圈亮边把每张卡的轮廓勾出来,亮色卡上几乎看不见。
+            Box(Modifier.fillMaxSize().drawBehind {
+                val w = GtvLayout.CARD_HAIRLINE_DP.dp.toPx()
+                drawRoundRect(
+                    color = Color.White.copy(alpha = GtvLayout.CARD_HAIRLINE_ALPHA),
+                    topLeft = Offset(w / 2, w / 2),
+                    size = Size(size.width - w, size.height - w),
+                    cornerRadius = CornerRadius(metrics.cardCorner.toPx() - w / 2),
+                    style = Stroke(width = w),
+                )
+            })
         }
         if (title != null) {
             // 库的 CardDefaults.SubtitleAlpha = 0.6;字号取 metrics.titleSize——main 线是

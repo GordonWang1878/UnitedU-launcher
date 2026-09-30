@@ -35,6 +35,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -126,6 +127,16 @@ fun MenuPill(
         label = "menuPillFill",
     )
     val textColor = if (focused) contrastingTextColor(accent) else Theme.MenuItemText
+    // R141:聚焦时放大 1.05×、带一圈很淡的影子(Google 长按菜单实测,见 GtvLayout.MENU_ITEM_FOCUS_SCALE)。与填色同一个时长与曲线;
+    // 在图层里读,不改布局——焦点搜索、胶囊列的间距与测量都不受影响。
+    val grow by animateFloatAsState(
+        targetValue = if (focused) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = if (focused) GtvLayout.FOCUS_FADE_IN_MS else GtvLayout.FOCUS_FADE_OUT_MS,
+            easing = Theme.AppFocusEasing,
+        ),
+        label = "menuPillGrow",
+    )
     // clickable() 默认的 indication 会在聚焦时叠一层约 10% 黑的状态层,把 accent 拉暗成另一个颜色——
     // 填色本身已经是完整的聚焦指示,关掉。
     val interactionSource = remember { MutableInteractionSource() }
@@ -170,7 +181,13 @@ fun MenuPill(
                 left = FocusRequester.Cancel
                 right = FocusRequester.Cancel
             }
-            .clip(RoundedCornerShape(percent = 50))
+            .graphicsLayer {
+                val s = 1f + (GtvLayout.MENU_ITEM_FOCUS_SCALE - 1f) * grow
+                scaleX = s; scaleY = s
+                shadowElevation = GtvLayout.MENU_ITEM_FOCUS_SHADOW_DP.dp.toPx() * grow
+                shape = PillShape
+            }
+            .clip(PillShape)
             .background(fill)
             .onFocusChanged { focused = it.isFocused; onFocusChange(it.isFocused) }
             .then(
@@ -411,6 +428,9 @@ object PillType {
     const val hint: Float = Type.MICRO
     const val chevron: Float = text * GtvLayout.CHEVRON_SCALE
 }
+
+/** 胶囊的形状(全圆角)。 */
+private val PillShape = RoundedCornerShape(percent = 50)
 
 /** 按 WCAG 相对亮度选深/浅文字色,不写死一种——accent 是用户选的,白/黑两端都可能出现。 */
 internal fun contrastingTextColor(fill: Color): Color =
