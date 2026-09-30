@@ -23,7 +23,8 @@ def run():
     check("走到顶栏「应用」", to_pill("apps"))
     key("ok"); time.sleep(2)
     s = screen()
-    check("所有应用页", s.has("All Apps"), s.texts()[:5])
+    # 认页头下的提示行:首页顶栏「应用」胶囊的 content-desc 与焦点名字小胶囊(R133)都是「All Apps」,has() 分不出来
+    check("所有应用页", any(n["text"] == S("apps_page_hint") for n in s.nodes), s.texts()[:5])
     check("所有应用页单个焦点", s.count_focused() == 1, s.count_focused())
     first = s.focus(); first_label = s.label()
 
@@ -54,7 +55,7 @@ def run():
     key("back"); time.sleep(2)
     if foreground() != PKG: key("back"); time.sleep(1.5)
     s = screen()
-    check("返回 → 所有应用页,焦点回那张卡", s.focus() == card and s.has("All Apps"), (s.focus(), card))
+    check("返回 → 所有应用页,焦点回那张卡", s.focus() == card and any(n["text"] == S("apps_page_hint") for n in s.nodes), (s.focus(), card))
 
     journey("apps-package-events")
     adb("install", "-r", f"{APKS}/test.dummy.app18.apk"); time.sleep(3)

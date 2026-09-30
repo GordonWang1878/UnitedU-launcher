@@ -16,18 +16,27 @@ os.makedirs(OUT, exist_ok=True)
 KEYS = dict(up=19, down=20, left=21, right=22, ok=23, back=4, menu=82, home=3, enter=66, del_=67)
 
 def adb(*args, timeout=90):
-    return subprocess.run(["adb", "-s", DEV, *args], capture_output=True, text=True, timeout=timeout)
+    # errors="replace":设备上的文件名 / 日志可能不是合法 UTF-8(比如被劈开的代理对),解不了也不能让脚本崩
+    return subprocess.run(["adb", "-s", DEV, *args], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
 
 def sh(cmd, timeout=90):
     return adb("shell", cmd, timeout=timeout).stdout
 
 # ---------- 文案(直接读英文 strings.xml,标签与界面同一份) ----------
 _S = {}
+_LANG = ["en"]
+_RES_DIR = {"en": "values-en", "zh-CN": "values", "zh-TW": "values-zh-rTW"}
+def set_lang(lang):
+    """S() 改读另一种语言的 strings.xml(三语溢出测试用);缺的 key 按 Android 的规矩回落到 values/。"""
+    _LANG[0] = lang
+    _S.clear()
 def _load_strings():
-    x = open(f"{REPO}/app/src/main/res/values-en/strings.xml", encoding="utf-8").read()
-    for m in re.finditer(r'<string name="([^"]+)"[^>]*>(.*?)</string>', x, re.S):
-        v = m.group(2).replace("\\'", "'").replace('\\"', '"').replace("&amp;", "&").replace("\\n", "\n")
-        _S[m.group(1)] = v
+    dirs = ["values"] + ([_RES_DIR[_LANG[0]]] if _RES_DIR[_LANG[0]] != "values" else [])
+    for d in dirs:
+        x = open(f"{REPO}/app/src/main/res/{d}/strings.xml", encoding="utf-8").read()
+        for m in re.finditer(r'<string name="([^"]+)"[^>]*>(.*?)</string>', x, re.S):
+            v = m.group(2).replace("\\'", "'").replace('\\"', '"').replace("&amp;", "&").replace("\\n", "\n")
+            _S[m.group(1)] = v
 def S(key):
     if not _S: _load_strings()
     return _S[key]

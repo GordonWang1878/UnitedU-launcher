@@ -145,3 +145,14 @@ internal fun withVisibleEdits(
     }
     return if (merged == full) full else merged
 }
+
+/**
+ * 编辑页卡片菜单开在哪张卡上:行号、打开那一刻的列号、**包名**(测试轮 B-06,2026-09-30)。
+ * 菜单认的是包名,不是坐标——这张卡的应用在菜单开着时被卸载,同一行后面的卡左移一格,只按 (行, 列) 认的话
+ * 菜单会悄悄换成下一张卡,再按「移出」就移错了应用(铁律 5:目标要按身份认)。此刻的列号用 [editActingCol] 现查。
+ */
+internal data class EditActing(val row: Int, val col: Int, val pkg: String)
+
+/** [a] 那张卡此刻在看得见的那份([visible])里的列号;卡不在那一行了(被卸载、被移走)→ null,菜单随之收掉。 */
+internal fun editActingCol(a: EditActing, visible: List<LayoutRow>): Int? =
+    visible.getOrNull(a.row)?.apps?.indexOf(a.pkg)?.takeIf { it >= 0 }

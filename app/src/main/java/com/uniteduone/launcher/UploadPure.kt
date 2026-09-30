@@ -107,16 +107,56 @@ fun uploadKeys(fileKeys: Set<String>, paramKeys: Set<String>): List<String> =
             ),
         )
 
-/** a.jpg 已存在 → a-1.jpg → a-2.jpg … */
+/**
+ * a.jpg 已存在 → a-1.jpg → a-2.jpg …
+ *
+ * **比较不分大小写**(2026-09-30 测试轮 B-03):图库在 `/sdcard/Android/data/…` 下,Android 11+ 的外置存储是
+ * casefold 的(模拟器实测 `ls PHOTO.JPG` 找得到 photo.jpg)。按字面比较时 `BEACH.JPG` 被当成新名字,
+ * [saveIntoLibrary] 的 rename 当场盖掉已有的 `Beach.jpg`——用户的旧图没了,也没有任何提示。
+ * 折叠口径见 [nameFoldKey]。
+ */
 fun uniqueName(existing: Set<String>, name: String): String {
-    if (name !in existing) return name
+    val taken = existing.mapTo(HashSet()) { nameFoldKey(it) }
+    if (nameFoldKey(name) !in taken) return name
     val dot = name.lastIndexOf('.')
     val stem = if (dot > 0) name.substring(0, dot) else name
     val ext = if (dot > 0) name.substring(dot) else ""
     var i = 1
-    while ("$stem-$i$ext" in existing) i++
-    return "$stem-$i$ext"
+    while (true) {
+        val candidate = fitFileName(stem, "-$i$ext")
+        if (nameFoldKey(candidate) !in taken) return candidate
+        i++
+    }
 }
+
+/** ext4 / f2fs 单个文件名的字节上限(NAME_MAX,按 UTF-8 **字节**算,不是字符)。 */
+private const val FS_NAME_MAX_BYTES = 255
+
+/**
+ * `stem + tail` 超过 [FS_NAME_MAX_BYTES] 时从主名尾部按码点截短(不劈开代理对,至少留一个码点)
+ * (测试轮 B-05):能落盘的最长名字(接近 255 字节)撞名加上 `-1` 就超限,rename 与复制回落都建不出文件、整张图被拒。
+ */
+private fun fitFileName(stem: String, tail: String): String {
+    val budget = FS_NAME_MAX_BYTES - tail.toByteArray(Charsets.UTF_8).size
+    if (stem.toByteArray(Charsets.UTF_8).size <= budget) return stem + tail
+    var end = 0
+    var bytes = 0
+    while (end < stem.length) {
+        val next = end + Character.charCount(stem.codePointAt(end))
+        val size = stem.substring(end, next).toByteArray(Charsets.UTF_8).size
+        if (end > 0 && bytes + size > budget) break
+        end = next
+        bytes += size
+    }
+    return stem.substring(0, end) + tail
+}
+
+/**
+ * 「文件系统眼里是不是同一个名字」的比较键:NFC 规范化 + 大小写折叠(先转大写再转小写,ß → SS → ss 这类也折到一起)。
+ * 近似 ext4 casefold(utf8 NFD + casefold)——多判成「重名」只会多加一个 `-1`,少判才会覆盖用户的文件。
+ */
+internal fun nameFoldKey(name: String): String =
+    java.text.Normalizer.normalize(name, java.text.Normalizer.Form.NFC).uppercase().lowercase()
 
 /** 图库落盘的进程内锁:「挑不重名的名字 → 移入」必须一口气做完,见 [saveIntoLibrary]。 */
 private val libraryLock = Any()
