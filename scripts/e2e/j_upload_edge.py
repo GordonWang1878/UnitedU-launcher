@@ -59,7 +59,15 @@ def make_big_jpeg(p, mb):
 
 def open_import():
     open_wallpaper_picker()
-    move_to(S("picker_add_from_phone"), "down", 6)
+    # 图库里图多时网格要等内置清单与缩略图,晚一两秒才挂上;没挂上就按方向键会按到底下那层,
+    # 再按确定就成了「选了一张壁纸、退回外观页」。先等网格有焦点。
+    for _ in range(16):
+        s = screen()
+        if s.has(S("picker_wallpaper_title")) and s.count_focused() == 1 and s.focus()[0] < 1800:
+            break
+        time.sleep(0.5)
+    if move_to(S("picker_add_from_phone"), "down", 10) is None:
+        return None
     key("ok"); time.sleep(2.5)
     return forward_from_screen()
 

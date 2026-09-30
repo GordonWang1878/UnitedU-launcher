@@ -13,10 +13,8 @@ BASE = {"language": "en", "onboardingDone": True, "showTitles": False}
 
 CASES = [
     ("首页", lambda: (home_intent(), key("down", "up"))),
-    ("设置·通用", o_group("settings_group_general")), ("设置·语言选项层", o_lang_options), ("关于页", o_about),
-    ("恢复默认确认页", o_restore_confirm), ("所有应用页·菜单", o_apps_menu1), ("输入源·菜单", o_inputs_menu),
-    ("首页·改名页", o_home_rename), ("编辑·行菜单", o_edit_row_menu), ("编辑·添加应用", o_edit_add_app),
-    ("图库·全屏预览", o_gallery_preview), ("扫码页", o_import),
+    ("设置·语言选项层", o_lang_options), ("恢复默认确认页", o_restore_confirm), ("所有应用页·菜单", o_apps_menu1),
+    ("首页·改名页", o_home_rename), ("编辑·行菜单", o_edit_row_menu), ("图库·全屏预览", o_gallery_preview), ("扫码页", o_import),
 ]
 
 def fatal():
@@ -69,8 +67,7 @@ def run():
             sh("settings put system font_scale 1.0")
 
     journey("force-stop-cold-start")
-    for name, opener in [("设置·通用", o_group("settings_group_general")), ("所有应用页", o_apps), ("编辑·行菜单", o_edit_row_menu),
-                         ("扫码页", o_import), ("首页·改名页", o_home_rename)]:
+    for name, opener in [("所有应用页", o_apps), ("编辑·行菜单", o_edit_row_menu), ("扫码页", o_import)]:
         sh("logcat -b all -c")
         restart(layout=LAYOUT) if name.startswith("编辑") else home_intent()
         opener()

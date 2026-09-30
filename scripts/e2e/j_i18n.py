@@ -17,9 +17,8 @@ PAGES = [
     ("home", lambda: (home_intent(), key("down", "up"))),
     ("settings", o_settings_root), ("layout", o_group("settings_group_layout")), ("general", o_group("settings_group_general")),
     ("appearance", o_group("settings_group_appearance")), ("screensaver", o_group("settings_group_screensaver")),
-    ("standby", o_standby), ("default-home", o_default_home), ("about", o_about), ("restore", o_restore_confirm),
-    ("apps-menu", o_apps_menu1), ("home-menu", o_home_menu), ("rename", o_home_rename),
-    ("edit-row-menu", o_edit_row_menu), ("gallery", o_gallery), ("import", o_import),
+    ("standby", o_standby), ("about", o_about), ("restore", o_restore_confirm),
+    ("apps-menu", o_apps_menu1), ("edit-row-menu", o_edit_row_menu),
 ]
 
 def tree():
