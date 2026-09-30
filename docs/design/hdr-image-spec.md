@@ -88,7 +88,7 @@
   ```
   判读:1 是数字且 > 1、2 是扩展范围 → HDR 显示链全通,肉眼看高光(灯、月亮)应比界面白更亮;1 是 `not_available` → 电视界面层不支持 HDR,这台电视上壁纸 / 屏保只能显示 SDR(不是我们的链路问题)。
 
-- **A95L 真机(2026-09-28 装 `4c1c9c6` 后读)**:`dumpsys display` → `hdrSdrRatio not_available`;面板 `supportedHdrTypes=[1, 2, 3]`(杜比视界 / HDR10 / HLG,仅视频通道)。结论:A95L 的应用界面层不输出 HDR,Android 14 把 HDR 窗口降级,内置 HDR 图在这台上显示为 SDR——固件限制;显示链本身已保留增益图(见 R122–R125),在会报告 HDR/SDR 比例的电视上生效。
+- **A95L 真机(2026-09-28 装 `1a7910c` 后读)**:`dumpsys display` → `hdrSdrRatio not_available`;面板 `supportedHdrTypes=[1, 2, 3]`(杜比视界 / HDR10 / HLG,仅视频通道)。结论:A95L 的应用界面层不输出 HDR,Android 14 把 HDR 窗口降级,内置 HDR 图在这台上显示为 SDR——固件限制;显示链本身已保留增益图(见 R122–R125),在会报告 HDR/SDR 比例的电视上生效。
 
 - **A95L 视频通道实验(2026-09-28 22:40)**:同一张 HDR 照片转成 HDR10 视频(PQ / BT.2020,SDR 白 203 nit,峰值约 1000 nit,x265 10 bit)用索尼系统播放器播放,电视报 `SignalType is updated to HDR10`、画质引擎收到 `Hdr 1` 的 3840×2160 帧;SDR 对照版为 `Hdr 0`。即:这台电视的界面层不给 HDR,但**视频通道能以 4K HDR10 显示静止画面**——要在 A95L 这类电视上真的亮起来,屏保需要改走视频播放(SurfaceView / 视频层)而不是位图 + 增益图。转换步骤:`ultrahdr_app -m 1 -j <图> -o 0 -O 4 -z hdr.raw`(线性半浮点 RGBA)→ numpy 乘 203 nit、BT.709→BT.2020 矩阵、PQ 编码成 rgb48 → `ffmpeg … -c:v libx265 -x265-params hdr10=1:colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc:master-display=…:max-cll=1000,200`。
 

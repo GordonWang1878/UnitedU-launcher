@@ -1,6 +1,6 @@
 # 项目健康检查(2026-09-29)
 
-检查对象:`main` @ `e3bf917`(本地比 `origin/main` 多 1 个提交),机器 Core。只读检查:没有改任何源码、构建文件或其他文档,也没有连任何设备。原始日志放在会话 scratchpad(`health/build-clean.log`、`health/lint.log`、`health/lint-results-release.txt`),没有进仓库。
+检查对象:`main` @ `6549fa0`(本地比 `origin/main` 多 1 个提交),机器 Core。只读检查:没有改任何源码、构建文件或其他文档,也没有连任何设备。原始日志放在会话 scratchpad(`health/build-clean.log`、`health/lint.log`、`health/lint-results-release.txt`),没有进仓库。
 
 ## 一句话结论
 
@@ -111,7 +111,7 @@ Error 的完整位置:`MainActivity.kt:1025, 1126(×2), 1206(×2)`;`EditScreen.k
 
 ### 5. 资源与素材
 
-- 字符串:用脚本比对 `values/strings.xml`(293 条)和 values-en / values-zh-rTW,两边都是 0 缺失、0 多余。没有被代码或 XML 引用的只有 `picker_back_to_close`(`strings.xml:119`,三种语言都有),从 `fbe90d2`(R63)起就不再使用。lint 的 `UnusedResources` 也只报了这一条。
+- 字符串:用脚本比对 `values/strings.xml`(293 条)和 values-en / values-zh-rTW,两边都是 0 缺失、0 多余。没有被代码或 XML 引用的只有 `picker_back_to_close`(`strings.xml:119`,三种语言都有),从 `f870ef5`(R63)起就不再使用。lint 的 `UnusedResources` 也只报了这一条。
 - `app/src/main/assets`:10 MB。screensavers 01–04 分别是 1.56 / 0.95 / 1.01 / 1.48 MB,wallpapers 01–04 分别是 1.31 / 1.09 / 1.48 / 1.56 MB,cards 4 个 webp 合计 60 KB,`web/index.html` 10 KB,再加 OFL 许可证。`BuiltinHdrAssetsTest`(1 个测试)通过。`assets/.DS_Store` 和 `assets/builtin/.DS_Store` 存在于磁盘上,但没有被跟踪,也没打进 APK(AGP 默认忽略点文件)。
 - 已跟踪的 >1 MiB 文件有 8 个,合计 14,443,482 字节:`res/font/google_sans_flex.ttf` 4.15 MB、`docs/screenshots/r113-fade-before-tv.png` 1.81 MB,另外 6 张是内置 JPEG。整个历史里 >1 MiB 的 blob 也就是这 8 个。`git count-objects -vH` 显示 size-pack 49.52 MiB;docs 下已跟踪的文件共 40 MB,大部分是截图。
 

@@ -3,7 +3,7 @@
 **结论:在一台没有国行应用的干净机器上,新用户走完引导看到的是「一整屏深色 + 左上角两个小按钮 + 左下角一段指路文字」,而那段文字有三处与界面对不上(说「右上角」、说「已选中」、说选「编辑分栏」)。**从空首页加上第一个应用,需要按 5 次确定、翻一遍系统组件混杂的文字列表、再按 3 次返回。一张可以直接按的「＋」,首页上没有。
 
 - 环境:`emulator-5558`(AVD `unitedu-tv-3`,Android 14 TV,1920×1080,系统语言 en-US,已装第三方 TV 应用只有 YouTube / Play Store / Cast moderator)
-- APK:`be6d8b1`(main)22:38 构建的 release;装前 `adb uninstall`,确认 `/sdcard/Android/data/com.uniteduone.launcher` 不存在
+- APK:`c66fe8f`(main)22:38 构建的 release;装前 `adb uninstall`,确认 `/sdcard/Android/data/com.uniteduone.launcher` 不存在
 - 无内置壁纸 → 纯深色背景
 - 截图:`docs/screenshots/first-run-0923/`(总览 `overview.jpg`);下文每屏都标了文件名
 - 只观察,没改代码

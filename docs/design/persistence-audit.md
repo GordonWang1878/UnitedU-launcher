@@ -2,7 +2,7 @@
 
 起因:2026-09-23 A95L 真机,卸载一个应用后整个首页被换成默认分类表。同一次卸载,MainActivity 的动态接收器(IO 协程)
 和清单里的 `PackageRemovedReceiver`(裸线程)各跑一遍 read → 改 → write,两边共用 `layout.json.tmp`;输的一方 rename
-失败,走兜底 `dst.delete()`,正式文件就没了,下一次 read 按首次运行写回默认。修复见 commit `da26053`(`LockedFile`)。
+失败,走兜底 `dst.delete()`,正式文件就没了,下一次 read 按首次运行写回默认。修复见 commit `e2ba6d4`(`LockedFile`)。
 本表把应用写的**每一个**持久化文件都过一遍。
 
 **进程模型**:全部组件(MainActivity、`PackageRemovedReceiver`、`UnitedUDream`、`UploadServer` 的请求线程)都在同一个进程里,
@@ -12,8 +12,8 @@
 
 | 文件 | 写者(线程) | 读改写 | 临时文件 | rename 失败兜底 | 缺失 / 损坏时 | 处置 |
 |---|---|---|---|---|---|---|
-| `layout.json` | 卸载清理 ×2(动态接收器 IO 协程 + 清单接收器裸线程);回到前台的未安装清理(IO,`pruneMissingPackages`,R68,锁内 `Layout.updateSaved`:没有已保存的布局时不读不写);首页「从分类移除」(IO);首页放下移动(IO,`rewrite`);编辑页 `persist`(IO,整份);引导第 2 步(串行 IO,整份);`read` 缺失时写默认 | 有 | 原来共用 `.tmp` → 现在每次独立 | 原来删正式文件且没有备份 → 现在先有 `.prev` 再删 | 原来写默认 → 现在先试 `.prev` | `da26053` 接入 `LockedFile`;本轮把 `read` 并进 `LockedFile.load`。**另修两处**:① 编辑页连续几次 `persist` 各自在 `Dispatchers.IO` 上跑,旧快照可能最后落盘、盖掉新快照 → 和引导共用串行调度器 `layoutWrites`;② 编辑页开着时后台卸载被清理掉的包,会被下一次整份写回复活成僵尸卡 → `persist` 改成锁内 `rewrite` + `dropRemovedElsewhere`。R67/R68(2026-09-23 晚):编辑页只画看得见的包、行内改动经 `withVisibleEdits` 合回整份(看不见的包留原位);回到前台清理没装的包,`read` 缺失回落的默认布局按已装过滤 |
-| `titles.json` | 卡片 / 行 / 输入源改名(IO);卸载清理 ×2 | 有(`set`) | 同上 | 同上 | 缺失 = 空表;坏了原来直接写空表 → 现在先试 `.prev` | `da26053` 接入;本轮 `read` 并进 `load`,坏文件也会试 `.prev` |
+| `layout.json` | 卸载清理 ×2(动态接收器 IO 协程 + 清单接收器裸线程);回到前台的未安装清理(IO,`pruneMissingPackages`,R68,锁内 `Layout.updateSaved`:没有已保存的布局时不读不写);首页「从分类移除」(IO);首页放下移动(IO,`rewrite`);编辑页 `persist`(IO,整份);引导第 2 步(串行 IO,整份);`read` 缺失时写默认 | 有 | 原来共用 `.tmp` → 现在每次独立 | 原来删正式文件且没有备份 → 现在先有 `.prev` 再删 | 原来写默认 → 现在先试 `.prev` | `e2ba6d4` 接入 `LockedFile`;本轮把 `read` 并进 `LockedFile.load`。**另修两处**:① 编辑页连续几次 `persist` 各自在 `Dispatchers.IO` 上跑,旧快照可能最后落盘、盖掉新快照 → 和引导共用串行调度器 `layoutWrites`;② 编辑页开着时后台卸载被清理掉的包,会被下一次整份写回复活成僵尸卡 → `persist` 改成锁内 `rewrite` + `dropRemovedElsewhere`。R67/R68(2026-09-23 晚):编辑页只画看得见的包、行内改动经 `withVisibleEdits` 合回整份(看不见的包留原位);回到前台清理没装的包,`read` 缺失回落的默认布局按已装过滤 |
+| `titles.json` | 卡片 / 行 / 输入源改名(IO);卸载清理 ×2 | 有(`set`) | 同上 | 同上 | 缺失 = 空表;坏了原来直接写空表 → 现在先试 `.prev` | `e2ba6d4` 接入;本轮 `read` 并进 `load`,坏文件也会试 `.prev` |
 | `hidden-inputs.json` | 长按菜单「隐藏」(IO 协程);设置页「恢复隐藏的输入源」(IO 协程) | **有,原来没加锁** | **原来共用 `hidden-inputs.json.tmp`** | **原来是删正式文件、没有备份** | 缺失 = 空集;坏了写空集 | **本轮接入 `LockedFile`**(`set` / `clear` 整段在锁内)。风险:两次操作交叠会丢一次隐藏,兜底 delete 还可能删掉整个文件,所有隐藏的输入源一起冒回来 |
 | `settings.json` | 设置页(主线程)、壁纸 prepare 的迁移和清理(IO)、选壁纸、引导、语言、恢复默认、编辑页 `newAppsSeenAt` | 有(`update`) | 原来固定 `.tmp`,但有自己的锁 | 原来删正式文件、没有备份,但在锁内 | 原来写默认 | **本轮改成复用 `LockedFile`**:语义不变(缺失 → 写默认;`update` 返回写下的值或 null),多了 `.prev`:缺失或损坏时先从 `.prev` 恢复。模拟器实测过缺失和损坏两种情况 |
 
