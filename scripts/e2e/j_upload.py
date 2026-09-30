@@ -12,7 +12,7 @@ def forward_from_screen():
     s = screen()
     addr = next((t for t in s.texts() if re.search(r"\d+\.\d+\.\d+\.\d+:\d+", t)), None)
     port = int(re.search(r":(\d+)", addr).group(1)) if addr else None
-    adb("forward", "--remove", f"tcp:{LOCAL}")   # 只拆自己的:--remove-all 会把别的设备的转发一起拆掉
+    adb("forward", "--remove", f"tcp:{LOCAL}")   # 只拆自己的:--remove-all 不保证只拆这一台
     if port: adb("forward", f"tcp:{LOCAL}", f"tcp:{port}")
     return port
 
