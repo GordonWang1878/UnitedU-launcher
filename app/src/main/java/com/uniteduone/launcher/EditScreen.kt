@@ -145,7 +145,7 @@ fun EditScreen(
     }
     var rows by remember { mutableStateOf(Layout.read(ctx)) }
     var picking by remember { mutableStateOf<Int?>(null) }        // 正在给第几行加应用
-    var acting by remember { mutableStateOf<Pair<Int, Int>?>(null) } // (行, 位置) 的操作菜单
+    var acting by remember { mutableStateOf<EditActing?>(null) } // 卡片操作菜单开在哪张卡上(按包名认,见 EditActing)
     // M4b 行管理的四层浮层,都记「第几行」(= layout.json 行号 = 本页 rows 下标)。
     // **坐标口径(Ruling R67)**:`rows` 是整份(盘上的原样,含看不见的包);凡是「第几格」(acting 的列、
     // 搬运位置、焦点目标)一律是**看得见的那份**(view(),与首页同口径)里的列号。行内改动在 view() 上算,
@@ -556,9 +556,9 @@ fun EditScreen(
         if (carry != null) {
             cancelCarry()
         } else if (a != null || p != null) {
-            val ri = a?.first ?: p ?: 0
+            val ri = a?.row ?: p ?: 0
             picking = null; acting = null
-            retarget(ri, a?.second ?: (view().getOrNull(ri)?.apps?.size ?: 0))
+            retarget(ri, a?.let { editActingCol(it, view()) ?: it.col } ?: (view().getOrNull(ri)?.apps?.size ?: 0))
         } else if (r != null) {
             rowMenu = null; renamingRow = null; iconRow = null; confirmDeleteRow = null
             toRowEnd(r)
@@ -758,7 +758,7 @@ fun EditScreen(
                                     title = if (showTitles) (titles[pkg] ?: app.label) else null,
                                     fallbackColor = app.fallbackColor?.let { Color(it) },
                                     // 搬运中点击一律不理(确定键在根上就被截走,能到这里的只有指针 / 无障碍,见 overlayOpen 那个取消效果)
-                                    onClick = { if (carry == null) acting = ri to pi },
+                                    onClick = { if (carry == null) acting = EditActing(ri, pi, pkg) },
                                     modifier = fm,
                                     onFocusChange = tell,
                                     isRowStart = pi == 0,
@@ -823,10 +823,11 @@ fun EditScreen(
             )
         }
 
-        // acting 指向的卡片可能已经不在了(比如它所在的行被别处改短)。
+        // acting 指向的卡片可能已经不在了(应用被卸载、所在的行被别处改短)。**按包名认**(B-06):按坐标认的话,
+        // 卸载让后面的卡左移一格,菜单会换成下一张卡。卡没了 → 收菜单,看门狗随 overlayOpen 翻回 false 接回焦点。
         // **不在组合期写状态**:清空动作放进 LaunchedEffect,组合期只负责不渲染。
-        val actingPkg = acting?.let { (ri, pi) -> viewRows.getOrNull(ri)?.apps?.getOrNull(pi) }
-        LaunchedEffect(acting, actingPkg) { if (acting != null && actingPkg == null) acting = null }
+        val actingCol = acting?.let { editActingCol(it, viewRows) }
+        LaunchedEffect(acting, actingCol) { if (acting != null && actingCol == null) acting = null }
         // 行浮层同理(M4b):指向的行不在了就收掉,组合期只负责不渲染——否则 overlayOpen 一直为真、
         // 看门狗永远让路,而屏幕上什么浮层都没有。收掉之后看门狗重启,把焦点接回 focusRow。
         val rowOverlayStale = listOfNotNull(rowMenu, renamingRow, iconRow, confirmDeleteRow).any { it !in rows.indices }
@@ -842,13 +843,13 @@ fun EditScreen(
             val a = acting
             val rm = rowMenu; val rn = renamingRow; val ic = iconRow; val cd = confirmDeleteRow; val pk = picking
             when {
-                a != null && actingPkg != null -> EditOverlay.Card(
-                    a.first, a.second, actingPkg,
+                a != null && actingCol != null -> EditOverlay.Card(
+                    a.row, actingCol, a.pkg,
                     // 标题用这张卡的显示名(M4b-R13,终审 Important #2)——与首页长按卡片菜单同一套取法:
                     // 自定义标题优先,查不到就用应用名,再查不到用包名兜底。
-                    title = titles[actingPkg] ?: all?.get(actingPkg)?.label ?: actingPkg,
+                    title = titles[a.pkg] ?: all?.get(a.pkg)?.label ?: a.pkg,
                     // gtv 线 Task 8:左半 banner。all 就是这份数据本来的来源,按 pkg 查。
-                    app = all?.get(actingPkg),
+                    app = all?.get(a.pkg),
                 )
                 rm != null && rm in rows.indices -> EditOverlay.RowMenu(rm, rows[rm].name, rows.size)
                 rn != null && rn in rows.indices -> EditOverlay.Rename(rn, rows[rn].name)
