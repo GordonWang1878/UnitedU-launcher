@@ -236,8 +236,8 @@
     <string name="settings_sys_anim_window">Window %1$s×, transition %2$s×; only affects opening and switching apps</string>
     <string name="settings_language">Language</string>
     <string name="settings_lang_system">System Default</string>
-    <string name="settings_lang_zh_cn">简体</string>
-    <string name="settings_lang_zh_tw">繁體</string>
+    <string name="settings_lang_zh_cn">简体中文</string>
+    <string name="settings_lang_zh_tw">繁體中文</string>
     <string name="settings_lang_en">English</string>
     <string name="settings_action_restore_defaults">Restore Defaults</string>
     <!-- restore_* / dialog_cancel : restore-defaults confirm dialog (T7, spec §4) -->

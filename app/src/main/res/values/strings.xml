@@ -228,8 +228,8 @@
     <string name="settings_sys_anim_window">窗口 %1$s×、过渡 %2$s×，只影响打开和切换应用</string>
     <string name="settings_language">语言</string>
     <string name="settings_lang_system">跟随系统</string>
-    <string name="settings_lang_zh_cn">简体</string>
-    <string name="settings_lang_zh_tw">繁體</string>
+    <string name="settings_lang_zh_cn">简体中文</string>
+    <string name="settings_lang_zh_tw">繁體中文</string>
     <string name="settings_lang_en">English</string>
     <string name="settings_action_restore_defaults">恢复默认</string>
     <!-- restore_* / dialog_cancel : 「恢复默认」确认框(T7,spec §4) -->
