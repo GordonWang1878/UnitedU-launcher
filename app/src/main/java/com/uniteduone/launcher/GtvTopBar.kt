@@ -1,8 +1,6 @@
 package com.uniteduone.launcher
 
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -31,9 +29,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Icon
@@ -111,58 +113,26 @@ fun GtvTopBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // R133(2026-09-30 新手可读性):三颗都是纯图标,第一次用的人认不全(尤其「所有应用」「输入源」)——
-        // 焦点落在哪一颗,药丸组右边就淡入它的名字,离开顶栏淡出。Google 在这一带放的是文字 tab,我们用图标 + 焦点名字补上。
+        // 焦点落在哪一颗,就淡入它的名字,离开顶栏淡出。R146(Gordon:「不需要胶囊样式,字体小一点」「直接放在按钮的正下方」):
+        // 名字写在那颗按钮正下方,不垫底板,见 [PillLabels]。
         // 只是本地显示状态:焦点账本照旧只经 onFocusChange 上报,这里不读不写任何焦点目标。
         var focusedPill by remember { mutableStateOf<Int?>(null) }
-        var labelPill by remember { mutableStateOf(0) }
-        PillGroup(
-            pillFocusRequesters = pillFocusRequesters,
-            canFocus = canFocus,
-            rowsEmpty = rowsEmpty,
-            downTarget = downTarget,
-            onSettings = onSettings,
-            onApps = onApps,
-            onInputs = onInputs,
-            onFocusChange = { col, got ->
-                if (got) { focusedPill = col; labelPill = col } else if (focusedPill == col) focusedPill = null
-                onFocusChange(col, got)
-            },
-            modifier = Modifier.alpha(pillAlpha),
-        )
-        val labelAlpha by animateFloatAsState(
-            targetValue = if (focusedPill != null) 1f else 0f,
-            animationSpec = tween(
-                durationMillis = if (focusedPill != null) GtvLayout.TOP_NAV_FADE_IN_MS else GtvLayout.TOP_NAV_FADE_OUT_MS,
-                easing = Theme.AppFocusEasing,
-            ),
-            label = "topBarPillLabel",
-        )
-        Spacer(Modifier.width(GtvLayout.TOP_BAR_LABEL_GAP.dp))
-        // 名字放在与药丸组同底色的小胶囊里:顶栏左边没有压暗,直接写在壁纸上的浅色字在亮壁纸上看不清
-        // (模拟器实测:内置壁纸「夏日数码门」的蓝色光圈上,加了阴影也糊)。
-        Box(
-            modifier = Modifier
-                // 在图层里读动画值(R140 复审):写成 Modifier.alpha 是组合期读,淡入淡出那 100–200 ms 顶栏逐帧重组。
-                .graphicsLayer { alpha = labelAlpha * pillAlpha }
-                .height(GtvLayout.TOP_BAR_HEIGHT.dp)
-                .clip(RoundedCornerShape(percent = 50))
-                .background(GtvTokens.PillTrack)
-                // R136(动效):在三颗之间换时,小胶囊的宽度跟着名字长短平滑变、名字交叉淡化,不再一帧跳到新宽度。
-                .animateContentSize(tween(GtvLayout.TOP_NAV_FADE_OUT_MS, easing = Theme.AppFocusEasing))
-                .padding(horizontal = GtvLayout.TOP_BAR_LABEL_PAD_H.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Crossfade(
-                targetState = labelPill,
-                animationSpec = tween(GtvLayout.TOP_NAV_FADE_IN_MS, easing = Theme.AppFocusEasing),
-                label = "topBarPillName",
-            ) { pill ->
-                BasicText(
-                    text = stringResource(TOP_PILLS[pill].descriptionRes),
-                    maxLines = 1,
-                    style = Type.clock.copy(color = LocalThemeColors.current.accent),
-                )
-            }
+        Box {
+            PillGroup(
+                pillFocusRequesters = pillFocusRequesters,
+                canFocus = canFocus,
+                rowsEmpty = rowsEmpty,
+                downTarget = downTarget,
+                onSettings = onSettings,
+                onApps = onApps,
+                onInputs = onInputs,
+                onFocusChange = { col, got ->
+                    if (got) focusedPill = col else if (focusedPill == col) focusedPill = null
+                    onFocusChange(col, got)
+                },
+                modifier = Modifier.alpha(pillAlpha),
+            )
+            PillLabels(focusedPill = focusedPill, pillAlpha = pillAlpha)
         }
         // Google 在这条留白里放搜索 / Home / Apps 三个 tab;我们没有搜索与 Home tab(spec §9),
         // 「应用」R89 起做成药丸组里的一颗(打开所有应用页),不另起一组 tab。
@@ -192,6 +162,60 @@ private val TOP_PILLS = listOf(
 
 /** 顶栏胶囊个数(焦点账本里 row = -1 那组的 col 取值 0 until 它)。 */
 const val TOP_PILL_COUNT = 3
+
+/**
+ * 焦点所在那颗的名字,写在它**正下方**(R146,2026-09-30 Gordon;R133 时是药丸组右边一颗小胶囊)。每颗一个名字、
+ * 各自淡入淡出(换颗时旧的在原处淡出、新的在新按钮下淡入,不滑动);字号 `Type.body`,比时钟小一档,不垫底板。
+ * 顶栏左边没有压暗(R84 的渐变从上往下、顶上基本是原壁纸),亮壁纸上浅色字靠两层阴影剥出来:底层同位置一份黑字 + 16 px 晕
+ * (被上层的字盖住,只剩一圈深色晕),上层 accent 字 + 4 px 紧贴阴影——只有一层 4 px 时,在「夏日数码门」的青色光圈上几乎看不清(模拟器截图)。
+ * **不占布局**:整层按 0 × 0 上报,名字画在药丸组下缘之外;顶栏那一行的高度、右边时钟的位置都不受影响。
+ * 透明度在图层里读(R140 复审同一规则:组合期读会让淡入淡出的每一帧重组顶栏)。
+ */
+@Composable
+private fun PillLabels(focusedPill: Int?, pillAlpha: Float) {
+    val accent = LocalThemeColors.current.accent
+    val base = Type.body.copy(lineHeight = TextUnit.Unspecified)
+    Layout(
+        content = {
+            TOP_PILLS.forEachIndexed { col, pill ->
+                val on = focusedPill == col
+                val a by animateFloatAsState(
+                    targetValue = if (on) 1f else 0f,
+                    animationSpec = tween(
+                        durationMillis = if (on) GtvLayout.TOP_NAV_FADE_IN_MS else GtvLayout.TOP_NAV_FADE_OUT_MS,
+                        easing = Theme.AppFocusEasing,
+                    ),
+                    label = "topBarPillName$col",
+                )
+                val name = stringResource(pill.descriptionRes)
+                // 只是画面:按钮自己的 contentDescription 就是这个名字,不再进无障碍树(读屏不会念两遍,脚本也不会多一个同名节点)
+                Box(Modifier.graphicsLayer { alpha = a * pillAlpha }.clearAndSetSemantics { }) {
+                    BasicText(
+                        text = name,
+                        maxLines = 1,
+                        style = base.copy(color = Color.Black, shadow = Shadow(Color.Black, Offset(0f, 0f), blurRadius = 16f)),
+                    )
+                    BasicText(
+                        text = name,
+                        maxLines = 1,
+                        style = base.copy(color = accent, shadow = Shadow(Color.Black, Offset(0f, 0f), blurRadius = 4f)),
+                    )
+                }
+            }
+        },
+    ) { measurables, _ ->
+        val placeables = measurables.map { it.measure(Constraints()) }
+        val top = (GtvLayout.TOP_BAR_HEIGHT + GtvLayout.TOP_BAR_LABEL_GAP).dp.roundToPx()
+        layout(0, 0) {
+            placeables.forEachIndexed { col, p ->
+                // 与 PillGroup 的排法同一套数:内缘留白 ICON_GAP,每颗 ICON_BOX,颗与颗之间 ICON_GAP
+                val center = (GtvLayout.TOP_BAR_ICON_GAP + col * (GtvLayout.TOP_BAR_ICON_BOX + GtvLayout.TOP_BAR_ICON_GAP) +
+                    GtvLayout.TOP_BAR_ICON_BOX / 2).dp.roundToPx()
+                p.place(center - p.width / 2, top)
+            }
+        }
+    }
+}
 
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable

@@ -293,10 +293,9 @@ object GtvLayout {
      *  与长按菜单项字号（同一张参考图量出的「M」）巧合地是同一个数字,但这是两次独立测量各自收敛
      *  到的结果,不是复用同一个数。 */
     const val TOP_BAR_CLOCK_TEXT = 16f
-    /** R133:药丸组与焦点所在那颗的名字之间的间距(dp)。名字字号同 [TOP_BAR_CLOCK_TEXT]。 */
-    const val TOP_BAR_LABEL_GAP = 10f
-    /** R133:名字小胶囊的左右内边距(dp);高度同药丸组 [TOP_BAR_HEIGHT]。 */
-    const val TOP_BAR_LABEL_PAD_H = 16f
+    /** R146:焦点所在那颗的名字写在它正下方,这是药丸组下缘到名字的间距(dp)。字号 `Type.body`,比时钟小一档
+     *  (R133 时名字在药丸组右边一颗小胶囊里:间距 10 dp、内边距 16 dp、字号同时钟)。 */
+    const val TOP_BAR_LABEL_GAP = 8f
 
     /**
      * **Ruling R41(2026-09-22,owner 真机反馈 Round 10)**:UnitedU 设置页(当时的两栏 `SettingsScreen`,R69 起是外壳 `SettingsShell` 每一层的页名)左上角
@@ -337,6 +336,9 @@ object GtvLayout {
     const val SETTINGS_FADE_IN_MS = 500  // R113(2026-09-28):淡入 + 轻微放大,对称缓入缓出;R112 为 450
     const val SETTINGS_FADE_OUT_MS = 400  // R113;R112 为 350
     const val SETTINGS_LAYER_FADE_MS = 300  // R112 起;R113 层间另加轻微放大
+    /** R147:首页 ↔ 编辑页交叉淡化的时长(ms)——编辑页淡入 / 首页残影淡出 / 编辑页残影淡出;与打开编辑页时预览框放大到整屏
+     *  (外壳关掉那一轮的 z,[SETTINGS_FADE_OUT_MS])同一个数,放大走完时编辑页也正好完全不透明。 */
+    const val EDIT_SWAP_MS = SETTINGS_FADE_OUT_MS
     /** R113:设置类页面打开时从这个比例放大到 1(关闭反过来)。只作用于页面内容,不作用于全屏底色与首页 / 预览那一层。 */
     const val SETTINGS_ENTER_SCALE = 0.96f
     /** R113:外壳层与层切换(交叉淡化)时的起始比例,比整页打开更轻。 */

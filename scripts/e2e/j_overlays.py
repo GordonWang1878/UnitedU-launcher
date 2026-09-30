@@ -19,8 +19,8 @@ def has_exact(s, t):
 
 
 def apps_page_open(s):
-    """认应用页页头下的那行提示(apps_page_hint)。页名「All Apps」不行:首页顶栏「应用」胶囊的 content-desc 是它,
-    焦点在这颗胶囊上时右边的名字小胶囊(R133)也以 text 画出它。"""
+    """认应用页页头下的那行提示(apps_page_hint)。页名「All Apps」不行:首页顶栏「应用」胶囊的 content-desc 就是它
+    (R133–R145 时焦点名字还以 text 画在胶囊右边;R146 起名字在按钮正下方、只是画面,不进无障碍树)。"""
     return any(n["text"] == S("apps_page_hint") for n in s.nodes)
 
 
