@@ -162,7 +162,7 @@ private fun IconCell(
     val accent = LocalThemeColors.current.accent
     // 与胶囊同一个焦点画法(R135):聚焦填主题色、内容取对比色;填色 150 ms 过渡,内容色两态瞬切(见 MenuPill)。
     val fill by animateColorAsState(
-        targetValue = if (focused) accent else GtvTokens.MenuItemIdle,
+        targetValue = if (focused) accent else GtvTokens.SurfaceIdle,   // R144
         animationSpec = tween(
             durationMillis = if (focused) GtvLayout.FOCUS_FADE_IN_MS else GtvLayout.FOCUS_FADE_OUT_MS,
             easing = Theme.AppFocusEasing,

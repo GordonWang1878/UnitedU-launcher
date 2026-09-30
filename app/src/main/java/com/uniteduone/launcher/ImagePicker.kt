@@ -762,7 +762,7 @@ private fun ThumbCard(
         val frameBg = when {
             bmp != null && backdrop != null -> Color(backdrop)
             bmp != null && !isVideo -> Color.Transparent
-            else -> Theme.ThumbPlaceholderBackground
+            else -> GtvTokens.SurfacePlaceholder   // R144:半透明,透出氛围底
         }
         Box(
             modifier = Modifier
@@ -847,7 +847,7 @@ private fun AddFromPhoneCard(focused: Boolean, thumbWidth: Dp, thumbHeight: Dp, 
     ) {
         Box(
             modifier = Modifier.gtvAppFocusFrame(focused, accent, THUMB_CORNER).fillMaxWidth().height(thumbHeight)
-                .clip(RoundedCornerShape(THUMB_CORNER)).background(Theme.ThumbPlaceholderBackground)
+                .clip(RoundedCornerShape(THUMB_CORNER)).background(GtvTokens.SurfacePlaceholder)
                 .clearAndSetSemantics { },
             contentAlignment = Alignment.Center,
         ) {

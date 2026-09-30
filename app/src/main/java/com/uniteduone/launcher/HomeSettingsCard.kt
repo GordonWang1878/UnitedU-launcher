@@ -88,7 +88,7 @@ fun CurrentHomeRow(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(INFO_PANEL_CORNER.dp))
-            .background(GtvTokens.MenuItemIdle)   // R135:信息块与未聚焦的胶囊同一个底
+            .background(GtvTokens.SurfaceIdle)   // R135:信息块与未聚焦的胶囊同一个底;R144 起半透明
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),

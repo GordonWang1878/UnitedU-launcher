@@ -1076,7 +1076,7 @@ private fun AddCard(
             .gtvAppFocusFrame(focused, accent, metrics.cardCorner, afterShift = focusAfterShift)
             .size(metrics.cardWidth, metrics.cardHeight)
             .clip(RoundedCornerShape(metrics.cardCorner))
-            .background(Theme.AddCardBackground)
+            .background(GtvTokens.SurfacePlaceholder)   // R144:半透明,透出氛围底(原 Theme.AddCardBackground)
             .focusProperties {
                 right = FocusRequester.Cancel          // 行尾锁在这里,别跳到下一行
                 if (isRowStart) left = FocusRequester.Cancel   // 空行时它就是行首

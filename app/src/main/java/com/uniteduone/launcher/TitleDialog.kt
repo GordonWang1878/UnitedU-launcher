@@ -92,7 +92,7 @@ fun TitleDialog(
         }
     }
     // 聚焦 = 填主题色、字取对比色(同聚焦的胶囊);落焦前那一两帧是未聚焦的胶囊底。
-    val fill = if (focused) accent else GtvTokens.MenuItemIdle
+    val fill = if (focused) accent else GtvTokens.SurfaceIdle   // R144
     val ink = if (focused) contrastingTextColor(accent) else Ink.Primary
     Box(
         // 底先铺满整屏,再 imePadding():输入法弹出时内容在剩下的上半截里居中,不被键盘盖住(P1)。

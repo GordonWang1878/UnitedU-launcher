@@ -191,7 +191,7 @@ private fun PlanPanel(plan: List<PlanRow>?) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(INFO_PANEL_CORNER.dp))
-            .background(GtvTokens.MenuItemIdle)
+            .background(GtvTokens.SurfaceIdle)   // R144
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {

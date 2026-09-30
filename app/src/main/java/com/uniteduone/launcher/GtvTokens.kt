@@ -12,6 +12,14 @@ object GtvTokens {
     val MenuBg = Color(0xFF0E0E0F)
     /** 菜单项药丸,未聚焦(Task 8)。聚焦态改用 LocalThemeColors.current.accent,不是固定色。 */
     val MenuItemIdle = Color(0xFF161718)
+    /**
+     * [MenuItemIdle] 的半透明版(R144,2026-09-30「视觉高级感」):白 9/255。铺在纯 MenuBg 上与 [MenuItemIdle] 差不到一级,
+     * 铺在整屏页的氛围底(R142)上会透出底下的冷暖——未聚焦的胶囊、图标格、输入框、信息块不再是一块块中性灰。
+     * [MenuItemIdle] 本身留着给对比度单测当「最坏的底」用。
+     */
+    val SurfaceIdle = Color(0x09FFFFFF)
+    /** 「＋」格与缩略图占位的底,半透明版(R144):白 39/255,在纯 MenuBg 上 ≈ #333333(原 ThumbPlaceholderBackground)。 */
+    val SurfacePlaceholder = Color(0x27FFFFFF)
     /** **Ruling R46(2026-09-22)**:首页行标题的两态色——Google 浏览态实测(`#46` 帧,1 dp = 1 px):
      *  焦点行标题近白(字芯峰值 ≈ RGB(230,243,255)),其余行灰(字芯峰值 ≈ RGB(145,152,160))。
      *  **不随主题 accent 变**(R43 用 accent + alpha 0.7,owner 看后否决)。取值方法:我们的模拟器截图

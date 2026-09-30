@@ -80,10 +80,6 @@ object Theme {
     val PendingCardBackground = Color(0xFF242426)
     /** 默认桌面卡片里应用图标占位框背景。 */
     val IconPlaceholderBackground = Color(0xFF2A2A2A)
-    /** 编辑页行尾「＋」加卡片(未聚焦)背景。 */
-    val AddCardBackground = Color(0xFF2A2A2C)
-    /** 图片选择器缩略图加载中的占位背景。 */
-    val ThumbPlaceholderBackground = Color(0xFF333333)
     /** 编辑页「加载中」占位卡片(聚焦)背景。 */
     val PendingCardFocusedBackground = Color(0xFF3A3A3C)
     /** 弹窗底部「返回关闭」一类提示文字:关于页、默认桌面卡片共用(gtv 线 Task 8 起齿轮菜单不再用——

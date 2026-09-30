@@ -119,7 +119,7 @@ fun MenuPill(
     // Fix 3(owner 反馈 R2,2026-09-20):填色 150 ms 过渡,时长与曲线与卡片焦点共用(见 GtvLayout.FOCUS_FADE_IN_MS)。
     // 文字色只在两态之间瞬切(文字做透明度过渡会有一瞬对比度不够)。
     val fill by animateColorAsState(
-        targetValue = if (focused) accent else GtvTokens.MenuItemIdle,
+        targetValue = if (focused) accent else GtvTokens.SurfaceIdle,   // R144:半透明,透出氛围底
         animationSpec = tween(
             durationMillis = if (focused) GtvLayout.FOCUS_FADE_IN_MS else GtvLayout.FOCUS_FADE_OUT_MS,
             easing = Theme.AppFocusEasing,
