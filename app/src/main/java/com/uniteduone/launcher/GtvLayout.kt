@@ -240,6 +240,10 @@ object GtvLayout {
     const val MENU_ITEM_FOCUS_SHADOW_DP = 3f
     /** 卡片边缘亮边(R141):宽 1 dp、白 16%(卡片淡化后约 11%),画在卡片圆角里面。只为勾出深色横幅的轮廓,亮色卡上看不见。 */
     const val CARD_HAIRLINE_DP = 1f
+    /**
+     * 设置外壳预览框里那份缩小的首页的投影(dp,R143):氛围底(R142)上预览框像一扇浮起来的小窗。随缩放进度 z 从 0 长到这个值。
+     */
+    const val PREVIEW_SHADOW_DP = 18f
     const val CARD_HAIRLINE_ALPHA = 0.16f
     const val MENU_ITEM_HEIGHT = 55f
     /** 药丸之间的纵向间距。报告没给这一项,按参考图 docs/screenshots/gtv/16-app-longpress-menu.png

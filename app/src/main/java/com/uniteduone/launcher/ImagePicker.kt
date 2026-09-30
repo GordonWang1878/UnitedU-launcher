@@ -770,7 +770,8 @@ private fun ThumbCard(
                 .fillMaxWidth()
                 .height(thumbHeight)
                 .clip(RoundedCornerShape(THUMB_CORNER))
-                .background(frameBg),
+                .background(frameBg)
+                .cardHairline(THUMB_CORNER),   // R141:与首页卡片同一圈亮边(深色的内置壁纸 / 屏保图也勾出轮廓)
             contentAlignment = Alignment.Center,
         ) {
             if (bmp != null && backdrop != null) {

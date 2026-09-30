@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -41,6 +42,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -169,18 +171,9 @@ fun AppCard(
             border = border,
         ) {
             AppCardImage(app, metrics)
-            // R141:卡片边缘一圈极细的亮边(白 16%,1 dp,画在卡片里面)。深色横幅(黑底的 NETFLIX、深色的腾讯视频)压在首页
+            // R141:卡片边缘一圈极细的亮边(见 cardHairline)。深色横幅(黑底的 NETFLIX、深色的腾讯视频)压在首页
             // 底部压暗的那一段上,原来连卡片边都看不出来;这圈亮边把每张卡的轮廓勾出来,亮色卡上几乎看不见。
-            Box(Modifier.fillMaxSize().drawBehind {
-                val w = GtvLayout.CARD_HAIRLINE_DP.dp.toPx()
-                drawRoundRect(
-                    color = Color.White.copy(alpha = GtvLayout.CARD_HAIRLINE_ALPHA),
-                    topLeft = Offset(w / 2, w / 2),
-                    size = Size(size.width - w, size.height - w),
-                    cornerRadius = CornerRadius(metrics.cardCorner.toPx() - w / 2),
-                    style = Stroke(width = w),
-                )
-            })
+            Box(Modifier.fillMaxSize().cardHairline(metrics.cardCorner))
         }
         if (title != null) {
             // 库的 CardDefaults.SubtitleAlpha = 0.6;字号取 metrics.titleSize——main 线是
@@ -351,3 +344,20 @@ internal fun Modifier.gtvFocusFrameOverFade(
     fade: CardFade = CardFade.DEFAULT,
     restAlpha: Float = 1f,
 ): Modifier = gtvAppFocusFrame(focused, accentColor, corner, moving, movingColor, afterShift, restAlpha).gtvCardFade(fade)
+
+/**
+ * 卡片 / 缩略图边缘一圈极细的亮边(R141):宽 [GtvLayout.CARD_HAIRLINE_DP]、白 [GtvLayout.CARD_HAIRLINE_ALPHA],画在圆角里面、
+ * 内容之上。只在绘制阶段,不改布局。首页 / 编辑页 / 所有应用页的卡片与三个选图页的缩略图共用。
+ */
+fun Modifier.cardHairline(corner: Dp): Modifier = drawWithContent {
+    drawContent()
+    val w = GtvLayout.CARD_HAIRLINE_DP.dp.toPx()
+    drawRoundRect(
+        color = Color.White.copy(alpha = GtvLayout.CARD_HAIRLINE_ALPHA),
+        topLeft = Offset(w / 2, w / 2),
+        size = Size(size.width - w, size.height - w),
+        cornerRadius = CornerRadius((corner.toPx() - w / 2).coerceAtLeast(0f)),
+        style = Stroke(width = w),
+    )
+}
+

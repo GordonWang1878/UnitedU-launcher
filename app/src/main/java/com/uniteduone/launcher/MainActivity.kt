@@ -669,6 +669,8 @@ class MainActivity : ComponentActivity() {
                         // 圆角在本地(未缩放)坐标里给:8 dp ÷ 缩放,缩下来正好 8 dp,与卡片同一个圆角(z 从 0 到 1 时从 0 长到 8)。
                         shape = RoundedCornerShape(GtvLayout.CARD_CORNER.dp.toPx() * zoom / scale)
                         clip = true
+                        // R143:缩进预览框的首页带一层投影,浮在氛围底上;随 z 长出来,整屏(z = 0)时没有
+                        shadowElevation = GtvLayout.PREVIEW_SHADOW_DP.dp.toPx() * zoom
                     },
             ) {
             // prepare() 在首启/升级那一趟会往 settings.json 写 wallpaperFile,而 homeSettings
