@@ -182,7 +182,8 @@ CASES = [
     ("编辑·删行确认", o_edit_delete_confirm, lambda s: s.has("Delete “")),
     ("编辑·换卡片图", o_edit_cardart, lambda s: s.has(S("picker_card_image_title"))),
     ("换壁纸页", o_wallpaper, lambda s: s.has(S("picker_wallpaper_title"))),
-    ("屏保图库", o_gallery, lambda s: s.has(S("picker_screensaver_title"))),
+    # 设置·屏保页上有一颗同名胶囊(右栏 x ≥ 1172,图库开着时它仍在树里),只认左上的页头「Screensaver Gallery · N items」
+    ("屏保图库", o_gallery, lambda s: any(n["text"].startswith(S("picker_screensaver_title")) and n["b"][0] < 1000 for n in s.nodes)),
     ("扫码页", o_import, lambda s: s.has(S("import_title_wallpapers"))),
     ("图库·全屏预览", o_gallery_preview, lambda s: s.focus() is not None and s.focus()[2] - s.focus()[0] > 1800),
     ("图库·内置图菜单", o_gallery_builtin_menu, lambda s: s.has(S("pool_builtin_exclude")) or s.has(S("pool_builtin_include"))),
@@ -254,7 +255,8 @@ def run_onboarding():
     home_intent(); time.sleep(1.2)
     s = screen()
     check("引导里按 HOME:引导还在(HOME 不跳过引导)、单个焦点", s.has(S("onb_step1_title")) and s.count_focused() == 1, (s.count_focused(), s.texts()[:4]))
-    # 第 1 步焦点在当前语言(English);确定 → 第 2 步
+    # 第 1 步初始焦点在当前语言(English,列表最后一项);但 restart() 末尾的「下、上」唤醒键会把它挪到「繁體」——先走回 English 再确定
+    move_to("English", "down", 3)
     key("ok"); time.sleep(2)
     s = screen()
     check("第 2 步", s.has(S("onb_step2_title")), s.texts()[:5])
