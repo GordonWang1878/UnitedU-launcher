@@ -469,7 +469,9 @@ fun SettingsShell(
                     )
                 }
                 ShellScaffold(
-                    left = { ShellTitle(path = null, title = settingsTitle) },
+                    // R148(2026-09-30 Gordon):品牌名从首页右上角的时钟后面挪到这里——页名「设置」上方那一行小字,
+                    // 与其它页「设置」写在页名上方(路径)同一个位置、同一个字样:读作「UnitedU › 设置」。品牌字标,不走 strings.xml。
+                    left = { ShellTitle(path = "UnitedU", title = settingsTitle) },
                     right = { CapsuleColumn(items, target, onFocus, focusNonce, covered) },
                 )
             }

@@ -84,6 +84,8 @@ fun GtvTopBar(
     clockAlpha: Float,
     /** 时钟旁是否带日期(design §2,设置页开关透传)。 */
     showDate: Boolean,
+    /** R149:日期前面带不带星期。 */
+    showWeekday: Boolean = false,
     /** 时钟字标紧贴深阴影([ClockWordmark] 的 `strongShadow`)的不透明度,0 = 不画。ui-pending #8:HomeScreen
      *  传 `1 − contentAlpha`——待机时两层压暗渐变随 contentAlpha 淡掉,壁纸原样露出,亮壁纸上 accent 小字
      *  对比度只有 1.4:1;阴影随渐变同步淡入淡出,不瞬切。 */
@@ -139,6 +141,7 @@ fun GtvTopBar(
         Spacer(Modifier.weight(1f))
         ClockWordmark(
             showDate = showDate,
+            showWeekday = showWeekday,
             shadow = clockShadowAlpha > 0f,
             strongShadow = true,
             shadowAlpha = clockShadowAlpha.coerceIn(0f, 1f),
@@ -347,6 +350,8 @@ private fun TopBarIconButton(
 @Composable
 internal fun ClockWordmark(
     showDate: Boolean,
+    /** R149:日期前面带不带星期(只在 [showDate] 为真时有意义)。 */
+    showWeekday: Boolean = false,
     shadow: Boolean = false,
     modifier: Modifier = Modifier,
     strongShadow: Boolean = false,
@@ -355,7 +360,7 @@ internal fun ClockWordmark(
     val accent = LocalThemeColors.current.accent
     val state = rememberClockState()
     val locale = AppLocale.current ?: Locale.getDefault()
-    val (timePattern, datePattern) = clockPatterns(state.is24Hour)
+    val (timePattern, datePattern) = clockPatterns(state.is24Hour, weekday = showWeekday)
     // SimpleDateFormat 出生时把时区绑死:tzTick 变(换时区 / 校时 / 改 12-24 开关)就重建,不能只看 pattern。
     val timeFmt = remember(state.tzTick, timePattern, locale) { SimpleDateFormat(timePattern, locale) }
     val dateFmt = remember(state.tzTick, datePattern, locale) { SimpleDateFormat(datePattern, locale) }
@@ -365,7 +370,8 @@ internal fun ClockWordmark(
             append(' ')
             append(dateFmt.format(state.now))
         }
-        append(" | UnitedU")
+        // R148(2026-09-30 Gordon:「用户可能不太喜欢 unitedu 一直显示在那里」):不再跟「| UnitedU」字标,只剩时间与日期;
+        // 品牌名挪到设置第一层页名上方(SettingsShell 的 ROOT)。函数名沿用。
     }
     BasicText(
         text = text,
