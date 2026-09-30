@@ -93,8 +93,33 @@ fun uniqueName(existing: Set<String>, name: String): String {
     val stem = if (dot > 0) name.substring(0, dot) else name
     val ext = if (dot > 0) name.substring(dot) else ""
     var i = 1
-    while (nameFoldKey("$stem-$i$ext") in taken) i++
-    return "$stem-$i$ext"
+    while (true) {
+        val candidate = fitFileName(stem, "-$i$ext")
+        if (nameFoldKey(candidate) !in taken) return candidate
+        i++
+    }
+}
+
+/** ext4 / f2fs 单个文件名的字节上限(NAME_MAX,按 UTF-8 **字节**算,不是字符)。 */
+private const val FS_NAME_MAX_BYTES = 255
+
+/**
+ * `stem + tail` 超过 [FS_NAME_MAX_BYTES] 时从主名尾部按码点截短(不劈开代理对,至少留一个码点)
+ * (测试轮 B-05):能落盘的最长名字(接近 255 字节)撞名加上 `-1` 就超限,rename 与复制回落都建不出文件、整张图被拒。
+ */
+private fun fitFileName(stem: String, tail: String): String {
+    val budget = FS_NAME_MAX_BYTES - tail.toByteArray(Charsets.UTF_8).size
+    if (stem.toByteArray(Charsets.UTF_8).size <= budget) return stem + tail
+    var end = 0
+    var bytes = 0
+    while (end < stem.length) {
+        val next = end + Character.charCount(stem.codePointAt(end))
+        val size = stem.substring(end, next).toByteArray(Charsets.UTF_8).size
+        if (end > 0 && bytes + size > budget) break
+        end = next
+        bytes += size
+    }
+    return stem.substring(0, end) + tail
 }
 
 /**
