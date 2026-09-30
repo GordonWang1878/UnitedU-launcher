@@ -28,6 +28,17 @@ python3 scripts/e2e/fixtures.py --uninstall   # 测完卸掉测试包
 | `j_settings.py` | 设置外壳四组逐行(左侧说明存在且各不相同)、选项层、滑块、闲置画面子页、切简体再切回(重建后落回「语言」)、立即屏保、跳系统页再返回、关于页检查更新、恢复默认确认 |
 | `j_apps_inputs.py` | 所有应用页两层菜单加到桌面、提示条、打开应用再返回;应用页 / 首页开着时装卸应用焦点不丢;输入源页改名 / 隐藏 / 恢复 / 切换 |
 | `j_onb.py` | `pm clear` 全新安装 → 首次引导(简体):选语言重建、返回上一步、放到桌面(行名本地化、行图标)、完成 |
+| `j_persist.py` | 2026-09-30 测试轮:layout / settings / titles / hidden-inputs 写坏(乱码、空文件、类型错、零行、超大、缺失)后冷启动——不崩、不弹引导、有 `.prev` 就恢复、`.bad` 留证 |
+| `j_upload_edge.py` | 同上:怪文件名(中文 / emoji / `../` / 超长 / 只差大小写)、20 张分批与一次、> 30 MB 拒收、并发同名、删刚传的与正在用的壁纸、上传中途关页 |
+| `j_pkg.py` | 同上:首页 / 长按菜单 / 改名 / 移动态 / 编辑页 / 添加应用 / 应用页 / 设置 / 选图 / 输入源开着时卸载、覆盖安装、新装 |
+| `j_settings_values.py` | 同上:每个选项每个取值写盘与摘要一致、滑块两端、开关来回、选项层不确定就返回不写盘、恢复默认 |
+| `j_overlays.py` | 同上:34 个浮层逐个按 HOME / 按返回(收干净、单个焦点、落回打开它的地方),引导里的 HOME / 返回 |
+| `j_recreate.py` | 同上:12 个界面开着时字体缩放触发 Activity 重建两次;浮层开着时 force-stop 冷启动 |
+| `j_idle.py` | 同上:闲置 1 分钟只留时钟、唤醒键被吞、再 1 分钟自动屏保、退出屏保键被吞、设置开着不进待机(约 4 分钟) |
+| `j_i18n.py` | 同上:en / zh-CN / zh-TW 各 16 个界面,找越出屏幕 / 胶囊的文字并截图(`E2E_OUT/i18n-*.png`) |
+| `j_monkey.py` | 同上:adb monkey 只发方向 / 确定 / 返回 / 菜单,8 个种子 × 500 事件;每个种子后查崩溃 / ANR / 焦点 / 落盘(`MONKEY_SEEDS`、`MONKEY_EVENTS` 可调) |
+
+`run_all.py` 按上表顺序全跑(约 1 小时 45 分);只跑几段:`E2E_ONLY=j_persist,j_pkg python3 scripts/e2e/run_all.py`。
 
 ## 写这类脚本的规矩(踩过的坑)
 
@@ -38,3 +49,6 @@ python3 scripts/e2e/fixtures.py --uninstall   # 测完卸掉测试包
 - 提示条只显示 2–3.5 秒:要截它就在按键后立刻截,不要等一次读屏之后。
 - 标签文字直接读 `values-en/strings.xml`,改文案不用改脚本;脚本以英文界面跑(引导那段用简体)。
 - 测试布局在 `fixtures/layout.json`,每段开头 `restart()` 推回去。
+- **首页顶栏「应用」胶囊的 content-desc 就叫「All Apps」**:焦点在它上面时右边的名字小胶囊(R133)也以 text 画出「All Apps」——判「应用页开着」要认页头下那行提示(`S("apps_page_hint")`)。同理 `has()` 是子串匹配,设置第一层的说明文字里就有「Language」「Wallpaper」,判某一页开着用整段相等(`j_overlays.has_exact`)。
+- 图库目录所在的 `/sdcard` 不区分大小写(Android 11+ casefold):`ls PHOTO.JPG` 找得到 photo.jpg。
+- 三语测试用 `set_lang("zh-CN")` 让 `S()` 改读对应语言的 strings.xml;`run_all.py` 每段开头会切回英文。
