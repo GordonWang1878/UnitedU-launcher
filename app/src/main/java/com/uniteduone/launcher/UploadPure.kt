@@ -40,7 +40,8 @@ fun utf8MultipartContentType(contentType: String?): String? {
 
 /**
  * 上传文件名清洗:只取最后一个 / 或 \ 之后;去控制字符;trim;空、"."、".."、以 "." 开头 → null
- * (点开头会撞上 library 里的 .seeded 标记);保留中文等 Unicode;超过 100 字符截主名、保扩展名。
+ * (点开头会撞上 library 里的 .seeded 标记);保留中文等 Unicode;超过 100 字符截主名、保扩展名
+ * (按码点截,不拆开代理对,见 [truncateStem])。
  */
 fun sanitizeUploadName(raw: String?): String? {
     if (raw == null) return null
@@ -51,9 +52,23 @@ fun sanitizeUploadName(raw: String?): String? {
         val dot = n.lastIndexOf('.')
         val ext = if (dot > 0) n.substring(dot) else ""
         val stem = if (dot > 0) n.substring(0, dot) else n
-        n = stem.take((100 - ext.length).coerceAtLeast(1)) + ext
+        n = truncateStem(stem, (100 - ext.length).coerceAtLeast(1)) + ext
     }
     return n
+}
+
+/**
+ * 主名截到至多 [maxChars] 个 UTF-16 单元,**不拆开代理对**(emoji 等增补平面字符的两半,与 [truncateTitle] 同一条规矩):
+ * 留下半个,写进文件名会变成「?」、写进 JSON 会变成 U+FFFD。至少留一个完整码点——截空了名字就成了点开头。
+ */
+private fun truncateStem(stem: String, maxChars: Int): String {
+    var end = 0
+    while (end < stem.length) {
+        val next = end + Character.charCount(stem.codePointAt(end))
+        if (end > 0 && next > maxChars) break
+        end = next
+    }
+    return stem.substring(0, end)
 }
 
 fun extensionOf(name: String): String = name.substringAfterLast('.', "").lowercase()

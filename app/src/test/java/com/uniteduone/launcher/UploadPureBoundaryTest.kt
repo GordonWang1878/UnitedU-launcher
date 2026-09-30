@@ -1,6 +1,7 @@
 package com.uniteduone.launcher
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -10,6 +11,21 @@ import org.junit.Test
  * 扩展名的大小写与双扩展名,大小上限正好卡在线上与多 1 字节。
  */
 class UploadPureBoundaryTest {
+
+    private fun hasLoneSurrogate(s: String): Boolean {
+        var i = 0
+        while (i < s.length) {
+            val c = s[i]
+            if (c.isHighSurrogate()) {
+                if (i + 1 >= s.length || !s[i + 1].isLowSurrogate()) return true
+                i += 2
+                continue
+            }
+            if (c.isLowSurrogate()) return true
+            i++
+        }
+        return false
+    }
 
     // ---- 文件名清洗 ----
 
@@ -87,6 +103,26 @@ class UploadPureBoundaryTest {
         assertTrue(out.endsWith("."))
         assertEquals("", extensionOf(out))
         assertEquals("type", ScreensaverMedia.uploadRejection("wallpapers", out, 1, null))
+    }
+
+    @Test fun truncationNeverSplitsASurrogatePair() {
+        // 'a' + 150 个 emoji:主名按 UTF-16 单元截到 96 时正好落在一个 emoji 的两半之间;
+        // 留下半个代理对,写进文件名 / JSON 会变成「?」或 U+FFFD(与 truncateTitle 同一条规矩)
+        for (prefix in listOf("", "a", "ab")) {
+            val out = sanitizeUploadName(prefix + "🌊".repeat(150) + ".jpg")!!
+            assertTrue(out, out.endsWith(".jpg"))
+            assertTrue(out, out.length <= 100)
+            assertFalse("前缀「$prefix」截出了孤立代理项", hasLoneSurrogate(out))
+            assertEquals(out, String(out.toByteArray(Charsets.UTF_8), Charsets.UTF_8))
+        }
+    }
+
+    @Test fun aStemOfOneEmojiBeforeAHugeExtensionIsKeptWhole() {
+        // 扩展名本身超过 100 字符时主名只留一个码点:一个 emoji 是两个 UTF-16 单元,也得整个留下,
+        // 否则只剩半个代理对,或者主名被截空、名字变成点开头
+        val out = sanitizeUploadName("🌊." + "x".repeat(150))!!
+        assertTrue(out, out.startsWith("🌊."))
+        assertFalse(hasLoneSurrogate(out))
     }
 
     @Test fun shortMultiByteNamesAreNotTouched() {
