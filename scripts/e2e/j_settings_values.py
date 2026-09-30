@@ -66,7 +66,8 @@ def run():
     journey("values-setup")
     restart(settings_patch=BASE, layout=LAYOUT)
 
-    for g, sub, row, field, opts in SEGMENTED:
+    # 选项段最慢(每个取值都从首页重新进一遍,约 35 秒一个);VALUES_SKIP_SEGMENTED=1 只跑滑块 / 开关 / 预览 / 恢复默认
+    for g, sub, row, field, opts in ([] if os.environ.get("VALUES_SKIP_SEGMENTED") else SEGMENTED):
         journey(f"values-{field}")
         for label, want in opts:
             if sub: open_sub(g, sub)
