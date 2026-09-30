@@ -1739,3 +1739,15 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
   - Ruling: 旧文件没有 `showWeekday` 按 false 读——原来选「时间与日期」的升级后不再显示星期 — 与这一档的名字一致,也是 Gordon 说的「用户可能不需要星期」 — 想要星期的得自己去选第三档(Gordon 电视上原来是这一档的话,升级后星期会消失)。
 - 模拟器:三档分别读到 `22:33` / `22:33 2026/9/30` / `22:34 周三 2026/9/30`,没有「| UnitedU」;设置第一层左侧是「UnitedU」+「设置」;选项层三颗、勾在当前档。单测 787 过。
 - 装电视:install Success,电视上 `base.apk` md5 与本地一致(`dd2b13ca…`);`compile -m speed -f` 前两次读回 verify、第三次 `speed-profile`。未按键。
+
+## 2026-09-30 深夜 · 「从 YouTube 退出跳到 HDMI 2」排查
+
+- Gordon:从 YouTube 退出时电视自己切到了 HDMI 2(Apple TV)。
+- 结论:**是我 22:47 装 R148 / R149 那一下造成的,不是桌面的 bug。** 电视日志(`logcat -b all`,只读):
+  - 22:34:18 从 UnitedU 打开 YouTube(START 来自 uid 10010 = UnitedU)。
+  - 22:47:30 `adb install` 覆盖安装:`Force stopping com.uniteduone.launcher … installPackageLI` → `Force removing ActivityRecord{… MainActivity}: app died, no saved state` → `wm_task_removed` 删掉了 home 任务(5775 与它的 root 5774)。
+  - 23:02:06 YouTube `moveTaskToBack`,任务栈里它下面已经没有首页,系统恢复下一个任务 `com.sony.dtv.tvlin`(Sony 的输入源应用,记着上次的 HDMI 2):`HdmiControlService: portSelect: portId: 2`、CEC `<Routing Change>` → 切到 Apple TV。
+  - 23:02:09 Gordon 按 HOME,首页任务重建;23:03 再从 YouTube 退出就正常回到 UnitedU。
+- 以后装包前先看前台:是 UnitedU 或电视待机才装(写进 CLAUDE.md 真机一节)。
+- 仍待定:用户自己更新本应用(应用内「检查更新」装好之后、或第三方商店后台更新)时也会删掉 home 任务,关掉安装器 / 退出当前应用可能同样落到输入源——还没查。
+
