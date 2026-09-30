@@ -1,6 +1,6 @@
 # 代码评审入口(给外部评审者)
 
-2026-09-29 写,对应 main `6549fa0` 之后;2026-09-30 外观轮(R134–R136:字号 / 版式 / 动效统一)后更新;同日五路独立复审 + 模拟器端到端测试、R137–R140 修复后再更新;同日晚「视觉高级感」R141–R144 后再更新。先读这一份,再按需要跳到它指的文件;这里只讲「是什么、在哪、哪些看起来像 bug 其实是刻意的」,不重复设计论证。
+2026-09-29 写,对应 main `6549fa0` 之后;2026-09-30 外观轮(R134–R136:字号 / 版式 / 动效统一)后更新;同日五路独立复审 + 模拟器端到端测试、R137–R140 修复后再更新;同日晚「视觉高级感」R141–R144 与测试轮(R145:JVM 边界单测 + 九段新端到端旅程 + 六个修复)后再更新。先读这一份,再按需要跳到它指的文件;这里只讲「是什么、在哪、哪些看起来像 bug 其实是刻意的」,不重复设计论证。
 
 ## 1. 这是什么
 
@@ -13,7 +13,7 @@
 ## 2. 怎么构建、测试
 
 - 需要 JDK 17、Android SDK(compileSdk 35、build-tools **35.0.0**,`app/build.gradle.kts` 里显式钉了)、Gradle 8.14.x。**仓库里没有 Gradle Wrapper**。作者机器上工具链刻意不进 PATH,用 `source scripts/env.sh` 注入(路径是作者本机的,仅供参考)。
-- 构建:`gradle --no-daemon assembleRelease`;单测:`gradle --no-daemon testReleaseUnitTest`(`app/src/test/`,57 个文件、约 620 个 JVM 单测;**没有仪器测试**,界面行为靠模拟器脚本 + 真机验收,记录在 `WORKLOG.md`)。
+- 构建:`gradle --no-daemon assembleRelease`;单测:`gradle --no-daemon testReleaseUnitTest`(`app/src/test/`,69 个文件、约 780 个 JVM 单测;**没有仪器测试**,界面行为靠模拟器端到端脚本 `scripts/e2e/`(15 段旅程,跑法见那里的 README)+ 真机验收,记录在 `WORKLOG.md`)。
 - 没有 `~/.unitedu/release.jks` 时 release 自动用 debug keystore 签名(`-PrequireReleaseKey=true` 时改为构建失败,`scripts/release.sh` 总带这个参数)。R8 开着(`proguard-rules.pro`),资源裁剪关着(理由见 `build.gradle.kts` 注释)。
 - lint:`lintVitalRelease` 通过;完整 `lintRelease` 报 22 个 error,其中 21 个是误报(`ProduceStateDoesNotAssignValue` ×16、`dispatchKeyEvent` 上的 `RestrictedApi` ×5),1 个是刻意的(`QUERY_ALL_PACKAGES`,桌面必须列出全部应用)。详见同日体检报告 [`design/health-check-2026-09-29.md`](design/health-check-2026-09-29.md)。
 - 内置壁纸 / 屏保图有一道构建前置:`app/src/main/assets/builtin/{wallpapers,screensavers}/` 里的图必须先经 `scripts/hdr-assets.py --in-place` 转成双写法 HDR JPEG,否则单测 `BuiltinHdrAssetsTest` 失败(见 §5)。
@@ -104,6 +104,7 @@
 - **超大 composable**:`EditScreen` 约 880 行、`HomeScreen` 约 800 行、`MainActivity.onCreate` 约 580 行。拆分是已知的技术债,不是本轮目标。
 - **遗留代码**:`Theme.cardMetrics` / `HomeLayout` 是旧 main 线几何,只剩测试与少量常量引用;`GtvLayout.SETTINGS_TYPE_STEP` / `settingsSp` 是 R109 的记录,界面代码不再读(`Clock.kt` 的 `HeroClock` 已在 R134 删掉)。
 - **代码注释里的少量过时描述**:例如 `GtvLayout.kt` 约 981 行 `ROW_ENTER_*` 的 KDoc 仍写 `FastOutSlowIn`(R129e 起实际是 `LinearEasing`,见 `Theme.homeRowEnterSpec` 与同处 R129e 注释);`Settings.kt` 里 `wallpaperBlur` 注释写「0–100,步 10」(R119 起 0–50、步 5,以 `WALLPAPER_BLUR_MAX` / `_STEP` 为准);`MainActivity` 顶部 KDoc 仍提「齿轮菜单入口」(R69 起是设置外壳)。以代码为准。
+- **测试轮留着没修的两处**(`docs/design/test-round-2026-09-30.md`):`standbyPlan(1, Long.MAX_VALUE)` 溢出成负数——设置只允许固定档位,实际走不到,单测里是 `@Ignore` 用例;`sanitizeUploadName` 不去 C1 控制字符(U+0080–009F),它们在 ext4 上是合法文件名,不影响落盘与删除。
 - **更新通道未配置镜像**:缺省只查 GitHub Release,而仓库还没有 Release,「检查更新」现在只会显示「检查失败」(COS 地址在 `gradle.properties` 里仍是注释)。
 
 ## 7. 最有价值的评审方向
