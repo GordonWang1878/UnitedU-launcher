@@ -92,12 +92,14 @@ internal fun builtinCatalog(kind: BuiltinKind, names: List<String>, warn: (Strin
 
 /**
  * 伪路径 → assets 里的路径(`builtin/<分类>/<文件名>`);不是内置图的伪路径 → null。
- * 只认 `BUILTIN_PSEUDO_ROOT + builtin/` 开头、且不含 `..` 的(防御:伪路径只由 [BuiltinImage.file] 产生)。
+ * 只认 `BUILTIN_PSEUDO_ROOT + builtin/` 开头、且没有 `..` 这一**段**的(防御:伪路径只由 [BuiltinImage.file] 产生)。
+ * 按段判而不是按子串:文件名里连着两个点(手工改名打错的 `05-极光..jpg`)[builtinCatalog] 照样收,
+ * 按子串拒掉的话网格里有这一格、却解不出图也选不中。
  */
 internal fun builtinAssetPathOf(path: String): String? {
     if (!path.startsWith(BUILTIN_PSEUDO_ROOT + BUILTIN_ASSET_DIR + "/")) return null
     val rel = path.removePrefix(BUILTIN_PSEUDO_ROOT)
-    return rel.takeIf { !it.contains("..") }
+    return rel.takeIf { r -> r.split('/').none { it == ".." } }
 }
 
 // ---- 三语显示名(R137)------------------------------------------------------------------------------

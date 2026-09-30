@@ -39,21 +39,50 @@ fun utf8MultipartContentType(contentType: String?): String? {
 }
 
 /**
+ * 清洗后文件名的 UTF-8 字节上限 = ext4 / f2fs 一个文件名的上限(NAME_MAX,按**字节**算)。只限 100 个字符挡不住
+ * 多字节名:100 个汉字是 300 字节,清洗过的名字照样建不出文件(rename 与复制回落都失败,整张图以「write」被拒)。
+ * 不取更小的值:删除 / 缩略图接口也拿 [sanitizeUploadName] 清洗**已在图库里**的文件名再去找文件,
+ * 能落盘的名字(≤ 255 字节)必须原样通过,否则那张图从手机上删不掉。
+ */
+const val MAX_UPLOAD_NAME_BYTES = 255
+
+/**
  * 上传文件名清洗:只取最后一个 / 或 \ 之后;去控制字符;trim;空、"."、".."、以 "." 开头 → null
- * (点开头会撞上 library 里的 .seeded 标记);保留中文等 Unicode;超过 100 字符截主名、保扩展名。
+ * (点开头会撞上 library 里的 .seeded 标记);保留中文等 Unicode;超过 100 字符或 [MAX_UPLOAD_NAME_BYTES] 个
+ * UTF-8 字节截主名、保扩展名(按码点截,不拆开代理对,见 [truncateStem])。
  */
 fun sanitizeUploadName(raw: String?): String? {
     if (raw == null) return null
     var n = raw.substringAfterLast('/').substringAfterLast('\\')
     n = n.filter { it.code >= 0x20 && it.code != 0x7F }.trim()
     if (n.isEmpty() || n == "." || n == ".." || n.startsWith('.')) return null
-    if (n.length > 100) {
+    if (n.length > 100 || utf8Size(n) > MAX_UPLOAD_NAME_BYTES) {
         val dot = n.lastIndexOf('.')
         val ext = if (dot > 0) n.substring(dot) else ""
         val stem = if (dot > 0) n.substring(0, dot) else n
-        n = stem.take((100 - ext.length).coerceAtLeast(1)) + ext
+        n = truncateStem(stem, (100 - ext.length).coerceAtLeast(1), MAX_UPLOAD_NAME_BYTES - utf8Size(ext)) + ext
     }
     return n
+}
+
+private fun utf8Size(s: String): Int = s.toByteArray(Charsets.UTF_8).size
+
+/**
+ * 主名截到至多 [maxChars] 个 UTF-16 单元、[maxBytes] 个 UTF-8 字节,**不拆开代理对**(emoji 等增补平面字符的两半,
+ * 与 [truncateTitle] 同一条规矩):留下半个,写进文件名会变成「?」、写进 JSON 会变成 U+FFFD。
+ * 至少留一个完整码点——截空了名字就成了点开头。
+ */
+private fun truncateStem(stem: String, maxChars: Int, maxBytes: Int): String {
+    var end = 0
+    var bytes = 0
+    while (end < stem.length) {
+        val next = end + Character.charCount(stem.codePointAt(end))
+        val size = utf8Size(stem.substring(end, next))
+        if (end > 0 && (next > maxChars || bytes + size > maxBytes)) break
+        end = next
+        bytes += size
+    }
+    return stem.substring(0, end)
 }
 
 fun extensionOf(name: String): String = name.substringAfterLast('.', "").lowercase()
