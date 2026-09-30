@@ -1695,4 +1695,6 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
   - 提交 `037787e`,快进并入 main;装 A95L(`adb install` Success,APK md5 与电视上 `base.apk` 一致)。编译:刚装完 `compile -m speed-profile -f` 读回仍是 `status=verify`(ART 在还没有画像时把 speed-profile 降成 verify,上一轮「读早了」的猜测不对),改跑 `compile -m speed -f` 后读回 `speed-profile`(已编译)。装包没有把 UnitedU 拉到前台(`RelaunchAfterUpdate` 日志:默认桌面且没有悬浮窗权限 → skip relaunch)。我没有向电视发任何按键。
   - 模拟器收尾:测试包全部卸载(`scripts/e2e/fixtures.py --uninstall`),界面语言改回跟随系统,`unitedu-tv` 已关;临时 worktree `UnitedU-launcher-followups` 与分支 `look-followups` 已删。
   - 待 Gordon 电视上看:R137–R140(连同 R130–R136)。Gordon 回「推」:`037787e` 与本条记录推到私有仓库(推前核对:没有「先不推」的内容,删掉了一句与产品无关的电视使用记录)。
+- **无人值守 4 小时(16:00–20:00):视觉高级感 + 测试用例**。Gordon:「没问题。接下来 4 个小时交给你,两项任务:1. 提升视觉高级感 2. 设计各种测试用例,并执行测试,遇到 bug,修」。照无人值守规矩:不 push、不出卡、裁定记账本(`.superpowers/sdd/2026-09-30-premium-tests/goal.md`)、可本地并 main。分工:视觉我做(worktree `UnitedU-launcher-premium`、模拟器 5560);测试交给一个代理(自己的 worktree、模拟器 `unitedu-tv-2` 5562、私有 scratchpad 子目录)。
+  - **视觉(R141–R144,`docs/design/premium-2026-09-30.md`)**:照 Gordon 电视上的设置(绿主题、饱和度 90 / 亮度 70、夏日数码门、简体)在模拟器上逐页审,首页换上接近真实的横幅(占位应用的机器人图标会让观感失真)。改了:整屏页氛围底(当前壁纸的模糊影子叠在深底上,R142)、胶囊聚焦放大 1.05× + 淡影(照 Google 长按菜单实测,R141)、卡片 / 缩略图边缘亮边(R141 / R143)、设置预览框投影(R143)、未聚焦表面半透明(R144)、时钟等宽数字(R141)。独立评审看过,四条问题全修(亮边只画了底边、缓存仍重组、亮壁纸小字对比度、重复铺底)。视觉分支上跑整套端到端:239/240,唯一失败是脚本读屏晚于提示条的 3.5 秒(宿主上两台模拟器并跑时一次读屏要 2 秒多),已改脚本。
 
