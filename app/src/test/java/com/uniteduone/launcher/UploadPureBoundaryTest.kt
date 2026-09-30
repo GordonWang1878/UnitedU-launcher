@@ -12,6 +12,8 @@ import org.junit.Test
  */
 class UploadPureBoundaryTest {
 
+    private fun utf8(s: String) = s.toByteArray(Charsets.UTF_8).size
+
     private fun hasLoneSurrogate(s: String): Boolean {
         var i = 0
         while (i < s.length) {
@@ -123,6 +125,31 @@ class UploadPureBoundaryTest {
         val out = sanitizeUploadName("🌊." + "x".repeat(150))!!
         assertTrue(out, out.startsWith("🌊."))
         assertFalse(hasLoneSurrogate(out))
+    }
+
+    @Test fun longChineseNameFitsTheFilesystemNameLimit() {
+        // ext4 / f2fs 一个文件名最多 255 **字节**:只按 100 个字符截,96 个汉字 + .jpg 仍有 292 字节,
+        // saveIntoLibrary 的 rename 与复制回落都建不出这个文件,整张图以「write」被拒
+        for (raw in listOf("海".repeat(300) + ".jpg", "海".repeat(99) + ".jpeg", "海".repeat(84) + ".jpg", "a" + "海".repeat(200) + ".webp")) {
+            val out = sanitizeUploadName(raw)!!
+            val ext = raw.substring(raw.lastIndexOf('.'))
+            assertTrue(out, out.endsWith(ext))
+            assertTrue(out, out.length > ext.length)
+            assertFalse(hasLoneSurrogate(out))
+            assertTrue("${utf8(out)} 字节:$out", utf8(out) <= 255)
+        }
+        assertEquals("海".repeat(83) + ".jpg", sanitizeUploadName("海".repeat(84) + ".jpg"))
+        // 4 字节的 emoji 与 3 字节的汉字混排:截完既不超 255 字节,也不留半个 emoji
+        val mixed = sanitizeUploadName("🌊海".repeat(40) + ".png")!!
+        assertTrue(utf8(mixed) <= 255)
+        assertFalse(hasLoneSurrogate(mixed))
+    }
+
+    @Test fun namesThatAlreadyFitOnDiskPassUnchanged() {
+        // 删除 / 缩略图接口拿同一个函数清洗图库里已有的文件名再去找文件:≤ 255 字节、≤ 100 字符的名字必须原样通过
+        for (n in listOf("海".repeat(80) + ".jpg", "海".repeat(83) + ".jpg", "🌊".repeat(48) + ".jpg", "x".repeat(96) + ".jpg")) {
+            assertEquals(n, sanitizeUploadName(n))
+        }
     }
 
     @Test fun shortMultiByteNamesAreNotTouched() {
