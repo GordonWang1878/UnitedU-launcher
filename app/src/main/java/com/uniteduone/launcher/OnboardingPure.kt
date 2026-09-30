@@ -50,11 +50,18 @@ internal fun skippedLayout(default: List<LayoutRow>): List<LayoutRow> =
 internal fun planView(
     planned: List<LayoutRow>,
     labels: Map<String, String>,
-): List<Pair<String, List<Pair<String, String>>>> =
+): List<PlanRow> =
     planned.mapNotNull { row ->
         if (row.apps.isEmpty()) null
-        else row.name to row.apps.map { pkg -> pkg to (labels[pkg]?.takeIf { it.isNotBlank() } ?: pkg) }
+        else PlanRow(row.name, row.icon, row.apps.map { pkg -> pkg to (labels[pkg]?.takeIf { it.isNotBlank() } ?: pkg) })
     }
+
+/**
+ * 计划列表的一行:行名、**行图标 id**、(包名, 显示名)。
+ * 图标 id 要随行带着(R140 复审):R133 起默认行名跟界面语言走(「影视 / 直播 / 音乐」),只按行名回落图标
+ * (`legacyRowIconId` 只认 VIDEO / LIVE / MUSIC)的话,中文界面三行全变成电视图标。
+ */
+internal data class PlanRow(val name: String, val icon: String?, val apps: List<Pair<String, String>>)
 
 /**
  * `onCreate` 的三态判定(spec §8):返回要写回 `settings.json` 的 `onboardingDone`;

@@ -59,6 +59,8 @@ private const val KEY_ABOUT_FOCUS = "aboutFocus"
 private const val KEY_SELF_RECREATE = "selfTriggeredRecreate"
 /** 首次引导停在第几步(T10)。只在引导开着时写;还原规则见 `onCreate` 里引导那一段。 */
 private const val KEY_ONB_STEP = "onbStep"
+/** 自己触发的重建之后要补发的提示(R140,字符串资源 id);见 [MainActivity.toastAfterRecreate]。 */
+private const val KEY_TOAST_AFTER_RECREATE = "toastAfterRecreate"
 
 /**
  * 移动态下照常放行的键(M4b spec §3「其它键吞掉」的唯一例外):音量。桌面自己从不处理它们,
@@ -80,6 +82,14 @@ internal const val APPS_PREWARM_DELAY_MS = 1500L
 class MainActivity : ComponentActivity() {
 
     private var lastInput by mutableStateOf(System.currentTimeMillis())
+    /** 应用内提示条正在显示的那一条(R139,见 [toast] 与 AppToast.kt);null = 没有。 */
+    private var toastMessage by mutableStateOf<ToastMessage?>(null)
+    private var toastSeq = 0L
+    /**
+     * 紧接着要自己 `recreate()` 时,提示条画在即将销毁的这个实例里、没人看得见(R140 复审:「恢复默认」把语言改回跟随系统)。
+     * 记下字符串资源 id,经 Bundle 带到新实例里再发——用的是新语言。只在 selfTriggeredRecreate 这条路上补发。
+     */
+    private var toastAfterRecreate: Int? = null
     /** 焦点自救计数:界面报告「整棵树都没有焦点」时 +1,让它重新请求。 */
     private var focusNonce by mutableStateOf(0)
     private var editing by mutableStateOf(false)
@@ -404,6 +414,11 @@ class MainActivity : ComponentActivity() {
         // 设置页再种回来就是两层整屏浮层同时在场、两套焦点账本互相抢(见该函数 KDoc)。
         val bundleSaysOpen = savedInstanceState?.getBoolean(KEY_SETTINGS_OPEN) == true
         val wasSelfTriggered = savedInstanceState?.getBoolean(KEY_SELF_RECREATE) == true
+        // R140:上一个实例留下的提示(自己触发的重建才有),新实例用新语言发。此刻还没到 STARTED,不经 toast() 的前台判断,
+        // 直接放进提示条的状态,窗口一出现就画。
+        if (wasSelfTriggered) savedInstanceState?.getInt(KEY_TOAST_AFTER_RECREATE, 0)?.takeIf { it != 0 }?.let { res ->
+            runCatching { getString(res) }.getOrNull()?.let { toastMessage = ToastMessage(it, true, ++toastSeq) }
+        }
         if (savedInstanceState != null &&
             shouldRestoreSettingsFromBundle(bundleSaysOpen, wasSelfTriggered, onboardingOpen = onboarding)
         ) {
@@ -599,8 +614,14 @@ class MainActivity : ComponentActivity() {
             // 壁纸与黑底常驻在这一层:进出编辑界面只换上面那一层,
             // 壁纸不会被重建,也就不会每次退出编辑都重新解码 + 黑闪一下。
             // 主题色只此一条线:这里提供一次,下面每个界面都读 LocalThemeColors.current(见 ThemePresets.kt)。
+            // R139:页面里的提示(编辑页写盘失败、首页打不开应用、设置页存储没就绪)经它走同一个应用内提示条。
+            val showToast = remember { { text: String, long: Boolean -> toast(text, long) } }
             UnitedUTheme(themeColors) {
-            CompositionLocalProvider(LocalThemeColors provides themeColors, LocalCardFade provides homeSettings.cardFade()) {
+            CompositionLocalProvider(
+                LocalThemeColors provides themeColors,
+                LocalCardFade provides homeSettings.cardFade(),
+                LocalToast provides showToast,
+            ) {
             Box(
                 Modifier
                     .fillMaxSize()
@@ -712,11 +733,21 @@ class MainActivity : ComponentActivity() {
                 // R136:编辑态下这一层自己垫一块 MenuBg——选择器淡入 / 淡出的那几百毫秒里,它后面不是壁纸而是同一个底色
                 // (编辑页与选择器都是 MenuBg 的整屏页,深对深地换,不闪一下壁纸)。
                 Box(Modifier.fillMaxSize().background(GtvTokens.MenuBg))
-                if (pt == null) {
+                // **R138:选择器打开时,编辑页以残影多留一个淡入时长、跟着淡出**(FadeSwitch:活着的那一份在 pt == null 时,
+                // pt 一有值它就变成残影——不可聚焦、看门狗让路、不收返回键,见 EditScreen 的 ghost)。编辑页的卡片菜单
+                // 在残影里原样开着,选择器在它上面淡入:菜单 → 选择器是一次交叉淡化,不再是「先切到深色底、再淡入」。
+                // 残影只多画 SETTINGS_FADE_IN_MS 就离开组合,「选择器开着时编辑页不在组合里」的替换语义照旧(M7 终审 C1);
+                // 选择器关掉时新的一份编辑页当场出现(enterMs = 0,不淡入),选择器的残影盖在它上面淡出,照 editTarget 落焦。
+                FadeSwitch(
+                    state = if (pt == null) Unit else null,
+                    enterMs = 0,
+                    exitMs = GtvLayout.SETTINGS_FADE_IN_MS,
+                    scaleFrom = 1f,
+                ) {
                     EditScreen(
                         // 选择器真的打开了(存储就绪)才记种子:打不开时编辑页留在原地,
-                        // 它自己在调用前安排的重定位已经会把焦点放回这张卡。
-                        onPickIcon = { row, pkg -> if (pickIcon(pkg)) editTarget = row to pkg },
+                        // 它自己收菜单、把焦点放回这张卡。
+                        onPickIcon = { row, pkg -> pickIcon(pkg).also { if (it) editTarget = row to pkg } },
                         onExit = ::leaveEdit,
                         focusNonce = focusNonce,
                         revision = revision,
@@ -938,6 +969,8 @@ class MainActivity : ComponentActivity() {
                     onBack = ::stepBackInOnboarding,
                 )
             }
+            // 应用内提示条(R139):画在所有浮层之上,不可聚焦、不收按键。
+            ToastHost(toastMessage) { id -> if (toastMessage?.id == id) toastMessage = null }
             }
             }
             }
@@ -1039,6 +1072,7 @@ class MainActivity : ComponentActivity() {
         // T10:引导的步骤号。第 1 步选语言时 chooseOnboardingLanguage 先把它改成 2 再 recreate(),
         // 这里写下的就是 2——重建后直接落在第 2 步、已是新语言。
         if (onboarding) outState.putInt(KEY_ONB_STEP, onbStep)
+        if (selfTriggeredRecreate) toastAfterRecreate?.let { outState.putInt(KEY_TOAST_AFTER_RECREATE, it) }
     }
 
     /**
@@ -1560,8 +1594,10 @@ class MainActivity : ComponentActivity() {
             }
             settingsRevision++
             wallpaperParams++
-            toast(getString(R.string.toast_restored))
-            if (localeFor("system") != AppLocale.current) applyLanguage("system")
+            // 语言要改回跟随系统而重建的话,提示留给新实例(用新语言)发,见 toastAfterRecreate
+            val relaunch = localeFor("system") != AppLocale.current
+            if (relaunch) toastAfterRecreate = R.string.toast_restored else toast(getString(R.string.toast_restored))
+            if (relaunch) applyLanguage("system")
         }
     }
 
@@ -2083,7 +2119,8 @@ class MainActivity : ComponentActivity() {
         val fallback = pm.getLeanbackLaunchIntentForPackage("com.dangbei.TVHomeLauncher")
             ?: pm.getLaunchIntentForPackage("com.dangbei.TVHomeLauncher")
         if (fallback != null) {
-            toast(getString(R.string.toast_opened_stock_launcher))
+            // 紧接着就把用户送进原厂桌面:应用内提示条画在我们自己的窗口里,人一走就看不见了,这一条用系统 Toast(R139)。
+            toast(getString(R.string.toast_opened_stock_launcher), system = true)
             open(fallback)
         } else {
             toast(getString(R.string.toast_stock_launcher_not_found))
@@ -2099,7 +2136,17 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+    /**
+     * 发一条提示(R139):平时画成应用内提示条(AppToast.kt,我们自己的胶囊样式);[system] 为真、或 Activity 已不在前台
+     * (没到 STARTED,画了也没人看得见)时照旧用系统 Toast。[long] 默认真:本文件原来一律 LENGTH_LONG。
+     */
+    private fun toast(msg: String, long: Boolean = true, system: Boolean = false) {
+        if (system || !lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
+            Toast.makeText(this, msg, if (long) Toast.LENGTH_LONG else Toast.LENGTH_SHORT).show()
+            return
+        }
+        toastMessage = ToastMessage(msg, long, ++toastSeq)
+    }
 
     /**
      * 桌面不该被返回键退出。

@@ -14,3 +14,7 @@ dist/
 
 # Claude Code session scratch (worktrees, SDD ledgers) — never commit
 .claude/
+
+# Python 缓存(scripts/e2e 等)
+__pycache__/
+*.pyc

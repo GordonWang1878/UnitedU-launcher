@@ -1,6 +1,6 @@
 # 代码评审入口(给外部评审者)
 
-2026-09-29 写,对应 main `6549fa0` 之后;2026-09-30 外观轮(R134–R136:字号 / 版式 / 动效统一)后更新。先读这一份,再按需要跳到它指的文件;这里只讲「是什么、在哪、哪些看起来像 bug 其实是刻意的」,不重复设计论证。
+2026-09-29 写,对应 main `6549fa0` 之后;2026-09-30 外观轮(R134–R136:字号 / 版式 / 动效统一)后更新;同日五路独立复审 + 模拟器端到端测试、R137–R140 修复后再更新。先读这一份,再按需要跳到它指的文件;这里只讲「是什么、在哪、哪些看起来像 bug 其实是刻意的」,不重复设计论证。
 
 ## 1. 这是什么
 
@@ -13,7 +13,7 @@
 ## 2. 怎么构建、测试
 
 - 需要 JDK 17、Android SDK(compileSdk 35、build-tools **35.0.0**,`app/build.gradle.kts` 里显式钉了)、Gradle 8.14.x。**仓库里没有 Gradle Wrapper**。作者机器上工具链刻意不进 PATH,用 `source scripts/env.sh` 注入(路径是作者本机的,仅供参考)。
-- 构建:`gradle --no-daemon assembleRelease`;单测:`gradle --no-daemon testReleaseUnitTest`(`app/src/test/`,55 个文件、约 610 个 JVM 单测;**没有仪器测试**,界面行为靠模拟器脚本 + 真机验收,记录在 `WORKLOG.md`)。
+- 构建:`gradle --no-daemon assembleRelease`;单测:`gradle --no-daemon testReleaseUnitTest`(`app/src/test/`,56 个文件、约 615 个 JVM 单测;**没有仪器测试**,界面行为靠模拟器脚本 + 真机验收,记录在 `WORKLOG.md`)。
 - 没有 `~/.unitedu/release.jks` 时 release 自动用 debug keystore 签名(`-PrequireReleaseKey=true` 时改为构建失败,`scripts/release.sh` 总带这个参数)。R8 开着(`proguard-rules.pro`),资源裁剪关着(理由见 `build.gradle.kts` 注释)。
 - lint:`lintVitalRelease` 通过;完整 `lintRelease` 报 22 个 error,其中 21 个是误报(`ProduceStateDoesNotAssignValue` ×16、`dispatchKeyEvent` 上的 `RestrictedApi` ×5),1 个是刻意的(`QUERY_ALL_PACKAGES`,桌面必须列出全部应用)。详见同日体检报告 [`design/health-check-2026-09-29.md`](design/health-check-2026-09-29.md)。
 - 内置壁纸 / 屏保图有一道构建前置:`app/src/main/assets/builtin/{wallpapers,screensavers}/` 里的图必须先经 `scripts/hdr-assets.py --in-place` 转成双写法 HDR JPEG,否则单测 `BuiltinHdrAssetsTest` 失败(见 §5)。
@@ -25,11 +25,12 @@
 - **进程模型**:所有组件(`MainActivity`、清单里的 `PackageRemovedReceiver` / `RelaunchAfterUpdate`、系统屏保 `UnitedUDream`、上传服务的请求线程)同一进程,所以文件锁用进程内锁就够(`LockedFile`)。
 - **纯函数 / Android 分文件**:凡是能在 JVM 上测的规则都拆成不碰 Android 的文件(`*Pure.kt`、`*Model.kt`、`*Math.kt`、`PickerCells.kt`、`StandbySchedule.kt`、`UpdateChecker.kt`……),Compose / IO 那一半只接线。评审「规则对不对」看纯函数和它的单测,评审「接线 / 生命周期对不对」看 Compose 文件。
 
-## 4. 文件地图(`app/src/main/java/com/uniteduone/launcher/`,77 个文件)
+## 4. 文件地图(`app/src/main/java/com/uniteduone/launcher/`,78 个文件)
 
 **入口与全局状态**
 - `MainActivity.kt`(2100+ 行):浮层状态机、按键分发、待机计时、Bundle 保存 / 还原、包变动广播、语言切换 `recreate()`。评审重点文件。
 - `LocaleOverride.kt`:应用内语言(不用 AppCompat per-app locale);`SettingsRestorePolicy.kt`:重建时要不要把设置外壳从 Bundle 种回。
+- `AppToast.kt`:应用内提示条(R139:`ToastHost` 画在整棵树最上层,页面经 `LocalToast` 发,MainActivity 的 `toast()` 也走它)。
 
 **首页、行、卡片**
 - `HomeScreen.kt`:首页(壁纸层 + 卡片行 + 顶栏)、纵向 / 横向位移自算、焦点看门狗与还原、R129 换行淡入;`CategoryRow` 是一行。
@@ -53,7 +54,7 @@
 
 **选图、导入、上传**
 - `ImagePicker.kt`(1100 行):壁纸 / 卡片图选择器、屏保图库(`PickerGrid` 一个网格一套焦点,内置 + 「＋」+ 我的);`PickerCells.kt`:格子号换算。
-- `BuiltinCatalog.kt`(内置图命名规则,纯函数)+ `BuiltinImages.kt`(assets 发现与读取、伪路径 `/android_asset/…` 解码)。
+- `BuiltinCatalog.kt`(内置图命名规则、三语名字表 `assets/builtin/names.txt` 的解析与取名,纯函数;R137)+ `BuiltinImages.kt`(assets 发现与读取、伪路径 `/android_asset/…` 解码)。
 - `ImportScreen.kt`(扫码页)、`UploadServer.kt`(NanoHTTPD,端口 8090–8099,只在扫码页开着时运行)、`UploadPure.kt`(类型 / 文件名清洗 / 上限)、网页在 `app/src/main/assets/web/index.html`(R130 起:服务端注入 `__STRINGS__` 文案表 `WEB_STRING_KEYS` / `WEB_PLURALS`、`__DEFAULT_TAB__`、`__ACCENT__` 主题色、`__LANG__`;网页每 6 秒拉一次列表兼做连接检测)。文案防线在 `CopyTest`:三语 key 与占位符一致、网页用到的每个 `S.xxx` 都已注入、设置每一行都有说明。
 
 **屏保、视频、HDR**
@@ -81,6 +82,8 @@
 - **没有 `ModulateAlpha`、行图层四边撑大 `APP_FOCUS_GLOW_DP`**:alpha < 1 的 `graphicsLayer` 会把内容画进以图层尺寸为界的离屏层,焦点卡的放大 / 描边 / 柔光越界会被裁(R129f)。
 - **字号与文字色只有 `Type.kt` 一处**(R134):界面代码里出现 `fontSize = 数字.sp`、Bold、`Theme.Sans` 以外的字体都会被单测 `TypeScaleTest` 拦下(它扫源码)。字重只用 Normal / Medium 是刻意的:中文回落到系统 Noto Sans CJK(只有 Regular),Bold 会被合成加粗。
 - **放进 `OverlayStack` / `FadeSwitch` 的页面必须照 `LocalPageGhost` 让路**(R108 / R136):关掉后同一棵子树还要画一个淡出时长,这期间它不可聚焦、不请求焦点、不收返回键、不回调;状态对象把要显示的内容带在身上(残影不按下标现查)。看到 `if (ghost) …` 到处都是,不是重复代码。
+- **残影不靠帧时钟收尾**(R140):宿主掉出 STARTED 时 Compose 暂停帧时钟,`FadeSwitch` 让淡出与之赛跑、先掉出就当场拿掉残影;持有资源的页面在变成残影那一刻就放手(扫码页的上传服务在 `DisposableEffect(ghost)` 里停)。评审「关页后服务 / 播放器还活着」类问题时按这两条看。
+- **提示一律走应用内提示条**(R139,`AppToast.kt` 的 `ToastHost` / `LocalToast`):只有 Activity 不在前台、以及紧接着就离开本应用的那一条(打开原厂桌面)仍用系统 Toast——这是刻意的,不是漏改。
 - **设置页每页胶囊 ≤ 6**(R128),由 `SettingsPageLimitTest` 按界面用的同一份表逐页数;新加条件行要把触发它的系统状态加进测试。
 - **只读系统设置,从不写**:系统屏保、动画缩放、`sleep_timeout` 都只显示并跳系统页;需要 `WRITE_SECURE_SETTINGS` 的做法被刻意否掉。
 - **HDR**:内置图是 Ultra HDR(XMP `hdrgm` + ISO 21496-1 双写法),解码保留增益图、处理链单独处理增益图(R122–R125)。模拟器与 A95L 的显示器都不报 HDR/SDR 比例,Android 14 会把 HDR 窗口静默降成 sRGB——**在这两处看不到 HDR 是预期**,验证只能靠 `Bitmap.hasGainmap()` 日志。
@@ -92,7 +95,7 @@
 - **指针输入(飞鼠 / 触摸)会让窗口进触摸模式**:用 foundation `clickable` 的菜单 / 设置行在触摸模式下拒绝 `requestFocus()`,要等第一下方向键才恢复焦点;看门狗对此无能为力。目标设备的遥控器没有指针,未修(WORKLOG「遗留修复批」Ruling R7)。
 - **`MainActivity` 同时挂 `LEANBACK_LAUNCHER` 与 `HOME`**:API 29+ 上可能出现两个实例(例如先 `am start -n` 再发 HOME intent);建议过跳板 Activity,未做。
 - **「自动关屏」行(R132 前叫「关闭屏幕」)确定键只能开系统设置首页**:那一页(TvSettings 的 `EnergySaverFragment`)在 AOSP 与索尼上都没有外部 intent 入口;行下小字从电视自己的设置应用里读真实菜单名(R127c)。
-- **内置壁纸 / 屏保图的名字在英文界面里仍是中文**(名字来自文件名,没有译名表);**从编辑页的卡片菜单进「换卡片图」是先切到深色底、选图页再淡入**,不是交叉淡化(选图页替换编辑页,菜单的残影随编辑页离开组合)。都是已知取舍。
+- **从「换卡片图」回到编辑页时,编辑页的纵向滚动位置可能与离开前不同**(焦点仍在同一张卡上):选择器替换编辑页,回来是整页重建,滚动从头按「焦点行露出」算(M7 终审 C1 的替换语义);端到端测试里观察到,不影响操作。
 - **R129 换行淡入按几何只在下键触发**:我们的焦点线在屏幕下部,上一行静止时全亮,单按上键不满足「换行前看不见」的条件(连按时才会);这是规则的结果,不是漏写。
 - **A95L 界面层显示不了 HDR**(见 §5),内置 HDR 图在它上面等于 SDR。
 - **主线程 / 组合期的文件 IO**:有几处小文件读取在主线程或组合期里(`MainActivity.kt` 约 468 / 1449 / 1498 / 1822 行、`EditScreen.kt` 约 135 行),体检报告里列了;目前文件都很小,未改。

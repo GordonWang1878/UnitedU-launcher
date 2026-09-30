@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -20,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -112,10 +114,12 @@ fun <S : Any> FadeSwitch(
     var removals by remember { mutableIntStateOf(0) }
     check(removals >= 0)
     val opened = book.sync(state, state?.let(contentKey))
-    if (opened) book.live?.let { alphas[it.gen] = Animatable(if (first[0]) 1f else 0f) }
+    // enterMs ≤ 0 = 不淡入(R138 编辑页从选择器回来时当场出现在选择器残影底下):直接从 1 开始,不画一帧透明的。
+    if (opened) book.live?.let { alphas[it.gen] = Animatable(if (first[0] || enterMs <= 0) 1f else 0f) }
     first[0] = false
     if (book.entries.isEmpty()) return
     val outerGhost = LocalPageGhost.current
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     Box(Modifier.fillMaxSize()) {
         for (e in book.entries.toList()) key(e.gen) {
             val alpha = alphas.getOrPut(e.gen) { Animatable(1f) }
@@ -124,7 +128,16 @@ fun <S : Any> FadeSwitch(
                 if (live) {
                     alpha.animateTo(1f, tween(enterMs, easing = SettingsFadeEasing))
                 } else {
-                    alpha.animateTo(0f, tween(exitMs, easing = SettingsFadeEasing))
+                    // **宿主掉出前台就不等淡出**(R140,复审 Critical):Compose 在 ON_STOP 暂停组合的帧时钟,淡出动画停在原地,
+                    // 残影连同它的副作用(扫码页的上传服务、全屏预览里的播放器)就一直挂在组合里,等人回到桌面才走完——
+                    // 在后台关掉的扫码页,服务会一直开着。所以淡出与「宿主低于 STARTED」赛跑,先掉出就当场拿掉。
+                    val fade = launch { alpha.animateTo(0f, tween(exitMs, easing = SettingsFadeEasing)) }
+                    val watch = launch {
+                        lifecycle.currentStateFlow.first { !it.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) }
+                        fade.cancel()
+                    }
+                    fade.join()
+                    watch.cancel()
                     if (book.remove(e.gen)) { alphas.remove(e.gen); removals++ }
                 }
             }
@@ -167,14 +180,19 @@ fun <S : Any> OverlayStack(
         enterMs = GtvLayout.SETTINGS_FADE_IN_MS,
         exitMs = GtvLayout.SETTINGS_FADE_OUT_MS,
     ) { s ->
-        FadeSwitch(
-            state = s,
-            enterMs = GtvLayout.SETTINGS_LAYER_FADE_MS,
-            exitMs = GtvLayout.SETTINGS_LAYER_FADE_MS,
-            scaleFrom = GtvLayout.SETTINGS_LAYER_SCALE,
-            contentKey = layerKey,
-            content = content,
-        )
+        // **R138:换层时底下垫一块不透明底色**。新旧两层各自带着 MenuBg 交叉淡化,中途两层合起来的覆盖率不到 1
+        // (各 0.5 时只有 0.75),底下那一页(首页的亮壁纸、编辑页的卡片)会透出来「呼吸」一下。垫的这块跟着外层
+        // 一起开关(打开 / 关掉照样是整页淡入淡出),换层时它始终不透明,只有内容在交叉淡化——同设置外壳的底色(R108)。
+        Box(Modifier.fillMaxSize().background(GtvTokens.MenuBg)) {
+            FadeSwitch(
+                state = s,
+                enterMs = GtvLayout.SETTINGS_LAYER_FADE_MS,
+                exitMs = GtvLayout.SETTINGS_LAYER_FADE_MS,
+                scaleFrom = GtvLayout.SETTINGS_LAYER_SCALE,
+                contentKey = layerKey,
+                content = content,
+            )
+        }
     }
 }
 

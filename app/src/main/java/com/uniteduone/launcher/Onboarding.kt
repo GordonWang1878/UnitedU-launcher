@@ -149,7 +149,7 @@ private fun LanguageStep(eyebrow: String, language: String, nonce: Int, onLangua
 private fun FillStep(eyebrow: String, revision: Int, nonce: Int, onFill: () -> Unit, onSkipFill: () -> Unit) {
     val ctx = LocalContext.current
     // IO 线程算(枚举应用 + 读标签);null = 还在读。revision 变了(装卸应用)重算,新结果到达前旧列表原样留着。
-    val plan by produceState<List<Pair<String, List<Pair<String, String>>>>?>(null, revision) {
+    val plan by produceState<List<PlanRow>?>(null, revision) {
         value = withContext(Dispatchers.IO) {
             runCatching { onboardingPlan(ctx) }.getOrElse { e ->
                 Log.w("UnitedU", "引导第 2 步读应用失败: ${e.message}")
@@ -185,7 +185,7 @@ private fun FillStep(eyebrow: String, revision: Int, nonce: Int, onFill: () -> U
 
 /** 第 2 步的计划列表:每行 = 行图标 + 行名 + 这一行将放下的应用名。纯展示。 */
 @Composable
-private fun PlanPanel(plan: List<Pair<String, List<Pair<String, String>>>>?) {
+private fun PlanPanel(plan: List<PlanRow>?) {
     val accent = LocalThemeColors.current.accent
     Column(
         modifier = Modifier
@@ -197,14 +197,16 @@ private fun PlanPanel(plan: List<Pair<String, List<Pair<String, String>>>>?) {
     ) {
         if (plan == null) {
             BasicText(text = stringResource(R.string.edit_loading_apps), style = Type.body)
-        } else plan.forEach { (rowName, apps) ->
+        } else plan.forEach { row ->
+            val rowName = row.name
+            val apps = row.apps
             Row(verticalAlignment = Alignment.Top) {
                 Row(
                     modifier = Modifier.width(PLAN_ROW_NAME_W),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    RowIcon(rowName, tint = accent)
+                    RowIcon(rowName, row.icon, tint = accent)
                     BasicText(
                         text = rowName,
                         maxLines = 1,
@@ -287,7 +289,7 @@ internal fun installedDefaultApps(ctx: Context): Map<String, String> {
 
 /** 第 2 步屏幕上的计划:写盘用的那份布局([plannedLayout])去掉空行、配上显示名([planView])。 */
 @WorkerThread
-internal fun onboardingPlan(ctx: Context): List<Pair<String, List<Pair<String, String>>>> {
+internal fun onboardingPlan(ctx: Context): List<PlanRow> {
     val labels = installedDefaultApps(ctx)
     return planView(localizedDefaultRows(plannedLayout(DEFAULT_LAYOUT, labels.keys), defaultRowNames(ctx)), labels)
 }

@@ -100,6 +100,46 @@ internal fun builtinAssetPathOf(path: String): String? {
     return rel.takeIf { !it.contains("..") }
 }
 
+// ---- 三语显示名(R137)------------------------------------------------------------------------------
+
+/**
+ * **内置图的三语显示名**(R137,2026-09-30 Gordon:「内置图名字在英文和繁体界面仍是简体中文」)。名字表是
+ * `assets/builtin/names.txt`,与图放在一起:一行一张,`分类/ID = 简体 | 繁體 | English`,`#` 开头是注释。
+ * ID 就是 [BuiltinImage.id](文件名去掉扩展名),所以图改名时这里跟着改。
+ *
+ * 取哪一列**不按系统语言猜**,读字符串资源 `builtin_names_lang`(三份 strings.xml 各写 `zh-CN` / `zh-TW` / `en`):
+ * Android 给界面挑了哪一份 strings.xml,名字就取哪一列,界面与名字不会一个繁体一个简体。
+ * 表里没有这一张、或那一列空着:退回简体那一列,再退回去掉序号的文件名([BuiltinImage.label])——新图忘了补名字也照样显示。
+ * 单测 BuiltinNamesTest 查「每张图都有三语名字、表里没有多余的行」,漏补在构建前就会被拦下。
+ */
+internal const val BUILTIN_NAMES_ASSET = "$BUILTIN_ASSET_DIR/names.txt"
+
+/** 名字表的三列(顺序即 names.txt 的列序);值与 `builtin_names_lang` 字符串资源的取值一一对应。 */
+internal val BUILTIN_NAME_LANGS = listOf("zh-CN", "zh-TW", "en")
+
+/** 解析 names.txt:`分类/ID` → 各列(去掉首尾空白,缺的列就缺着)。空行、注释、没有 `=` 的行忽略。 */
+internal fun parseBuiltinNames(text: String): Map<String, List<String>> {
+    val out = LinkedHashMap<String, List<String>>()
+    for (raw in text.removePrefix("\uFEFF").lineSequence()) {
+        val line = raw.trim()
+        if (line.isEmpty() || line.startsWith("#")) continue
+        val eq = line.indexOf('=')
+        if (eq <= 0) continue
+        val key = line.substring(0, eq).trim()
+        if (key.isNotEmpty()) out[key] = line.substring(eq + 1).split('|').map { it.trim() }
+    }
+    return out
+}
+
+/** 这张图在 [lang] 界面下的名字;退回规则见 [BUILTIN_NAMES_ASSET]。认不出的 [lang] 按第一列(简体)取。 */
+internal fun builtinDisplayName(names: Map<String, List<String>>, image: BuiltinImage, lang: String): String {
+    val cols = names["${image.kind.dir}/${image.id}"] ?: return image.label
+    val i = BUILTIN_NAME_LANGS.indexOf(lang).coerceAtLeast(0)
+    return cols.getOrNull(i)?.takeIf { it.isNotEmpty() }
+        ?: cols.getOrNull(0)?.takeIf { it.isNotEmpty() }
+        ?: image.label
+}
+
 /** 伪路径文件 → 它是哪一张内置图;不是 → null。分类目录名不认识的也返回 null。 */
 internal fun builtinImageOf(file: File): BuiltinImage? {
     val rel = builtinAssetPathOf(file.path) ?: return null

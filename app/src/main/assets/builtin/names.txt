@@ -1,0 +1,18 @@
+# 内置图的显示名(三语,R137)。一行一张:分类/ID = 简体 | 繁體 | English
+# ID = 文件名去掉扩展名(与图的身份同一个,见 docs/design/builtin-assets.md)。
+# 放了新图就在这里补一行;漏补的话单测 BuiltinNamesTest 会拦下,图照样显示(名字退回简体 / 文件名)。
+
+wallpapers/01-夏日数码门 = 夏日数码门 | 夏日數碼門 | Summer Digital Gate
+wallpapers/02-午夜玩具房 = 午夜玩具房 | 午夜玩具房 | Midnight Toy Room
+wallpapers/03-雨夜巴士站 = 雨夜巴士站 | 雨夜公車站 | Rainy Night Bus Stop
+wallpapers/04-风暴舰队 = 风暴舰队 | 風暴艦隊 | Storm Fleet
+
+screensavers/01-云海天光 = 云海天光 | 雲海天光 | Light Above the Clouds
+screensavers/02-暮色沙虫 = 暮色沙虫 | 暮色沙蟲 | Sandworm at Dusk
+screensavers/03-海上列车 = 海上列车 | 海上列車 | Train on the Sea
+screensavers/04-深空远征 = 深空远征 | 深空遠征 | Deep Space Expedition
+
+cards/01-wetv = WeTV | WeTV | WeTV
+cards/02-youku = 优酷 | 優酷 | Youku
+cards/03-youtube = YouTube | YouTube | YouTube
+cards/04-iqiyi = 爱奇艺 | 愛奇藝 | iQIYI

@@ -29,6 +29,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -141,7 +142,8 @@ fun GtvTopBar(
         // (模拟器实测:内置壁纸「夏日数码门」的蓝色光圈上,加了阴影也糊)。
         Box(
             modifier = Modifier
-                .alpha(labelAlpha * pillAlpha)
+                // 在图层里读动画值(R140 复审):写成 Modifier.alpha 是组合期读,淡入淡出那 100–200 ms 顶栏逐帧重组。
+                .graphicsLayer { alpha = labelAlpha * pillAlpha }
                 .height(GtvLayout.TOP_BAR_HEIGHT.dp)
                 .clip(RoundedCornerShape(percent = 50))
                 .background(GtvTokens.PillTrack)

@@ -149,11 +149,13 @@
 
     <!-- picker_* : wallpaper / card-image / screensaver pickers -->
     <string name="picker_wallpaper_title">Choose a Wallpaper</string>
-    <string name="picker_card_image_title">Choose a Card Image</string>
+    <string name="picker_card_image_title">Choose Card Art</string>
     <string name="picker_no_images">No images available yet</string>
     <string name="picker_back_to_close">Press OK to preview, hold OK to delete or turn off</string>
     <string name="picker_back_to_cancel">Press OK to choose, Back to cancel</string>
     <string name="picker_restore_original">Restore Original</string>
+    <!-- 内置图名字表(assets/builtin/names.txt)取哪一列(R137);随这份 strings.xml 的语言走,不要翻译成别的值 -->
+    <string name="builtin_names_lang">en</string>
     <string name="picker_add_from_phone">Add from Phone</string>
     <plurals name="picker_screensaver_pool_title">
         <item quantity="one">Screensaver Gallery · %1$d item</item>
@@ -285,7 +287,7 @@
     <string name="toast_open_failed">Couldn\'t open: %1$s</string>
     <string name="toast_wallpaper_changed">Wallpaper changed</string>
     <string name="toast_invalid_image">That file isn\'t a usable image</string>
-    <string name="toast_card_image_changed">Card image changed</string>
+    <string name="toast_card_image_changed">Card art changed</string>
     <string name="toast_icon_restored">Original icon restored</string>
     <string name="toast_opened_stock_launcher">Opened the stock launcher; to switch permanently, change the default home app in System Settings</string>
     <string name="toast_stock_launcher_not_found">Stock launcher not found</string>
@@ -398,7 +400,7 @@
     <string name="settings_theme_color_desc">The highlight color for the focus frame, buttons and more.</string>
     <string name="settings_follow_wallpaper_desc">When on, the theme color is picked from your wallpaper.</string>
     <string name="settings_start_screensaver_desc">Play the screensaver right now. Press any button to exit.</string>
-    <string name="settings_screensaver_after_desc">How long the home screen sits unused before the screensaver starts.</string>
+    <string name="settings_screensaver_after_desc">How long after the idle screen appears before the screensaver starts.</string>
     <string name="settings_screensaver_interval_desc">How long each photo stays before the next one.</string>
     <string name="settings_system_screensaver_desc">The screensaver your TV starts when idle in other apps. Choose UnitedU to play the same gallery.</string>
     <string name="settings_screen_off_desc">How long the TV sits unused before it turns the screen off. This is a TV setting; press OK to go there.</string>

@@ -146,6 +146,8 @@
     <string name="picker_back_to_close">按确定预览，长按可删除或关闭</string>
     <string name="picker_back_to_cancel">按确定选用，按返回键取消</string>
     <string name="picker_restore_original">恢复原图</string>
+    <!-- 内置图名字表(assets/builtin/names.txt)取哪一列(R137);随这份 strings.xml 的语言走,不要翻译成别的值 -->
+    <string name="builtin_names_lang">zh-CN</string>
     <string name="picker_add_from_phone">从手机添加</string>
     <plurals name="picker_screensaver_pool_title">
         <item quantity="one">屏保图库 · %1$d 项</item>
@@ -390,7 +392,7 @@
     <string name="settings_theme_color_desc">焦点框、按钮等高亮处的颜色。</string>
     <string name="settings_follow_wallpaper_desc">打开后，主题色会从当前壁纸里自动选取。</string>
     <string name="settings_start_screensaver_desc">马上播放屏保，按任意键退出。</string>
-    <string name="settings_screensaver_after_desc">在 UnitedU 桌面上多久没操作，就自动开始屏保。</string>
+    <string name="settings_screensaver_after_desc">闲置画面出现之后，再过多久自动开始屏保。</string>
     <string name="settings_screensaver_interval_desc">每张照片停留多久，再换下一张。</string>
     <string name="settings_system_screensaver_desc">在其他应用里闲置时，由电视启动的屏保。选 UnitedU，就会播放同一个屏保图库。</string>
     <string name="settings_screen_off_desc">多久没操作，电视就自动关闭屏幕。这是电视自己的设置，按确定前往。</string>

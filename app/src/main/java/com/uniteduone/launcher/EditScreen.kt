@@ -97,8 +97,11 @@ fun EditScreen(
      * 「换卡片图」:(layout.json 行号, 包名)。**选择器会替换本页**(M7 终审 C1):选择器开着时本页不在组合里,
      * 关掉后整页重建、所有 `remember` 归零——调用方必须把这两个值原样当 [initialTarget] 喂回来,
      * 焦点才回得到这张卡。行号就是本页 `rows` 的下标(本页连空行都画,行号与 layout.json 一致;列号不一致,见 [initialTarget])。
+     * 返回选择器是否真的打开了(存储没就绪时打不开)。**R138**:打开了的话本页不收菜单——本页随即变成淡出的残影
+     * (MainActivity 的 FadeSwitch),菜单原样留在画面上,选择器在它上面淡入,是一次真正的交叉淡化;
+     * 残影只多画一个淡入时长就离开组合,菜单开着这件事不会被任何人看到「活」的一面。
      */
-    onPickIcon: (row: Int, pkg: String) -> Unit,
+    onPickIcon: (row: Int, pkg: String) -> Boolean,
     onExit: () -> Unit,
     focusNonce: Int = 0,
     revision: Int = 0,
@@ -123,6 +126,13 @@ fun EditScreen(
     onCarryingChange: (Boolean) -> Unit = {},
 ) {
     val ctx = LocalContext.current
+    val showToast = LocalToast.current   // R139:应用内提示条
+    /**
+     * **R138:本页也会以残影出现**——打开「换卡片图」时 MainActivity 让它多留一个淡入时长、跟着淡出(选择器在上面淡入)。
+     * 残影里:整棵卡片子树不可聚焦、看门狗与重定位让路(守卫与 key 同一个量,铁律 6)、两个返回键回调关掉、
+     * 不再向 MainActivity 报搬运状态。菜单这些浮层自己读同一个量让路(GearMenu 等)。
+     */
+    val ghost = LocalPageGhost.current
     // 与首页同一套卡片档位尺寸,编辑页的卡片才会和首页一样大。
     // Ruling R18(终审 2026-09-20):这里原来读 Theme.cardMetrics(cardsPerRow)(HomeLayout 那一套,
     // 6 张时 124×69.75dp),首页早已换成 gtv 三档(当时中档 153×86dp;R59 起 122 / 137 / 153),编辑页里的同一个应用因此比首页
@@ -283,9 +293,7 @@ fun EditScreen(
                 if (landed) written?.let { w -> knownOnDisk.set(knownAfterWrite(knownOnDisk.get(), w)) }
                 landed
             }
-            if (!ok) android.widget.Toast.makeText(
-                ctx, ctx.getString(R.string.edit_toast_order_not_saved), android.widget.Toast.LENGTH_LONG,
-            ).show()
+            if (!ok) showToast(ctx.getString(R.string.edit_toast_order_not_saved), true)
         }
     }
     /** 进入搬运(卡片菜单「移动位置」,菜单已收):记下整份 rows 与出发格,焦点目标 = 这张卡。 */
@@ -405,7 +413,8 @@ fun EditScreen(
     // (「没有可添加的应用了」),childFocused 全程 false;按返回关掉浮层时
     // picking 不是 key、focusedCell 没变、也没安排重定位 —— **几个 key 一个都没变,
     // 看门狗不会重启**,编辑界面里只剩返回键能用。M4b 起所有浮层合成一个 overlayOpen(见其 KDoc)。
-    LaunchedEffect(focusNonce, all, focusedCell, overlayOpen, retargeting) {
+    LaunchedEffect(focusNonce, all, focusedCell, overlayOpen, retargeting, ghost) {
+        if (ghost) return@LaunchedEffect
         if (retargeting) return@LaunchedEffect
         if (overlayOpen) return@LaunchedEffect
         if (focusedCell != null) return@LaunchedEffect
@@ -430,7 +439,8 @@ fun EditScreen(
     // 目标算出来是 0,当前本来就是 0)**一次请求都不会发**,焦点被交给 Compose 的默认恢复,
     // 落到第一行第一张。而跳转是静默的,下一步操作会打在别的行上 ——
     // 复审就因此误删了 VIDEO 行的一个应用。HomeScreen 那份早就是双条件,这里漏了。
-    LaunchedEffect(retargetTick) {
+    LaunchedEffect(retargetTick, ghost) {
+        if (ghost) return@LaunchedEffect
         val ri = retargetRow.coerceIn(0, requesters.lastIndex)
         val wantCol = retargetCol
         // **目标格若是注定被整格替换的加载占位,先等它换完**(M4b spec §0-16 的根因,2026-09-19 模拟器实测):
@@ -535,7 +545,7 @@ fun EditScreen(
     // 返回键走 OnBackPressedDispatcher。用 onKeyEvent 有两个问题:预测式返回启用后
     // BACK 不再作为按键事件下发;而且焦点不在浮层里时(比如「没有可添加的应用了」——
     // 那个对话框里一个可聚焦节点都没有)按返回会**一步退出整个编辑界面**。
-    androidx.activity.compose.BackHandler {
+    androidx.activity.compose.BackHandler(enabled = !ghost) {
         // 取消 = 什么都没做,焦点必须留在原来那张卡上。这三条路原本根本没有安排重定位,
         // 于是 Compose 的默认恢复把焦点丢到第一行第一张。
         val a = acting; val p = picking
@@ -557,7 +567,7 @@ fun EditScreen(
     // **搬运中的返回键 = 取消**(M4b spec §0-18)。只在搬运中存在,组合得比上面那个晚 → 先接管(OnBackPressedDispatcher
     // 先问最后加进来的)。返回键不在下面的按键截获里处理:没开预测式返回时它照常经 onKeyUp → onBackPressed 到这里,
     // 开了之后根本不作为按键事件下发——走 BackHandler 两种情况都接得住。
-    if (carry != null) androidx.activity.compose.BackHandler { cancelCarry() }
+    if (carry != null && !ghost) androidx.activity.compose.BackHandler { cancelCarry() }
 
     // 搬运中那一下按压的 downTime 与其中按满长按的那一下(见 CarryPresses)。
     val presses = remember { CarryPresses() }
@@ -605,9 +615,10 @@ fun EditScreen(
     // 唯一的写入方:以它为 key,每次变化报一次;本页离开组合(HOME、换卡片图的选择器替换本页)时补报 false——不是闩(铁律 7)。
     val carrying = carry != null
     val reportCarrying by rememberUpdatedState(onCarryingChange)
-    DisposableEffect(carrying) {
-        reportCarrying(carrying)
-        onDispose { reportCarrying(false) }
+    // R138:残影不报——它离开组合晚一个淡入时长,那时新的一页可能已经在搬运了,补报的 false 会把它盖掉。
+    DisposableEffect(carrying, ghost) {
+        if (!ghost) reportCarrying(carrying)
+        onDispose { if (!ghost) reportCarrying(false) }
     }
     // **任何浮层要打开 = 搬运取消**(M4b spec §0-18,同首页 §0-9)。在这一处收口,不去每个浮层的入口各判一次。
     // 按键路径上开不出浮层(确定键在根上就被截走),卡片与「+」的点击在搬运中也一律不理(只可能来自指针 / 无障碍,
@@ -639,7 +650,7 @@ fun EditScreen(
                 // **必须 unbounded**:不放开测量,超出视窗的行会被压扁 / 量成 0 高,offset 发生在测量之后救不回来
                 .wrapContentHeight(Alignment.Top, unbounded = true)
                 .offset(y = yShift)
-                .focusProperties { canFocus = !overlayOpen }
+                .focusProperties { canFocus = !overlayOpen && !ghost }
                 .padding(top = EditEdgePad, bottom = EditEdgePad)
         ) {
             // R135:页头与所有应用页同一个样子——31 sp 页名 + 14 sp 说明(原来是 20 sp 主题色页名 + 12 sp 说明)。
@@ -862,9 +873,10 @@ fun EditScreen(
                                 startCarry(ri, pi)
                             })
                             add(MenuItem(stringResource(R.string.edit_change_image), stringResource(R.string.edit_change_image_desc)) {
-                                // retarget 只服务「选择器没打开」(存储没就绪、已 toast)那条路:本页留在原地,焦点回这张卡。
-                                // 打开了的话本页随即被选择器替换,回来时由调用方把 (ri, pkg) 当 initialTarget 喂回来。
-                                acting = null; retarget(ri, pi); onPickIcon(ri, pkg)
+                                // 打开了:本页随即被选择器替换(先以残影淡出,R138),回来时由调用方把 (ri, pkg) 当 initialTarget 喂回来;
+                                // 菜单留着不收,残影里它原样画着,选择器在它上面淡入。
+                                // 没打开(存储没就绪、已提示):本页留在原地,收菜单、焦点回这张卡。
+                                if (!onPickIcon(ri, pkg)) { acting = null; retarget(ri, pi) }
                             })
                             add(MenuItem(stringResource(R.string.edit_remove), stringResource(R.string.edit_remove_desc)) {
                                 // **按包名移出**(R67):pi 是看得见的列号,不是 layout.json 下标;包名在一行里唯一

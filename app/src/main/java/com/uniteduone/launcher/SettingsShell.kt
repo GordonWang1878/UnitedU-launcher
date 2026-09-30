@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -236,9 +237,10 @@ private fun RowDescription(text: String?, note: String? = null) {
         targetState = text to note,
         animationSpec = tween(GtvLayout.FOCUS_FADE_IN_MS),
         label = "rowDescription",
-        modifier = Modifier.height(DESC_BLOCK_DP.dp),
+        // 铺满宽度(R140 复审):Crossfade 的盒子默认左上对齐、宽取最宽的那一份,过渡中窄的说明先偏左、淡完才跳回正中。
+        modifier = Modifier.fillMaxWidth().height(DESC_BLOCK_DP.dp),
     ) { (t, n) ->
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             if (t != null) BasicText(t, maxLines = 3, style = shellDescStyle.copy(textAlign = TextAlign.Center))
             if (n != null) {
                 Spacer(Modifier.height(8.dp))
@@ -375,6 +377,7 @@ fun SettingsShell(
     revision: Int,
 ) {
     val ctx = LocalContext.current
+    val showToast = LocalToast.current   // R139:应用内提示条
     if (stack.isEmpty()) return
 
     // 屏保图库张数(「屏保启动」选项层的提示要分「图库为空」)、隐藏的输入源数(「恢复隐藏的输入源」条件行)、
@@ -384,7 +387,11 @@ fun SettingsShell(
     val screensaverImages by produceState(-1, galleryVersion, covered) {
         value = withContext(Dispatchers.IO) { safePlaylist(ctx)?.size ?: 0 }
     }
-    val systemStatus = remember(focusNonce, covered) { readSystemUiStatus(ctx) }
+    // 关外壳时 focusNonce++,原来残影会当场再做一遍跨进程读取(白占按键那一帧,R140 复审):残影沿用上一份。
+    // lastStatusKey 是普通数组,组合里写它不会触发重组;活着时跟着 (focusNonce, covered) 走,残影冻结。
+    val lastStatusKey = remember { arrayOf<Any?>(null) }
+    if (!LocalPageGhost.current) lastStatusKey[0] = focusNonce to covered
+    val systemStatus = remember(lastStatusKey[0]) { readSystemUiStatus(ctx) }
 
     val written by rememberUpdatedState(onWritten)
     // 最近一次写盘成没成功:选项层据此决定回不回上一层(写失败就留在原地,提示过了也不假装保存了)。
@@ -395,7 +402,7 @@ fun SettingsShell(
         if (!ok) {
             Log.w(LOG_TAG, "settings.json 写入失败")
             // 交互测试 2026-09-23(评审 #2):写失败原先只进日志,人看到的是「按了确定、回了上一层、值没变」。
-            android.widget.Toast.makeText(ctx, R.string.toast_storage_not_ready, android.widget.Toast.LENGTH_SHORT).show()
+            showToast(ctx.getString(R.string.toast_storage_not_ready), false)
         }
         written()
     }

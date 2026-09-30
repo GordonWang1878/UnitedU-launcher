@@ -273,7 +273,9 @@ private fun LabelTrailingRow(
 
 @Composable
 private fun TrailingContent(trailing: Trailing, focused: Boolean, textColor: Color, accent: Color) {
-    val faded = textColor.copy(alpha = 0.55f)
+    // 右端的值 / ›:未聚焦时用说明那一档灰(R140 复审:原来是标签色 × 0.55,在胶囊底上只有 3.4:1),
+    // 聚焦时在主题色上用对比文字色压淡一点,仍比标签弱一级。
+    val faded = if (focused) textColor.copy(alpha = 0.7f) else Ink.Secondary
     val style = TextStyle(fontFamily = Theme.Sans, fontSize = PillType.text.sp, color = faded)
     when (trailing) {
         Trailing.None -> Unit

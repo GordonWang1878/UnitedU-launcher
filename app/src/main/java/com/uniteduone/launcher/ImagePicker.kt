@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.*
@@ -28,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -107,6 +109,17 @@ private fun rememberBuiltins(kind: BuiltinKind): List<BuiltinImage>? {
         if (value == null) value = withContext(Dispatchers.IO) { BuiltinImages.list(ctx, kind) }
     }
     return listed
+}
+
+/**
+ * 内置图在当前界面语言下的名字(R137):names.txt 里取 `builtin_names_lang` 那一列,表里没有就退回文件名。
+ * 网格标签、内置图菜单的页名、全屏预览左下角都用它,三处同一个名字。
+ */
+@Composable
+private fun builtinName(image: BuiltinImage): String {
+    val ctx = LocalContext.current
+    val lang = stringResource(R.string.builtin_names_lang)
+    return remember(image, lang) { builtinDisplayName(BuiltinImages.names(ctx), image, lang) }
 }
 
 /**
@@ -249,7 +262,7 @@ private fun PickerGrid(
     emptyHint: String? = null,
     /**
      * 网格底下那一行操作提示(R131)。选图(壁纸 / 卡片图)是「按返回键取消」;屏保图库不是在选东西,
-     * 写的是「按确定预览 · 长按可删除或关闭 · 按返回键关闭」——长按那两件事原来哪里都没写。
+     * 写的是「按确定预览,长按可删除或关闭」——长按那两件事原来哪里都没写(R135 起提示在页头,返回键不用再写)。
      */
     backHint: Int = R.string.picker_back_to_cancel,
     /**
@@ -518,7 +531,8 @@ private fun PickerGrid(
                 // **必须 unbounded**(铁律 1 的另一半):不放开测量,超出 600dp 的行会被压扁 / 量成 0 高,
                 // offset 发生在测量之后救不回来
                 .wrapContentHeight(Alignment.Top, unbounded = true)
-                .offset(y = yShift),
+                // 位移在布局阶段读(R140 复审):写成 offset(y = …) 是组合期读,弹簧走的那半秒整个网格逐帧重组。
+                .offset { IntOffset(0, yShift.roundToPx()) },
             verticalArrangement = Arrangement.spacedBy(rowGap),
         ) {
         lines.forEachIndexed { lineIdx, line ->
@@ -727,7 +741,7 @@ private fun ThumbCard(
         PickerItem.AddFromPhone -> ""   // 不会走到(上面已分流),只为 when 穷尽
         is PickerItem.Original -> stringResource(R.string.picker_restore_original)
         is PickerItem.Library -> item.file.nameWithoutExtension
-        is PickerItem.Builtin -> item.image.label
+        is PickerItem.Builtin -> builtinName(item.image)
     }
     val highlight = LocalThemeColors.current.highlight
     val accent = LocalThemeColors.current.accent
@@ -975,7 +989,7 @@ fun ScreensaverPoolViewer(
                 ),
                 onDismiss = onCloseBuiltinMenu,
                 nonce = nonce,
-                title = ov.image.label,
+                title = builtinName(ov.image),
                 eyebrow = galleryTitle,
             )
         }
@@ -1050,10 +1064,12 @@ private fun ScreensaverPreview(
         }
         if (showInfo) {
             val file = files[index]
+            // 内置图(R115)显示与网格里同一个名字(R137 起按界面语言取),用户的图显示文件名
+            val builtin = builtinImageOf(file)
+            val name = if (builtin != null) builtinName(builtin) else file.nameWithoutExtension
             Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.BottomStart) {
                 BasicText(
-                    // 内置图(R115)显示标签(去掉序号前缀),与网格里同一个名字
-                    text = "${builtinImageOf(file)?.label ?: file.nameWithoutExtension}  (${index + 1}/${files.size})",
+                    text = "$name  (${index + 1}/${files.size})",
                     style = Type.body.copy(color = Color.White.copy(alpha = 0.7f)),
                 )
             }

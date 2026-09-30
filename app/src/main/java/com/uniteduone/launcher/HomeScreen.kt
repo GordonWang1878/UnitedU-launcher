@@ -913,6 +913,7 @@ private fun CategoryRow(
     onFocusChange: (Int, Boolean) -> Unit,
 ) {
     val ctx = LocalContext.current
+    val showToast = LocalToast.current   // R139:应用内提示条
     // Ruling R48(2026-09-22,owner 看效果图后选 A2):首页取消行标题,行图标留在左边距里当焦点提示。
     // 焦点行 accent、其余行 accent 压暗(R80,原 R46 灰 ↔ 近白),与整页位移同一根弹簧(R47 的 Theme.rowIconFocusSpec),
     // **不缩放**。进度量 iconFocus 只在绘制阶段读(RowIcon 的 tint lambda),动画每帧不重组本行、
@@ -1024,9 +1025,7 @@ private fun CategoryRow(
                     focusAfterShift = landedWithShift && index == focused,
                     onClick = {
                         if (!Apps.launch(ctx, app.packageName)) {
-                            android.widget.Toast.makeText(
-                                ctx, ctx.getString(R.string.toast_cant_open_app, app.label), android.widget.Toast.LENGTH_SHORT,
-                            ).show()
+                            showToast(ctx.getString(R.string.toast_cant_open_app, app.label), false)
                         }
                     },
                     modifier = Modifier

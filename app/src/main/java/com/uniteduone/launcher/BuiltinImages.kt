@@ -46,9 +46,25 @@ object BuiltinImages {
     /** 已经列过的清单(主线程可调,不碰 AssetManager);还没列过 → null(调用方到 IO 线程调 [list])。 */
     fun cached(kind: BuiltinKind): List<BuiltinImage>? = catalogs[kind]
 
-    /** 三个分类一起列一遍(IO 线程,启动时预热:打开选图页时清单已在缓存里,网格不用等)。 */
+    @Volatile private var names: Map<String, List<String>>? = null
+
+    /**
+     * 三语名字表(R137,见 [BUILTIN_NAMES_ASSET]);进程内缓存。启动时 [prewarm] 已在 IO 线程读过,界面里再调直接拿缓存;
+     * 万一还没读过就当场读(文件只有一两 KB)。读不到按空表处理:名字退回文件名,不影响任何功能。
+     */
+    fun names(ctx: Context): Map<String, List<String>> {
+        names?.let { return it }
+        val parsed = runCatching {
+            ctx.applicationContext.assets.open(BUILTIN_NAMES_ASSET).use { it.readBytes().toString(Charsets.UTF_8) }
+        }.onFailure { Log.w(TAG, "内置图名字表读不了", it) }.getOrNull()?.let(::parseBuiltinNames) ?: emptyMap()
+        names = parsed
+        return parsed
+    }
+
+    /** 三个分类一起列一遍、名字表读一遍(IO 线程,启动时预热:打开选图页时清单已在缓存里,网格不用等)。 */
     fun prewarm(ctx: Context) {
         for (k in BuiltinKind.entries) list(ctx, k)
+        names(ctx)
     }
 
     /**

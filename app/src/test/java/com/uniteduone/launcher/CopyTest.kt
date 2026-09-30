@@ -39,6 +39,27 @@ class CopyTest {
         }
     }
 
+    /** 每条 plurals 三种语言都给了 one 与 other(R140 复审:有的 ROM 对中文也取 one,缺了就落空)。 */
+    @Test fun pluralsHaveOneAndOtherInEveryLanguage() {
+        for (l in langs) {
+            val xml = File(res, "$l/strings.xml").readText()
+            Regex("""<plurals name="([^"]+)"[^>]*>(.*?)</plurals>""", RegexOption.DOT_MATCHES_ALL).findAll(xml).forEach { m ->
+                for (q in listOf("one", "other")) {
+                    assertTrue("$l 的 plurals ${m.groupValues[1]} 缺 $q", m.groupValues[2].contains("quantity=\"$q\""))
+                }
+            }
+        }
+    }
+
+    /** 中文里与汉字相邻的标点一律全角(R132);半角的 , : ; ? ! ( ) 紧挨着汉字就算漏网(文件扩展名里的点不算)。 */
+    @Test fun chinesePunctuationIsFullWidth() {
+        val bad = Regex("""[\u4e00-\u9fff][,:;?!()]|[,:;?!()][\u4e00-\u9fff]""")
+        for (l in listOf("values", "values-zh-rTW")) {
+            val offenders = strings(l).filter { (_, v) -> bad.containsMatchIn(v) }.map { (k, v) -> "$k = $v" }
+            assertTrue("$l 有半角标点挨着汉字:\n" + offenders.joinToString("\n"), offenders.isEmpty())
+        }
+    }
+
     @Test fun placeholdersMatchAcrossLanguages() {
         val all = langs.associateWith { strings(it) }
         for ((name, zh) in all.getValue("values")) {

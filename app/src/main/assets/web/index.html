@@ -185,6 +185,12 @@ const q = s => encodeURIComponent(s);
 // 屏保分页收视频(R103):扩展名表、500 MB 上限与服务端 ScreensaverMedia 一致;超限的在手机上就拦下,不白传
 const VIDEO_EXTS = ["mp4", "m4v", "mov", "webm"];
 const MAX_VIDEO = 500 * 1024 * 1024;
+// 照片单张 30 MB、APK 100 MB(= 服务端 MAX_UPLOAD_BYTES / MAX_APK_BYTES)。超限的在手机上就拦下:服务端对声明长度超限的请求
+// 不读 body 直接回 413 并关连接,有的浏览器(iOS Safari)收不到回应,会当成「和电视断开了」。
+const MAX_PHOTO = 30 * 1024 * 1024;
+const MAX_APK = 100 * 1024 * 1024;
+// 一批最多 8 张(服务端按 8 × 30 MB 卡一次请求的总长度);选多了分几批传。
+const BATCH = 8;
 const isVideo = n => VIDEO_EXTS.includes((n.split(".").pop() || "").toLowerCase());
 const ACCEPT_IMG = "image/*";
 const ACCEPT_MEDIA = "image/*,video/mp4,video/quicktime,video/webm,.mp4,.m4v,.mov,.webm";
@@ -241,7 +247,13 @@ let lastList = "";
 async function load(quiet) {
   const isApk = type === "apk";
   $("imgpane").hidden = isApk; $("apkpane").hidden = !isApk;
-  if (isApk) return;
+  if (isApk) {
+    // 这一页没有列表,但照样问一次电视,好让断连 / 恢复的状态跟着变
+    try { await fetch(`/api/list?type=wallpapers`, { cache: "no-store" }); }
+    catch (e) { if (online) setOnline(false); return; }
+    if (!online) { setOnline(true); $("toast").classList.add("hide"); }
+    return;
+  }
   const ss = type === "screensavers";
   $("desc").textContent = S["desc_" + type];
   $("pickLabel").textContent = ss ? S.pick_media : S.pick_photos;
@@ -328,7 +340,10 @@ function post(url, body, raw, onProgress) {
     for (const k in H) x.setRequestHeader(k, H[k]);
     if (raw) x.setRequestHeader("Content-Type", "application/octet-stream");
     x.upload.onprogress = ev => { if (ev.lengthComputable) onProgress(Math.floor(ev.loaded * 100 / ev.total)); };
-    x.onload = () => { let d = null; try { d = JSON.parse(x.responseText); } catch (err) {} resolve(d); };
+    x.onload = () => {
+      if (!online) { setOnline(true); $("toast").classList.add("hide"); }
+      let d = null; try { d = JSON.parse(x.responseText); } catch (err) {} resolve(d);
+    };
     x.onerror = () => resolve(undefined);   // undefined = 连不上;null = 连上了但回的不是 JSON
     x.send(body);
   });
@@ -356,12 +371,18 @@ $("pick").onchange = async e => {
       else rejected.push({ name: f.name, reason: (d && d.reason) || "server" });
     }
   } else {
-    const fd = new FormData(); for (const f of files) fd.append("files", f, f.name);
-    toast({ icon: "busy", text: head, progress: 0 });
-    const d = await post(`/api/upload?type=${type}`, fd, false, p => toast({ icon: "busy", text: head, progress: p }));
-    if (d === undefined) { setOnline(false); return; }
-    if (d && Array.isArray(d.saved) && Array.isArray(d.rejected)) { saved.push(...d.saved); rejected.push(...d.rejected); }
-    else rejected.push(...files.map(f => ({ name: f.name, reason: (d && d.reason) || "server" })));
+    const ok = [];
+    for (const f of files) { if (f.size > MAX_PHOTO) rejected.push({ name: f.name, reason: "size" }); else ok.push(f); }
+    for (let i = 0; i < ok.length; i += BATCH) {
+      const batch = ok.slice(i, i + BATCH);
+      const step = ok.length > BATCH ? ` ${Math.min(i + BATCH, ok.length)}/${ok.length}` : "";
+      const fd = new FormData(); for (const f of batch) fd.append("files", f, f.name);
+      toast({ icon: "busy", text: head + step, progress: 0 });
+      const d = await post(`/api/upload?type=${type}`, fd, false, p => toast({ icon: "busy", text: head + step, progress: p }));
+      if (d === undefined) { setOnline(false); return; }
+      if (d && Array.isArray(d.saved) && Array.isArray(d.rejected)) { saved.push(...d.saved); rejected.push(...d.rejected); }
+      else rejected.push(...batch.map(f => ({ name: f.name, reason: (d && d.reason) || "server" })));
+    }
   }
   finish(files.length, saved, rejected);
   load();
@@ -377,6 +398,7 @@ function apkStatus(icon, text, sub) {
 }
 $("apkpick").onchange = async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  if (f.size > MAX_APK) { apkStatus("warn", S.apk_size || S.error, f.name); return; }
   const fd = new FormData(); fd.append("apk", f, f.name);
   apkStatus("busy", plural("uploading", 1), f.name);
   const d = await post("/api/apk", fd, false, p => apkStatus("busy", `${plural("uploading", 1)} ${p}%`, f.name));

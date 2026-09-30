@@ -15,7 +15,8 @@ class TypeScaleTest {
         File("app/src/main/java/com/uniteduone/launcher"),
     ).first { it.isDirectory }
 
-    private fun sources(): List<File> = src.listFiles { f -> f.extension == "kt" }!!.sortedBy { it.name }
+    /** 整棵源码树(R140 复审:原来只扫一层目录,子包里的写死字号漏得过去)。 */
+    private fun sources(): List<File> = src.walkTopDown().filter { it.isFile && it.extension == "kt" }.sortedBy { it.name }.toList()
 
     /** 去掉注释(块注释与行注释),只看代码。 */
     private fun code(f: File): String =
@@ -36,6 +37,13 @@ class TypeScaleTest {
             literal.findAll(code(f)).map { "${f.name}: ${it.value}" }.toList()
         }
         assertTrue("界面代码里写死了字号,改用 Type.*:\n" + offenders.joinToString("\n"), offenders.isEmpty())
+        // 另外两种写法(R140 复审指出的绕过):TextUnit(…) 构造、以及 lineHeight 以外的任何「数字.sp」
+        val other = sources().filter { it.name != "Type.kt" }.flatMap { f ->
+            val c = code(f)
+            (Regex("""TextUnit\(""").findAll(c).map { "${f.name}: ${it.value}" } +
+                Regex("""(?<!lineHeight = )\b\d+(\.\d+)?f?\.sp\b""").findAll(c).map { "${f.name}: ${it.value}" }).toList()
+        }
+        assertTrue("字号只从 Type 取:\n" + other.joinToString("\n"), other.isEmpty())
     }
 
     @Test fun uiCodeNoLongerReadsTheSettingsStep() {
@@ -52,7 +60,7 @@ class TypeScaleTest {
         assertTrue("只用 Theme.Sans:\n" + offenders.joinToString("\n"), offenders.isEmpty())
         // 不用 Bold:中文回落字体只有 Regular,Bold 会被系统合成加粗(见 Type 的 KDoc)
         val bold = sources().flatMap { f ->
-            Regex("""FontWeight\.(Bold|SemiBold|ExtraBold|Black)""").findAll(code(f)).map { "${f.name}: ${it.value}" }.toList()
+            Regex("""FontWeight\.(Bold|SemiBold|ExtraBold|Black|W[6-9]00)""").findAll(code(f)).map { "${f.name}: ${it.value}" }.toList()
         }.filterNot { it.startsWith("Theme.kt") }   // Theme.Sans 注册字重轴的那一处
         assertTrue("字重只用 Normal / Medium:\n" + bold.joinToString("\n"), bold.isEmpty())
     }
@@ -74,7 +82,11 @@ class TypeScaleTest {
             fun ch(v: Float): Double = if (v <= 0.03928f) v / 12.92 else Math.pow((v + 0.055) / 1.055, 2.4)
             return 0.2126 * ch(c.red) + 0.7152 * ch(c.green) + 0.0722 * ch(c.blue)
         }
-        val ratio = (lum(Ink.Tertiary) + 0.05) / (lum(GtvTokens.MenuBg) + 0.05)
-        assertTrue("对比度 $ratio", ratio >= 4.5)
+        fun ratio(fg: androidx.compose.ui.graphics.Color, bg: androidx.compose.ui.graphics.Color) = (lum(fg) + 0.05) / (lum(bg) + 0.05)
+        // 两种底都要过:页面底色,与未聚焦胶囊 / 信息块的底(「当前」、胶囊右端的值画在它上面,R140 复审)
+        for (bg in listOf(GtvTokens.MenuBg, GtvTokens.MenuItemIdle)) {
+            val r = ratio(Ink.Tertiary, bg)
+            assertTrue("最弱一档在 $bg 上对比度 $r", r >= 4.5)
+        }
     }
 }

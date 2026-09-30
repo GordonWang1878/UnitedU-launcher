@@ -78,13 +78,24 @@ class OnboardingPureTest {
                 "VIDEO" to listOf("com.v1" to "Video One"),
                 "MUSIC" to listOf("com.m2" to "Music Two"),
             ),
-            view,
+            view.map { it.name to it.apps },
         )
     }
 
     @Test fun planViewFallsBackToPackageNameWhenLabelIsBlankOrMissing() {
         val view = planView(listOf(LayoutRow("LIVE", apps = listOf("com.l1", "com.l2"))), mapOf("com.l1" to "  "))
-        assertEquals(listOf("LIVE" to listOf("com.l1" to "com.l1", "com.l2" to "com.l2")), view)
+        assertEquals(listOf("LIVE" to listOf("com.l1" to "com.l1", "com.l2" to "com.l2")), view.map { it.name to it.apps })
+    }
+
+    /** R140 复审:行名本地化之后(「影视」),计划列表的图标照行里存的 id 画,不按行名回落成电视图标。 */
+    @Test fun planViewCarriesTheRowIcon() {
+        val names = mapOf("VIDEO" to "影视", "LIVE" to "直播", "MUSIC" to "音乐")
+        val rows = localizedDefaultRows(plannedLayout(DEFAULT_LAYOUT, DEFAULT_LAYOUT.flatMap { it.apps }.toSet()), names)
+        val view = planView(rows, emptyMap())
+        assertEquals(listOf("影视", "直播", "音乐"), view.map { it.name })
+        assertEquals(listOf("movie", "tv", "music"), view.map { it.icon })
+        // 按行名回落的话,中文行名三行都会落成 tv——带着 id 画才对
+        assertEquals(listOf("tv", "tv", "tv"), view.map { legacyRowIconId(it.name) })
     }
 
     @Test fun planViewOfAnAllEmptyLayoutIsEmpty() {

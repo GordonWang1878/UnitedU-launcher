@@ -90,7 +90,8 @@ fun ImportScreen(
     onUploaded: (type: String, name: String) -> Unit = { _, _ -> },
 ) {
     val ctx = LocalContext.current
-    // 淡出中的残影(R136 起本页也淡入淡出):不可聚焦、不收返回键、不再回调;服务照旧随本页离开组合而停(晚一个淡出时长)。
+    // 淡出中的残影(R136 起本页也淡入淡出):不可聚焦、不收返回键、不再回调。**服务在变成残影那一刻就停**(R140),
+    // 不等残影淡完离开组合——见下面的 DisposableEffect(ghost)。
     val ghost = LocalPageGhost.current
     val ghostNow by androidx.compose.runtime.rememberUpdatedState(ghost)
     // 服务只在挂载时起一次(下面那个 DisposableEffect(Unit)),回调读最新的一份。
@@ -113,7 +114,9 @@ fun ImportScreen(
     // R130:手机网页的按钮 / 进度条跟电视同一个主题色(只在起服务那一刻取一次)。
     val accentArgb = LocalThemeColors.current.accent.toArgb()
 
-    // 服务寿命 = 本页寿命:起在这里、停在 onDispose(返回键 → MainActivity 把本页拆掉)。
+    // 这一页起的服务;停服务的两处(变成残影、离开组合)都经它 getAndSet(null),谁先到谁停,不会停两次。
+    val serverRef = remember { java.util.concurrent.atomic.AtomicReference<UploadServer?>(null) }
+    // 服务寿命 = 本页(活着的那一份)的寿命:起在这里,停在「变成残影」或 onDispose,以先到者为准(R140)。
     DisposableEffect(Unit) {
         val ip = UploadServer.localAddress()
         var server: UploadServer? = null
@@ -138,8 +141,17 @@ fun ImportScreen(
             )
             if (server == null) error = R.string.import_error_port
             else url = "http://$ip:${server.listeningPort}/"
+            serverRef.set(server)
         }
-        onDispose { server?.stop() }
+        onDispose { serverRef.getAndSet(null)?.stop() }
+    }
+    // **关页即停**(R140,两位复审独立报的 Critical):R136 起关掉的扫码页以残影多留一个淡出时长,服务原来要等残影离开组合
+    // 才停——前台是晚 400 ms(快速关了再开,新服务只能落到下一个端口,手机网页连不回来);**后台更糟**:ON_STOP 时 Compose
+    // 暂停帧时钟,淡出走不动,服务一直开到有人回到桌面(REVIEW-GUIDE §6 接受无鉴权的前提正是「关页即停」)。
+    // 所以逻辑上关页(变成残影)的那一刻就停;FadeSwitch 另外在宿主掉出前台时当场拿掉残影(同一 R140)。
+    DisposableEffect(ghost) {
+        if (ghost) serverRef.getAndSet(null)?.stop()
+        onDispose { }
     }
 
     // 无密码的局域网服务不能活过用户离开:待机 / 切到别的应用(ON_STOP)→ 关掉本页
@@ -150,7 +162,7 @@ fun ImportScreen(
     // **这里的 onExit() 能生效,靠的是 Compose(≥1.5)在 Activity STOPPED 期间照常重组**
     // ——停的只有帧时钟,重组与 LaunchedEffect 的协程都还在跑,所以下面那个到期复查也收得到。
     // 不要因为「后台还能跑」看着可疑就把 stop() 挪到别处(比如挪进 ON_STOP 观察者里直接停服务):
-    // 服务寿命必须与本页组合寿命绑死在同一个 onDispose 上,拆开就会出现「页面还在、服务已停」。
+    // 服务寿命必须与本页(活着的那一份)绑死:停在「变成残影」或 onDispose(上面两处),拆到别处就会出现「页面还在、服务已停」。
     DisposableEffect(lifecycle) {
         val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
             if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP && !ghostNow) {
