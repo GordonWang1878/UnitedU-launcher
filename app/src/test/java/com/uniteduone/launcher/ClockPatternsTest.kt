@@ -12,4 +12,10 @@ class ClockPatternsTest {
         // 12 小时制必须带 a:凌晨 2 点和下午 2 点否则长得一样(2026-09-15 复审)
         assertEquals("h:mm a" to "EEE yyyy/M/d", clockPatterns(is24Hour = false))
     }
+
+    /** R149:「时间与日期」一档不带星期。 */
+    @Test fun dateWithoutWeekday() {
+        assertEquals("HH:mm" to "yyyy/M/d", clockPatterns(is24Hour = true, weekday = false))
+        assertEquals("h:mm a" to "yyyy/M/d", clockPatterns(is24Hour = false, weekday = false))
+    }
 }

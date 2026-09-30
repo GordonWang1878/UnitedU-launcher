@@ -176,6 +176,7 @@
     <string name="settings_clock_display">時鐘顯示</string>
     <string name="settings_clock_time_only">僅時間</string>
     <string name="settings_clock_time_date">時間與日期</string>
+    <string name="settings_clock_time_date_weekday">時間、日期與星期</string>
     <string name="settings_wallpaper_blur">桌布模糊</string>
     <string name="settings_wallpaper_brightness">桌布亮度</string>
     <string name="settings_card_size">卡片大小</string>

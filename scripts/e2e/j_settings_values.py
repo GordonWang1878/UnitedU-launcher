@@ -37,8 +37,10 @@ SEGMENTED = [
      [(S("settings_idle_off"), 0), ("1 min", 60000), ("5 min", 300000), ("10 min", 600000), ("3 min", 180000)]),
     ("settings_group_general", "settings_standby", "settings_idle_content", "idleContent",
      [(S("settings_idle_black"), "BLACK"), (S("settings_idle_nofade"), "NO_FADE"), (S("settings_idle_clock"), "CLOCK_ONLY")]),
-    ("settings_group_general", None, "settings_clock_display", "showDate",
-     [(S("settings_clock_time_date"), True), (S("settings_clock_time_only"), False)]),
+    # R149:三档写两个键(showDate, showWeekday)
+    ("settings_group_general", None, "settings_clock_display", ("showDate", "showWeekday"),
+     [(S("settings_clock_time_date_weekday"), (True, True)), (S("settings_clock_time_only"), (False, False)),
+      (S("settings_clock_time_date"), (True, False))]),
     ("settings_group_appearance", None, "settings_theme_color", "themePresetId",
      [(S("preset_champagne"), "champagne"), (S("preset_blue"), "blue"), (S("preset_purple"), "purple"),
       (S("preset_green"), "green"), (S("preset_white"), "white")]),
@@ -68,7 +70,7 @@ def run():
 
     # 选项段最慢(每个取值都从首页重新进一遍,约 35 秒一个);VALUES_SKIP_SEGMENTED=1 只跑滑块 / 开关 / 预览 / 恢复默认
     for g, sub, row, field, opts in ([] if os.environ.get("VALUES_SKIP_SEGMENTED") else SEGMENTED):
-        journey(f"values-{field}")
+        journey(f"values-{'+'.join(field) if isinstance(field, tuple) else field}")
         for label, want in opts:
             if sub: open_sub(g, sub)
             else: open_group(g)
@@ -80,7 +82,8 @@ def run():
             if not check(f"{field}:选项层里有「{label}」", s is not None, screen().texts()[:10]):
                 key("back"); continue
             key("ok"); time.sleep(1.5)
-            got = js().get(field)
+            j = js()
+            got = tuple(j.get(k) for k in field) if isinstance(field, tuple) else j.get(field)
             check(f"{field} = {want!r}(选「{label}」)", got == want, got)
             s = screen()
             check(f"{field}:回到「{S(row)}」胶囊,摘要写「{label}」", S(row) in s.label() and label.lower() in s.label().lower(), s.label())

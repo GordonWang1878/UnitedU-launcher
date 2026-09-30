@@ -184,6 +184,7 @@
     <string name="settings_clock_display">Clock Display</string>
     <string name="settings_clock_time_only">Time Only</string>
     <string name="settings_clock_time_date">Time &amp; Date</string>
+    <string name="settings_clock_time_date_weekday">Time, Date &amp; Weekday</string>
     <string name="settings_wallpaper_blur">Wallpaper Blur</string>
     <string name="settings_wallpaper_brightness">Wallpaper Brightness</string>
     <string name="settings_card_size">Card Size</string>

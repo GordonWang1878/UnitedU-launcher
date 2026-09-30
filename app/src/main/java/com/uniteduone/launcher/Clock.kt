@@ -22,9 +22,10 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** (时间格式, 日期格式)。12 小时制必须带 a(AM/PM),否则凌晨 2 点和下午 2 点长得一样。日期格式 = design §3 的 `EEE yyyy/M/d`。 */
-fun clockPatterns(is24Hour: Boolean): Pair<String, String> =
-    (if (is24Hour) "HH:mm" else "h:mm a") to "EEE yyyy/M/d"
+/** (时间格式, 日期格式)。12 小时制必须带 a(AM/PM),否则凌晨 2 点和下午 2 点长得一样。日期格式 = design §3 的 `EEE yyyy/M/d`;
+ *  R149 起星期可以不要(「时间与日期」一档):`yyyy/M/d`。 */
+fun clockPatterns(is24Hour: Boolean, weekday: Boolean = true): Pair<String, String> =
+    (if (is24Hour) "HH:mm" else "h:mm a") to (if (weekday) "EEE yyyy/M/d" else "yyyy/M/d")
 
 /** 当前时刻、是否 24 小时制、时区/校时跳变计数(每收到一次 TIME/TIMEZONE 广播 +1)。 */
 internal data class ClockState(val now: Date, val is24Hour: Boolean, val tzTick: Int)

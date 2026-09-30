@@ -165,7 +165,7 @@ private fun DreamContent(settings: Settings, intervalMs: Long) {
                         .height(GtvLayout.TOP_BAR_HEIGHT.dp),
                     contentAlignment = Alignment.CenterEnd,
                 ) {
-                    ClockWordmark(showDate = settings.showDate, shadow = hasImages)
+                    ClockWordmark(showDate = settings.showDate, showWeekday = settings.showWeekday, shadow = hasImages)
                 }
             }
         }

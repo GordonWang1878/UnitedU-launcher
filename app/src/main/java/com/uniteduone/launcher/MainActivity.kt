@@ -761,6 +761,7 @@ class MainActivity : ComponentActivity() {
                     focusNonce = focusNonce,
                     revision = revision,
                     showDate = homeSettings.showDate,
+                    showWeekday = homeSettings.showWeekday,
                     cardsPerRow = homeSettings.cardsPerRow,
                     showTitles = homeSettings.showTitles,
                     newAppsSeenAt = homeSettings.newAppsSeenAt,

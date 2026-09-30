@@ -337,13 +337,17 @@ fun settingsGroups(
                     descRes = R.string.settings_standby_desc,
                     summaryIds = if (s.idleAfterMs == 0L) listOf("idleAfter") else null,
                 ),
-                // R57:原「时钟」组那一个开关改成二选一,紧跟待机(待机时留在屏上的就是这个时钟)。
-                // 映射既有的 showDate,存盘键不变。
+                // R57:原「时钟」组那一个开关改成二选一,紧跟待机(待机时留在屏上的就是这个时钟)。映射既有的 showDate,存盘键不变。
+                // R149(Gordon 2026-09-30):三选一——仅时间 / 时间与日期 / 时间、日期与星期;第三档另存 showWeekday。
                 ctl(
                     id = "clockDisplay", labelRes = R.string.settings_clock_display,
                     kind = CtrlKind.SEGMENTED,
-                    optionRes = listOf(R.string.settings_clock_time_only, R.string.settings_clock_time_date),
-                    count = 2, selected = if (s.showDate) 1 else 0,
+                    optionRes = listOf(
+                        R.string.settings_clock_time_only,
+                        R.string.settings_clock_time_date,
+                        R.string.settings_clock_time_date_weekday,
+                    ),
+                    count = 3, selected = clockDisplayIndex(s),
                     descRes = R.string.settings_clock_display_desc,
                 ),
                 // 动画缩放提示行(仅 ≠ 1× 或读不到时出现;R56 时在「其他」组顶上,R57 放「恢复默认」之前)。
@@ -449,6 +453,13 @@ fun settingsGroups(
     )
 }
 
+/** 「时钟显示」此刻是第几档(R149):0 仅时间、1 时间与日期、2 时间、日期与星期。只关日期时星期无意义,仍算第 0 档。 */
+internal fun clockDisplayIndex(s: Settings): Int = when {
+    !s.showDate -> 0
+    s.showWeekday -> 2
+    else -> 1
+}
+
 /**
  * 每个可改值行的「第 i 档 → 设置」纯函数(R71)。[settingsGroups] 的确定键与设置页外壳的实时预览
  * (`effectiveSettings`)读的是同一张表。语言不在表里(见 [ControlRow.write]);返回 null = 没有这一行。
@@ -459,7 +470,7 @@ internal fun optionWrite(rowId: String): ((Settings, Int) -> Settings)? = when (
     "showTitles" -> { s, i -> s.copy(showTitles = i == 1) }
     "idleAfter" -> { s, i -> s.copy(idleAfterMs = VALID_IDLE_AFTER_MS[i]) }
     "idleContent" -> { s, i -> s.copy(idleContent = IdleContent.entries[i]) }
-    "clockDisplay" -> { s, i -> s.copy(showDate = i == 1) }
+    "clockDisplay" -> { s, i -> s.copy(showDate = i >= 1, showWeekday = i == 2) }
     "wallpaperBlur" -> { s, i -> s.copy(wallpaperBlur = i * WALLPAPER_BLUR_STEP) }
     "wallpaperBrightness" -> { s, i -> s.copy(wallpaperBrightness = i * 10 - 50) }
     "themeColor" -> { s, i -> s.copy(themePresetId = ThemePresets.all[i].id) }

@@ -155,13 +155,22 @@ class SettingsModelTest {
         val g = settingsGroups(base, { t -> written = t(base) }, Recorder().actions, someImages)
         val row = ctrl(g, "clockDisplay")
         assertEquals(CtrlKind.SEGMENTED, row.kind)
-        assertEquals(listOf(R.string.settings_clock_time_only, R.string.settings_clock_time_date), row.optionRes)
+        // R149:三档
+        assertEquals(
+            listOf(R.string.settings_clock_time_only, R.string.settings_clock_time_date, R.string.settings_clock_time_date_weekday),
+            row.optionRes,
+        )
         assertEquals(1, row.selected)
         assertEquals(0, ctrl(settingsGroups(Settings(showDate = false), {}, Recorder().actions, someImages), "clockDisplay").selected)
+        assertEquals(2, ctrl(settingsGroups(Settings(showDate = true, showWeekday = true), {}, Recorder().actions, someImages), "clockDisplay").selected)
         row.onSelect(0)
         assertEquals(false, written?.showDate)
         row.onSelect(1)
         assertEquals(true, written?.showDate)
+        assertEquals(false, written?.showWeekday)
+        row.onSelect(2)
+        assertEquals(true, written?.showDate)
+        assertEquals(true, written?.showWeekday)
     }
 
     @Test fun selectedMirrorsSettings() {

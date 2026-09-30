@@ -27,6 +27,9 @@ data class Settings(
     //  旧文件里的键按未知键忽略,同 wallpaperThemed。)
     val clock24hFollowSystem: Boolean = true,
     val showDate: Boolean = true,
+    /** R149:日期前面带不带星期(只在 [showDate] 为真时有意义)。「时钟显示」三档 = 仅时间 / 时间与日期 / 时间、日期与星期;
+     *  旧文件没有这个键 → false:原来选「时间与日期」的,现在就是不带星期的那一档(见 spec §12 R149)。 */
+    val showWeekday: Boolean = false,
     val idleAfterMs: Long = 180_000L,
     val idleContent: IdleContent = IdleContent.CLOCK_ONLY,
     /**
@@ -218,6 +221,7 @@ fun parseSettings(json: String): Settings {
             clock24hFollowSystem = extractBoolean(json, "clock24hFollowSystem")
                 ?: d.clock24hFollowSystem,
             showDate = extractBoolean(json, "showDate") ?: d.showDate,
+            showWeekday = extractBoolean(json, "showWeekday") ?: d.showWeekday,
             idleAfterMs = snapIdleAfterMs(extractLong(json, "idleAfterMs")),
             idleContent = extractString(json, "idleContent")
                 ?.let { name -> runCatching { IdleContent.valueOf(name) }.getOrNull() }
@@ -265,6 +269,7 @@ fun Settings.toJson(): String {
         append("  \"followWallpaperColor\": $followWallpaperColor,\n")
         append("  \"clock24hFollowSystem\": $clock24hFollowSystem,\n")
         append("  \"showDate\": $showDate,\n")
+        append("  \"showWeekday\": $showWeekday,\n")
         append("  \"idleAfterMs\": $idleAfterMs,\n")
         append("  \"idleContent\": \"${idleContent.name}\",\n")
         append("  \"screensaverAfterMs\": $screensaverAfterMs,\n")

@@ -79,6 +79,8 @@ fun HomeScreen(
     focusNonce: Int,
     revision: Int = 0,
     showDate: Boolean = true,
+    /** R149:时钟的日期前面带不带星期。 */
+    showWeekday: Boolean = false,
     cardsPerRow: Int = 6,
     /** 卡片标题全局开关(design §2)。开着时卡片下方多一行标题,行高随之增加
      *  (见 GtvLayout.titleHeight;main 线的编辑页等未换皮界面走 HomeLayout.titleHeight 同一套公式),
@@ -772,6 +774,7 @@ fun HomeScreen(
                 pillAlpha = contentAlpha,
                 clockAlpha = topBarClockAlpha,
                 showDate = showDate,
+                showWeekday = showWeekday,
                 // ui-pending #8:待机(含设置页待机演示)时两层压暗渐变随 contentAlpha 淡掉、壁纸原样露出,
                 // 亮壁纸上 accent 小字对比度只有 1.4:1——给时钟字标加紧贴字形的深阴影(ClockWordmark 的
                 // strongShadow,不是系统屏保照片上那档淡阴影)。阴影 alpha 跟着 1 − contentAlpha 走:压暗渐变
