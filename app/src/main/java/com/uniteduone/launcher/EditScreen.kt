@@ -631,7 +631,7 @@ fun EditScreen(
     Box(
         Modifier
             .fillMaxSize()
-            .background(GtvTokens.MenuBg)   // R135:与所有整屏页同一个底(原来是 #0A0A0A)
+            .pageBackdrop()   // R135:与所有整屏页同一个底(原来是 #0A0A0A);R142 起是氛围底
             // 搬运中的按键截获(见 onCarryKey)。不在搬运时它只吞「搬运里按下、结束后才松开」的那一下 UP,其余原样放行
             .onPreviewKeyEvent { onCarryKey(it.nativeKeyEvent) },
     ) {
@@ -1195,7 +1195,7 @@ private fun AppPicker(
             .fillMaxSize()
             .focusGroup()   // 同 GearMenu:不圈起来焦点会跑到底下那一层
             .background(GtvTokens.ScrimOverlay)
-            .background(GtvTokens.MenuBg),
+            .pageBackdrop(),   // R142
     ) {
         val status = when {
             candidates == null -> stringResource(R.string.edit_loading_apps)

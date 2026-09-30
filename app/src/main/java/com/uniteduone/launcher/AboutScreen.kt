@@ -400,7 +400,7 @@ fun AboutScreen(
         }
     }
     // 本页叠在外壳之上:自己铺一层不透明的 MenuBg,否则底下外壳的胶囊会透出来。
-    Box(Modifier.fillMaxSize().background(GtvTokens.MenuBg)) {
+    Box(Modifier.fillMaxSize().pageBackdrop()) {
         ShellScaffold(
             left = {
                 ShellTitle(

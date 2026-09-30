@@ -111,7 +111,7 @@ fun RowIconPicker(
             .fillMaxSize()
             .focusGroup()   // 同 GearMenu:不圈起来焦点会跑到底下那一层
             .background(GtvTokens.ScrimOverlay)
-            .background(GtvTokens.MenuBg),
+            .pageBackdrop(),   // R142
     ) {
         ShellScaffold(
             left = { ShellTitle(path = rowName, title = stringResource(R.string.edit_row_icon_heading)) },

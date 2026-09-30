@@ -210,7 +210,7 @@ fun ImportScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(GtvTokens.MenuBg)
+            .pageBackdrop()   // R142
             .focusRequester(fr)
             .focusProperties {
                 if (ghost) canFocus = false

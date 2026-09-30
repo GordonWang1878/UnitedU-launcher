@@ -94,7 +94,7 @@ fun Onboarding(
             .fillMaxSize()
             .focusGroup()
             .background(GtvTokens.ScrimOverlay)
-            .background(GtvTokens.MenuBg),
+            .pageBackdrop(),   // R142
     ) {
         // 换步交叉淡化:key = 步数。旧的一步变残影(冻结在它最后的输入上),新的一步全新组合。
         FadeSwitch(

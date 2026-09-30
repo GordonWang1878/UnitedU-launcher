@@ -375,7 +375,7 @@ fun AppsPage(
 
     // R134:卡片名与首页卡片标题同一个字号(14,Type.BODY);R109 时这一页单独小了 1 sp(13),同一张卡在两页上名字大小不一。
     val metrics = Theme.gtvCardMetrics(AppsPageLayout.CARD_SIZE)
-    Box(Modifier.fillMaxSize().background(GtvTokens.MenuBg)) {
+    Box(Modifier.fillMaxSize().pageBackdrop()) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

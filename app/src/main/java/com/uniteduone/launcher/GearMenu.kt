@@ -120,7 +120,7 @@ fun GearMenu(
             // 视觉上会完全盖住这层 scrim——两层都留着是为了跟其它浮层(设置页、选择器等)同一条规则
             // 对齐,并且这一层才是「首页被压暗」这件事真正的责任方,不依赖 MenuBg 恰好不透明这个细节。
             .background(GtvTokens.ScrimOverlay)
-            .background(GtvTokens.MenuBg),
+            .pageBackdrop(),   // R142:整屏页的氛围底(原来是纯色 MenuBg)
     ) {
         Row(modifier = Modifier.fillMaxSize()) {
             Box(

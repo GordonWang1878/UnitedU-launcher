@@ -90,7 +90,7 @@ fun InputsPage(
     val d = data
     androidx.compose.runtime.SideEffect { d?.let { onLoaded(it.visible) } }
     val currentLabel = d?.visible?.firstOrNull { it.id == current }?.label
-    Box(Modifier.fillMaxSize().background(GtvTokens.MenuBg)) {
+    Box(Modifier.fillMaxSize().pageBackdrop()) {
         ShellScaffold(
             left = {
                 ShellTitle(path = null, title = stringResource(R.string.inputs_page_title)) {

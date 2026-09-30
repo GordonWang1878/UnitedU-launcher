@@ -15,9 +15,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.res.stringResource
@@ -616,11 +618,18 @@ class MainActivity : ComponentActivity() {
             // 主题色只此一条线:这里提供一次,下面每个界面都读 LocalThemeColors.current(见 ThemePresets.kt)。
             // R139:页面里的提示(编辑页写盘失败、首页打不开应用、设置页存储没就绪)经它走同一个应用内提示条。
             val showToast = remember { { text: String, long: Boolean -> toast(text, long) } }
+            // R142:整屏页的氛围底——当前壁纸的一个影子(见 Ambient.kt)。选中的壁纸变了、或重扫(revision)才重算;算好之前是纯色。
+            val ambient by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, homeSettings.wallpaperFile, revision) {
+                value = withContext(Dispatchers.IO) {
+                    runCatching { buildAmbient(this@MainActivity, homeSettings.wallpaperFile)?.asImageBitmap() }.getOrNull()
+                }
+            }
             UnitedUTheme(themeColors) {
             CompositionLocalProvider(
                 LocalThemeColors provides themeColors,
                 LocalCardFade provides homeSettings.cardFade(),
                 LocalToast provides showToast,
+                LocalAmbient provides ambient,
             ) {
             Box(
                 Modifier
@@ -637,7 +646,7 @@ class MainActivity : ComponentActivity() {
             val shellVisible = rememberShellVisible(shellMotion, shellShown)
             // 外壳的底色铺在首页那一层**之下**(R73):外壳内容透明,有预览的页里预览框之外露出的就是这块 MenuBg,
             // 预览框里是缩小进去的真首页;没有预览的页首页那一层整层透明,只剩这块底色。
-            if (shellVisible) Box(Modifier.fillMaxSize().graphicsLayer { alpha = shellMotion.a.value }.background(GtvTokens.MenuBg))
+            if (shellVisible) Box(Modifier.fillMaxSize().graphicsLayer { alpha = shellMotion.a.value }.pageBackdrop())
             // **首页那一层**:壁纸 + 自定义屏保 + 全黑待机层 + 首页(或编辑页)。外壳开在带预览的页时整层按比例缩进
             // 预览框(R73:预览就是常驻的这一份首页本身,不另画一份;它在 previewing 下本来就不可聚焦、看门狗让路、
             // 不收按键,焦点账本零新增)。几何读 previewRect,与外壳画描边的是同一个函数。
@@ -732,7 +741,7 @@ class MainActivity : ComponentActivity() {
                 // 就定下,重建期间 Compose 抢先给出的焦点事件改写不了它;见 onPickIcon)。
                 // R136:编辑态下这一层自己垫一块 MenuBg——选择器淡入 / 淡出的那几百毫秒里,它后面不是壁纸而是同一个底色
                 // (编辑页与选择器都是 MenuBg 的整屏页,深对深地换,不闪一下壁纸)。
-                Box(Modifier.fillMaxSize().background(GtvTokens.MenuBg))
+                Box(Modifier.fillMaxSize().pageBackdrop())
                 // **R138:选择器打开时,编辑页以残影多留一个淡入时长、跟着淡出**(FadeSwitch:活着的那一份在 pt == null 时,
                 // pt 一有值它就变成残影——不可聚焦、看门狗让路、不收返回键,见 EditScreen 的 ghost)。编辑页的卡片菜单
                 // 在残影里原样开着,选择器在它上面淡入:菜单 → 选择器是一次交叉淡化,不再是「先切到深色底、再淡入」。
