@@ -160,4 +160,23 @@ class BuiltinCatalogBoundaryTest {
             assertTrue(builtinAssetPathOf(img.file.path)!!.startsWith("builtin/${kind.dir}/"))
         }
     }
+
+    @Test fun everyNameTheCatalogAcceptsResolvesBackThroughItsPseudoPath() {
+        // 清单「不合规的照样收」:收下的每一张都得能从伪路径认回来,否则网格里有这一格、却解不出图也选不中。
+        // 手工改名打错的「05-极光..jpg」(连着两个点)就是这种:伪路径里有「..」,旧写法按子串拒掉了它
+        val names = listOf("05-极光..jpg", "01-a..b.png", "WeTV.png", "01-雨夜 巴士.jpg", "01-a.b.webp", "02-dusk-city.jpeg")
+        val list = builtinCatalog(BuiltinKind.WALLPAPERS, names)
+        assertEquals(names.size, list.size)
+        for (img in list) {
+            assertEquals(img.fileName, "builtin/wallpapers/${img.fileName}", builtinAssetPathOf(img.file.path))
+            assertEquals(img.fileName, img, builtinImageOf(img.file))
+        }
+    }
+
+    @Test fun traversalSegmentsAreStillRejected() {
+        assertNull(builtinAssetPathOf("/android_asset/builtin/../web/index.html"))
+        assertNull(builtinAssetPathOf("/android_asset/builtin/wallpapers/../../web/x.jpg"))
+        assertNull(builtinAssetPathOf("/android_asset/builtin/wallpapers/.."))
+        assertNull(builtinImageOf(File("/android_asset/builtin/wallpapers/../cards/01-wetv.webp")))
+    }
 }
