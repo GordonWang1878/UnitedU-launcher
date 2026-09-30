@@ -130,10 +130,12 @@ def run():
     s = screen()
     check("回到图库,焦点落在视频", "e2e-clip" in s.label(), s.label())
     check("视频格有时长角标(▶ 0:03)", "▶" in s.label(), s.label())
-    key("ok"); time.sleep(0.3)
-    # 名字只显示 3 s,而视频在放时 uiautomator 要等界面空闲,宿主负载高时一次读屏 2 s 多:先睡久了就读不到
-    s = screen()
-    check("全屏预览左下角写名字", any(t.startswith("e2e-clip") for t in s.texts()), s.texts()[:5])
+    t0 = time.time(); key("ok"); time.sleep(0.3)
+    # 名字只显示 3 s;视频在放时界面不空闲,uiautomator 要等到超时才读,读到的常常已是名字消失之后
+    s = screen(); late = time.time() - t0 > 3.0
+    named = any(t.startswith("e2e-clip") for t in s.texts())
+    if named or not late: check("全屏预览左下角写名字", named, s.texts()[:5])
+    else: print(f"  SKIP 全屏预览左下角写名字(读屏用了 {time.time() - t0:.1f} s,晚于名字的 3 s)", flush=True)
     check("预览单个焦点", s.count_focused() == 1, s.count_focused())
     shot("upload-video-preview")
     key("back"); time.sleep(1.5)

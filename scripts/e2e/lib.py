@@ -95,7 +95,8 @@ class Screen:
 
 def screen(retries=3):
     for _ in range(retries):
-        sh("uiautomator dump /sdcard/ui.xml >/dev/null 2>&1")
+        # 先删旧文件:dump 失败(界面一直不空闲,比如视频在放)时不会覆盖它,cat 读到的就是上一屏
+        sh("rm -f /sdcard/ui.xml; uiautomator dump /sdcard/ui.xml >/dev/null 2>&1")
         x = sh("cat /sdcard/ui.xml")
         i = x.find("<?xml")
         if i < 0:
