@@ -111,7 +111,8 @@ fun CurrentHomeRow(
             }
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            BasicText(text = stringResource(R.string.home_settings_current_label), style = Type.micro)
+            // 「当前」用说明那一档灰(R144 复审:最弱一档叠在亮壁纸的氛围底 + 半透明底上只有 3.7:1)
+            BasicText(text = stringResource(R.string.home_settings_current_label), style = Type.micro.copy(color = Ink.Secondary))
             BasicText(
                 text = home.label,
                 maxLines = 1,

@@ -619,9 +619,9 @@ class MainActivity : ComponentActivity() {
             // R139:页面里的提示(编辑页写盘失败、首页打不开应用、设置页存储没就绪)经它走同一个应用内提示条。
             val showToast = remember { { text: String, long: Boolean -> toast(text, long) } }
             // R142:整屏页的氛围底——当前壁纸的一个影子(见 Ambient.kt)。选中的壁纸变了、或重扫(revision)才重算;算好之前是纯色。
-            val ambient by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, homeSettings.wallpaperFile, revision) {
+            val ambient by produceState(cachedAmbient(), homeSettings.wallpaperFile, revision) {
                 value = withContext(Dispatchers.IO) {
-                    runCatching { buildAmbient(this@MainActivity, homeSettings.wallpaperFile)?.asImageBitmap() }.getOrNull()
+                    runCatching { buildAmbient(this@MainActivity, homeSettings.wallpaperFile) }.getOrNull()
                 }
             }
             UnitedUTheme(themeColors) {

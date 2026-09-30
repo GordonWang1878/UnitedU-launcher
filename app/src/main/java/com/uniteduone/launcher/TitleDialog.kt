@@ -98,7 +98,7 @@ fun TitleDialog(
         // 底先铺满整屏,再 imePadding():输入法弹出时内容在剩下的上半截里居中,不被键盘盖住(P1)。
         // 只改位置,焦点账本不动。依赖 MainActivity 的 setDecorFitsSystemWindows(false)
         // + 清单 adjustResize,否则 WindowInsets.ime 恒为 0、这里等于没加。
-        Modifier.fillMaxSize().focusGroup().background(GtvTokens.ScrimOverlay).pageBackdrop().imePadding(),   // R142
+        Modifier.fillMaxSize().focusGroup().pageBackdrop().imePadding(),   // R142
     ) {
         ShellScaffold(
             left = { ShellTitle(path = subtitle, title = heading, extra = { ShellBody(hint) }) },

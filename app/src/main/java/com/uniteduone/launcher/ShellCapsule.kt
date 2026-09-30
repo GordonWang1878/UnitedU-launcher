@@ -235,8 +235,9 @@ fun MenuPill(
                             style = TextStyle(
                                 fontFamily = Theme.Sans,
                                 fontWeight = FontWeight.Normal,
-                                // 从属于标题的次要文字(R17):同一个文字色减透明度,两态都算得出更淡的版本。
-                                color = textColor.copy(alpha = 0.7f),
+                                // 从属于标题的次要文字(R17)。聚焦时:对比文字色减透明度;未聚焦时用说明那一档灰(R144 复审:
+                                // 原来是标签色 × 0.7,叠在亮壁纸的氛围底 + 半透明胶囊底上只剩 4.0:1)。
+                                color = if (focused) textColor.copy(alpha = 0.7f) else Ink.Secondary,
                                 fontSize = PillType.hint.sp,
                             ),
                         )

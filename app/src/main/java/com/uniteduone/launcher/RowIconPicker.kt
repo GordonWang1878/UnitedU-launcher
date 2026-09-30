@@ -110,7 +110,6 @@ fun RowIconPicker(
         modifier = Modifier
             .fillMaxSize()
             .focusGroup()   // 同 GearMenu:不圈起来焦点会跑到底下那一层
-            .background(GtvTokens.ScrimOverlay)
             .pageBackdrop(),   // R142
     ) {
         ShellScaffold(

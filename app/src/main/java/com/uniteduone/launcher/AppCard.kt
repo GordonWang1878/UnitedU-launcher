@@ -170,10 +170,11 @@ fun AppCard(
             scale = CardDefaults.scale(focusedScale = 1f),
             border = border,
         ) {
-            AppCardImage(app, metrics)
             // R141:卡片边缘一圈极细的亮边(见 cardHairline)。深色横幅(黑底的 NETFLIX、深色的腾讯视频)压在首页
             // 底部压暗的那一段上,原来连卡片边都看不出来;这圈亮边把每张卡的轮廓勾出来,亮色卡上几乎看不见。
-            Box(Modifier.fillMaxSize().cardHairline(metrics.cardCorner))
+            // **包住内容画**:tv-material Card 的内容区是一个 Column,亮边要是做成 AppCardImage 之后的兄弟节点,
+            // 前者 fillMaxSize 已经占满高度,它只剩 0 高、摆在底边上——只画出了一条底边(复审发现)。
+            Box(Modifier.fillMaxSize().cardHairline(metrics.cardCorner)) { AppCardImage(app, metrics) }
         }
         if (title != null) {
             // 库的 CardDefaults.SubtitleAlpha = 0.6;字号取 metrics.titleSize——main 线是

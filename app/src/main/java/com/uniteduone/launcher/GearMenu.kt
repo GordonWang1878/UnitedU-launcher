@@ -116,11 +116,10 @@ fun GearMenu(
         modifier = Modifier
             .fillMaxSize()
             .focusGroup()
-            // Step 3(spec §6 末条):浮层在场时压暗底下的首页。下面紧接着的 MenuBg 是不透明的整屏底,
-            // 视觉上会完全盖住这层 scrim——两层都留着是为了跟其它浮层(设置页、选择器等)同一条规则
-            // 对齐,并且这一层才是「首页被压暗」这件事真正的责任方,不依赖 MenuBg 恰好不透明这个细节。
-            .background(GtvTokens.ScrimOverlay)
-            .pageBackdrop(),   // R142:整屏页的氛围底(原来是纯色 MenuBg)
+            // R142:整屏页的氛围底(原来是纯色 MenuBg,下面还垫着一层半透明黑的 scrim)。现在菜单总在 OverlayStack 里,
+            // 由那一层铺底(LocalBackdropProvided),这里不再画;scrim 也去掉了——它原来被不透明的底盖着看不见,
+            // 底不画了它就会把垫底压暗一截。
+            .pageBackdrop(),
     ) {
         Row(modifier = Modifier.fillMaxSize()) {
             Box(

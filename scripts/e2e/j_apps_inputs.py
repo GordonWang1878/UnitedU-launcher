@@ -38,10 +38,13 @@ def run():
     names = [r["name"] for r in rows()]
     check("第二层列出各行", all(s.has(n) for n in names), (names, s.texts()[:8]))
     target_row = names[-1]
-    move_to(target_row); key("ok"); time.sleep(1.5)
+    move_to(target_row); key("ok", gap=0.2)
+    # 提示条只显示 3.5 s:紧跟着确定键读屏(宿主负载高时一次读屏就要 2 s 多,先睡再读会错过)
+    s = screen()
+    check("出现应用内提示条(Added to … / already in …)", any(("Added to" in t or "already in" in t) for t in s.texts()), [t for t in s.texts() if "dded" in t or "lready" in t])
+    time.sleep(0.8)
     s = screen()
     check("加好后菜单关掉、焦点回那张卡", s.focus() == card, (s.focus(), card))
-    check("出现应用内提示条(Added to … / already in …)", any(("Added to" in t or "already in" in t) for t in s.texts()), [t for t in s.texts() if "dded" in t or "lready" in t])
     shot("apps-toast")
 
     journey("apps-open-and-back")

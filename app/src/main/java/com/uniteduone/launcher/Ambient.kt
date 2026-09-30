@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.IntSize
 import kotlin.math.roundToInt
 
@@ -48,21 +49,28 @@ object Ambient {
 val LocalAmbient = compositionLocalOf<ImageBitmap?> { null }
 
 /**
+ * 外层已经铺了一整屏氛围底(`OverlayStack` 的垫底)时为真:里面的页面不再各画一份(复审:原来每一层都画一遍整屏位图,
+ * 长按菜单打开时是 5 次整屏填充)。换层交叉淡化时,新旧两页的内容在同一块不透明的底上淡入淡出,正是 R138 要的样子。
+ */
+val LocalBackdropProvided = compositionLocalOf { false }
+
+/**
  * 整屏页的底(R142):先铺 MenuBg,再把氛围底放大铺满。代替原来各页的 `.background(GtvTokens.MenuBg)`;
  * 不透明,画法与原来一样只在绘制阶段,不改布局、不进焦点。
  */
 @Composable
-fun Modifier.pageBackdrop(): Modifier {
+fun Modifier.pageBackdrop(always: Boolean = false): Modifier {
+    if (!always && LocalBackdropProvided.current) return this
     val amb = LocalAmbient.current
     return drawBehind {
-        drawRect(GtvTokens.MenuBg)
+        // 氛围底本身不透明:有它就只画它(少一遍整屏填充),没有才铺纯色
         if (amb != null) {
             drawImage(
                 amb,
                 dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
                 filterQuality = FilterQuality.Low,
             )
-        }
+        } else drawRect(GtvTokens.MenuBg)
     }
 }
 
@@ -139,16 +147,20 @@ private fun boxBlur(p: FloatArray, w: Int, h: Int, r: Int) {
  * 解码时直接按 inSampleSize 缩小(4K 图 1/8 读),不把整张原图读进内存。
  */
 @WorkerThread
-fun buildAmbient(ctx: Context, wallpaperValue: String): Bitmap? {
+fun buildAmbient(ctx: Context, wallpaperValue: String): ImageBitmap? {
     val file = Wallpapers.resolveSource(ctx, wallpaperValue) ?: return null
-    // 同一张图(路径 + 修改时间 + 大小)不重算:MainActivity 在重扫(装卸应用、关设置)时也会问一次,那时直接给上次的结果
+    // 同一张图(路径 + 修改时间 + 大小)不重算,**连包装对象也给同一个**:MainActivity 在重扫(装卸应用、关设置)时也会问一次,
+    // 新包装的 ImageBitmap 不相等,会让读它的整棵树白白重组一次(复审发现)。
     val key = "${file.path}|${file.lastModified()}|${file.length()}"
-    lastAmbient?.let { (k, bmp) -> if (k == key) return bmp }
-    return computeAmbient(file)?.also { lastAmbient = key to it }
+    lastAmbient?.let { (k, img) -> if (k == key) return img }
+    return computeAmbient(file)?.asImageBitmap()?.also { lastAmbient = key to it }
 }
 
-/** 上一次算出的氛围底与它的来源(见 [buildAmbient])。只在 IO 线程读写(produceState 的 withContext 里串行)。 */
-@Volatile private var lastAmbient: Pair<String, Bitmap>? = null
+/** 上一次算出的氛围底:冷启动之外的重建(切语言 recreate)拿它当初值,不先画一两帧纯色再跳成氛围底。 */
+fun cachedAmbient(): ImageBitmap? = lastAmbient?.second
+
+/** 上一次算出的氛围底与它的来源(见 [buildAmbient])。IO 线程写;被取消的计算可能晚写一次,内容相同,无害。 */
+@Volatile private var lastAmbient: Pair<String, ImageBitmap>? = null
 
 @WorkerThread
 private fun computeAmbient(file: java.io.File): Bitmap? {

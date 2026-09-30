@@ -183,15 +183,18 @@ fun <S : Any> OverlayStack(
         // **R138:换层时底下垫一块不透明底色**。新旧两层各自带着 MenuBg 交叉淡化,中途两层合起来的覆盖率不到 1
         // (各 0.5 时只有 0.75),底下那一页(首页的亮壁纸、编辑页的卡片)会透出来「呼吸」一下。垫的这块跟着外层
         // 一起开关(打开 / 关掉照样是整页淡入淡出),换层时它始终不透明,只有内容在交叉淡化——同设置外壳的底色(R108)。
-        Box(Modifier.fillMaxSize().pageBackdrop()) {   // R142:底也是氛围底(与各页自己的底同一张,换层时看不出接缝)
-            FadeSwitch(
-                state = s,
-                enterMs = GtvLayout.SETTINGS_LAYER_FADE_MS,
-                exitMs = GtvLayout.SETTINGS_LAYER_FADE_MS,
-                scaleFrom = GtvLayout.SETTINGS_LAYER_SCALE,
-                contentKey = layerKey,
-                content = content,
-            )
+        // R142:底也是氛围底;里面的页面不再各画一份(LocalBackdropProvided),内容在这一块底上交叉淡化
+        Box(Modifier.fillMaxSize().pageBackdrop(always = true)) {
+            CompositionLocalProvider(LocalBackdropProvided provides true) {
+                FadeSwitch(
+                    state = s,
+                    enterMs = GtvLayout.SETTINGS_LAYER_FADE_MS,
+                    exitMs = GtvLayout.SETTINGS_LAYER_FADE_MS,
+                    scaleFrom = GtvLayout.SETTINGS_LAYER_SCALE,
+                    contentKey = layerKey,
+                    content = content,
+                )
+            }
         }
     }
 }

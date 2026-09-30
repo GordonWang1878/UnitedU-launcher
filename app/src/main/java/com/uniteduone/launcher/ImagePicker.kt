@@ -617,7 +617,7 @@ private fun PickerGrid(
 private fun PickerPage(content: @Composable () -> Unit) {
     Box(
         modifier = Modifier.fillMaxSize().focusGroup()
-            .background(GtvTokens.ScrimOverlay).pageBackdrop(),   // R142
+            .pageBackdrop(),   // R142
     ) { content() }
 }
 

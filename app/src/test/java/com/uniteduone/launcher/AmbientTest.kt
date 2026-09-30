@@ -23,6 +23,17 @@ class AmbientTest {
         assertTrue("对比度 $ratio", ratio >= 4.0)
     }
 
+    /** R144 复审:胶囊、信息块是半透明白(SurfaceIdle),叠在最亮的氛围底上;上面的小字用说明那一档灰,仍要 ≥ 4.5:1。 */
+    @Test fun `最亮的氛围底再叠胶囊底,说明灰仍读得出`() {
+        val white = IntArray(96 * 54) { 0xFFFFFFFF.toInt() }
+        val brightest = ambientPixels(white, 96, 54, 96, 54).maxByOrNull { lum(it) }!!
+        val a = GtvTokens.SurfaceIdle.alpha
+        fun over(c: Int) = (c + (255 - c) * a).toInt()
+        val composite = (0xFF shl 24) or (over(ch(brightest, 0)) shl 16) or (over(ch(brightest, 1)) shl 8) or over(ch(brightest, 2))
+        val ratio = (lum(Ink.Secondary.toArgbInt()) + 0.05) / (lum(composite) + 0.05)
+        assertTrue("对比度 $ratio(底 ${Integer.toHexString(composite)})", ratio >= 4.5)
+    }
+
     @Test fun `纯黑壁纸就是原来的底色(上下差不过一级抖动)`() {
         val black = IntArray(96 * 54) { 0xFF000000.toInt() }
         val out = ambientPixels(black, 96, 54, 192, 108)
