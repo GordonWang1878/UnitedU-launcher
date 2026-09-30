@@ -90,6 +90,8 @@ class UnitedUDream : DreamService(), SavedStateRegistryOwner {
 
     override fun onDreamingStarted() {
         super.onDreamingStarted()
+        // R151:屏保开着时被更新杀掉,屏幕也该回到桌面(MainActivity 这时已 onStop,见 RelaunchMarks)
+        RelaunchMarks.setDreaming(this, true)
         lifecycleRegistry.currentState = Lifecycle.State.RESUMED
         if (!holdsPlayer) {
             ScreensaverPlayer.attach(this, intervalMs)
@@ -98,6 +100,7 @@ class UnitedUDream : DreamService(), SavedStateRegistryOwner {
     }
 
     override fun onDreamingStopped() {
+        RelaunchMarks.setDreaming(this, false)
         releasePlayer()
         // 只从「开着」退回 CREATED:个别固件先拆窗(已 DESTROYED)再报停,不能倒着走回 CREATED。
         if (lifecycleRegistry.currentState.isAtLeast(Lifecycle.State.STARTED)) {
@@ -107,7 +110,8 @@ class UnitedUDream : DreamService(), SavedStateRegistryOwner {
     }
 
     override fun onDetachedFromWindow() {
-        // 兜底:拆窗前没收到 onDreamingStopped 时,引用也不能漏还。
+        // 兜底:拆窗前没收到 onDreamingStopped 时,引用也不能漏还;「屏保开着」的标记同理(R151)。
+        RelaunchMarks.setDreaming(this, false)
         releasePlayer()
         lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
         super.onDetachedFromWindow()

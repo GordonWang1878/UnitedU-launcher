@@ -114,7 +114,12 @@ sealed class AboutState {
      * 停在这里等用户按「安装更新」,**绝不在回到前台时自动弹安装器**。[file] 在登记簿里登记着
      * (清扫不碰);关页([AboutController.reset])时删除。返回键 = 关页。
      */
-    data class ReadyToInstall(override val info: LatestInfo, val file: File) : AboutState() {
+    data class ReadyToInstall(
+        override val info: LatestInfo,
+        val file: File,
+        /** R151:刚带用户去开「显示在其他应用上层」,回来按「安装更新」继续(提示见 [outcome])。 */
+        val overlayHint: Boolean = false,
+    ) : AboutState() {
         override val action get() = AboutAction.INSTALL
     }
 
@@ -172,6 +177,8 @@ class AboutController(
     private var session = 0
     private var checkJob: Job? = null
     private var downloadJob: Job? = null
+    /** R151 ②:这次打开关于页已经带用户去开过「显示在其他应用上层」(关页时清,下次打开再问一次)。 */
+    private var overlayAsked = false
     private val main = Handler(Looper.getMainLooper())
 
     /** 手动检查(spec §7.3):结果一定落到 Latest / Found / Failed 之一,不静默。 */
@@ -281,6 +288,27 @@ class AboutController(
             state = AboutState.ReadyToInstall(info, file)
             return
         }
+        // R151 ②:更新会杀掉本应用、删掉首页任务;装好后要把桌面拉回来,索尼固件要「显示在其他应用上层」权限。
+        // 没有就先带用户去开一次(每次打开关于页只问一次),停在 ReadyToInstall 等他回来按「安装更新」;
+        // 不开也照装,只是装好后不会自动回到桌面。设置页打不开(个别固件没有)就直接装。
+        if (!overlayAsked && !android.provider.Settings.canDrawOverlays(activity)) {
+            overlayAsked = true
+            val opened = runCatching {
+                activity.startActivity(
+                    android.content.Intent(
+                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        android.net.Uri.parse("package:${activity.packageName}"),
+                    ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }.isSuccess
+            Log.i(TAG, "update ${info.versionName}: overlay not granted; settings page opened=$opened")
+            if (opened) {
+                state = AboutState.ReadyToInstall(info, file, overlayHint = true)
+                return
+            }
+        }
+        // R151 ①:记下「用户刚发起了这次更新」,新进程收到 MY_PACKAGE_REPLACED 时据此把桌面拉回来
+        RelaunchMarks.markUpdatePending(activity)
         val result = ApkInstaller.launch(activity, file)
         Log.i(TAG, "update ${info.versionName} (${info.versionCode}) verified; installer: $result (${file.name})")
         state = when (result) {
@@ -310,6 +338,7 @@ class AboutController(
      */
     fun reset() {
         val ready = (state as? AboutState.ReadyToInstall)?.file
+        overlayAsked = false
         begin(AboutState.Idle)
         if (ready != null) {
             Log.i(TAG, "about closed; discarding verified update ${ready.name} (not installed)")
@@ -514,6 +543,7 @@ private fun outcome(state: AboutState): Pair<String, Tone>? = when (state) {
     is AboutState.DownloadFailed -> stringResource(R.string.about_download_failed) to Tone.BAD
     is AboutState.InstallFailed -> stringResource(R.string.about_install_failed) to Tone.BAD
     is AboutState.NeedsPermission -> stringResource(R.string.about_needs_permission) to Tone.GOOD
+    is AboutState.ReadyToInstall -> if (state.overlayHint) stringResource(R.string.about_overlay_hint) to Tone.GOOD else null
     // 与导入页同一句「已交给系统安装器」,两处说的是同一件事。
     is AboutState.Installing -> stringResource(R.string.import_apk_started) to Tone.GOOD
     else -> null

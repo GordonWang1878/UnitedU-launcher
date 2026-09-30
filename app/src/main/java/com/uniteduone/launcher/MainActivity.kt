@@ -1635,6 +1635,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // R151:更新会杀掉本应用、删掉首页任务;新进程要知道「被杀那一刻桌面在不在屏幕上」,才决定要不要把桌面拉回来
+    override fun onStart() {
+        super.onStart()
+        RelaunchMarks.setHomeVisible(this, true)
+    }
+
+    override fun onStop() {
+        RelaunchMarks.setHomeVisible(this, false)
+        super.onStop()
+    }
+
     override fun onResume() {
         super.onResume()
         lastInput = System.currentTimeMillis()

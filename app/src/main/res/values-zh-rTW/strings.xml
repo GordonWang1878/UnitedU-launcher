@@ -253,6 +253,7 @@
     <string name="about_download_failed">下載失敗，請稍後再試</string>
     <string name="about_install_failed">這個更新套件無法安裝</string>
     <string name="about_needs_permission">請在電視上允許「安裝未知應用程式」，然後重試</string>
+    <string name="about_overlay_hint">允許「顯示在其他應用程式上層」後，更新裝好會自動回到桌面。回來按「安裝更新」繼續（不允許也能裝）</string>
     <string name="about_net_failed">連不上更新伺服器，請檢查網路後再試</string>
     <string name="about_bad_json">暫時無法取得更新資訊，請稍後再試</string>
     <string name="about_license_title">授權聲明</string>
