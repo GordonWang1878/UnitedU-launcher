@@ -1750,4 +1750,9 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
   - 23:02:09 Gordon 按 HOME,首页任务重建;23:03 再从 YouTube 退出就正常回到 UnitedU。
 - 以后装包前先看前台:是 UnitedU 或电视待机才装(写进 CLAUDE.md 真机一节)。
 - 仍待定:用户自己更新本应用(应用内「检查更新」装好之后、或第三方商店后台更新)时也会删掉 home 任务,关掉安装器 / 退出当前应用可能同样落到输入源——还没查。
+- **追查「用户自己更新后会不会也跳到输入源」**(Gordon:「查」):会。
+  - 任何一次更新本应用(adb、应用内「检查更新」交给系统安装器、商店后台更新)系统都会 force-stop 本应用、删掉首页任务——模拟器复现:Y 在前台时覆盖安装,首页任务从有到无,从 Y 返回落到别的桌面 / 任务;给 MainActivity 加 `stateNotNeeded="true"` 再测,照样删(更新走的是按包清 Activity,不看 saved state),已撤回。
+  - 能补救的只有 `RelaunchAfterUpdate`(更新后立刻要求一次 HOME)。索尼固件不豁免默认桌面的后台启动,要「显示在其他应用上层」权限才放行;应用从没向用户要过这个权限,Gordon 电视上 `appops get … SYSTEM_ALERT_WINDOW` 是 default(没授权)→ 每次都跳过。电视上有这个权限的设置页(`com.android.tv.settings/.device.apps.specialaccess.SystemAlertActivity`,`ACTION_MANAGE_OVERLAY_PERMISSION` 解析得到)。
+  - 就算授了权,现在的写法在「别的应用在前台时更新」也会把桌面拉到最前、打断正在看的 YouTube——要改成只在「更新时桌面就在前台」或「刚从关于页发起更新」时拉回。
+  - 方案待 Gordon 定:①改拉回的条件(小改,无副作用);②应用内更新发起前,没授权就先引导用户开一次「显示在其他应用上层」(多一步授权)。
 
