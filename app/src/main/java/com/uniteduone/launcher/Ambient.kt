@@ -141,6 +141,17 @@ private fun boxBlur(p: FloatArray, w: Int, h: Int, r: Int) {
 @WorkerThread
 fun buildAmbient(ctx: Context, wallpaperValue: String): Bitmap? {
     val file = Wallpapers.resolveSource(ctx, wallpaperValue) ?: return null
+    // 同一张图(路径 + 修改时间 + 大小)不重算:MainActivity 在重扫(装卸应用、关设置)时也会问一次,那时直接给上次的结果
+    val key = "${file.path}|${file.lastModified()}|${file.length()}"
+    lastAmbient?.let { (k, bmp) -> if (k == key) return bmp }
+    return computeAmbient(file)?.also { lastAmbient = key to it }
+}
+
+/** 上一次算出的氛围底与它的来源(见 [buildAmbient])。只在 IO 线程读写(produceState 的 withContext 里串行)。 */
+@Volatile private var lastAmbient: Pair<String, Bitmap>? = null
+
+@WorkerThread
+private fun computeAmbient(file: java.io.File): Bitmap? {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     decodeImagePath(file.path, bounds)
     if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
