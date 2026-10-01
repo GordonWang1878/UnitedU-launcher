@@ -137,7 +137,7 @@
 
     <!-- home_* : home screen and default-home settings card -->
     <string name="home_empty_go">Go Now</string>
-    <string name="home_empty_apps_hint">No apps on your home screen yet. Add the ones you use most in Settings &gt; Layout &gt; Edit Home Screen</string>
+    <string name="home_empty_apps_hint">No apps on your home screen yet. Add the ones you use most in “Settings &gt; Layout &gt; Edit Home Screen”</string>
     <string name="home_settings_title">Default Home App</string>
     <string name="home_settings_current_label">Current</string>
     <string name="home_settings_change_button">Change in Native TV Settings</string>
