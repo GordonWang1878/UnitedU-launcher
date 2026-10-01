@@ -1826,3 +1826,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - Gordon:「另外一条分支修改了 logo,看看有没有问题,没问题就合并、commit、推送,装电视」。实际没有独立分支:图标会话直接提交在 main(594199c R156、dc79458 R157),两个 `worktree-agent-*` 分支都已全部并入。
 - 核对:自适应图标前景 / 背景 5 个密度尺寸都对(108–432 px,前景带透明),banner 320×180,清单里 icon / roundIcon / banner 照旧;圆形遮罩下 U 的两臂上角略出 66 dp 安全圆(在 72 dp 可见区内,圆形 / 圆角方形预览都不裁);字体 Google Sans Flex(OFL,应用已内置同一个文件)。790 条单测全过(R157 删了 3 条)。唯一提醒:`docs/design/logo-concepts-2026-10-01/` 里没选中的方案有 macOS 自带字体(Futura 等)转出的轮廓,仓库将来公开前要不要删,另议。
 - 推送:Gordon 这次明确要推,取代上面「先不推」那条。34 个提交按约 5 MB 切两批(到 728a15b、到 d32ebd5),都一次成功;GitHub main = d32ebd5。
+- 装电视(R156 图标 / banner、R157 删新应用提示、R158 一并):Gordon 看完爱奇艺按 HOME 回首页后,`scripts/tv-install.sh` 第一次实用——首页下面紧挨着的正是 tvlin(root task 4246),先 `am stack remove` 清掉,15:21:34 装,编译第 2 次读回 `speed-profile`,md5 一致 `417cb0eb…`;装后日志只有首页恢复 + R151 拉回,没有 `<Set Stream Path>` / `<Image View On>`、tvlin 没再出现,前台是首页。模拟器 j_settings 用改好的行序重跑 82/82。
