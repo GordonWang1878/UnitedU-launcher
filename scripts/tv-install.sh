@@ -15,7 +15,8 @@ APK=${1:-"$(dirname "$0")/../app/build/outputs/apk/release/app-release.apk"}
 PKG=com.uniteduone.launcher
 [ -f "$APK" ] || { echo "没有 $APK"; exit 1; }
 
-tv() { adb devices | awk -F'\t' '$1 ~ /_adb-tls-connect/ && $2=="device"{print $1; exit}'; }
+# 真机序列号两种形状都可能:mDNS 自动连上的 `adb-…._adb-tls-connect._tcp`,或手动 `adb connect` 的 `IP:端口`
+tv() { adb devices | awk -F'\t' '$1 !~ /^emulator-/ && $2=="device"{print $1; exit}'; }
 home_in_front() {
   adb -s "$1" shell 'dumpsys window | grep mCurrentFocus' 2>/dev/null | tr -d '\r' | grep -q "$PKG/$PKG.MainActivity\|$PKG/.MainActivity"
 }
