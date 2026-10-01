@@ -1759,4 +1759,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - R151 实现:`RelaunchMarks`(一份很小的 SharedPreferences,commit 同步写)记「桌面在不在屏幕上」(MainActivity onStart/onStop)、「系统屏保开着」(UnitedUDream 开 / 关 / 拆窗)、「刚从关于页交给安装器」(时刻,30 分钟内有效);`RelaunchAfterUpdate` 读完就清,规则在 `shouldRelaunchHome`。关于页交给安装器前,没有悬浮窗权限就先打开它的设置页(`ACTION_MANAGE_OVERLAY_PERMISSION`,每次打开关于页只问一次),停在「安装更新」并提示;不开也照装。
 - 模拟器验证(停用原厂 tvlauncher、给权限,测完还原):桌面在前台、下面压着电视设置时覆盖安装 → 装完仍是 UnitedU;同样场景不给权限 → 露出电视设置(改前的样子);占位应用在前台时覆盖安装 → 日志 `skip relaunch … onScreen=false`,占位应用不受打扰。单测 789。
 - 电视还是旧包(R149 + 未装的语言改动):装包会因为旧包不写标记、电视没授权而跳到 HDMI,等 Gordon 说可以再装。
-
+- 10-01 早上 Gordon 回「继续」:装 R150 / R151(install Success,`base.apk` md5 与本地一致 `dce3d522…`;编译第 2 次读回 `speed-profile`)。装时电视在我们的屏保里,屏保随进程被杀而结束、电视进了待机(Asleep);旧包不写标记、电视也还没授权,日志 `skip relaunch … overlay=false onScreen=false`,和预期一致。未按键。
