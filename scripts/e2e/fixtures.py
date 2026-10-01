@@ -2,7 +2,8 @@
 """端到端测试要用的测试 APK 与上传素材:造出来、装到模拟器上;`--uninstall` 全部卸掉。
 
 - 占位应用 test.dummy.app00–18:无代码(hasCode=false)、带 LEANBACK_LAUNCHER,名字照国行常见应用起(不同名字才好认焦点)。
-- 认得的应用 com.ktcp.tvvideo / com.huya.nftv / com.netease.cloudmusic.tv:包名在默认分类表里,首次引导第 2 步才有计划列表。
+- 认得的应用 com.ktcp.video / com.newtv.cboxtv / com.netease.cloudmusic.tv:包名在默认分类表三行里各一个,首次引导第 2 步才有计划列表
+  (R160 起表里没有 com.ktcp.tvvideo / com.huya.nftv 了;旧模拟器上装过的这两个用 `--uninstall` 之外的 `adb uninstall` 清)。
 - 假调谐器 test.tvinput(一个空的 TvInputService,输入源页才有东西)+ 假直播 test.livetv(接 content://android.media.tv 的 VIEW,
   输入源页按确定才切得过去)。做法见 CLAUDE.md「模拟器上没有电视输入源」一条。
 - 上传素材:两张 1920×1080 JPEG、一张卡片 PNG、一段 3 秒 MP4(ffmpeg)、一个 txt(拒收用)。
@@ -21,7 +22,7 @@ KS = os.path.expanduser("~/.android/debug.keystore")
 
 DUMMY_LABELS = ["爱奇艺", "腾讯视频", "优酷", "bilibili", "芒果TV", "虎牙直播", "斗鱼", "网易云音乐", "QQ音乐", "酷狗音乐",
                 "Netflix", "Disney+", "Prime Video", "Spotify", "Twitch", "Plex", "Kodi", "VLC", "当贝市场"]
-KNOWN = {"com.ktcp.tvvideo": "云视听极光", "com.huya.nftv": "虎牙直播", "com.netease.cloudmusic.tv": "网易云音乐TV"}
+KNOWN = {"com.ktcp.video": "云视听极光", "com.newtv.cboxtv": "央视频TV", "com.netease.cloudmusic.tv": "网易云音乐TV"}
 
 LAUNCHER = """<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="{pkg}" android:versionCode="1" android:versionName="1">

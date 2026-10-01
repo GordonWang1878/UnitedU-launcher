@@ -39,7 +39,7 @@ def run():
     rows = lay.get("rows", [])
     check("写盘:三行中文名", [r["name"] for r in rows][:3] == ["影视", "直播", "音乐"], [r["name"] for r in rows])
     check("写盘:三行图标 movie / tv / music", [r.get("icon") for r in rows][:3] == ["movie", "tv", "music"], [r.get("icon") for r in rows])
-    check("写盘:三个认得的应用各进各的行", len(rows) >= 3 and "com.ktcp.tvvideo" in rows[0]["apps"] and "com.huya.nftv" in rows[1]["apps"]
+    check("写盘:三个认得的应用各进各的行", len(rows) >= 3 and "com.ktcp.video" in rows[0]["apps"] and "com.newtv.cboxtv" in rows[1]["apps"]
           and "com.netease.cloudmusic.tv" in rows[2]["apps"], rows)
     move_to("完成"); key("ok"); time.sleep(2)
     s = screen()

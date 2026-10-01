@@ -59,13 +59,16 @@ class OnboardingPureTest {
     }
 
     @Test fun defaultLayoutIsTheBuiltInThreeRowTable() {
-        // DEFAULT_LAYOUT 由 Layout.DEFAULT 改名而来:行序与每行第一个包钉住,防改名时顺手改了内容。
+        // R160(2026-10-01 Gordon):影视加腾讯(云视听极光)、去掉 NewTV极光;直播只留央视频、咪视界;音乐只留网易云、QQ 音乐。
         assertEquals(listOf("VIDEO", "LIVE", "MUSIC"), DEFAULT_LAYOUT.map { it.name })
         assertEquals(
-            listOf("com.ktcp.tvvideo", "com.newtv.cboxtv", "com.dangbei.dbmusic.sonyos.tab"),
-            DEFAULT_LAYOUT.map { it.apps.first() },
+            listOf(
+                listOf("com.ktcp.video", "com.gitvdemo.video", "com.cibn.tv", "com.starcor.mango", "com.xiaodianshi.tv.yst"),
+                listOf("com.newtv.cboxtv", "cn.miguvideo.migutv"),
+                listOf("com.netease.cloudmusic.tv", "com.tencent.qqmusictv"),
+            ),
+            DEFAULT_LAYOUT.map { it.apps },
         )
-        assertEquals(11, DEFAULT_LAYOUT.sumOf { it.apps.size })
     }
 
     // ---- 第 2 步:屏幕上列出的计划 ----------------------------------------------

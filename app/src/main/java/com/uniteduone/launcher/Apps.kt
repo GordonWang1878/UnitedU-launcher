@@ -76,8 +76,6 @@ object Apps {
             .getOrDefault(emptyList())
             .firstOrNull { it.activityInfo?.exported == true }
 
-    private val defaultLayoutPackages: Set<String> by lazy { DEFAULT_LAYOUT.flatMap { it.apps }.toSet() }
-
     /**
      * 读出分类用的事实([pickerGroupOf] 的输入)与可用的入口。**裸 MAIN 查询只对可能入选的包做**
      * (非系统、或在分类表里的):系统组件无论有没有 exported MAIN 都不列,不必为它们多一次包查询——
@@ -90,15 +88,15 @@ object Apps {
     ): Pair<PackageFacts, ResolveInfo?> {
         val pkg = info.packageName
         val system = info.flags and ApplicationInfo.FLAG_SYSTEM != 0
-        val inDefault = pkg in defaultLayoutPackages
-        val main = if (launcher == null && (!system || inDefault)) exportedMain(pm, pkg) else null
+        val known = pkg in KNOWN_TV_APPS
+        val main = if (launcher == null && (!system || known)) exportedMain(pm, pkg) else null
         val facts = PackageFacts(
             packageName = pkg,
             isSystem = system,
             isUpdatedSystem = info.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP != 0,
             hasLauncherEntry = launcher != null,
             hasExportedMain = main != null,
-            inDefaultLayout = inDefault,
+            knownTvApp = known,
         )
         return facts to (launcher ?: main)
     }

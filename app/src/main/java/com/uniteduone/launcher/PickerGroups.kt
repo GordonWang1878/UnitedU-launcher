@@ -12,8 +12,8 @@ enum class PickerGroup { APPS, SYSTEM_TOOLS }
  * @param hasLauncherEntry 有 `LAUNCHER` 或 `LEANBACK_LAUNCHER` 分类的入口。
  * @param hasExportedMain 有一个 **exported** 的裸 `MAIN` 活动(没有启动分类时才有意义;
  *   不可导出的活动列出来也打不开,要到 startActivity 才报 SecurityException)。
- * @param inDefaultLayout 包在内置分类表 [DEFAULT_LAYOUT] 里——当贝音乐这类「只有 MAIN + DEFAULT」
- *   的已知内容应用靠这一条留在列表里。
+ * @param knownTvApp 包在 [KNOWN_TV_APPS] 里——当贝音乐这类「只有 MAIN + DEFAULT」的已知内容应用靠这一条留在列表里
+ *   (R160 前直接看引导的分类表 [DEFAULT_LAYOUT];两件事分开后,改引导的表不会再把谁从所有应用里藏掉)。
  */
 data class PackageFacts(
     val packageName: String,
@@ -21,7 +21,7 @@ data class PackageFacts(
     val isUpdatedSystem: Boolean,
     val hasLauncherEntry: Boolean,
     val hasExportedMain: Boolean,
-    val inDefaultLayout: Boolean,
+    val knownTvApp: Boolean,
 )
 
 /**
@@ -50,7 +50,7 @@ fun pickerGroupOf(f: PackageFacts, selfPackage: String): PickerGroup? {
         return if (f.isSystem && isPlatformNamespace(f.packageName)) PickerGroup.SYSTEM_TOOLS else PickerGroup.APPS
     }
     if (!f.hasExportedMain) return null
-    return if (f.inDefaultLayout || !f.isSystem) PickerGroup.APPS else null
+    return if (f.knownTvApp || !f.isSystem) PickerGroup.APPS else null
 }
 
 /**

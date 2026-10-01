@@ -2,6 +2,7 @@ package com.uniteduone.launcher
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -11,14 +12,12 @@ class PickerGroupsTest {
     private val self = "com.uniteduone.launcher"
 
     private fun thirdParty(pkg: String) = PackageFacts(pkg, isSystem = false, isUpdatedSystem = false,
-        hasLauncherEntry = true, hasExportedMain = true, inDefaultLayout = pkg in defaultPkgs)
+        hasLauncherEntry = true, hasExportedMain = true, knownTvApp = pkg in KNOWN_TV_APPS)
     private fun preinstalled(pkg: String, updated: Boolean = false) = PackageFacts(pkg, isSystem = true,
-        isUpdatedSystem = updated, hasLauncherEntry = true, hasExportedMain = true, inDefaultLayout = pkg in defaultPkgs)
+        isUpdatedSystem = updated, hasLauncherEntry = true, hasExportedMain = true, knownTvApp = pkg in KNOWN_TV_APPS)
     /** 只有裸 MAIN、没有启动分类的系统组件(includeAllInstalled 兜底曾把它们全捞进来)。 */
     private fun bareMainSystem(pkg: String) = PackageFacts(pkg, isSystem = true, isUpdatedSystem = false,
-        hasLauncherEntry = false, hasExportedMain = true, inDefaultLayout = pkg in defaultPkgs)
-
-    private val defaultPkgs = DEFAULT_LAYOUT.flatMap { it.apps }.toSet()
+        hasLauncherEntry = false, hasExportedMain = true, knownTvApp = pkg in KNOWN_TV_APPS)
 
     @Test fun preinstalledContentAppsAreApps() {
         // 腾讯视频 / 乐播投屏 / 当贝市场(索尼版):系统预装、有启动分类、不在平台命名空间
@@ -69,14 +68,21 @@ class PickerGroupsTest {
         }
     }
 
-    @Test fun bareMainKnownContentAppFromDefaultLayoutIsApp() {
-        // 当贝音乐:入口只有 MAIN + DEFAULT,预装在系统里,靠 DEFAULT_LAYOUT 认出来
+    @Test fun knownTvAppsCoverTheOnboardingTableAndTheOnesDroppedFromIt() {
+        assertTrue(KNOWN_TV_APPS.containsAll(DEFAULT_LAYOUT.flatMap { it.apps }))
+        // R160 从引导表里拿掉的三个,预装成系统应用时仍要能在所有应用里看到
+        assertTrue(KNOWN_TV_APPS.containsAll(listOf("com.ktcp.tvvideo", "com.huya.nftv", "com.dangbei.dbmusic.sonyos.tab")))
+    }
+
+    @Test fun bareMainKnownContentAppIsApp() {
+        // 当贝音乐:入口只有 MAIN + DEFAULT,预装在系统里,靠 KNOWN_TV_APPS 认出来。R160 起它不在引导第 2 步的表里了,
+        // 但所有应用页照样要列——两件事分开以后,这一条防的就是「改引导的表,顺手把它从所有应用里藏掉」。
         val dbMusic = bareMainSystem("com.dangbei.dbmusic.sonyos.tab")
-        assertEquals(true, dbMusic.inDefaultLayout)
+        assertEquals(true, dbMusic.knownTvApp)
         assertEquals(PickerGroup.APPS, pickerGroupOf(dbMusic, self))
         // 非系统的第三方裸 MAIN 同样算应用;不可导出的则不列(列出来也打不开)
         val sideloaded = PackageFacts("com.example.tv", isSystem = false, isUpdatedSystem = false,
-            hasLauncherEntry = false, hasExportedMain = true, inDefaultLayout = false)
+            hasLauncherEntry = false, hasExportedMain = true, knownTvApp = false)
         assertEquals(PickerGroup.APPS, pickerGroupOf(sideloaded, self))
         assertNull(pickerGroupOf(sideloaded.copy(hasExportedMain = false), self))
     }

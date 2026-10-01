@@ -1846,3 +1846,9 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 包名先在电视上只读查(`pm list packages -3` + 拉 APK `aapt2 dump badging` 读应用名):云视听极光 / 银河奇异果 / CIBN酷喵 / 云视听小电视 / 咪视界 / 芒果TV(`com.starcor.mango`)/ YouTube;另有 QQ 音乐 TV(腾讯,但不是腾讯视频,不配)。
 - 实现:`assets/builtin/card-apps.txt`(ID → 包名)+ `parseBuiltinCardApps` / `builtinCardsFor`(BuiltinCatalog,纯 JVM)+ `BuiltinImages.cardApps`(进程缓存、启动预热)+ `IconPicker(packageName)` 只列这个包的卡。先写 `BuiltinCardAppsTest`(6 条)看它红,再实现;全量 796 条单测全过。
 - 模拟器(`unitedu-tv`):首页第一张换成 `com.ktcp.tvvideo` 打开换卡片图 → 内置只有「Tencent」;Play Store → 没有「内置」,焦点落「＋」。截图 `docs/screenshots/r159-card-picker-per-app.jpg`。
+- 同晚 R159 装电视:电视开着屏保(屏保盖在我们首页上),`tv-install.sh` 改成认这种情况(屏保紧挨在首页上面时算「首页在前台」,tvlin 检查改看首页下面那一个)后 22:29:54 装,R151 拉回首页;屏保被装包结束后电视直接进了待机(本来就闲着)。没跳 HDMI。
+
+## 2026-10-01 晚 · 引导第 2 步的表(R160)与空桌面提示
+
+- Gordon 清数据模拟新用户,问第 2 步「凭什么推荐」:不是推荐,是 `DEFAULT_LAYOUT` 三行 11 个国行常见包按已装过滤(`plannedLayout`);顺带发现表里的腾讯是 NewTV极光 `com.ktcp.tvvideo`,他电视上的云视听极光 `com.ktcp.video` 不在表里。
+- R160:Gordon 定新表(见 spec)。拆出 `KNOWN_TV_APPS`——原表兼管当贝音乐这类裸 MAIN 系统应用在所有应用里可见,直接删会让它消失。797 条单测全过。

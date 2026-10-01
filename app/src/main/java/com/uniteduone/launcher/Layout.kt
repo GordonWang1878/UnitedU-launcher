@@ -20,22 +20,27 @@ data class LayoutRow(val name: String, val icon: String? = null, val apps: List<
  * 的对象。它仍然只有这一份:[Layout.read] 的三处回落、引导的「按已装过滤」读的都是它。
  */
 internal val DEFAULT_LAYOUT: List<LayoutRow> = listOf(
+    // R160(2026-10-01 Gordon):影视加上腾讯视频的云视听极光(com.ktcp.video,A95L 上就是它),去掉 NewTV极光
+    // (com.ktcp.tvvideo);直播只留央视频、咪视界(去掉虎牙);音乐只留网易云、QQ 音乐(去掉当贝音乐)。
     LayoutRow(
         name = "VIDEO",
         apps = listOf(
-            "com.ktcp.tvvideo", "com.gitvdemo.video", "com.cibn.tv",
+            "com.ktcp.video", "com.gitvdemo.video", "com.cibn.tv",
             "com.starcor.mango", "com.xiaodianshi.tv.yst",
         ),
     ),
-    LayoutRow(name = "LIVE", apps = listOf("com.newtv.cboxtv", "com.huya.nftv", "cn.miguvideo.migutv")),
-    LayoutRow(
-        name = "MUSIC",
-        apps = listOf(
-            "com.dangbei.dbmusic.sonyos.tab", "com.netease.cloudmusic.tv",
-            "com.tencent.qqmusictv",
-        ),
-    ),
+    LayoutRow(name = "LIVE", apps = listOf("com.newtv.cboxtv", "cn.miguvideo.migutv")),
+    LayoutRow(name = "MUSIC", apps = listOf("com.netease.cloudmusic.tv", "com.tencent.qqmusictv")),
 )
+
+/**
+ * **认得的电视应用**:系统预装、只有裸 `MAIN`(没有启动分类)的包里,哪些仍要在所有应用 / 添加应用列表里出现
+ * (当贝音乐索尼版就是这样;见 `pickerGroupOf` 的 [PackageFacts.knownTvApp])。
+ * R160 前直接拿 [DEFAULT_LAYOUT] 当这张名单,于是「改引导第 2 步放什么」会顺手决定「所有应用里看不看得见」;
+ * 现在分开:名单 = 引导的表 + R160 从表里拿掉的三个,谁都不会因为改了引导的表而从所有应用里消失。
+ */
+internal val KNOWN_TV_APPS: Set<String> =
+    DEFAULT_LAYOUT.flatMap { it.apps }.toSet() + setOf("com.ktcp.tvvideo", "com.huya.nftv", "com.dangbei.dbmusic.sonyos.tab")
 
 /**
  * **整份快照写盘**(首次引导第 2 步、编辑页每一步的 `persist`)专用的串行 IO 调度器。
