@@ -1832,3 +1832,5 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 
 - Gordon 把两张图放进 `assets/builtin/cards/`(`05-bilibili.png`、`06-Mango TV.png`,都是 512×288 PNG,同 03 / 04)。按目录自动识别,不用改代码;`06-Mango TV` 按命名规则改成 `06-mangotv`(去空格、小写),名字表补两行(哔哩哔哩 / 嗶哩嗶哩 / bilibili;芒果TV / 芒果TV / Mango TV),NOTICE 商标一节补上两家。
 - 验证:790 条单测全过(含 `BuiltinNamesTest`);APK 里 6 张卡都在;模拟器「换卡片图」内置一块 6 张、名字对。
+- 装电视:电视的无线调试端口拒绝连接(mDNS 仍报 38859,端口实际关着,多半是待机),后台等它回来再走 `scripts/tv-install.sh` 装(固定装 6ab9f33 那一版的包)。`tv-install.sh` 顺手改成也认 `adb connect` 出来的 `IP:端口` 序列号。
+- 推送:Gordon 选**先不推**,等电视上看过这两张卡再说。
