@@ -673,50 +673,6 @@ fun HomeScreen(
             // 每行 26.5dp 纵向漂移的来源之一(与 rowPitch() 假设的 ROW_GAP 对不上,见 GtvLayoutTest)。
             verticalArrangement = Arrangement.spacedBy(GtvLayout.ROW_GAP.dp),
         ) {
-            // 配置里的应用一个都装不到(或引导第 2 步选了跳过)时,屏幕上只剩时钟和顶栏,看着像坏了。
-            // R161(2026-10-01 Gordon):一句提示 → 箭头 → 「立即前往」小胶囊,焦点默认在胶囊上,确定直接进编辑页
-            // (那里每一行末尾的「＋」一次能加好几个;R161 前这句话指去所有应用里一张张「加到桌面」)。
-            // 放在卡片行这一列的最上面 = 第一行卡片本来在的位置(焦点线,屏幕下部);一行高,不会被底边截掉。
-            // 同晚 Gordon 看过电视改的样式:原来是两行提示 + 下面一颗 268 dp 的整条胶囊,「太丑」。
-            // **被整屏浮层盖着时不画**(M7 T10):浮层开着时这一页不可聚焦、焦点在浮层里;首次引导的 α 0.85 遮罩下
-            // 它还正好横在语言按钮与「继续」之间(模拟器截图实测)。previewing = false 时行为不变。
-            if (loaded != null && rows.isEmpty() && !previewing) {
-                Row(
-                    // gtv 线内读一个常量(Fix 5,终审 2026-09-20):这个文件里以前 Theme.SidePadding
-                    // 与 GtvLayout.CONTENT_KEYLINE 两个名字都指同一条 58dp 基准线,值相同、名字不同,
-                    // 是与纵向 26.5dp 漂移同一类的命名漂移,统一改读后者。
-                    modifier = Modifier.padding(horizontal = GtvLayout.CONTENT_KEYLINE.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(GtvLayout.EMPTY_HOME_ARROW_GAP.dp),
-                ) {
-                    // 文字可以折行(英文较长),但不把箭头与胶囊挤出屏幕
-                    BasicText(
-                        text = stringResource(R.string.home_empty_apps_hint),
-                        style = hintStyle,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    androidx.tv.material3.Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                        contentDescription = null,
-                        tint = hintStyle.color,
-                        modifier = Modifier.size(GtvLayout.EMPTY_HOME_ARROW_SIZE.dp),
-                    )
-                    CompactPill(
-                        label = stringResource(R.string.home_empty_go),
-                        onClick = onEditHome,
-                        // 上 = 顶栏的设置那颗;左右下都到头(这一行只有它一个可聚焦的东西)
-                        modifier = Modifier
-                            .focusRequester(emptyEditFocus)
-                            .focusProperties {
-                                up = gearFocus
-                                left = FocusRequester.Cancel
-                                right = FocusRequester.Cancel
-                                down = FocusRequester.Cancel
-                            },
-                        onFocusChange = { got -> report(EMPTY_EDIT_ROW, 0, got) },
-                    )
-                }
-            }
             // Ruling R43 → R48:哪一行的行图标是「焦点行」近白态(R48 前是行标题大白态)。焦点在顶栏药丸组
             // (tgtPill ≥ 0)→ 没有焦点行(-1);否则就是 activeRowSafe(整页位移用的同一个量,图标与位移同时变)。
             // 两者都只在卡片 / 药丸真的拿到焦点时改写、浮层 / ON_PAUSE 期间冻结,所以图标在浮层与退后台时
@@ -784,6 +740,60 @@ fun HomeScreen(
                             if (!restoring && movingNow == null) { tgtRow = rowIndex; tgtIdx[rowIndex] = idx }
                         }
                     },
+                )
+            }
+        }
+
+        // 配置里的应用一个都装不到(或引导第 2 步选了跳过)时,屏幕上只剩时钟和顶栏,看着像坏了。
+        // R161(2026-10-01 Gordon):一句提示 → 箭头 → 「立即前往」小胶囊,焦点默认在胶囊上,确定直接进编辑页
+        // (那里每一行末尾的「＋」一次能加好几个;R161 前这句话指去所有应用里一张张「加到桌面」)。
+        // **贴屏幕底边**(离底 EMPTY_HOME_BOTTOM_MARGIN):第一版放在卡片行那一列的最上面(焦点线,约 77% 高处),
+        // Gordon 电视上看过:「位置依然没有移到屏幕的底部」。不在卡片行那一列里,透明度与可聚焦跟它同一套(contentAlpha、!covered)。
+        // 同晚 Gordon 看过电视改的样式:原来是两行提示 + 下面一颗 268 dp 的整条胶囊,「太丑」。
+        // **被整屏浮层盖着时不画**(M7 T10):浮层开着时这一页不可聚焦、焦点在浮层里;首次引导的 α 0.85 遮罩下
+        // 它还正好横在语言按钮与「继续」之间(模拟器截图实测)。previewing = false 时行为不变。
+        if (loaded != null && rows.isEmpty() && !previewing) {
+            Row(
+                // gtv 线内读一个常量(Fix 5,终审 2026-09-20):这个文件里以前 Theme.SidePadding
+                // 与 GtvLayout.CONTENT_KEYLINE 两个名字都指同一条 58dp 基准线,值相同、名字不同,
+                // 是与纵向 26.5dp 漂移同一类的命名漂移,统一改读后者。
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(
+                        start = GtvLayout.CONTENT_KEYLINE.dp,
+                        end = GtvLayout.CONTENT_KEYLINE.dp,
+                        bottom = GtvLayout.EMPTY_HOME_BOTTOM_MARGIN.dp,
+                    )
+                    .alpha(contentAlpha)
+                    .focusProperties { canFocus = !covered },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(GtvLayout.EMPTY_HOME_ARROW_GAP.dp),
+            ) {
+                // 文字可以折行(英文较长),但不把箭头与胶囊挤出屏幕
+                BasicText(
+                    text = stringResource(R.string.home_empty_apps_hint),
+                    style = hintStyle,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                androidx.tv.material3.Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                    contentDescription = null,
+                    tint = hintStyle.color,
+                    modifier = Modifier.size(GtvLayout.EMPTY_HOME_ARROW_SIZE.dp),
+                )
+                CompactPill(
+                    label = stringResource(R.string.home_empty_go),
+                    onClick = onEditHome,
+                    // 上 = 顶栏的设置那颗;左右下都到头(这一行只有它一个可聚焦的东西)
+                    modifier = Modifier
+                        .focusRequester(emptyEditFocus)
+                        .focusProperties {
+                            up = gearFocus
+                            left = FocusRequester.Cancel
+                            right = FocusRequester.Cancel
+                            down = FocusRequester.Cancel
+                        },
+                    onFocusChange = { got -> report(EMPTY_EDIT_ROW, 0, got) },
                 )
             }
         }

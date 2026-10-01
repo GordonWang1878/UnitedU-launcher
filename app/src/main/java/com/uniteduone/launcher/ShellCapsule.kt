@@ -450,7 +450,16 @@ internal fun CompactPill(
             .padding(horizontal = GtvLayout.COMPACT_PILL_PADDING_H.dp),
         contentAlignment = Alignment.Center,
     ) {
-        MenuPillLabel(label, focused, textColor)
+        BasicText(
+            text = label,
+            maxLines = 1,
+            style = TextStyle(
+                fontFamily = Theme.Sans,
+                fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
+                color = textColor,
+                fontSize = GtvLayout.COMPACT_PILL_TEXT.sp,
+            ),
+        )
     }
 }
 
