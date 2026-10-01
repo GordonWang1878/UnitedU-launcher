@@ -13,8 +13,9 @@ screensavers/03-海上列车 = 海上列车 | 海上列車 | Train on the Sea
 screensavers/04-深空远征 = 深空远征 | 深空遠征 | Deep Space Expedition
 
 cards/01-wetv = WeTV | WeTV | WeTV
-cards/02-youku = 优酷 | 優酷 | Youku
-cards/03-youtube = YouTube | YouTube | YouTube
-cards/04-iqiyi = 爱奇艺 | 愛奇藝 | iQIYI
-cards/05-bilibili = 哔哩哔哩 | 嗶哩嗶哩 | bilibili
+cards/02-iqiyi = 爱奇艺 | 愛奇藝 | iQIYI
+cards/03-youku = 优酷 | 優酷 | Youku
+cards/04-bilibili = 哔哩哔哩 | 嗶哩嗶哩 | bilibili
+cards/05-migu = 咪视界 | 咪視界 | MIGU
 cards/06-mangotv = 芒果TV | 芒果TV | Mango TV
+cards/07-youtube = YouTube | YouTube | YouTube

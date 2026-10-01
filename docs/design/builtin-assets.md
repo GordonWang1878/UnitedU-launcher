@@ -58,7 +58,7 @@ cards/04-iqiyi = 爱奇艺 | 愛奇藝 | iQIYI
 
 ## 来源说明
 
-都是 AI 生成的:放好后 Claude 在 `NOTICE` 里补一行「内置壁纸 / 屏保 / 卡片装饰图为 AI 生成,随本项目以同一许可发布」。若某张图用了别的来源,告诉 Claude 出处。**现状(2026-09-29)**:`NOTICE` 已写壁纸 / 屏保为 AI 生成;卡片装饰图是 WeTV / 优酷 / YouTube / 爱奇艺 / 哔哩哔哩 / 芒果TV 的标志,单列在「Third-party trademarks」一节(商标归属、无关联声明)。
+都是 AI 生成的:放好后 Claude 在 `NOTICE` 里补一行「内置壁纸 / 屏保 / 卡片装饰图为 AI 生成,随本项目以同一许可发布」。若某张图用了别的来源,告诉 Claude 出处。**现状(2026-09-29)**:`NOTICE` 已写壁纸 / 屏保为 AI 生成;卡片装饰图是 WeTV / 爱奇艺 / 优酷 / 哔哩哔哩 / 咪视界 / 芒果TV / YouTube 的标志,单列在「Third-party trademarks」一节(商标归属、无关联声明)。
 
 ## 给 Claude:用测试图验证(不进仓库)
 
@@ -85,6 +85,6 @@ unzip -l app/build/outputs/apk/release/app-release.apk | grep assets/builtin/   
 - 壁纸:01-夏日数码门(默认,Gordon 16:18 自己调的顺序)、02-午夜玩具房、03-雨夜巴士站、04-风暴舰队
 - 屏保:01-云海天光、02-暮色沙虫、03-海上列车、04-深空远征
 - 卡片:01-wetv、02-youku、03-youtube、04-iqiyi(品牌商标,归属写在 NOTICE)
-- 2026-10-01 加卡片:05-bilibili、06-mangotv(Gordon 放的是 `06-Mango TV.png`,按命名规则改成小写无空格;512×288 PNG,同 03 / 04),名字表与 NOTICE 商标一节跟上
+- 2026-10-01 晚 Gordon 重排卡片为 7 张:01-wetv、02-iqiyi、03-youku、04-bilibili、05-migu(咪视界)、06-mangotv、07-youtube——WeTV、优酷换了新图(webp → 512×288 PNG),爱奇艺 / 哔哩哔哩 / YouTube 只改了序号,咪视界是新加的;全部 512×288 PNG。卡片按内容复制,改名不影响用户已换上的卡
 - 壁纸与屏保已用 `scripts/hdr-assets.py` 转成双写法 HDR JPEG(Android 14 XMP + ISO 21496-1),4K 不变,共约 10 MB;生图与转换规范见 `docs/design/hdr-image-spec.md`
 - 原图备份:`~/unitedu-assets-originals/2026-09-28/`(Gordon 放入时的原名)、`~/unitedu-assets-originals/2026-09-28-renamed/`(改名后、转换前)

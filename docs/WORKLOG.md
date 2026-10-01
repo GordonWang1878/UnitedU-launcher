@@ -1834,3 +1834,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 验证:790 条单测全过(含 `BuiltinNamesTest`);APK 里 6 张卡都在;模拟器「换卡片图」内置一块 6 张、名字对。
 - 装电视:电视的无线调试端口拒绝连接(mDNS 仍报 38859,端口实际关着,多半是待机),后台等它回来再走 `scripts/tv-install.sh` 装(固定装 6ab9f33 那一版的包)。`tv-install.sh` 顺手改成也认 `adb connect` 出来的 `IP:端口` 序列号。
 - 推送:Gordon 选**先不推**,等电视上看过这两张卡再说。
+- 同晚 Gordon 重排为 7 张:01-wetv(新图)、02-iqiyi、03-youku(新图)、04-bilibili、05-migu(新加,图上写「咪视界」,名字取它:咪视界 / 咪視界 / MIGU)、06-mangotv、07-youtube;WeTV、优酷由 webp 换成 512×288 PNG,其余只改序号。名字表、NOTICE、builtin-assets 跟上;790 条单测全过,模拟器「换卡片图」内置一块 7 张、顺序与名字对。电视那边改装这一版。
