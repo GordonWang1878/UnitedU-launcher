@@ -249,8 +249,13 @@ object GtvLayout {
     /** 药丸之间的纵向间距。报告没给这一项,按参考图 docs/screenshots/gtv/16-app-longpress-menu.png
      *  像素量测(两药丸间隙 y 355→384 px,该图 1:1 对应 320dpi 实机,/2 得 dp)≈ 14.5 dp,取整 16。 */
     const val MENU_ITEM_GAP = 16f
-    /** R161:空桌面提示文字与下面「编辑桌面」按钮之间的距离(按钮聚焦放大 1.05× 后不碰到文字)。 */
-    const val EMPTY_HOME_BUTTON_GAP = 20f
+    /** R161:空桌面那一行里,提示文字、箭头、「立即前往」小胶囊之间的间距。 */
+    const val EMPTY_HOME_ARROW_GAP = 16f
+    /** R161:那一行里箭头的大小。 */
+    const val EMPTY_HOME_ARROW_SIZE = 22f
+    /** R161:宽度随文字的小胶囊(空桌面「立即前往」)的高度与左右内边距;填色 / 放大同 MenuPill。 */
+    const val COMPACT_PILL_HEIGHT = 40f
+    const val COMPACT_PILL_PADDING_H = 20f
     /** 左侧 banner 与应用名之间的间距。同一张参考图量测(banner 底 y 469 → 名字顶 ≈508 px)≈ 19.5 dp,取整 20。 */
     const val MENU_BANNER_NAME_GAP = 20f
     /** 药丸左右内边距(spec §2.3「菜单项 16sp」附近)。Fix 4 从字面量搬进来,数值不变。 */

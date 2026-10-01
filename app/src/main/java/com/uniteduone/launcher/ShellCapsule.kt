@@ -404,6 +404,56 @@ private const val SLIDER_KNOB_MS = 120
 private const val VALUE_MAX_WIDTH = 110f
 
 /** [MenuPill] 的标题行,单行/两行两种布局共用,避免样式在两处漂移。 */
+
+/**
+ * **宽度随文字的小胶囊**(R161 空桌面「立即前往」):填色、聚焦放大与影子、文字色都与 [MenuPill] 同一套,
+ * 只是不占 [GtvLayout.MENU_ITEM_WIDTH] 的固定宽——空桌面那一行里它跟在一句提示后面,268 dp 的整条胶囊太抢眼。
+ * 得失焦点都经 [onFocusChange] 上报(铁律 4);方向与 requester 由调用方在 [modifier] 里给(放在可聚焦节点之前)。
+ */
+@Composable
+internal fun CompactPill(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    onFocusChange: (Boolean) -> Unit = {},
+) {
+    var focused by remember { mutableStateOf(false) }
+    val accent = LocalThemeColors.current.accent
+    val spec = tween<Float>(
+        durationMillis = if (focused) GtvLayout.FOCUS_FADE_IN_MS else GtvLayout.FOCUS_FADE_OUT_MS,
+        easing = Theme.AppFocusEasing,
+    )
+    val fill by animateColorAsState(
+        targetValue = if (focused) accent else GtvTokens.SurfaceIdle,
+        animationSpec = tween(
+            durationMillis = if (focused) GtvLayout.FOCUS_FADE_IN_MS else GtvLayout.FOCUS_FADE_OUT_MS,
+            easing = Theme.AppFocusEasing,
+        ),
+        label = "compactPillFill",
+    )
+    val grow by animateFloatAsState(targetValue = if (focused) 1f else 0f, animationSpec = spec, label = "compactPillGrow")
+    val textColor = if (focused) contrastingTextColor(accent) else Theme.MenuItemText
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(
+        modifier = modifier
+            .heightIn(min = GtvLayout.COMPACT_PILL_HEIGHT.dp)
+            .graphicsLayer {
+                val s = 1f + (GtvLayout.MENU_ITEM_FOCUS_SCALE - 1f) * grow
+                scaleX = s; scaleY = s
+                shadowElevation = GtvLayout.MENU_ITEM_FOCUS_SHADOW_DP.dp.toPx() * grow
+                shape = PillShape
+            }
+            .clip(PillShape)
+            .background(fill)
+            .onFocusChanged { focused = it.isFocused; onFocusChange(it.isFocused) }
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .padding(horizontal = GtvLayout.COMPACT_PILL_PADDING_H.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        MenuPillLabel(label, focused, textColor)
+    }
+}
+
 @Composable
 private fun MenuPillLabel(label: String, focused: Boolean, textColor: Color, modifier: Modifier = Modifier) {
     BasicText(

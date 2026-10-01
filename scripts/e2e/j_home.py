@@ -130,28 +130,28 @@ def run():
     check("返回 → 焦点回 YouTube 卡", screen().focus() == yt, (screen().focus(), yt))
 
     journey("home-empty-edit-button")
-    # R161:一个应用都没有(引导第 2 步跳过 = 三行空)→ 提示 + 「编辑桌面」按钮,焦点默认在按钮上,确定直接进编辑页
+    # R161:一个应用都没有(引导第 2 步跳过 = 三行空)→ 提示 + 「立即前往」胶囊,焦点默认在按钮上,确定直接进编辑页
     empty = {"rows": [{"name": n, "icon": i, "apps": []} for n, i in [("影视", "movie"), ("直播", "tv"), ("音乐", "music")]]}
     # 不用 restart():它拉起后会按一下「下、上」(唤醒 / 退出触摸模式),「上」正好把焦点从按钮送到顶栏
     sh(f"am force-stop {PKG}"); push_json("layout.json", empty); home_intent()
     if foreground() != PKG: home_intent()
     time.sleep(3)
     ok, s = focus_stable()
-    check("空桌面:提示指向编辑桌面", s.has("Choose Edit Home Screen below"), s.texts()[:8])
-    check("空桌面:焦点默认在「编辑桌面」按钮", ok and s.label() == S("menu_edit"), (s.count_focused(), s.label()))
+    check("空桌面:提示指向编辑桌面", s.has(S("home_empty_apps_hint")[:24]), s.texts()[:8])
+    check("空桌面:焦点默认在「立即前往」胶囊", ok and s.label() == S("home_empty_go"), (s.count_focused(), s.label()))
     key("up"); time.sleep(0.6)
     s = screen()
     check("上 → 顶栏「设置」", s.count_focused() == 1 and "Settings" in s.label(), s.label())
     key("down"); time.sleep(0.6)
     s = screen()
-    check("下 → 回到按钮", s.label() == S("menu_edit"), s.label())
+    check("下 → 回到按钮", s.label() == S("home_empty_go"), s.label())
     key("ok"); time.sleep(2)
     s = screen()
     check("确定 → 进编辑页", s.has(S("edit_hint")[:20]), s.texts()[:8])
     shot("home-empty-edit-page")
     key("back"); time.sleep(2)
     ok, s = focus_stable()
-    check("返回 → 空桌面、焦点回按钮", ok and s.label() == S("menu_edit"), (s.count_focused(), s.label()))
+    check("返回 → 空桌面、焦点回按钮", ok and s.label() == S("home_empty_go"), (s.count_focused(), s.label()))
     key("up"); time.sleep(0.6); key("ok"); time.sleep(1.5)
     key("back"); time.sleep(1.5)
     ok, s = focus_stable()

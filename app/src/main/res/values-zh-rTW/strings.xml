@@ -128,7 +128,8 @@
     <string name="edit_picker_system_tools">系統工具</string>
 
     <!-- home_* : 首頁與預設桌面設定卡 -->
-    <string name="home_empty_apps_hint">桌面上還沒有應用程式\n按下面的「編輯桌面」，在每一列末尾的「＋」裡新增</string>
+    <string name="home_empty_go">立即前往</string>
+    <string name="home_empty_apps_hint">桌面上還沒有應用程式，請前往設定-版面-編輯桌面頁面新增常用的應用程式</string>
     <string name="home_settings_title">預設桌面</string>
     <string name="home_settings_current_label">目前</string>
     <string name="home_settings_change_button">前往原生電視設定變更</string>

@@ -128,7 +128,8 @@
     <string name="edit_picker_system_tools">系统工具</string>
 
     <!-- home_* : 首页与默认桌面设置卡 -->
-    <string name="home_empty_apps_hint">桌面上还没有应用\n按下面的「编辑桌面」，在每一行末尾的「＋」里添加</string>
+    <string name="home_empty_go">立即前往</string>
+    <string name="home_empty_apps_hint">桌面上还没有应用，请前往设置-布局-编辑桌面页面添加常用的应用</string>
     <string name="home_settings_title">默认桌面</string>
     <string name="home_settings_current_label">当前</string>
     <string name="home_settings_change_button">去原生电视设置更改</string>
