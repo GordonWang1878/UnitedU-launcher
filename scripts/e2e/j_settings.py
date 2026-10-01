@@ -9,8 +9,8 @@ GROUPS = {
     "settings_group_general": ["settings_language", "menu_set_default_home", "settings_phone_transfer", "settings_standby", "settings_clock_display"],
     "settings_group_layout": ["menu_edit", "settings_card_size", "settings_show_titles", None, None, None],
     "settings_group_appearance": ["menu_wallpaper", "shell_slider_wallpaper_blur", "shell_slider_wallpaper_brightness", "settings_theme_color", "settings_follow_wallpaper"],
-    "settings_group_screensaver": ["settings_start_screensaver", "settings_screensaver_after", "settings_screensaver_interval",
-                                   "settings_screensaver_gallery", "settings_system_screensaver", "settings_screen_off"],
+    "settings_group_screensaver": ["settings_start_screensaver", "settings_screensaver_after", "settings_screensaver_gallery",
+                                   "settings_screensaver_interval", "settings_system_screensaver", "settings_screen_off"],  # R158
 }
 
 def left_texts(s):
