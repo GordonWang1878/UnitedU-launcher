@@ -1784,3 +1784,22 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - R154 屏保图库 ✓ 角标:Gordon 没发现内置图可以关(交互藏在长按里,页头只有一句「长按可删除或关闭」)。改成参与轮播的每一格都带 ✓,页头写规矩;模拟器截图确认关掉的那张没有 ✓、变暗。
 - Gordon 改完了 `settings-copy-zh.md`(24 行),我 review 出 5 处必须改(「只留时钟」改名后说明没跟、屏保第一层小字还叫「自动开始」、「上传资料」与别处「从手机添加」两套名字、电视设置三种叫法、Andriod 拼错且超长)与几处建议,等他定再一起改进 strings。
 - R155 文案落地:逐条出卡定完(上传资料 / 原生电视设置全局统一、组名「外观偏好」、8 条逐一照改或保留),简 / 繁 / 英三份同改(34 个 key),`settings-copy-zh.md` 重新生成成定稿,`settings-inventory.md` 跟上。模拟器 `E2E_ONLY=j_i18n,j_settings` 查三种语言有没有字越出胶囊 / 屏幕。
+
+## 2026-10-01 · 图标 + banner:Gordon 选 01 托盘,出 7 个变体
+
+- Gordon 选了 01,要求再出变体,并提出「电视远看,图案和字都要偏大」。纠正其中一半:banner 的字确实能大很多;图标受圆形遮罩安全区限制,第一轮已用掉大半,远看靠加粗、减件、加对比,不靠整体放大。原则写进 `docs/design/icon-needs.md` 第三节。
+- 变体在 `docs/design/logo-concepts-2026-10-01/tray-variants/`(`variants.png` 大图对照、`variants-tv.png` 电视实际大小、`svg/` 源文件、`gen.py`):A 放大原版(线宽 8→10.5)/ B 两件(圆 + 方块)/ C 一个红点 / D 深底 / E 蓝底 / F 字标合一(banner 最后一个 U 是碗,字号 60)/ G 上下排(字号 56)。横排 banner 字号受宽度限制只到 44.6(+17%)。
+- 这轮起字标由 fontTools 从 Futura Bold 取字形直接转路径,不再依赖渲染时找字体(定稿可直接用)。代码未动。
+
+## 2026-10-01 · 图标 + banner:Gordon 喜欢 01F(字标合一),换 8 种字体
+
+- 在 `docs/design/logo-concepts-2026-10-01/tray-variants/fonts/`(`fonts.png` 大图、`fonts-tv.png` 电视实际大小、`svg/F*-banner.svg`、`gen.py`):0 Futura Bold(对照)/ 1 Google Sans Flex / 2 Google Sans Flex 圆头(ROND 100)/ 3 Roboto Bold / 4 Avenir Next Heavy / 5 Gill Sans Bold / 6 DIN Alternate Bold / 7 Rockwell Bold / 8 Futura 窄体特粗。
+- 每种字体从字体文件取字形转路径;碗的线宽取该字体 U 竖画实测粗细,碗宽跟该字体的 U 走但碗内至少留 0.33 个大写高(否则粗字体的三个形状缩成点);左右各留 30 / 320。各字体大写高 39.7(Gill Sans)– 53.3(DIN)。
+- 授权:1 / 2 是 OFL(应用已内置的同一个字体文件)、3 是 Apache,可放心发布;其余是 macOS 自带字体,做公开发布的 logo 授权不明确,选中的话定稿前要核授权或换开源同款。
+
+## 2026-10-01 · 图标 + banner 定稿接入(R156:托盘 · 字标合一 · Google Sans Flex 圆头)
+
+- Gordon 选字体 2(Google Sans Flex 圆头)。定稿生成器 `docs/design/icon-masters/gen.py`:banner 与图标共用同一个碗(圆头,线宽取该字体 U 的竖画 0.1847 em);图标按 108 dp 画布数值搜索最大字号 + 最佳基线,使整个标离中心 ≤ 32.5 dp(安全圆 33)。一次写出母版 3 张(覆盖 2026-09-23 GPT 出的彩虹 U,旧图在 git 历史里)+ `mipmap-{m,h,xh,xxh,xxxh}dpi` 两层 + xhdpi banner;`mipmap-anydpi-v26` 两个 XML 只改了注释。
+- 模拟器验证(`unitedu-gtv`,release 构建):**Google TV 的 launcherx 按版本号缓存图标**——versionCode 没变,覆盖安装后「Your apps」仍显示旧彩虹 U,force-stop launcherx 也不刷新(`pm clear --cache-only` 在这台 Android 14 上卡住不返回,已中止,没清 launcherx 数据)。改用无代码测试包 `com.uniteduone.logoprobe`(同一套 mipmap、label「UnitedU」)绕开缓存:新图标在「Your apps」里聚焦清楚(`docs/screenshots/gtv/24-new-tray-icon-in-google-tv-your-apps.jpg`);同一个包的 banner 在 UnitedU 所有应用页里与其他应用并排(`docs/design/icon-masters/in-unitedu-all-apps.jpg`)。测试包已卸载。
+- **推论(真机)**:电视上装新版后,系统设置 / 别的桌面可能照样显示旧图标,直到 versionCode 变或缓存进程重启(2026-09-23 已遇到过一次:设置进程常驻缓存旧图标)。
+- 未提交、未装电视。

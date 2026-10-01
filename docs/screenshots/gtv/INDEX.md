@@ -24,6 +24,7 @@
 | `21-app-tile-unfocused.jpg` | 同一颗磁贴的未聚焦态,与上一张逐点相减即得柔光剖面 |
 | `90-old-version-home-1.0.595789376.jpg` | 更新前的旧版首页(`Home / Apps / Library` 三个文字 tab、方形应用卡)——**不是要复刻的那版** |
 | `91-account-gate.png` | 无 Google 账号时 launcherx 只显示这道门,真首页在门后 |
+| `24-new-tray-icon-in-google-tv-your-apps.jpg` | 2026-10-01 新图标(托盘,R156)在 Google TV「Your apps」里聚焦的样子;左边两个是旧图标(彩虹 U、更早的「United」光效字)。只裁了应用行,不含账号头像 |
 
 ## UnitedU 现状截图在哪
 
