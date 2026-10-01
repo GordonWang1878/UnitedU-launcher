@@ -43,6 +43,10 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.layout.AlignmentLine
+import kotlin.math.roundToInt
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.platform.LocalDensity
@@ -459,6 +463,17 @@ internal fun CompactPill(
                 color = textColor,
                 fontSize = GtvLayout.COMPACT_PILL_TEXT.sp,
             ),
+            // **按基线放,让字的视觉中心落在胶囊中线上**(Gordon:「文字是否处于胶囊的中心,尤其是纵向」)。
+            // 默认行框上多下少,汉字又来自回落字体,行框居中后字形偏下:电视截图量得上方 20 px、下方 14 px(1080p)。
+            // 改行高 / 裁行框(LineHeightStyle)对回落字体无效,模拟器量得一模一样。这里取首行基线,
+            // 把「基线上方 COMPACT_PILL_INK_CENTER_EM 个字号」对到行框中线;Box 再把行框居中,字就居中了。
+            modifier = Modifier.layout { measurable, constraints ->
+                val p = measurable.measure(constraints)
+                val baseline = p[FirstBaseline]
+                val inkCenter = baseline - GtvLayout.COMPACT_PILL_INK_CENTER_EM * GtvLayout.COMPACT_PILL_TEXT.sp.toPx()
+                val dy = if (baseline == AlignmentLine.Unspecified) 0 else (p.height / 2f - inkCenter).roundToInt()
+                layout(p.width, p.height) { p.place(0, dy) }
+            },
         )
     }
 }

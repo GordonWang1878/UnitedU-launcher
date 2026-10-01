@@ -258,6 +258,8 @@ object GtvLayout {
     const val COMPACT_PILL_HEIGHT = 28f
     const val COMPACT_PILL_PADDING_H = 14f
     const val COMPACT_PILL_TEXT = Type.CAPTION
+    /** 小胶囊文字的视觉中心在基线上方多少个字号(汉字字面中心与西文大写 / x 高的中间都在 0.35–0.40 之间);按电视 / 模拟器截图量定。 */
+    const val COMPACT_PILL_INK_CENTER_EM = 0.37f
     /** R161:空桌面那一行离屏幕底边的距离(Gordon:「文案本来就应该出现在底部」,焦点线那个高度不算底部)。 */
     const val EMPTY_HOME_BOTTOM_MARGIN = 40f
     /** 左侧 banner 与应用名之间的间距。同一张参考图量测(banner 底 y 469 → 名字顶 ≈508 px)≈ 19.5 dp,取整 20。 */
