@@ -409,6 +409,13 @@ fun settingsGroups(
                     noteRes = screensaverAfterNoteRes(s.idleAfterMs, s.screensaverAfterMs, screensaverImages),
                     descRes = R.string.settings_screensaver_after_desc,
                 ),
+                // 图库叠在设置页上,只有 Activity 做得了,走 actions。R158(2026-10-01 Gordon):挪到「自动切换间隔」上方。
+                ActionRow(
+                    "screensaverGallery",
+                    R.string.settings_screensaver_gallery,
+                    hintRes = null,
+                    descRes = R.string.settings_screensaver_gallery_desc,
+                ) { actions.openScreensaverGallery() },
                 ctl(
                     id = "screensaverInterval", labelRes = R.string.settings_screensaver_interval,
                     kind = CtrlKind.SEGMENTED,
@@ -418,13 +425,6 @@ fun settingsGroups(
                     selected = VALID_SCREENSAVER_INTERVAL_MS.indexOf(s.screensaverIntervalMs).coerceAtLeast(0),
                     descRes = R.string.settings_screensaver_interval_desc,
                 ),
-                // 两条动作行(spec §3):图库叠在设置页上;系统屏保跳系统页。都只有 Activity 做得了,走 actions。
-                ActionRow(
-                    "screensaverGallery",
-                    R.string.settings_screensaver_gallery,
-                    hintRes = null,
-                    descRes = R.string.settings_screensaver_gallery_desc,
-                ) { actions.openScreensaverGallery() },
                 // R56:值是系统屏保的摘要「开 · UnitedU · 5 分钟」(screensaverSummary;读不到的部分省略,全读不到不显示值)。
                 // 确定键仍走 MainActivity.openSystemPage 的候选链 + 弹回检测(cc7b3cf)。
                 ActionRow(

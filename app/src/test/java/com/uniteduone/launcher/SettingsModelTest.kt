@@ -251,13 +251,13 @@ class SettingsModelTest {
         val g = settingsGroups(Settings(), {}, Recorder().actions, someImages)
         val ss = g.first { it.id == GroupId.SCREENSAVER }.rows
         assertEquals(
-            // R93:「立即开始屏保」(原顶栏屏保按钮)放最上面;R127:「关闭屏幕」紧跟「系统屏保」
-            listOf("startScreensaver", "screensaverAfter", "screensaverInterval", "screensaverGallery", "systemScreensaver", "screenOff"),
+            // R93:「立即开始屏保」(原顶栏屏保按钮)放最上面;R127:「关闭屏幕」紧跟「系统屏保」;R158:图库在「自动切换间隔」上方
+            listOf("startScreensaver", "screensaverAfter", "screensaverGallery", "screensaverInterval", "systemScreensaver", "screenOff"),
             ss.map { it.id },
         )
-        assertTrue(ss.first() is ActionRow)
-        assertTrue(ss.drop(1).take(2).all { it is ControlRow })
-        assertTrue(ss.drop(3).all { it is ActionRow })
+        // 动作行 / 选项行交错:立即开始、启动时间(选项)、图库、切换间隔(选项)、系统屏保、自动关屏
+        assertEquals(listOf(true, false, true, false, true, true), ss.map { it is ActionRow })
+        assertTrue(ss.filterNot { it is ActionRow }.all { it is ControlRow })
     }
 
     @Test fun screensaverRowsMirrorSettings() {

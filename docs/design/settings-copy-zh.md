@@ -147,15 +147,15 @@
 - **5.2e.3** 　第 3 个选项:同 2.4s.1e.2(这一处显示:5 分钟后)
 - **5.2e.4** 　第 4 个选项:同 2.4s.1e.2(这一处显示:10 分钟后)
 - **5.2e.5** 　第 5 个选项:同 2.4s.1e.2(这一处显示:30 分钟后)
-- **5.3** 胶囊:「自动切换间隔」 `settings_screensaver_interval`
-- **5.3a** 　左侧说明:「每张图片停留多久，再换下一张。」 `settings_screensaver_interval_desc`
-- **5.3e** 选项层(按确定进去的那一页):页名同 5.3,页名上方小字「设置 · 屏保」,左侧说明同上
-- **5.3e.1** 　第 1 个选项:「%1$d 秒」(例:30 秒) `settings_seconds`
-- **5.3e.2** 　第 2 个选项:「%1$d 分钟」(例:1 分钟) `settings_idle_minutes`
-- **5.3e.3** 　第 3 个选项:同 5.3e.2(这一处显示:5 分钟)
-- **5.4** 胶囊:「屏保图库」 `settings_screensaver_gallery`
-- **5.4a** 　左侧说明:「屏保会轮播带✓的图片和视频。可以采用或取消内置图片，也可以采用你自己上传的图片或视频。」 `settings_screensaver_gallery_desc`
-- **5.4g** 　按确定:打开屏保图库页
+- **5.3** 胶囊:「屏保图库」 `settings_screensaver_gallery`
+- **5.3a** 　左侧说明:「屏保会轮播带✓的图片和视频。可以采用或取消内置图片，也可以采用你自己上传的图片或视频。」 `settings_screensaver_gallery_desc`
+- **5.3g** 　按确定:打开屏保图库页
+- **5.4** 胶囊:「自动切换间隔」 `settings_screensaver_interval`
+- **5.4a** 　左侧说明:「每张图片停留多久，再换下一张。」 `settings_screensaver_interval_desc`
+- **5.4e** 选项层(按确定进去的那一页):页名同 5.4,页名上方小字「设置 · 屏保」,左侧说明同上
+- **5.4e.1** 　第 1 个选项:「%1$d 秒」(例:30 秒) `settings_seconds`
+- **5.4e.2** 　第 2 个选项:「%1$d 分钟」(例:1 分钟) `settings_idle_minutes`
+- **5.4e.3** 　第 3 个选项:同 5.4e.2(这一处显示:5 分钟)
 - **5.5** 胶囊:「系统屏保」 `settings_system_screensaver`
 - **5.5a** 　左侧说明:「在其他应用里闲置时，由电视启动的屏保。选 UnitedU，就会播放同一个屏保图库。」 `settings_system_screensaver_desc`
 - **5.5b** 　胶囊右侧的值由几段拼成,用「 · 」连接,例:「开 · UnitedU · 无操作 5 分钟后」

@@ -54,8 +54,10 @@ class CopyTest {
     /** 中文里与汉字相邻的标点一律全角(R132);半角的 , : ; ? ! ( ) 紧挨着汉字就算漏网(文件扩展名里的点不算)。 */
     @Test fun chinesePunctuationIsFullWidth() {
         val bad = Regex("""[\u4e00-\u9fff][,:;?!()]|[,:;?!()][\u4e00-\u9fff]""")
+        // R155(Gordon 定「保留原样」):括着纯英文的半角括号可以挨着汉字,如「主页(Home)键」。
+        val asciiParen = Regex("""\([A-Za-z0-9 ]+\)""")
         for (l in listOf("values", "values-zh-rTW")) {
-            val offenders = strings(l).filter { (_, v) -> bad.containsMatchIn(v) }.map { (k, v) -> "$k = $v" }
+            val offenders = strings(l).filter { (_, v) -> bad.containsMatchIn(asciiParen.replace(v, "A")) }.map { (k, v) -> "$k = $v" }
             assertTrue("$l 有半角标点挨着汉字:\n" + offenders.joinToString("\n"), offenders.isEmpty())
         }
     }

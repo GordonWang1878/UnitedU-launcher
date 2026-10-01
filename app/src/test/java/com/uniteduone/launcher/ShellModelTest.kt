@@ -63,7 +63,7 @@ class ShellModelTest {
             ids(g, GroupId.APPEARANCE),
         )
         assertEquals(
-            listOf("startScreensaver", "screensaverAfter", "screensaverInterval", "screensaverGallery", "systemScreensaver", "screenOff"),
+            listOf("startScreensaver", "screensaverAfter", "screensaverGallery", "screensaverInterval", "systemScreensaver", "screenOff"),
             ids(g, GroupId.SCREENSAVER),
         )
     }
