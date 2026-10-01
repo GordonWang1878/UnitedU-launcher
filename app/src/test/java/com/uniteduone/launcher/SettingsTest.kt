@@ -343,13 +343,13 @@ class SettingsTest {
 
     // ---- R70:卡片淡化两项 ----
 
-    /** R152:没有这两个键 → 100 / 100(不淡化,R70–R151 是 R49 写死的 30 / 75)。 */
-    @Test fun cardFadeDefaultsAreUnfaded() {
+    /** R152(Gordon 2026-10-01 改定):没有这两个键 → 饱和度 90 / 亮度 75(R70–R151 是 R49 写死的 30 / 75)。 */
+    @Test fun cardFadeDefaultsFollowR152() {
         val s = parseSettings("{\"cardsPerRow\": 6}")
-        assertEquals(100, s.cardSaturation)
-        assertEquals(100, s.cardBrightness)
+        assertEquals(90, s.cardSaturation)
+        assertEquals(75, s.cardBrightness)
         assertEquals(CardFade.DEFAULT, s.cardFade())
-        assertTrue(CardFade.DEFAULT.isIdentity)
+        assertFalse(CardFade.DEFAULT.isIdentity)
     }
 
     @Test fun cardFadeClampsAndSnaps() {
@@ -371,8 +371,8 @@ class SettingsTest {
         val s = Settings(cardSaturation = 70, cardBrightness = 95)
         assertEquals(s, parseSettings(s.toJson()))
         val r = restoredDefaults(s, 1L)
-        assertEquals(100, r.cardSaturation)  // R152
-        assertEquals(100, r.cardBrightness)
+        assertEquals(90, r.cardSaturation)  // R152
+        assertEquals(75, r.cardBrightness)
     }
 
     /** 30 / 75 的矩阵与 R49 原矩阵逐项相同;100 / 100(R152 起的缺省)是恒等(淡化层整个跳过)。 */
@@ -383,19 +383,20 @@ class SettingsTest {
         val m = id.matrix()
         assertEquals(1f, m[0], 1e-6f); assertEquals(0f, m[1], 1e-6f); assertEquals(1f, m[6], 1e-6f)
         assertFalse(CardFade(30, 75).isIdentity)
-        assertTrue(CardFade.DEFAULT.isIdentity)
+        assertFalse(CardFade.DEFAULT.isIdentity)  // R152 缺省 90 / 75,仍要淡化
     }
 
     // ---- R86:卡片不透明度 ----
 
     /** 旧文件没有这个键 → 100(不透明),观感零变化;CardFade 跟着带上。 */
-    @Test fun cardOpacityMissingKeyDefaultsTo100() {
+    /** R152:没有这个键 → 80(界面「透明度 20%」;R86–R151 是 100)。 */
+    @Test fun cardOpacityMissingKeyDefaultsTo80() {
         val s = parseSettings("{\"cardsPerRow\": 6, \"cardSaturation\": 30}")
-        assertEquals(100, s.cardOpacity)
-        assertEquals(100, Settings().cardOpacity)
-        assertEquals(1f, s.cardFade().restAlpha, 1e-6f)
-        assertEquals(CardFade(30, DEFAULT_CARD_BRIGHTNESS, 100), s.cardFade())
-        assertEquals(100, parseSettings("{}").cardOpacity)
+        assertEquals(80, s.cardOpacity)
+        assertEquals(80, Settings().cardOpacity)
+        assertEquals(0.8f, s.cardFade().restAlpha, 1e-6f)
+        assertEquals(CardFade(30, DEFAULT_CARD_BRIGHTNESS, 80), s.cardFade())
+        assertEquals(80, parseSettings("{}").cardOpacity)
     }
 
     @Test fun cardOpacityClampsAndSnaps() {
@@ -404,8 +405,8 @@ class SettingsTest {
         assertEquals(40, parseSettings("{\"cardOpacity\": 0}").cardOpacity)
         assertEquals(40, parseSettings("{\"cardOpacity\": -30}").cardOpacity)
         assertEquals(100, parseSettings("{\"cardOpacity\": 250}").cardOpacity)
-        assertEquals(100, parseSettings("{\"cardOpacity\": \"x\"}").cardOpacity)
-        assertEquals(100, parseSettings("{\"cardOpacity\": true}").cardOpacity)
+        assertEquals(DEFAULT_CARD_OPACITY, parseSettings("{\"cardOpacity\": \"x\"}").cardOpacity)
+        assertEquals(DEFAULT_CARD_OPACITY, parseSettings("{\"cardOpacity\": true}").cardOpacity)
         assertEquals(70, parseSettings("{\"cardOpacity\": 70}").cardOpacity)
     }
 
@@ -415,7 +416,7 @@ class SettingsTest {
             assertEquals(s, parseSettings(s.toJson()))
         }
         assertTrue(Settings(cardOpacity = 60).toJson().contains("\"cardOpacity\": 60"))
-        assertEquals(100, restoredDefaults(Settings(cardOpacity = 40), 1L).cardOpacity)
+        assertEquals(80, restoredDefaults(Settings(cardOpacity = 40), 1L).cardOpacity)  // R152
         // 不透明度不进颜色矩阵、不影响「恒等」判断
         val f = Settings(cardSaturation = 100, cardBrightness = 100, cardOpacity = 40).cardFade()
         assertTrue(f.isIdentity)

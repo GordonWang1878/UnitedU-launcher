@@ -59,14 +59,14 @@ data class Settings(
     val wallpaperBrightness: Int = 0,
     /**
      * 卡片饱和度 0–100(%),步 10(R70,2026-09-23 设置页改版新增)。R49 卡片淡化原来写死在
-     * `GtvLayout.CARD_FADE_SATURATION`(30%),R70–R151 缺省值照抄;R152 起缺省 100(不淡化)。
+     * `GtvLayout.CARD_FADE_SATURATION`(30%),R70–R151 缺省值照抄;R152 起缺省 90。
      */
     val cardSaturation: Int = DEFAULT_CARD_SATURATION,
-    /** 卡片亮度 50–100(%),步 5(R70)。缺省 R70–R151 是 75(= 原 `GtvLayout.CARD_FADE_BRIGHTNESS`),R152 起 100。 */
+    /** 卡片亮度 50–100(%),步 5(R70)。缺省 75(= 原 `GtvLayout.CARD_FADE_BRIGHTNESS`;R152 当天曾改 100,Gordon 改回 75)。 */
     val cardBrightness: Int = DEFAULT_CARD_BRIGHTNESS,
     /**
      * 卡片不透明度 40–100(%),步 10(R86,2026-09-27 Gordon 定)。只作用于**未聚焦**的卡片,焦点卡恒 100%;
-     * 缺省 100 = 加这一项之前的样子,旧文件没有这个键时观感零变化。
+     * 缺省 R86–R151 是 100(加这一项之前的样子);R152 起 80(界面上「透明度 20%」),没有这个键的旧文件按新缺省读。
      */
     val cardOpacity: Int = DEFAULT_CARD_OPACITY,
     /** 上次打开「添加应用」列表的时刻(epoch ms);firstInstallTime 晚于它的应用算「新」。0 = 未初始化(首启时写成当时)。 */
@@ -94,16 +94,17 @@ internal val VALID_SCREENSAVER_INTERVAL_MS = longArrayOf(30_000L, 60_000L, 300_0
 /** R152(2026-10-01 Gordon「默认设置优化」):每张停留默认 1 分钟(此前 30 秒)。 */
 internal const val DEFAULT_SCREENSAVER_INTERVAL_MS = 60_000L
 
-// R70:卡片淡化两条滑块的取值范围。R152(2026-10-01 Gordon「默认设置优化」)起缺省是 100 / 100(不淡化);
-// R70–R151 的缺省是 R49 写死的 30 / 75——没有这两个键的旧文件读进来会变成不淡化(写过一次设置的文件都带着这两个键,不受影响)。
-internal const val DEFAULT_CARD_SATURATION = 100
-internal const val DEFAULT_CARD_BRIGHTNESS = 100
+// R70:卡片淡化两条滑块的取值范围。R152(2026-10-01 Gordon「默认设置优化」,同日改定)起缺省 饱和度 90 / 亮度 75;
+// R70–R151 是 R49 写死的 30 / 75。没有这两个键的旧文件按新缺省读(写过一次设置的文件都带着这两个键,不受影响)。
+internal const val DEFAULT_CARD_SATURATION = 90
+internal const val DEFAULT_CARD_BRIGHTNESS = 75
 internal const val CARD_SATURATION_MIN = 0
 internal const val CARD_SATURATION_STEP = 10
 internal const val CARD_BRIGHTNESS_MIN = 50
 internal const val CARD_BRIGHTNESS_STEP = 5
-// R86:卡片不透明度 40–100 步 10(7 档),缺省 100 = 不透明。下限 40:再低卡片就和壁纸糊在一起,认不出是哪个应用。
-internal const val DEFAULT_CARD_OPACITY = 100
+// R86:卡片不透明度 40–100 步 10(7 档)。下限 40:再低卡片就和壁纸糊在一起,认不出是哪个应用。
+// 缺省 R86–R151 是 100(不透明);R152(2026-10-01 Gordon)起 80 = 设置页里的「卡片透明度 20%」(界面值 = 100 − 不透明度)。
+internal const val DEFAULT_CARD_OPACITY = 80
 internal const val CARD_OPACITY_MIN = 40
 internal const val CARD_OPACITY_STEP = 10
 
@@ -120,15 +121,15 @@ internal const val WALLPAPER_BLUR_STEP = 5
 internal fun clampWallpaperBlur(v: Int?, default: Int): Int =
     if (v == null) default else ((v.coerceIn(0, WALLPAPER_BLUR_MAX) + WALLPAPER_BLUR_STEP / 2) / WALLPAPER_BLUR_STEP) * WALLPAPER_BLUR_STEP
 
-/** 卡片饱和度:0..100 夹取后四舍五入到 10 的倍数;解析不出 → [DEFAULT_CARD_SATURATION](R152 起 100,此前 30)。 */
+/** 卡片饱和度:0..100 夹取后四舍五入到 10 的倍数;解析不出 → [DEFAULT_CARD_SATURATION](R152 起 90,此前 30)。 */
 private fun clampCardSaturation(v: Int?): Int =
     if (v == null) DEFAULT_CARD_SATURATION else ((v.coerceIn(0, 100) + 5) / 10) * 10
 
-/** 卡片亮度:50..100 夹取后四舍五入到 5 的倍数;解析不出 → [DEFAULT_CARD_BRIGHTNESS](R152 起 100,此前 75)。 */
+/** 卡片亮度:50..100 夹取后四舍五入到 5 的倍数;解析不出 → [DEFAULT_CARD_BRIGHTNESS](75)。 */
 private fun clampCardBrightness(v: Int?): Int =
     if (v == null) DEFAULT_CARD_BRIGHTNESS else Math.round(v.coerceIn(CARD_BRIGHTNESS_MIN, 100) / 5f) * 5
 
-/** 卡片不透明度:40..100 夹取后四舍五入到 10 的倍数;解析不出(含缺键)→ 100(R86)。 */
+/** 卡片不透明度:40..100 夹取后四舍五入到 10 的倍数;解析不出(含缺键)→ [DEFAULT_CARD_OPACITY](R152 起 80,R86 起 100)。 */
 internal fun clampCardOpacity(v: Int?): Int =
     if (v == null) DEFAULT_CARD_OPACITY else ((v.coerceIn(CARD_OPACITY_MIN, 100) + 5) / 10) * 10
 

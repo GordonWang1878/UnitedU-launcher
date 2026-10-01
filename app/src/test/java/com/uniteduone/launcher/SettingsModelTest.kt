@@ -426,8 +426,8 @@ class SettingsModelTest {
         assertEquals(CtrlKind.SLIDER, bri.kind)
         assertEquals(11, sat.count)
         assertEquals(11, bri.count)
-        assertEquals(10, sat.selected)         // 100%(R152 起的缺省)
-        assertEquals(10, bri.selected)         // (100 − 50) / 5
+        assertEquals(9, sat.selected)          // 90%(R152 起的缺省)
+        assertEquals(5, bri.selected)          // (75 − 50) / 5
         sat.onSelect(10)
         assertEquals(100, written?.cardSaturation)
         bri.onSelect(0)

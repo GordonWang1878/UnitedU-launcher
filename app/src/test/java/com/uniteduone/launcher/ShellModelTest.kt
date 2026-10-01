@@ -299,9 +299,9 @@ class ShellModelTest {
 
     /** R86/R87:卡片透明度 7 档 0–60%(存盘 cardOpacity = 100 − 透明度),缺省 0,两头到头不越界。 */
     @Test fun cardOpacitySliderStepsClampAtBothEnds() {
-        val none = controlRow(groups(Settings()), "cardOpacity")!!
+        val none = controlRow(groups(Settings(cardOpacity = 100)), "cardOpacity")!!
         assertEquals(7, none.count)
-        assertEquals(0, none.selected)                // 缺省:透明度 0%(不透明度 100)
+        assertEquals(0, none.selected)                // 透明度 0%(不透明度 100)
         assertEquals("0%", sliderText(none))
         assertEquals(0, sliderStep(none, -1))         // 到头不动
         assertEquals(1, sliderStep(none, +1))

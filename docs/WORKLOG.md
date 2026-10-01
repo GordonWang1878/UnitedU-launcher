@@ -1778,3 +1778,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 迭代中淘汰:方向键第一版(粗环 + 白中心,像救生圈 → 改细缝 + 箭头 + 深色中键)、「一笔」单线绕圈(读成 Y / 8,认不出 U → 换成门洞)、「相扣」框 + 圆(就是通用的「超链接」图标 → 改交叠)。
 - 已知限制:banner 字标用的是 macOS 自带字体(Futura / Gill Sans / Didot 等)直接渲染,定稿时要转曲;07 的 Didot 细线在电视实际大小下偏细。代码一行未动,`app/src/main/res` 未改。
 - 装电视(R152 / R153,`base.apk` md5 与本地一致 `2d4bc269…`,编译第 2 次读回 `speed-profile`,未按键):装时电视在我们的屏保里、悬浮窗权限 Gordon 已开(`appops … allow`)——**R151 真机验证通过**:日志 `package replaced; HOME intent sent`、ActivityTaskManager `START … HOME … (BAL_ALLOW_ALLOWLISTED_COMPONENT)`,装完前台应用是 UnitedU 的 MainActivity(屏保随进程结束,电视进待机,醒来就是桌面,不再落到 HDMI)。
+- Gordon 随后改定卡片三项的默认值:饱和度 90%、亮度 75%、透明度 20%(存盘不透明度 80)。R152 里的「100 / 100 / 0%」作废,单测跟着改(缺省不再是恒等淡化)。
