@@ -5,14 +5,14 @@
     <!-- menu_* : 齿轮菜单与菜单项 -->
     <string name="menu_settings_title">设置</string>
     <string name="menu_edit">编辑桌面</string>
-    <string name="menu_edit_desc">添加或移除应用、调整顺序、管理每一行。</string>
-    <string name="menu_wallpaper">换壁纸</string>
-    <string name="menu_wallpaper_desc">从内置壁纸或你自己的照片里选一张。</string>
-    <string name="menu_system_settings">电视设置</string>
+    <string name="menu_edit_desc">添加或移除应用卡片、调整顺序、管理每一行。</string>
+    <string name="menu_wallpaper">切换壁纸</string>
+    <string name="menu_wallpaper_desc">从内置壁纸或你自己上传的照片里选一张。</string>
+    <string name="menu_system_settings">原生电视设置</string>
     <string name="menu_system_settings_desc">网络、画面、声音等电视自身的设置</string>
     <string name="menu_about">关于</string>
-    <string name="menu_about_desc">版本、检查更新、恢复默认</string>
-    <string name="menu_set_default_home">默认桌面</string>
+    <string name="menu_about_desc">版本、更新、恢复默认</string>
+    <string name="menu_set_default_home">设置默认桌面</string>
     <string name="menu_set_default_home_desc">按遥控器的主页键时打开哪个桌面。设成 UnitedU，每次按主页键都会回到这里。</string>
     <!-- card_menu_* : 首页长按卡片菜单 -->
     <string name="card_menu_open">打开应用</string>
@@ -35,13 +35,13 @@
     <string name="toast_uninstall_failed">打不开系统卸载页</string>
     <string name="toast_remove_failed">没找到这张卡，可能刚被移出</string>
     <!-- R60(2026-09-23):原「导入图片」改名「手机传输」,从外观组挪到通用组;扫码页本身不变 -->
-    <string name="settings_phone_transfer">从手机添加</string>
+    <string name="settings_phone_transfer">上传资料</string>
     <string name="settings_phone_transfer_desc">用手机扫码，把照片和视频传到电视，或给电视装应用。</string>
     <!-- import_* : 电视端「从手机添加」页(R130 起:左边三步说明,右边二维码与网址) -->
-    <string name="import_title">用手机传到电视</string>
-    <string name="import_title_wallpapers">用手机添加壁纸</string>
-    <string name="import_title_cards">用手机添加卡片图</string>
-    <string name="import_title_screensavers">用手机添加\n屏保照片和视频</string>
+    <string name="import_title">上传资料</string>
+    <string name="import_title_wallpapers">上传壁纸</string>
+    <string name="import_title_cards">上传卡片图</string>
+    <string name="import_title_screensavers">上传屏保照片和视频</string>
     <string name="import_step_wifi">手机连上和电视相同的 Wi-Fi</string>
     <string name="import_step_scan">用手机相机扫描右边的二维码</string>
     <string name="import_step_pick">在打开的网页里选好文件，电视这边马上就能用</string>
@@ -62,7 +62,7 @@
     <string name="web_title">传到电视</string>
     <string name="web_connected">已连接电视</string>
     <string name="web_offline">和电视断开了</string>
-    <string name="web_offline_hint">在电视上重新打开「从手机添加」，再刷新这一页</string>
+    <string name="web_offline_hint">在电视上重新打开「上传资料」，再刷新这一页</string>
     <string name="web_tab_wallpapers">壁纸</string>
     <string name="web_tab_cards">卡片图</string>
     <string name="web_tab_screensavers">屏保</string>
@@ -135,8 +135,8 @@
     </plurals>
     <string name="home_settings_title">默认桌面</string>
     <string name="home_settings_current_label">当前</string>
-    <string name="home_settings_change_button">去系统设置更改</string>
-    <string name="home_settings_note">按主页键时打开的桌面。Android 只允许在系统设置里更改。</string>
+    <string name="home_settings_change_button">去原生电视设置更改</string>
+    <string name="home_settings_note">按主页(Home)键时打开的桌面。Android 只允许在原生电视设置里更改。</string>
     <string name="home_settings_unknown">未知</string>
 
     <!-- picker_* : 壁纸/卡片图/屏保图库选择器 -->
@@ -147,7 +147,7 @@
     <string name="picker_restore_original">恢复原图</string>
     <!-- 内置图名字表(assets/builtin/names.txt)取哪一列(R137);随这份 strings.xml 的语言走,不要翻译成别的值 -->
     <string name="builtin_names_lang">zh-CN</string>
-    <string name="picker_add_from_phone">从手机添加</string>
+    <string name="picker_add_from_phone">上传资料</string>
     <plurals name="picker_screensaver_pool_title">
         <item quantity="one">屏保图库 · %1$d 项</item>
         <item quantity="other">屏保图库 · %1$d 项</item>
@@ -157,7 +157,7 @@
     <!-- R115:选图页「内置 / 我的」两块的分组标题;内置屏保图关掉之后的角标与胶囊菜单(R117) -->
     <string name="picker_section_builtin">内置</string>
     <string name="picker_section_mine">我的</string>
-    <string name="pool_hint">带 ✓ 的会在屏保里轮播。长按内置图可以取消或加回，长按你传的图可以删除；按确定预览</string>
+    <string name="pool_hint">带✓的会在屏保里轮播。长按内置图可以取消或加回，长按你上传的图可以删除；按确定预览</string>
     <string name="pool_builtin_exclude">不参与轮播</string>
     <string name="pool_builtin_include">加入轮播</string>
     <!-- pool_delete_* : 屏保图库长按删图的确认框(M5 spec §5);取消复用 dialog_cancel -->
@@ -171,7 +171,7 @@
     <!-- R57(2026-09-23):设置页左栏四组 通用 / 布局 / 外观 / 屏保 -->
     <string name="settings_group_general">通用</string>
     <string name="settings_group_layout">布局</string>
-    <string name="settings_group_appearance">外观</string>
+    <string name="settings_group_appearance">外观偏好</string>
     <string name="settings_group_screensaver">屏保</string>
     <!-- R57:「时钟显示」二选一,映射既有 showDate(0 = 仅时间,1 = 时间与日期) -->
     <string name="settings_clock_display">时钟显示</string>
@@ -189,22 +189,22 @@
     <string name="settings_follow_wallpaper">主题色跟随壁纸</string>
     <!-- R128:待机时长 + 待机显示合成「待机」子页(通用组),胶囊右端是两行的值摘要 -->
     <string name="settings_standby">闲置画面</string>
-    <string name="settings_idle_after">进入闲置</string>
+    <string name="settings_idle_after">闲置启动时间</string>
     <string name="settings_idle_off">从不</string>
     <string name="settings_idle_minutes">%1$d 分钟</string>
     <string name="settings_idle_content">闲置时显示</string>
-    <string name="settings_idle_clock">只留时钟</string>
+    <string name="settings_idle_clock">壁纸+时钟</string>
     <string name="settings_idle_black">全黑</string>
     <string name="settings_idle_nofade">不变</string>
     <!-- M5「待机与屏保」组新增的四行(spec §3、§6);分钟档复用 settings_idle_minutes,「关」复用 settings_idle_off -->
-    <string name="settings_screensaver_after">自动开始</string>
+    <string name="settings_screensaver_after">屏保启动时间</string>
     <string name="settings_screensaver_note_empty">轮播里没有照片，屏保不会开始</string>
     <string name="settings_screensaver_note_from_input">从最后一次按遥控器算起</string>
     <string name="settings_screensaver_note_after_standby">从桌面进入闲置画面算起</string>
-    <string name="settings_screensaver_interval">每张停留</string>
+    <string name="settings_screensaver_interval">自动切换间隔</string>
     <string name="settings_seconds">%1$d 秒</string>
     <string name="settings_screensaver_gallery">屏保图库</string>
-    <string name="settings_screensaver_gallery_desc">屏保播放的照片和视频。可以关掉内置图片，或从手机添加你自己的。</string>
+    <string name="settings_screensaver_gallery_desc">屏保会轮播带✓的图片和视频。可以采用或取消内置图片，也可以采用你自己上传的图片或视频。</string>
     <string name="settings_system_screensaver">系统屏保</string>
     <string name="settings_on">开</string>
     <string name="settings_off">关</string>
@@ -217,7 +217,7 @@
     <!-- R127:屏保组「关闭屏幕」行(读 secure sleep_timeout,确定键开系统设置);路径取自索尼 TvSettings 的简体中文文案 -->
     <string name="settings_screen_off">自动关屏</string>
     <string name="settings_screen_off_where">在 %1$s 里修改</string>
-    <string name="settings_screen_off_where_generic">在电视设置里找「自动关闭」「关机定时器」或「关闭显示屏」</string>
+    <string name="settings_screen_off_where_generic">在原生电视设置里找「自动关闭」「关机定时器」或「关闭显示屏」</string>
     <string name="settings_sys_idle_hours">无操作 %1$d 小时后</string>
     <string name="settings_sys_idle_minutes">无操作 %1$d 分钟后</string>
     <string name="settings_sys_idle_hours_minutes">无操作 %1$d 小时 %2$d 分钟后</string>
@@ -284,11 +284,11 @@
     <string name="toast_invalid_image">这个文件不是能用的图片</string>
     <string name="toast_card_image_changed">卡片图已更换</string>
     <string name="toast_icon_restored">已恢复原始图标</string>
-    <string name="toast_opened_stock_launcher">已打开原厂桌面；要永久切换请在系统设置里改主屏幕应用</string>
+    <string name="toast_opened_stock_launcher">已打开原厂桌面；要永久切换请在原生电视设置里改主屏幕应用</string>
     <string name="toast_stock_launcher_not_found">找不到原厂桌面</string>
     <string name="toast_restored">已恢复默认设置</string>
     <string name="toast_system_screensaver_unavailable">打不开系统屏保设置</string>
-    <string name="toast_system_settings_unavailable">打不开系统设置</string>
+    <string name="toast_system_settings_unavailable">打不开原生电视设置</string>
     <string name="toast_pool_delete_failed">「%1$s」没能删掉</string>
     <!-- M4b -->
     <string name="menu_hide_input">隐藏</string>
@@ -342,10 +342,10 @@
     <!-- edit_move_desc : 编辑页搬运模式(M4b 真机验收补丁 Task 2) -->
     <string name="edit_move_desc">在编辑页里用方向键挪这张卡，空行也能去</string>
     <!-- settings shell:设置页胶囊外壳(R69–R72,2026-09-23) -->
-    <string name="shell_root_layout_desc">编辑桌面、卡片大小、应用名、卡片色彩</string>
-    <string name="shell_root_general_desc">语言、默认桌面、从手机添加、时钟</string>
+    <string name="shell_root_layout_desc">编辑桌面、应用名、卡片显示偏好</string>
+    <string name="shell_root_general_desc">语言、默认桌面、上传资料、时钟</string>
     <string name="shell_root_appearance_desc">壁纸、主题色</string>
-    <string name="shell_root_screensaver_desc">屏保图库、自动开始、系统屏保等</string>
+    <string name="shell_root_screensaver_desc">屏保图库、启动时间、系统屏保等</string>
     <string name="settings_card_saturation">卡片饱和度</string>
     <string name="settings_card_brightness">卡片亮度</string>
     <string name="settings_card_opacity">卡片透明度</string>
@@ -373,32 +373,32 @@
     <string name="inputs_page_back">返回</string>
     <string name="input_menu_rename">改名</string>
     <string name="toast_cant_switch_input">切换不到「%1$s」</string>
-    <string name="settings_start_screensaver">立即开始屏保</string>
+    <string name="settings_start_screensaver">立即启动屏保</string>
     <string name="toast_screensaver_gallery_empty">屏保轮播是空的，先在屏保图库里添加照片或视频</string>
     <string name="input_label_tv">电视</string>
     <!-- R131–R133(2026-09-30 新手可读性):设置每一行的说明(外壳左侧显示)与新增取值 -->
     <string name="settings_language_desc">UnitedU 界面的语言，可以和电视系统不同。</string>
     <string name="settings_home_not_set">未设置</string>
-    <string name="settings_standby_desc">一段时间不按遥控器，桌面会淡去、只留时钟。在这里设定多久、留下什么。</string>
+    <string name="settings_standby_desc">一段时间不按遥控器，桌面会淡去，进入闲置画面。在这里设定闲置画面的偏好。</string>
     <string name="settings_idle_after_desc">多久不按遥控器，桌面就进入闲置画面。</string>
     <string name="settings_after_minutes">%1$d 分钟后</string>
-    <string name="settings_idle_content_desc">只留时钟：桌面淡去，留下右上角的时间。全黑：画面全部变黑。不变：桌面保持原样。</string>
+    <string name="settings_idle_content_desc">壁纸+时钟：桌面淡去，留下壁纸和时钟。全黑：画面全部变黑。不变：桌面保持原样。</string>
     <string name="settings_clock_display_desc">右上角的时钟显示哪些内容。</string>
     <string name="settings_sys_anim_scale_desc">电视的动画速度不是 1×，界面动画会变慢或变快。按确定前往开发者选项修改。</string>
     <string name="settings_card_size_desc">小：一行 8 张 · 中：一行 6 张 · 大：一行 5 张</string>
     <string name="settings_show_titles_desc">在每张卡片下方显示应用名。</string>
     <string name="settings_card_saturation_desc">卡片颜色的浓淡。调低更素雅，100% 是应用原本的颜色。</string>
     <string name="settings_card_brightness_desc">卡片的明暗。调低更柔和，100% 是原本的亮度。</string>
-    <string name="settings_card_opacity_desc">没选中的卡片透出壁纸的程度，选中的那张始终不透明。</string>
+    <string name="settings_card_opacity_desc">卡片透出壁纸的程度。</string>
     <string name="settings_wallpaper_blur_desc">把壁纸调模糊，卡片会更醒目。</string>
     <string name="settings_wallpaper_brightness_desc">调暗或调亮壁纸。</string>
     <string name="settings_theme_color_desc">焦点框、按钮等高亮处的颜色。</string>
     <string name="settings_follow_wallpaper_desc">打开后，主题色会从当前壁纸里自动选取。</string>
     <string name="settings_start_screensaver_desc">马上播放屏保，按任意键退出。</string>
     <string name="settings_screensaver_after_desc">闲置画面出现之后，再过多久自动开始屏保。</string>
-    <string name="settings_screensaver_interval_desc">每张照片停留多久，再换下一张。</string>
+    <string name="settings_screensaver_interval_desc">每张图片停留多久，再换下一张。</string>
     <string name="settings_system_screensaver_desc">在其他应用里闲置时，由电视启动的屏保。选 UnitedU，就会播放同一个屏保图库。</string>
-    <string name="settings_screen_off_desc">多久没操作，电视就自动关闭屏幕。这是电视自己的设置，按确定前往。</string>
+    <string name="settings_screen_off_desc">多久没操作，电视就自动关闭屏幕。这是原生电视设置里的选项，按确定前往。</string>
     <string name="settings_sys_never_starts">不会自动开始</string>
     <!-- R133:内置三行的名字(新建布局时按界面语言写进 layout.json;老布局不动) -->
     <string name="row_default_video">影视</string>

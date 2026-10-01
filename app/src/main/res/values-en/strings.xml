@@ -5,7 +5,7 @@
     <!-- menu_* : gear menu and its items -->
     <string name="menu_settings_title">Settings</string>
     <string name="menu_edit">Edit Home Screen</string>
-    <string name="menu_edit_desc">Add or remove apps, reorder them and manage rows.</string>
+    <string name="menu_edit_desc">Add or remove app cards, reorder them and manage rows.</string>
     <!-- Fix 5 (final review, 2026-09-20): the old forced line break was tuned for the pre-Task-8 dialog
          row, where the focus indicator bar narrowed the text column (521px unfocused vs 515px focused
          width at 11sp DM Sans) and an uneven wrap made the whole menu jump height on focus. The Task 8
@@ -14,13 +14,13 @@
          Compose choose the break point at the current width/size (12sp, roughly a 220dp column) fits
          this on two lines with no truncation; the forced break no longer did, once Task 8 narrowed
          the column. -->
-    <string name="menu_wallpaper">Change Wallpaper</string>
-    <string name="menu_wallpaper_desc">Choose a built-in wallpaper or one of your photos.</string>
-    <string name="menu_system_settings">TV Settings</string>
+    <string name="menu_wallpaper">Switch Wallpaper</string>
+    <string name="menu_wallpaper_desc">Choose a built-in wallpaper or a photo you uploaded.</string>
+    <string name="menu_system_settings">Native TV Settings</string>
     <string name="menu_system_settings_desc">Network, picture, sound and other TV settings</string>
     <string name="menu_about">About</string>
     <string name="menu_about_desc">Version, updates, restore defaults</string>
-    <string name="menu_set_default_home">Default Home App</string>
+    <string name="menu_set_default_home">Set Default Home App</string>
     <string name="menu_set_default_home_desc">Which home screen opens when you press Home on the remote. Choose UnitedU to always come back here.</string>
     <!-- card_menu_* : long-press card menu on the home screen -->
     <string name="card_menu_open">Open App</string>
@@ -43,13 +43,13 @@
     <string name="toast_uninstall_failed">Could not open the system uninstall page</string>
     <string name="toast_remove_failed">Card not found — it may have just been removed</string>
     <!-- R60(2026-09-23):原「导入图片」改名「手机传输」,从外观组挪到通用组;扫码页本身不变 -->
-    <string name="settings_phone_transfer">Add from Phone</string>
+    <string name="settings_phone_transfer">Upload Files</string>
     <string name="settings_phone_transfer_desc">Scan a code with your phone to send photos and videos to the TV, or install apps.</string>
     <!-- import_* : TV-side Add from Phone page (R130: three steps on the left, QR code and address on the right) -->
-    <string name="import_title">Send from Your Phone</string>
-    <string name="import_title_wallpapers">Add Wallpapers from Your Phone</string>
-    <string name="import_title_cards">Add Card Art from Your Phone</string>
-    <string name="import_title_screensavers">Add Screensaver Photos &amp; Videos</string>
+    <string name="import_title">Upload Files</string>
+    <string name="import_title_wallpapers">Upload Wallpapers</string>
+    <string name="import_title_cards">Upload Card Art</string>
+    <string name="import_title_screensavers">Upload Screensaver Photos &amp; Videos</string>
     <string name="import_step_wifi">Connect your phone to the same Wi-Fi as this TV</string>
     <string name="import_step_scan">Scan the QR code with your phone\'s camera</string>
     <string name="import_step_pick">Pick files on the page that opens. They\'re ready on the TV right away.</string>
@@ -70,7 +70,7 @@
     <string name="web_title">Send to TV</string>
     <string name="web_connected">Connected to TV</string>
     <string name="web_offline">Disconnected from TV</string>
-    <string name="web_offline_hint">Open Add from Phone on the TV again, then reload this page</string>
+    <string name="web_offline_hint">Open Upload Files on the TV again, then reload this page</string>
     <string name="web_tab_wallpapers">Wallpaper</string>
     <string name="web_tab_cards">Card Art</string>
     <string name="web_tab_screensavers">Screensaver</string>
@@ -143,8 +143,8 @@
     </plurals>
     <string name="home_settings_title">Default Home App</string>
     <string name="home_settings_current_label">Current</string>
-    <string name="home_settings_change_button">Change in System Settings</string>
-    <string name="home_settings_note">The home screen that opens when you press Home. Android only lets you change it in System Settings.</string>
+    <string name="home_settings_change_button">Change in Native TV Settings</string>
+    <string name="home_settings_note">The home screen that opens when you press Home. Android only lets you change it in Native TV Settings.</string>
     <string name="home_settings_unknown">Unknown</string>
 
     <!-- picker_* : wallpaper / card-image / screensaver pickers -->
@@ -155,7 +155,7 @@
     <string name="picker_restore_original">Restore Original</string>
     <!-- 内置图名字表(assets/builtin/names.txt)取哪一列(R137);随这份 strings.xml 的语言走,不要翻译成别的值 -->
     <string name="builtin_names_lang">en</string>
-    <string name="picker_add_from_phone">Add from Phone</string>
+    <string name="picker_add_from_phone">Upload Files</string>
     <plurals name="picker_screensaver_pool_title">
         <item quantity="one">Screensaver Gallery · %1$d item</item>
         <item quantity="other">Screensaver Gallery · %1$d items</item>
@@ -165,7 +165,7 @@
     <!-- R115: section titles of the "Built-in / Mine" blocks in the image pickers; off badge and capsule menu for built-in screensaver images (R117) -->
     <string name="picker_section_builtin">Built-in</string>
     <string name="picker_section_mine">Mine</string>
-    <string name="pool_hint">Items with ✓ play in the screensaver. Long-press a built-in to turn it off or on, or yours to delete. OK to preview</string>
+    <string name="pool_hint">Items with ✓ play in the screensaver. Long-press a built-in to turn it off or on, or one you uploaded to delete it. OK to preview</string>
     <string name="pool_builtin_exclude">Remove from Slideshow</string>
     <string name="pool_builtin_include">Add to Slideshow</string>
     <!-- pool_delete_* : long-press delete confirm in the screensaver gallery (M5 spec §5); cancel reuses dialog_cancel -->
@@ -197,22 +197,22 @@
     <string name="settings_follow_wallpaper">Match Wallpaper Color</string>
     <!-- R128: Standby Timeout + Standby Display merged into a "Standby" sub-page (General group); the capsule shows both values -->
     <string name="settings_standby">Idle Screen</string>
-    <string name="settings_idle_after">Idle After</string>
+    <string name="settings_idle_after">Idle Start Time</string>
     <string name="settings_idle_off">Never</string>
     <string name="settings_idle_minutes">%1$d min</string>
     <string name="settings_idle_content">Show When Idle</string>
-    <string name="settings_idle_clock">Clock Only</string>
+    <string name="settings_idle_clock">Wallpaper + Clock</string>
     <string name="settings_idle_black">Black</string>
     <string name="settings_idle_nofade">No Change</string>
     <!-- M5 "Standby & Screensaver" group, four new rows (spec §3, §6); minutes reuse settings_idle_minutes, "Off" reuses settings_idle_off -->
-    <string name="settings_screensaver_after">Start Automatically</string>
+    <string name="settings_screensaver_after">Screensaver Start Time</string>
     <string name="settings_screensaver_note_empty">The slideshow is empty, so it won\'t start</string>
     <string name="settings_screensaver_note_from_input">Counted from your last button press</string>
     <string name="settings_screensaver_note_after_standby">Counted from when the idle screen appears</string>
-    <string name="settings_screensaver_interval">Time per Slide</string>
+    <string name="settings_screensaver_interval">Switch Interval</string>
     <string name="settings_seconds">%1$d s</string>
     <string name="settings_screensaver_gallery">Screensaver Gallery</string>
-    <string name="settings_screensaver_gallery_desc">The photos and videos the screensaver plays. Turn off built-in ones, or add your own from your phone.</string>
+    <string name="settings_screensaver_gallery_desc">The screensaver plays the pictures and videos marked ✓. Use or turn off the built-in ones, and add pictures or videos you upload.</string>
     <string name="settings_system_screensaver">System Screensaver</string>
     <string name="settings_on">On</string>
     <string name="settings_off">Off</string>
@@ -225,7 +225,7 @@
     <!-- R127: Screensaver group "Screen Off" row (reads secure sleep_timeout, OK opens system settings); the path uses Sony TvSettings' English labels -->
     <string name="settings_screen_off">Auto Screen Off</string>
     <string name="settings_screen_off_where">Change in %1$s</string>
-    <string name="settings_screen_off_where_generic">Look for “Auto shut-off”, “Shut-Off Timer” or “Turn off display” in TV settings</string>
+    <string name="settings_screen_off_where_generic">Look for “Auto shut-off”, “Shut-Off Timer” or “Turn off display” in Native TV Settings</string>
     <string name="settings_sys_idle_hours">After %1$d hr idle</string>
     <string name="settings_sys_idle_minutes">After %1$d min idle</string>
     <string name="settings_sys_idle_hours_minutes">After %1$d hr %2$d min idle</string>
@@ -292,11 +292,11 @@
     <string name="toast_invalid_image">That file isn\'t a usable image</string>
     <string name="toast_card_image_changed">Card art changed</string>
     <string name="toast_icon_restored">Original icon restored</string>
-    <string name="toast_opened_stock_launcher">Opened the stock launcher; to switch permanently, change the default home app in System Settings</string>
+    <string name="toast_opened_stock_launcher">Opened the stock launcher; to switch permanently, change the default home app in Native TV Settings</string>
     <string name="toast_stock_launcher_not_found">Stock launcher not found</string>
     <string name="toast_restored">Defaults restored</string>
     <string name="toast_system_screensaver_unavailable">Can\'t open system screensaver settings</string>
-    <string name="toast_system_settings_unavailable">Can\'t open system settings</string>
+    <string name="toast_system_settings_unavailable">Can\'t open Native TV Settings</string>
     <string name="toast_pool_delete_failed">Couldn\'t delete “%1$s”</string>
     <!-- M4b -->
     <string name="menu_hide_input">Hide</string>
@@ -350,10 +350,10 @@
     <!-- edit_move_desc : edit-screen carry mode (M4b follow-up Task 2) -->
     <string name="edit_move_desc">Move this card with the arrow keys, empty rows included</string>
     <!-- settings shell: capsule shell for all settings pages (R69–R72, 2026-09-23) -->
-    <string name="shell_root_layout_desc">Edit home screen, card size, app names, card colors</string>
-    <string name="shell_root_general_desc">Language, default home, add from phone, idle screen, clock</string>
+    <string name="shell_root_layout_desc">Edit home screen, app names, card display</string>
+    <string name="shell_root_general_desc">Language, default home, upload files, clock</string>
     <string name="shell_root_appearance_desc">Wallpaper, theme color</string>
-    <string name="shell_root_screensaver_desc">Gallery, auto start, system screensaver, screen off</string>
+    <string name="shell_root_screensaver_desc">Gallery, start time, system screensaver, screen off</string>
     <string name="settings_card_saturation">Card Saturation</string>
     <string name="settings_card_brightness">Card Brightness</string>
     <string name="settings_card_opacity">Card Transparency</string>
@@ -387,26 +387,26 @@
     <!-- R131–R133(2026-09-30 新手可读性):设置每一行的说明(外壳左侧显示)与新增取值 -->
     <string name="settings_language_desc">The language UnitedU uses. It can differ from your TV\'s.</string>
     <string name="settings_home_not_set">Not Set</string>
-    <string name="settings_standby_desc">When the remote sits unused for a while, the home screen fades to a clock. Choose when, and what stays.</string>
+    <string name="settings_standby_desc">When the remote sits unused for a while, the home screen fades into the idle screen. Set how the idle screen behaves.</string>
     <string name="settings_idle_after_desc">How long without a button press before the idle screen appears.</string>
     <string name="settings_after_minutes">After %1$d min</string>
-    <string name="settings_idle_content_desc">Clock Only: the home screen fades, leaving the time. Black: the screen goes dark. No Change: nothing changes.</string>
+    <string name="settings_idle_content_desc">Wallpaper + Clock: the home screen fades, leaving the wallpaper and the time. Black: the screen goes dark. No Change: nothing changes.</string>
     <string name="settings_clock_display_desc">What the clock in the top-right corner shows.</string>
     <string name="settings_sys_anim_scale_desc">Your TV\'s animation speed isn\'t 1×, so animations run slower or faster. Press OK to change it in Developer options.</string>
     <string name="settings_card_size_desc">Small fits 8 per row, Medium 6, Large 5.</string>
     <string name="settings_show_titles_desc">Show each app\'s name under its card.</string>
     <string name="settings_card_saturation_desc">How vivid the cards are. Lower looks calmer; 100% shows the original colors.</string>
     <string name="settings_card_brightness_desc">How bright the cards are. Lower looks softer; 100% is the original brightness.</string>
-    <string name="settings_card_opacity_desc">How much wallpaper shows through the cards you\'re not on. The selected card stays solid.</string>
+    <string name="settings_card_opacity_desc">How much the wallpaper shows through the cards.</string>
     <string name="settings_wallpaper_blur_desc">Blur the wallpaper so the cards stand out.</string>
     <string name="settings_wallpaper_brightness_desc">Make the wallpaper darker or brighter.</string>
     <string name="settings_theme_color_desc">The highlight color for the focus frame, buttons and more.</string>
     <string name="settings_follow_wallpaper_desc">When on, the theme color is picked from your wallpaper.</string>
     <string name="settings_start_screensaver_desc">Play the screensaver right now. Press any button to exit.</string>
     <string name="settings_screensaver_after_desc">How long after the idle screen appears before the screensaver starts.</string>
-    <string name="settings_screensaver_interval_desc">How long each photo stays before the next one.</string>
+    <string name="settings_screensaver_interval_desc">How long each picture stays before the next one.</string>
     <string name="settings_system_screensaver_desc">The screensaver your TV starts when idle in other apps. Choose UnitedU to play the same gallery.</string>
-    <string name="settings_screen_off_desc">How long the TV sits unused before it turns the screen off. This is a TV setting; press OK to go there.</string>
+    <string name="settings_screen_off_desc">How long the TV sits unused before it turns the screen off. This is in Native TV Settings; press OK to go there.</string>
     <string name="settings_sys_never_starts">Never starts</string>
     <!-- R133:内置三行的名字(新建布局时按界面语言写进 layout.json;老布局不动) -->
     <string name="row_default_video">Video</string>

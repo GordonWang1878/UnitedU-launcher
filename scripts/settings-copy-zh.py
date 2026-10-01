@@ -100,7 +100,7 @@ def rows_block(sec, rows, path_title, depth_label=""):
                 line(f"{num}b1", "　　从不", "settings_sys_never")
                 line(f"{num}c", "　胶囊第二行小字(读到电视设置里的菜单名时,%1$s = 菜单路径)", "settings_screen_off_where")
                 line(f"{num}c2", "　胶囊第二行小字(读不到时)", "settings_screen_off_where_generic")
-            jumps = {"editLayout": "编辑桌面页", "pickWallpaper": "换壁纸页", "openImport": "扫码页(从手机添加)",
+            jumps = {"editLayout": "编辑桌面页", "pickWallpaper": "切换壁纸页", "openImport": "上传资料的扫码页",
                      "screensaverGallery": "屏保图库页", "systemScreensaver": "电视自己的屏保设置", "screenOff": "电视设置",
                      "startScreensaver": "屏保(马上开始播放)", "setDefaultHome": "下面的「默认桌面」页"}
             if r["id"] in jumps:
