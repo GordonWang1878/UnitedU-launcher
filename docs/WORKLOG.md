@@ -1779,3 +1779,5 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 已知限制:banner 字标用的是 macOS 自带字体(Futura / Gill Sans / Didot 等)直接渲染,定稿时要转曲;07 的 Didot 细线在电视实际大小下偏细。代码一行未动,`app/src/main/res` 未改。
 - 装电视(R152 / R153,`base.apk` md5 与本地一致 `2d4bc269…`,编译第 2 次读回 `speed-profile`,未按键):装时电视在我们的屏保里、悬浮窗权限 Gordon 已开(`appops … allow`)——**R151 真机验证通过**:日志 `package replaced; HOME intent sent`、ActivityTaskManager `START … HOME … (BAL_ALLOW_ALLOWLISTED_COMPONENT)`,装完前台应用是 UnitedU 的 MainActivity(屏保随进程结束,电视进待机,醒来就是桌面,不再落到 HDMI)。
 - Gordon 随后改定卡片三项的默认值:饱和度 90%、亮度 75%、透明度 20%(存盘不透明度 80)。R152 里的「100 / 100 / 0%」作废,单测跟着改(缺省不再是恒等淡化)。
+- 模拟器:恢复默认后 `cardSaturation 90 / cardBrightness 75 / cardOpacity 80`(恢复默认同时把语言改回跟随系统,模拟器回到英文)。改定的默认值还没装电视(只影响新装与恢复默认,电视上现有设置不变)。
+- Gordon 要 review 设置页文案:`docs/design/settings-copy-zh.md`,按屏幕编号、简体中文、每句带资源 key,他直接改「」里的字。结构由一个临时单测从 `settingsGroups()` / `SHELL_ROOT` 导出(反射把 R.string 的 id 换回名字,跑完删掉),`scripts/settings-copy-zh.py` 读它与 strings.xml 生成。
