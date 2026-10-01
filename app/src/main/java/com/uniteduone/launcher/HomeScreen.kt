@@ -410,7 +410,9 @@ fun HomeScreen(
     // 把焦点送到被搬的卡的新位置——目标变了效果就重跑,守卫与 key 成对(铁律 6)。移动态结束(放下 / 取消)时
     // moveTarget 变回 null、moveLanding 换成新对象,本效果再跑一次,把落点写进首页自己的目标格。
     // stale 换成了 frozen(= stale && 不在移动态,见其 KDoc),同样既是 key 又是守卫。
-    LaunchedEffect(focusNonce, rows.size, rows.isEmpty(), covered, frozen, moveTarget, moveLanding) {
+    // **R161 起 key 里多了 `loaded != null`**(守卫里有它,铁律 6):空桌面数据到达时 rows 还是空的、rows.size 不变,
+    // 没有这个 key 本效果不会重跑,冷启动时 Compose 先给出的齿轮就一直占着焦点(模拟器 e2e 实测),按钮永远拿不到。
+    LaunchedEffect(focusNonce, rows.size, rows.isEmpty(), loaded != null, covered, frozen, moveTarget, moveLanding) {
         // 除「浮层开着」外的每条分支都要把 restoring 放掉,否则用户自己的导航从此更新不了目标。
         // **浮层开着时反过来要把它按住**(`restoring = covered` 而不是恒 false):
         // 浮层关掉的那一帧,canFocus 从 false 回到 true,Compose 的默认恢复会抢在本效果重启之前
@@ -429,7 +431,8 @@ fun HomeScreen(
         // 焦点卡的节点被销毁、Compose 把焦点塞给 (0,0),那次上报就把目标改写成第一行第一张,
         // 随后的还原只会把焦点送回那里。冻到数据新鲜为止,还原效果再按夹过的列号把焦点送到
         // 同行邻卡(design §1 的「行变短时索引夹取」)。
-        if (focusNonce == 0 || rows.isEmpty() || covered || frozen) {
+        // 空桌面只在**数据还没到**时早退(R161):数据到了、一行都没有时,下面主动把焦点送到「编辑桌面」按钮。
+        if (focusNonce == 0 || (rows.isEmpty() && loaded == null) || covered || frozen) {
             restoring = covered || frozen; return@LaunchedEffect
         }
         // **移动态刚结束:落点成为首页的目标格**(放下 = 卡的新位置,取消 = 出发那一格)。写在守卫**之后**:
@@ -458,6 +461,18 @@ fun HomeScreen(
             while (frames < 60 && focusedCell != want) {
                 withFrameNanos { }
                 runCatching { pillTarget().requestFocus() }
+                frames++
+            }
+            restoring = false
+            return@LaunchedEffect
+        }
+        // **空桌面(R161):「编辑桌面」按钮。**冷启动时数据到达前唯一可聚焦的是顶栏,Compose 会先把焦点给设置那颗;
+        // 那不是用户的选择(report 在数据到前不改 tgtPill),这里主动把它送到按钮。退出判据同样只信按钮自报(铁律 2)。
+        if (rows.isEmpty()) {
+            val want = EMPTY_EDIT_ROW to 0
+            while (frames < 60 && focusedCell != want) {
+                withFrameNanos { }
+                runCatching { emptyEditFocus.requestFocus() }
                 frames++
             }
             restoring = false
@@ -656,32 +671,6 @@ fun HomeScreen(
             // 每行 26.5dp 纵向漂移的来源之一(与 rowPitch() 假设的 ROW_GAP 对不上,见 GtvLayoutTest)。
             verticalArrangement = Arrangement.spacedBy(GtvLayout.ROW_GAP.dp),
         ) {
-            // 配置里的应用一个都装不到(或引导第 2 步选了跳过)时,屏幕上只剩时钟和顶栏,看着像坏了。
-            // R161(2026-10-01 Gordon):一句话 + 一颗「编辑桌面」按钮,焦点默认在按钮上,确定直接进编辑页——那里每一行
-            // 末尾的「＋」一次能加好几个;R161 前这句话指去所有应用里一张张「加到桌面」。
-            // **被整屏浮层盖着时不画**(M7 T10):浮层开着时这一页不可聚焦、焦点在浮层里;首次引导的 α 0.85 遮罩下
-            // 它还正好横在语言按钮与「继续」之间(模拟器截图实测)。previewing = false 时行为不变。
-            if (loaded != null && rows.isEmpty() && !previewing) {
-                Column(
-                    // gtv 线内读一个常量(Fix 5,终审 2026-09-20):这个文件里以前 Theme.SidePadding
-                    // 与 GtvLayout.CONTENT_KEYLINE 两个名字都指同一条 58dp 基准线,值相同、名字不同,
-                    // 是与纵向 26.5dp 漂移同一类的命名漂移,统一改读后者。
-                    modifier = Modifier.padding(start = GtvLayout.CONTENT_KEYLINE.dp),
-                    verticalArrangement = Arrangement.spacedBy(GtvLayout.EMPTY_HOME_BUTTON_GAP.dp),
-                ) {
-                    BasicText(text = stringResource(R.string.home_empty_apps_hint), style = hintStyle)
-                    MenuPill(
-                        label = stringResource(R.string.menu_edit),
-                        onClick = onEditHome,
-                        // 上 = 顶栏的设置那颗(左右下本来就到头:MenuPill 左右恒 Cancel,isLast 让下也 Cancel)
-                        modifier = Modifier
-                            .focusRequester(emptyEditFocus)
-                            .focusProperties { up = gearFocus },
-                        onFocusChange = { got -> report(EMPTY_EDIT_ROW, 0, got) },
-                        isLast = true,
-                    )
-                }
-            }
             // Ruling R43 → R48:哪一行的行图标是「焦点行」近白态(R48 前是行标题大白态)。焦点在顶栏药丸组
             // (tgtPill ≥ 0)→ 没有焦点行(-1);否则就是 activeRowSafe(整页位移用的同一个量,图标与位移同时变)。
             // 两者都只在卡片 / 药丸真的拿到焦点时改写、浮层 / ON_PAUSE 期间冻结,所以图标在浮层与退后台时
@@ -749,6 +738,39 @@ fun HomeScreen(
                             if (!restoring && movingNow == null) { tgtRow = rowIndex; tgtIdx[rowIndex] = idx }
                         }
                     },
+                )
+            }
+        }
+
+        // 配置里的应用一个都装不到(或引导第 2 步选了跳过)时,屏幕上只剩时钟和顶栏,看着像坏了。
+        // R161(2026-10-01 Gordon):一句话 + 一颗「编辑桌面」按钮,焦点默认在按钮上,确定直接进编辑页——那里每一行
+        // 末尾的「＋」一次能加好几个;R161 前这句话指去所有应用里一张张「加到桌面」。
+        // **不放在卡片行那一列里**:那一列从焦点线(屏幕下部,R52)起排,按钮会被屏幕底边截掉(模拟器截图实测);
+        // 这里整屏垂直居中、贴左基准线。透明度与可聚焦跟卡片行同一套(contentAlpha、!covered)。
+        // **被整屏浮层盖着时不画**(M7 T10):浮层开着时这一页不可聚焦、焦点在浮层里;首次引导的 α 0.85 遮罩下
+        // 它还正好横在语言按钮与「继续」之间(模拟器截图实测)。previewing = false 时行为不变。
+        if (loaded != null && rows.isEmpty() && !previewing) {
+            Column(
+                // gtv 线内读一个常量(Fix 5,终审 2026-09-20):这个文件里以前 Theme.SidePadding
+                // 与 GtvLayout.CONTENT_KEYLINE 两个名字都指同一条 58dp 基准线,值相同、名字不同,
+                // 是与纵向 26.5dp 漂移同一类的命名漂移,统一改读后者。
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = GtvLayout.CONTENT_KEYLINE.dp)
+                    .alpha(contentAlpha)
+                    .focusProperties { canFocus = !covered },
+                verticalArrangement = Arrangement.spacedBy(GtvLayout.EMPTY_HOME_BUTTON_GAP.dp),
+            ) {
+                BasicText(text = stringResource(R.string.home_empty_apps_hint), style = hintStyle)
+                MenuPill(
+                    label = stringResource(R.string.menu_edit),
+                    onClick = onEditHome,
+                    // 上 = 顶栏的设置那颗(左右下本来就到头:MenuPill 左右恒 Cancel,isLast 让下也 Cancel)
+                    modifier = Modifier
+                        .focusRequester(emptyEditFocus)
+                        .focusProperties { up = gearFocus },
+                    onFocusChange = { got -> report(EMPTY_EDIT_ROW, 0, got) },
+                    isLast = true,
                 )
             }
         }

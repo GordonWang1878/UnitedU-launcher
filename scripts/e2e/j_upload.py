@@ -30,7 +30,7 @@ def up(path):  # 服务是否还开着:能连上 = 有 HTTP 状态码
 def open_wallpaper_picker():
     open_settings()
     move_to(S("settings_group_appearance")); key("ok"); time.sleep(1.2)
-    move_to("Change Wallpaper"); key("ok"); time.sleep(2)
+    move_to(S("menu_wallpaper")); key("ok"); time.sleep(2)
 
 def run():
     journey("upload-setup")
@@ -84,7 +84,7 @@ def run():
     check("选完回到外观页(单个焦点)", s.count_focused() == 1, s.count_focused())
 
     journey("upload-quick-reopen-and-background")
-    move_to("Change Wallpaper"); key("ok"); time.sleep(2)
+    move_to(S("menu_wallpaper")); key("ok"); time.sleep(2)
     key("down")
     # 格子里第二块现在有两格(＋、e2e-sunset),＋在第一格
     s = screen()

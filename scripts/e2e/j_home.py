@@ -11,6 +11,16 @@ def first_card():
     s = screen()
     return s
 
+def builtin_names(s):
+    """选图页「内置」那一块的名字(R159)。首页还画在选图页底下、无障碍树里照样有它的卡片名(占位应用里就有一张叫 bilibili),
+    所以不能整屏找字:只取「内置」与「我的」两个分组标题之间的那一段;没有「内置」一块 → 空表。"""
+    t = s.texts()
+    b, m = S("picker_section_builtin"), S("picker_section_mine")
+    if b not in t: return []
+    i = t.index(b)
+    j = t.index(m, i) if m in t[i:] else len(t)
+    return sorted(set(t[i + 1:j]))
+
 def run():
     journey("home-setup")
     restart(settings_patch={"language": "en", "onboardingDone": True, "showTitles": False}, layout=LAYOUT)
@@ -77,24 +87,11 @@ def run():
     long_ok(); move_to(S("card_menu_icon")); key("ok"); time.sleep(2)
     s = screen()
     check("换卡片图页标题", s.has(S("picker_card_image_title")), s.texts()[:6])
-    check("占位应用:没有「内置」一块(R159)", not s.has("Built-in") and not any(s.has(n) for n in ["Tencent", "iQIYI", "YouTube"]),
-          [t for t in s.texts()][:20])
+    check("占位应用:没有「内置」一块(R159)", builtin_names(s) == [] and not s.has(S("picker_section_builtin")), s.texts()[:24])
     check("选图页单个焦点", s.count_focused() == 1, s.count_focused())
     key("back"); time.sleep(1)
     s = screen()
     check("返回 → 焦点回卡片", s.focus() == card0, (s.focus(), card0))
-    # 第二行第三张是真的 YouTube(com.google.android.youtube.tv)→ 「内置」只有 YouTube 那张,名字是英文
-    key("down"); key("right"); key("right"); time.sleep(0.8)
-    yt = screen().focus()
-    long_ok(); move_to(S("card_menu_icon")); key("ok"); time.sleep(2)
-    s = screen()
-    check("YouTube:「内置」只有 YouTube 卡(R159)", s.has("Built-in") and s.has("YouTube")
-          and not any(s.has(n) for n in ["Tencent", "iQIYI", "Youku", "bilibili", "MIGU", "Mango TV"]), [t for t in s.texts()][:20])
-    check("没有小写 id(youtube)", not s.has("youtube") and not s.has("07-youtube"))
-    shot("home-card-art-en")
-    key("back"); time.sleep(1)
-    check("返回 → 焦点回 YouTube 卡", screen().focus() == yt, (screen().focus(), yt))
-    first_card()
 
     journey("home-home-intent-closes-overlays")
     long_ok()
@@ -118,10 +115,27 @@ def run():
     check("菜单淡出期间按右键 → 落在右边那张卡", s.count_focused() == 1 and s.focus() and s.focus()[0] > card0[0], (s.focus(), card0))
     keys_fast("left", gap=0.1); time.sleep(0.8)
 
+    journey("home-card-art-youtube")
+    # R159:第二行第三张是真的 YouTube(com.google.android.youtube.tv)→ 「内置」只有 YouTube 那张,名字是英文。
+    # 放在最后:前面几段都从第一行第一张起步,这里走到第二行会改掉首页记住的列号。
+    first_card()
+    key("down"); key("right"); key("right"); time.sleep(0.8)
+    yt = screen().focus()
+    long_ok(); move_to(S("card_menu_icon")); key("ok"); time.sleep(2)
+    s = screen()
+    check("YouTube:「内置」只有 YouTube 卡(R159)", builtin_names(s) == ["YouTube"], (builtin_names(s), s.texts()[-12:]))
+    check("没有小写 id(youtube)", not s.has("youtube") and not s.has("07-youtube"))
+    shot("home-card-art-en")
+    key("back"); time.sleep(1)
+    check("返回 → 焦点回 YouTube 卡", screen().focus() == yt, (screen().focus(), yt))
+
     journey("home-empty-edit-button")
     # R161:一个应用都没有(引导第 2 步跳过 = 三行空)→ 提示 + 「编辑桌面」按钮,焦点默认在按钮上,确定直接进编辑页
     empty = {"rows": [{"name": n, "icon": i, "apps": []} for n, i in [("影视", "movie"), ("直播", "tv"), ("音乐", "music")]]}
-    restart(layout=empty)
+    # 不用 restart():它拉起后会按一下「下、上」(唤醒 / 退出触摸模式),「上」正好把焦点从按钮送到顶栏
+    sh(f"am force-stop {PKG}"); push_json("layout.json", empty); home_intent()
+    if foreground() != PKG: home_intent()
+    time.sleep(3)
     ok, s = focus_stable()
     check("空桌面:提示指向编辑桌面", s.has("Choose Edit Home Screen below"), s.texts()[:8])
     check("空桌面:焦点默认在「编辑桌面」按钮", ok and s.label() == S("menu_edit"), (s.count_focused(), s.label()))
