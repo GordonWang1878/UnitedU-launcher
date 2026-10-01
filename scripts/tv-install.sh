@@ -18,7 +18,13 @@ PKG=com.uniteduone.launcher
 # 真机序列号两种形状都可能:mDNS 自动连上的 `adb-…._adb-tls-connect._tcp`,或手动 `adb connect` 的 `IP:端口`
 tv() { adb devices | awk -F'\t' '$1 !~ /^emulator-/ && $2=="device"{print $1; exit}'; }
 home_in_front() {
-  adb -s "$1" shell 'dumpsys window | grep mCurrentFocus' 2>/dev/null | tr -d '\r' | grep -q "$PKG/$PKG.MainActivity\|$PKG/.MainActivity"
+  local f
+  f=$(adb -s "$1" shell 'dumpsys window | grep mCurrentFocus' 2>/dev/null | tr -d '\r')
+  echo "$f" | grep -q "$PKG/$PKG.MainActivity\|$PKG/.MainActivity" && return 0
+  # 我们的屏保盖在首页上(首页紧挨在屏保下面)也算:装包杀掉屏保所在的进程,R151 记过「屏保在屏幕上」会把首页拉回。
+  # 屏保盖在别的应用上时不算(装完他回来看到的是首页,不是暂停的视频)。
+  echo "$f" | grep -q "$PKG/android.service.dreams.DreamActivity" || return 1
+  adb -s "$1" shell 'am stack list' 2>/dev/null | tr -d '\r' | grep 'taskId=' | sed -n 2p | grep -q "$PKG/$PKG.MainActivity"
 }
 
 streak=0
@@ -28,14 +34,15 @@ while [ "$streak" -lt 3 ]; do
   [ "$streak" -lt 3 ] && sleep 15
 done
 
+# 首页下面那一个根任务(屏保开着时首页是第 2 个,下面那个是第 3 个)
 next_root=$(adb -s "$T" shell 'am stack list' 2>/dev/null | tr -d '\r' \
-  | awk '/^RootTask/{n++; id=$2; sub("id=","",id)} /taskId=/{if(n==2){print id" "$0; exit}}')
+  | awk -v home="$PKG/$PKG.MainActivity" '/^RootTask/{id=$2; sub("id=","",id)} /taskId=/{if(seen){print id" "$0; exit} if(index($0,home)) seen=1}')
 if echo "$next_root" | grep -q 'com.sony.dtv.tvlin'; then
   rid=${next_root%% *}
   echo "$(date +%T) 输入源应用紧挨首页(root task $rid),先清掉"
   adb -s "$T" shell "am stack remove $rid"
   sleep 1
-  if adb -s "$T" shell 'am stack list' 2>/dev/null | tr -d '\r' | grep 'taskId=' | sed -n 2p | grep -q 'com.sony.dtv.tvlin'; then
+  if adb -s "$T" shell 'am stack list' 2>/dev/null | tr -d '\r' | grep 'taskId=' | grep -A1 "$PKG/$PKG.MainActivity" | sed -n 2p | grep -q 'com.sony.dtv.tvlin'; then
     echo "没清掉,不装"; exit 2
   fi
 fi
