@@ -93,21 +93,6 @@ class PickerGroupsTest {
         assertEquals(false, isPlatformNamespace("com.androidx.fake"))         // 前缀要带点
     }
 
-    @Test fun countNewCountsOnlyAppsGroup() {
-        val seenAt = 100L
-        val installed = listOf(
-            thirdParty("com.new.app") to 200L,                                  // 新应用 → 算
-            preinstalled("com.ktcp.tvvideo") to 200L,                           // 预装内容应用,新 → 算
-            preinstalled("com.sony.dtv.smarthelp") to 200L,                     // 系统工具 → 不算
-            bareMainSystem("com.android.vpndialogs") to 200L,                   // 系统组件 → 不算
-            thirdParty("com.old.app") to 50L,                                   // 旧 → 不算
-            thirdParty("com.on.layout") to 200L,                                // 已在桌面 → 不算
-            thirdParty(self) to 200L,                                           // 自己 → 不算
-            bareMainSystem("com.dangbei.dbmusic.sonyos.tab") to 200L,           // 裸 MAIN 的已知内容应用 → 算
-        )
-        assertEquals(3, countNewApps(installed, seenAt, onLayout = setOf("com.on.layout"), selfPackage = self))
-    }
-
     @Test fun orderPutsAppsFirstThenToolsEachByName() {
         fun c(pkg: String, label: String, g: PickerGroup) = PickerCandidate(AppEntry(pkg, label, null, isWide = false), g)
         val ordered = orderPickerCandidates(listOf(

@@ -226,24 +226,6 @@ object Apps {
         return runCatching { ctx.startActivity(intent) }.isSuccess
     }
 
-    /**
-     * 「新应用」个数(R83 起口径与「添加应用」列表的「应用」分组对齐,见 [countNewApps]):系统工具、
-     * 系统组件不算。先按 firstInstallTime 筛出「晚于 seenAt、不在桌面上、不是自己」的包——平常一个都没有,
-     * 两次分类查询都省掉;有才对这几个包读分类事实。IO 线程调用。
-     */
-    fun countNew(ctx: Context, seenAt: Long, onLayout: Set<String>): Int {
-        val pm = ctx.packageManager
-        val fresh = runCatching { pm.getInstalledPackages(0) }.getOrDefault(emptyList())
-            .filter { isNewApp(it.firstInstallTime, seenAt, it.packageName in onLayout) && it.packageName != ctx.packageName }
-        if (fresh.isEmpty()) return 0
-        val launcher = launcherEntries(pm)
-        val facts = fresh.mapNotNull { pi ->
-            val info = pi.applicationInfo ?: return@mapNotNull null
-            runCatching { factsOf(pm, info, launcher[pi.packageName]).first to pi.firstInstallTime }.getOrNull()
-        }
-        return countNewApps(facts, seenAt, onLayout, ctx.packageName)
-    }
-
     /** 卡片在屏幕上的像素尺寸(1920x1080 下 127x71dp @2x),位图不必比这更大。 */
     private const val CARD_W = 264
     private const val CARD_H = 148

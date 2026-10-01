@@ -54,21 +54,6 @@ fun pickerGroupOf(f: PackageFacts, selfPackage: String): PickerGroup? {
 }
 
 /**
- * 「有 N 个新应用」的口径(与列表的「应用」分组对齐):只数归进 [PickerGroup.APPS] 的包——系统工具
- * 和不列的系统组件都不算新应用。其余判据仍是 [isNewApp](装机时间晚于基线、不在桌面上)。
- * @param installed 每个包的事实 + firstInstallTime。
- */
-fun countNewApps(
-    installed: List<Pair<PackageFacts, Long>>,
-    seenAt: Long,
-    onLayout: Set<String>,
-    selfPackage: String,
-): Int = installed.count { (f, firstInstall) ->
-    pickerGroupOf(f, selfPackage) == PickerGroup.APPS &&
-        isNewApp(firstInstall, seenAt, onLayout = f.packageName in onLayout)
-}
-
-/**
  * 列表里的一项:应用本身(只有名字与装机时间,位图按需另读)与它的分组。
  * [canUninstall]:能不能走系统卸载(R106,所有应用页菜单据此列不列「卸载应用」;见 [canUninstall] 函数)。
  */

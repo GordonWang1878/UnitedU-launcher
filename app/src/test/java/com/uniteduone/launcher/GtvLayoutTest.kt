@@ -268,13 +268,11 @@ class GtvLayoutTest {
         assertEquals(0f, GtvLayout.topFadeAlpha(line - 3 * pitch), 0f)
     }
 
-    // R55 审查:上键的落点(焦点行正上方那行)静止时必须全亮——三档 × 标题开关 × 三种屏高,新应用提示在不在都算。
+    // R55 审查:上键的落点(焦点行正上方那行)静止时必须全亮——三档 × 标题开关 × 三种屏高。
     @Test fun `R53 焦点行上一行(上键落点)静止全亮`() {
         for ((size, titles) in SIZES_TITLES) for (h in HEIGHTS) {
             val top = GtvLayout.focusLineCardTop(size, titles, h) - GtvLayout.rowPitch(size, titles)
             assertEquals("$size titles=$titles h=$h 上一行卡顶 $top", 1f, GtvLayout.topFadeAlpha(top), 0f)
-            assertEquals("$size titles=$titles h=$h 上一行卡顶 $top(新应用提示)", 1f,
-                GtvLayout.topFadeAlpha(top, clearOfNewAppsHint = true), 0f)
         }
     }
 
@@ -282,42 +280,21 @@ class GtvLayoutTest {
     // 非焦点行照旧走 topFadeAlpha。
     @Test fun `homeRowAlpha——焦点行恒 1,其余行等于 topFadeAlpha`() {
         val tops = (-60..60).map { it * 10f }
-        for (top in tops) for (hint in listOf(false, true)) {
-            assertEquals("焦点行 卡顶 $top hint=$hint", 1f, GtvLayout.homeRowAlpha(true, top, hint), 0f)
-            assertEquals("非焦点行 卡顶 $top hint=$hint", GtvLayout.topFadeAlpha(top, hint),
-                GtvLayout.homeRowAlpha(false, top, hint), 0f)
+        for (top in tops) {
+            assertEquals("焦点行 卡顶 $top", 1f, GtvLayout.homeRowAlpha(true, top), 0f)
+            assertEquals("非焦点行 卡顶 $top", GtvLayout.topFadeAlpha(top), GtvLayout.homeRowAlpha(false, top), 0f)
         }
         assertEquals(0f, GtvLayout.homeRowAlpha(false, 70f), 0f)
         assertEquals(1f, GtvLayout.homeRowAlpha(true, 70f), 0f)
     }
 
-    // 2026-09-23 R53 连带:「有 N 个新应用」提示(70 + 6 + 16 = 92 底)在淡出带里。提示显示时零点下移到 92、
-    // 全亮点仍 110:卡顶到提示底边时已完全透明;540 屏上三档 × 标题开关的静止态 alpha 与不显示时相同——
-    // 例外只有卡顶 104.4 那一类(122 dp 卡开标题的上两行,ui-pending #9 加高标题间距之后):0.86 → 0.69。
-    // R121 起 122 是中档(此前是小档);R59 期间中档 137 开标题的上两行(卡顶 77.4,0.185 → 0)那一类随之消失。
-    // R126(描边 2 → 1.5)起这一类的卡顶是 106.4(焦点线 +1、行距 −0.5,上两行共 +2):0.91 → 0.80。
-    @Test fun `新应用提示显示时淡出零点下移到提示底边,静止态 alpha 不变`() {
-        assertEquals(92f, GtvLayout.NEW_APPS_HINT_BOTTOM, 0f)
-        assertEquals(0f, GtvLayout.topFadeAlpha(92f, clearOfNewAppsHint = true), 0f)
-        assertEquals(0f, GtvLayout.topFadeAlpha(80f, clearOfNewAppsHint = true), 0f)
-        assertEquals(1f, GtvLayout.topFadeAlpha(110f, clearOfNewAppsHint = true), 0f)
-        assertEquals(0.5f, GtvLayout.topFadeAlpha(101f, clearOfNewAppsHint = true), 1e-6f)
-        for ((size, titles) in SIZES_TITLES) {
-            val line = GtvLayout.focusLineCardTop(size, titles, 540f)
-            val pitch = GtvLayout.rowPitch(size, titles)
-            for (n in 1..MAX_ROWS) {
-                val top = line - n * pitch
-                val plain = GtvLayout.topFadeAlpha(top)
-                val withHint = GtvLayout.topFadeAlpha(top, clearOfNewAppsHint = true)
-                if (size == GtvCardSize.MEDIUM && titles && n == 2) {
-                    assertEquals(106.40f, top, 0.01f)
-                    assertEquals(0.91f, plain, 0.01f)
-                    assertEquals(0.80f, withHint, 0.01f)
-                } else {
-                    assertEquals("$size titles=$titles 焦点行上第 $n 行(卡顶 $top)", plain, withHint, 0f)
-                }
-            }
-        }
+    // R157:「有 N 个新应用」提示删掉之后,淡出带只有一种零点(顶栏底 70)、全亮点 110。
+    @Test fun `淡出带——70 淡到 0,110 全亮,中间线性`() {
+        assertEquals(0f, GtvLayout.topFadeAlpha(70f), 0f)
+        assertEquals(0.5f, GtvLayout.topFadeAlpha(90f), 1e-6f)
+        assertEquals(1f, GtvLayout.topFadeAlpha(110f), 0f)
+        assertEquals(0f, GtvLayout.topFadeAlpha(-50f), 0f)
+        assertEquals(1f, GtvLayout.topFadeAlpha(400f), 0f)
     }
 
     // R48 的可见区间:不复述 restVisibleTop 的公式,钉它在 KDoc 里承诺的两条性质——

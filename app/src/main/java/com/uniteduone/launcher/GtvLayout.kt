@@ -982,13 +982,11 @@ object GtvLayout {
      * 按住上键连发时整页位移追不上焦点,刚拿到焦点的那行卡顶可能还在淡出带里(曾淡到 0 达 130–190 ms,
      * 柔光也被离屏图层裁掉)。
      *
-     * [clearOfNewAppsHint] 为真(首页正显示「有 N 个新应用」)时零点下移到 [NEW_APPS_HINT_BOTTOM](92),
-     * 全亮点不变(110),见那个常量。
+     * ~~`clearOfNewAppsHint`~~(R54:首页显示「有 N 个新应用」时零点下移到提示底边 92)R157 随提示一起删掉,零点恒为顶栏底。
      */
-    fun topFadeAlpha(cardTopDp: Float, clearOfNewAppsHint: Boolean = false): Float {
-        val full = TOP_BAR_TOP + TOP_BAR_HEIGHT + TOP_FADE_BAND
-        val zero = if (clearOfNewAppsHint) NEW_APPS_HINT_BOTTOM else TOP_BAR_TOP + TOP_BAR_HEIGHT
-        return ((cardTopDp - zero) / (full - zero)).coerceIn(0f, 1f)
+    fun topFadeAlpha(cardTopDp: Float): Float {
+        val zero = TOP_BAR_TOP + TOP_BAR_HEIGHT
+        return ((cardTopDp - zero) / TOP_FADE_BAND).coerceIn(0f, 1f)
     }
 
     /** 首页一行的 alpha:焦点行([isFocusRow],即 `HomeScreen` 的 `rowIndex == activeRowSafe`)恒 1,
@@ -996,8 +994,8 @@ object GtvLayout {
      *  **R129 起这只是「按位置」那一半**:换行时新焦点行若换行前看不见,还要再乘一个时间驱动的进场乘子
      *  (见 [rowEnterStart]),所以新焦点行在落焦后最多 [ROW_ENTER_DELAY_MS] + [ROW_ENTER_FADE_MS] 内可以不是 1——
      *  这是照 Google 有意为之,不是 R53 审查补的那个「焦点行淡到 0」回归(那次是按住上键时位置淡出误伤焦点行)。 */
-    fun homeRowAlpha(isFocusRow: Boolean, cardTopDp: Float, clearOfNewAppsHint: Boolean = false): Float =
-        if (isFocusRow) 1f else topFadeAlpha(cardTopDp, clearOfNewAppsHint)
+    fun homeRowAlpha(isFocusRow: Boolean, cardTopDp: Float): Float =
+        if (isFocusRow) 1f else topFadeAlpha(cardTopDp)
 
     /**
      * **Ruling R129(2026-09-29,Gordon:「照 Google」)**:首页上下换行时,**新焦点行**的进场淡入要等多久(ms)。
@@ -1042,34 +1040,14 @@ object GtvLayout {
      * 1 × 乘子;乘子取 `seen`,画面上的透明度与按键前逐值相等——没有任何一行会「闪一下变没」。在屏外时 `seen` = 0,
      * 正在淡入的乘子被拉回 0 也看不见;常见情形(下键:下一行在屏外;上键:上一行在淡出带顶端 ≈ 0)起点都是 0。
      */
-    fun rowEnterStart(
-        cardTopDp: Float,
-        screenHeightDp: Float,
-        multiplier: Float,
-        clearOfNewAppsHint: Boolean = false,
-    ): Float? {
+    fun rowEnterStart(cardTopDp: Float, screenHeightDp: Float, multiplier: Float): Float? {
         val seen = if (cardTopDp >= screenHeightDp) 0f
-        else topFadeAlpha(cardTopDp, clearOfNewAppsHint) * multiplier.coerceIn(0f, 1f)
+        else topFadeAlpha(cardTopDp) * multiplier.coerceIn(0f, 1f)
         return if (seen < ROW_ENTER_VISIBLE_MIN) seen else null
     }
 
-    /** 首页「有 N 个新应用」提示与顶栏底的间距(dp),提示左对齐 [CONTENT_KEYLINE]。 */
-    const val NEW_APPS_HINT_GAP = 6f
-    /** 「新应用」提示的行盒高(dp):`labelSmall` 11sp / lineHeight 16sp。 */
-    const val NEW_APPS_HINT_LINE = 16f
-    /**
-     * 「新应用」提示行盒的底边屏幕 y(dp)= 70 + 6 + 16 = **92**(模拟器实测字形 77.5–89)。
-     *
-     * **2026-09-23(R53 连带)**:提示在 R53 淡出带(卡顶 70–110)里。静止态不与任何可见行相交——三档 × 标题
-     * 开关下焦点行上方各行的静止卡顶只有 ≥ 104.4(在提示之下)或 ≤ 64.1(全透明)两类(R121 起;R59 期间多过一个
-     * 中档开标题上两行 77.4、α 0.185,提示显示时按下面的零点正好淡到 0);但换行动画里
-     * 上面那行的卡顶会一路扫过 110 → 70,卡顶在 70–89 那 ~100 ms 里半透明卡片(α 0–0.48)与提示字叠在一起
-     * (docs/screenshots/minor-2-new-apps-transit-before.jpg)。修法:提示显示时 [topFadeAlpha] 的零点从 70
-     * 下移到这里、全亮点仍是 110——卡顶到提示底边时已经完全透明。静止态 alpha 只有卡顶 104.4 的那一类
-     * (R121 起是中档开标题的上两行;ui-pending #9 时是小档 122,同一个宽度)从 0.86 变成 0.69,其余不变(`GtvLayoutTest`)。
-     * R126(描边 1.5)起那一类卡顶是 106.4:0.91 → 0.80;另一类 ≤ 64.6。
-     */
-    const val NEW_APPS_HINT_BOTTOM = TOP_BAR_TOP + TOP_BAR_HEIGHT + NEW_APPS_HINT_GAP + NEW_APPS_HINT_LINE
+    /* ~~NEW_APPS_HINT_GAP / _LINE / _BOTTOM~~(首页「有 N 个新应用」提示的位置,R54 起还管淡出零点):
+     * R157(2026-10-01 Gordon:「remove the N new apps」)提示整行删掉——它与 R146 的顶栏焦点名字叠在同一条带上。 */
 
     /*
      * **Ruling R52 删除**(2026-09-23):R42 的最小位移 `nextPageShiftY` 与它的窗口边界 `TOP_SAFE`(顶栏下 16)/

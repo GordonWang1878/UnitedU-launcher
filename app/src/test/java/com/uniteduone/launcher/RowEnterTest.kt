@@ -72,9 +72,6 @@ class RowEnterTest {
         // 卡顶在顶栏之上 / 屏幕上方之外:0
         assertEquals(0f, GtvLayout.rowEnterStart(40f, 540f, 1f)!!, 0f)
         assertEquals(0f, GtvLayout.rowEnterStart(-200f, 540f, 1f)!!, 0f)
-        // 「新应用」提示显示时零点下移到 92:卡顶 95 → (95 − 92) / 18
-        assertEquals(3f / 18f, GtvLayout.rowEnterStart(95f, 540f, 1f, clearOfNewAppsHint = true)!!, 1e-5f)
-        assertNull(GtvLayout.rowEnterStart(95f, 540f, 1f, clearOfNewAppsHint = false))
     }
 
     @Test fun `连按——正在淡入的行按实际透明度判,看得见就不打断,看不见就从当前值接着走`() {
@@ -93,9 +90,9 @@ class RowEnterTest {
         // 换行后:焦点行的位置透明度短路成 1,画的是 1 × 起点。两者必须相等,否则就是「闪一下」。
         val tops = (-100..600 step 5).map { it.toFloat() }
         val mults = listOf(0f, 0.1f, 0.3f, 0.49f, 0.5f, 0.8f, 1f)
-        for (h in heights) for (top in tops) for (m in mults) for (hint in listOf(false, true)) {
-            val start = GtvLayout.rowEnterStart(top, h, m, hint) ?: continue
-            val before = if (top >= h) 0f else GtvLayout.topFadeAlpha(top, hint) * m
+        for (h in heights) for (top in tops) for (m in mults) {
+            val start = GtvLayout.rowEnterStart(top, h, m) ?: continue
+            val before = if (top >= h) 0f else GtvLayout.topFadeAlpha(top) * m
             assertEquals("h=$h top=$top m=$m", before, start, 1e-6f)
             assertTrue(start < GtvLayout.ROW_ENTER_VISIBLE_MIN)
         }

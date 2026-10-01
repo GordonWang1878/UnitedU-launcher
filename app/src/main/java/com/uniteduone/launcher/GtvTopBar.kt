@@ -129,7 +129,7 @@ fun GtvTopBar(
                 onApps = onApps,
                 onInputs = onInputs,
                 onFocusChange = { col, got ->
-                    if (got) focusedPill = col else if (focusedPill == col) focusedPill = null
+                    focusedPill = nextFocusedPill(focusedPill, col, got)
                     onFocusChange(col, got)
                 },
                 modifier = Modifier.alpha(pillAlpha),
@@ -165,6 +165,13 @@ private val TOP_PILLS = listOf(
 
 /** 顶栏胶囊个数(焦点账本里 row = -1 那组的 col 取值 0 until 它)。 */
 const val TOP_PILL_COUNT = 3
+
+/**
+ * 「哪一颗在焦点」的显示状态,只跟 onFocusChange 的上报走:得到就是它,失去只清掉仍是它的那一颗
+ * (颗与颗之间换焦点时新旧两条上报先后不定,迟到的「失去」不能清掉新的)。只喂顶栏名字([PillLabels]);纯显示,不是焦点目标。
+ */
+fun nextFocusedPill(current: Int?, col: Int, got: Boolean): Int? =
+    if (got) col else if (current == col) null else current
 
 /**
  * 焦点所在那颗的名字,写在它**正下方**(R146,2026-09-30 Gordon;R133 时是药丸组右边一颗小胶囊)。每颗一个名字、

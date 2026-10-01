@@ -771,7 +771,6 @@ class MainActivity : ComponentActivity() {
                     showWeekday = homeSettings.showWeekday,
                     cardsPerRow = homeSettings.cardsPerRow,
                     showTitles = homeSettings.showTitles,
-                    newAppsSeenAt = homeSettings.newAppsSeenAt,
                     onFocusedCard = { focusedCard = it },
                     cardMenu = cardMenu,
                     cardMenuItems = remember(cardMenu) { cardMenu?.let { cardMenuItems(it) } ?: emptyList() },

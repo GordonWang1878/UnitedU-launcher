@@ -39,7 +39,7 @@ import androidx.compose.ui.unit.sp
  * 首页:壁纸层 + hero 区(0–192dp,恒是壁纸,不叠任何时钟——84 sp 大字时钟已删,spec §2.3 B2)
  * + 卡片行(R52:焦点行卡顶钉在屏幕下部的焦点线上,静止只露行 0)+ 顶栏(gtv 线的 [GtvTopBar]:药丸组靠左 / 时钟字标靠右)。
  * 待机由 [MainActivity] 通过 [idle] 传进来,内容由 [idleContent] 定(Task 3),驱动这里的两个
- * 淡出动画——`contentAlpha`(卡片行 / 渐变 / 顶栏药丸组 / 「新应用」提示)与 `topBarClockAlpha`
+ * 淡出动画——`contentAlpha`(卡片行 / 渐变 / 顶栏药丸组)与 `topBarClockAlpha`
  * (顶栏的时钟 + 字标,单独判断,见该 val 自己的注释):
  * - [IdleContent.CLOCK_ONLY](默认):`contentAlpha` 淡出,`topBarClockAlpha` 钉 1——顶栏这行
  *   16sp 小字正是这一档要留住的内容(**Ruling R23**,终审 2026-09-20,撤回 Fix R16 曾经在 hero
@@ -87,8 +87,6 @@ fun HomeScreen(
      *  纵向位移沿用同一套自算逻辑。 */
     showTitles: Boolean = false,
     // ~~showInputRow~~(R92,2026-09-27 Gordon):首页不再有输入源行,输入源搬到顶栏「输入源」胶囊打开的页面(InputsPage)。
-    /** 上次打开「添加应用」列表的时刻(design §4);默认「什么都不算新」,未接线的调用点零回归。 */
-    newAppsSeenAt: Long = Long.MAX_VALUE,
     /** 当前聚焦的卡(得到时上报,失去时报 null)——MainActivity 长按时据此弹菜单。 */
     onFocusedCard: (CardRef?) -> Unit = {},
     /** 长按菜单:非空时在首页内嵌一层 GearMenu(不替换首页,焦点记忆不丢)。 */
@@ -171,20 +169,12 @@ fun HomeScreen(
     // tgtRow/tgtIdx 改写成 0,记忆在被用到之前就没了(铁律 5),焦点静默跳到第一行。
     // 与 EditScreen 的 allFresh 同构:数据不新鲜时冻结目标,新鲜之后再由还原效果送回去。
     var loadedRevision by remember { mutableStateOf(-1) }
-    val loaded by produceState<Triple<List<Row>, Map<String, String>, Int>?>(
-        initialValue = null, ctx, revision, newAppsSeenAt,
-    ) {
+    // ~~「新应用」计数~~(R157 随首页的「有 N 个新应用」提示一起删掉;「添加应用」列表里的「新」标记照旧,见 AppPicker)。
+    val loaded by produceState<Pair<List<Row>, Map<String, String>>?>(initialValue = null, ctx, revision) {
         value = withContext(Dispatchers.IO) {
             val rows = runCatching { buildRows(ctx) }.getOrDefault(emptyList())
             val titles = runCatching { Titles.read(ctx) }.getOrDefault(emptyMap())
-            // 「新应用」计数:与首页同一趟 IO 算(应用已经枚举过一次)。
-            // 基线还没建立(newAppsSeenAt == 0:onCreate 那次基线写盘失败,比如外置存储开机时还没挂上)
-            // 就什么都不算新——否则 countNew(ctx, 0, …) 会把整机几十个应用全算成「新」,整个会话都挂着计数
-            // (终审 Minor #5)。isNewApp 的纯语义不动(仍是「装机时间 > seenAt 且不在桌面上」),只是不喂 0 进去。
-            val newCount = if (newAppsSeenAt == 0L) 0 else runCatching {
-                Apps.countNew(ctx, newAppsSeenAt, rows.flatMap { r -> r.apps.map { it.packageName } }.toSet())
-            }.getOrDefault(0)
-            Triple(rows, titles, newCount)
+            rows to titles
         }
         // **紧跟在 value 之后、同一次恢复里写**:中间没有挂起点,两次快照写入会被同一帧的
         // 重组一起看到,不会出现「新数据已到但还标着不新鲜」的中间态。
@@ -379,9 +369,7 @@ fun HomeScreen(
     fun startRowEnter(row: Int) {
         val state = rowEnter.getOrNull(row) ?: return
         val top = GtvLayout.restCardTop(row, cardSize, showTitles, screenHeightDp) + shiftState.value.value
-        val from = GtvLayout.rowEnterStart(
-            top, screenHeightDp, state.floatValue, clearOfNewAppsHint = (loaded?.third ?: 0) > 0,
-        ) ?: return
+        val from = GtvLayout.rowEnterStart(top, screenHeightDp, state.floatValue) ?: return
         rowEnterJobs[row]?.cancel()
         state.floatValue = from
         rowEnterJobs[row] = rowEnterScope.launch {
@@ -675,9 +663,6 @@ fun HomeScreen(
             // 两者都只在卡片 / 药丸真的拿到焦点时改写、浮层 / ON_PAUSE 期间冻结,所以图标在浮层与退后台时
             // 保持最后状态。纯派生,不写任何状态,不进任何效果的 key 或守卫(铁律 3–7 一处不动)。
             val iconFocusRow = if (tgtPill >= 0) -1 else activeRowSafe
-            // 「有 N 个新应用」提示在不在(顶栏下那一行小字,见下方顶栏 Column)。在的话 R53 淡出带的零点
-            // 下移到提示底边(GtvLayout.NEW_APPS_HINT_BOTTOM),换行动画里扫过去的行不与提示字叠在一起。
-            val newAppsShown = (loaded?.third ?: 0) > 0
             rows.forEachIndexed { rowIndex, row ->
                 CategoryRow(
                     row = row,
@@ -716,7 +701,7 @@ fun HomeScreen(
                     rowAlpha = run {
                         val isActiveRow = rowIndex == activeRowSafe
                         val restTop = GtvLayout.restCardTop(rowIndex, cardSize, showTitles, screenHeightDp)
-                        ({ GtvLayout.homeRowAlpha(isActiveRow, restTop + shift.value, clearOfNewAppsHint = newAppsShown) })
+                        ({ GtvLayout.homeRowAlpha(isActiveRow, restTop + shift.value) })
                     },
                     // R129:进场乘子(见 rowEnter)。**移动态一律 1**:被搬的卡永远不淡(M4b 的视觉只加描边与提示);
                     // 进入移动态要长按 600 ms,早过了任何一段 390 ms 的淡入,这里只是兜底。
@@ -745,10 +730,9 @@ fun HomeScreen(
         }
 
         // 顶栏(spec §4):gtv 新顶栏,药丸组靠左对齐 CONTENT_KEYLINE + 右侧时钟/字标,铺满顶部;
-        // 其下的「有 N 个新应用」跟着药丸组左对齐(原来贴右上 pill,随药丸组一起搬到左边)。
-        // 不随 shift 走。节点只淡出不移除:移除会连带销毁停在按钮上的焦点,醒来第一下按键落空。
+        // ~~其下的「有 N 个新应用」~~ R157 删掉(与 R146 的焦点名字叠字)。不随 shift 走。节点只淡出不移除:移除会连带销毁停在按钮上的焦点,醒来第一下按键落空。
         //
-        // **药丸组 / 「新应用」提示随 contentAlpha 淡出,时钟 + 字标另算(Ruling R23,终审
+        // **药丸组随 contentAlpha 淡出,时钟 + 字标另算(Ruling R23,终审
         // 2026-09-20)**:gtv 线把首页大字时钟挪进了顶栏这行 16sp 小字之后,`IdleContent.CLOCK_ONLY`
         // 待机档唯一的意义就是「这行小字仍然看得见」——owner 真机走查否掉了 Fix R16 加回大字时钟
         // 的方案(「气氛就破坏掉了」),选了「只留顶栏小时钟」。所以这一行不能再跟着药丸组一起
@@ -796,17 +780,6 @@ fun HomeScreen(
                     if (got) activeRow = 0
                 },
             )
-            val newCount = loaded?.third ?: 0
-            if (newCount > 0) {
-                BasicText(
-                    text = androidx.compose.ui.res.pluralStringResource(R.plurals.home_new_apps, newCount, newCount),
-                    modifier = Modifier
-                        .padding(start = GtvLayout.CONTENT_KEYLINE.dp, top = GtvLayout.NEW_APPS_HINT_GAP.dp)
-                        .alpha(contentAlpha),
-                    // R134:原来借库的 labelSmall(11 sp、带字距);改读 Type.caption,颜色照旧。
-                    style = Type.caption.copy(color = androidx.tv.material3.MaterialTheme.colorScheme.onSurfaceVariant),
-                )
-            }
         }
 
         // 移动态提示(M4b spec §0-10:视觉只加描边与这一行)。字样沿用首页提示文字;垫一层 surface α0.8 的胶囊底。
