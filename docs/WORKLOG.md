@@ -1806,6 +1806,13 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - **推论(真机)**:电视上装新版后,系统设置 / 别的桌面可能照样显示旧图标,直到 versionCode 变或缓存进程重启(2026-09-23 已遇到过一次:设置进程常驻缓存旧图标)。
 - 已提交(`594199c` 图片与生成器、`5f875dd` 文档)。**电视上已是这一版**:A95L 上的包 12:43 被装成同一个 release 构建(sha256 与本地 `app-release.apk` 一致,解出的 banner 就是新图),已编译(speed-profile);Gordon 待在电视系统设置 → 应用里看图标。
 
+## 2026-10-01 · R157:删掉首页「有 N 个新应用」提示
+
+- 现象(R156 核对图标时在 `unitedu-gtv` 上看到):有新应用时焦点一上顶栏,按钮下的名字(R146,y 78 dp 起)压在新应用提示(R54 起 76–92 dp)上,三颗、中英文都叠。根因:R146 把名字放到按钮正下方时没算这条已有的提示,两者同一条带、同样左对齐 58 dp。
+- 先做了「名字出现时提示淡出让位」并截了前后对比给 Gordon,他回「remove the N new apps」——改成整行删掉,让位那版撤掉(没进提交)。
+- 删掉的:首页提示 + 它的计数(`Apps.countNew`、`countNewApps` 及其单测)+ R54 的淡出零点特例(`clearOfNewAppsHint`、`NEW_APPS_HINT_*`;`GtvLayoutTest` / `RowEnterTest` 相应改写,淡出带回到 70 → 110 单一线性)+ `home_new_apps` 三语字串。保留:「添加应用」列表的「新」标记与 `newAppsSeenAt` 基线。顶栏「哪颗在焦点」抽成 `nextFocusedPill`(`TopBarLabelTest` 2 条)。
+- 验证:单测 790/790;模拟器装 1 个新应用后首页不出提示、三颗名字单独显示(`docs/screenshots/r157-hint-*.jpg`)。另一会话同时在改设置页(R158 已提交 `3e3d911`,它顺手把之前红的 `CopyTest` 修了)。
+
 ## 2026-10-01 · R158:屏保组「屏保图库」挪到「自动切换间隔」上方
 
 - Gordon 要求。改 `SettingsModel.kt` 的行序与两处钉住顺序的单测(`SettingsModelTest.screensaverGroupRowOrder` 的行类型断言改成逐行列出);设置清单、文案稿(5.3 / 5.4 对调)跟上。
