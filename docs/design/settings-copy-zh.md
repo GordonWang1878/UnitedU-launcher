@@ -9,17 +9,17 @@
 - **1.1** 左侧页名上方小字:「UnitedU」(品牌名,不进翻译)
 - **1.2** 左侧页名:「设置」 `menu_settings_title`
 - **1.3** 第 1 颗胶囊:「通用」 `settings_group_general`
-- **1.3a** 　这颗胶囊的第二行小字:「语言、默认桌面、从手机添加、时钟」 `shell_root_general_desc`
+- **1.3a** 　这颗胶囊的第二行小字:「语言、默认桌面、上传资料、时钟」 `shell_root_general_desc`
 - **1.4** 第 2 颗胶囊:「布局」 `settings_group_layout`
-- **1.4a** 　这颗胶囊的第二行小字:「编辑桌面、卡片大小、应用名、卡片色彩」 `shell_root_layout_desc`
-- **1.5** 第 3 颗胶囊:「外观」 `settings_group_appearance`
+- **1.4a** 　这颗胶囊的第二行小字:「编辑桌面、应用名、卡片显示偏好」 `shell_root_layout_desc`
+- **1.5** 第 3 颗胶囊:「外观及偏好」 `settings_group_appearance`
 - **1.5a** 　这颗胶囊的第二行小字:「壁纸、主题色」 `shell_root_appearance_desc`
 - **1.6** 第 4 颗胶囊:「屏保」 `settings_group_screensaver`
 - **1.6a** 　这颗胶囊的第二行小字:「屏保图库、自动开始、系统屏保等」 `shell_root_screensaver_desc`
-- **1.7** 第 5 颗胶囊:「电视设置」 `menu_system_settings`
-- **1.7a** 　这颗胶囊的第二行小字:「网络、画面、声音等电视自身的设置」 `menu_system_settings_desc`
+- **1.7** 第 5 颗胶囊:「原生电视设置」 `menu_system_settings`
+- **1.7a** 　这颗胶囊的第二行小字:「网络、画面、声音等Andriod电视自身的设置」 `menu_system_settings_desc`
 - **1.8** 第 6 颗胶囊:「关于」 `menu_about`
-- **1.8a** 　这颗胶囊的第二行小字:「版本、检查更新、恢复默认」 `menu_about_desc`
+- **1.8a** 　这颗胶囊的第二行小字:「版本、更新、恢复」 `menu_about_desc`
 
 ## 2 通用(第一层 → 通用)
 
@@ -31,17 +31,17 @@
 - **2.1e.2** 　第 2 个选项:「简体中文」 `settings_lang_zh_cn`
 - **2.1e.3** 　第 3 个选项:「繁體中文」 `settings_lang_zh_tw`
 - **2.1e.4** 　第 4 个选项:「English」 `settings_lang_en`
-- **2.2** 胶囊:「默认桌面」 `menu_set_default_home`
+- **2.2** 胶囊:「设置默认桌面」 `menu_set_default_home`
 - **2.2a** 　左侧说明:「按遥控器的主页键时打开哪个桌面。设成 UnitedU，每次按主页键都会回到这里。」 `menu_set_default_home_desc`
 - **2.2b** 　胶囊右侧的值(系统没设默认桌面时;设了就显示那个桌面的名字):「未设置」 `settings_home_not_set`
 - **2.2g** 　按确定:打开下面的「默认桌面」页
-- **2.3** 胶囊:「从手机添加」 `settings_phone_transfer`
+- **2.3** 胶囊:「上传资料」 `settings_phone_transfer`
 - **2.3a** 　左侧说明:「用手机扫码，把照片和视频传到电视，或给电视装应用。」 `settings_phone_transfer_desc`
 - **2.3g** 　按确定:打开扫码页(从手机添加)
 - **2.4** 胶囊(右侧显示子页里各行的当前值):「闲置画面」 `settings_standby`
-- **2.4a** 　左侧说明:「一段时间不按遥控器，桌面会淡去、只留时钟。在这里设定多久、留下什么。」 `settings_standby_desc`
+- **2.4a** 　左侧说明:「一段时间不按遥控器，桌面会淡去，进入闲置画面。在这里设定闲置画面的偏好。」 `settings_standby_desc`
 - **2.4s** 　子页(按确定进去):页名同 2.4,页名上方小字「设置 · 通用」,里面是:
-- **2.4s.1** 胶囊(子页):「进入闲置」 `settings_idle_after`
+- **2.4s.1** 胶囊(子页):「闲置启动时间」 `settings_idle_after`
 - **2.4s.1a** 　左侧说明:「多久不按遥控器，桌面就进入闲置画面。」 `settings_idle_after_desc`
 - **2.4s.1e** 选项层(按确定进去的那一页):页名同 2.4s.1,页名上方小字「设置 · 通用 · 闲置画面」,左侧说明同上
 - **2.4s.1e.1** 　第 1 个选项:「从不」 `settings_idle_off`
@@ -50,9 +50,9 @@
 - **2.4s.1e.4** 　第 4 个选项:同 2.4s.1e.2(这一处显示:5 分钟后)
 - **2.4s.1e.5** 　第 5 个选项:同 2.4s.1e.2(这一处显示:10 分钟后)
 - **2.4s.2** 胶囊(子页):「闲置时显示」 `settings_idle_content`
-- **2.4s.2a** 　左侧说明:「只留时钟：桌面淡去，留下右上角的时间。全黑：画面全部变黑。不变：桌面保持原样。」 `settings_idle_content_desc`
+- **2.4s.2a** 　左侧说明:「只留时钟：桌面淡去，留下壁纸和时钟。全黑：画面全部变黑。不变：桌面保持原样。」 `settings_idle_content_desc`
 - **2.4s.2e** 选项层(按确定进去的那一页):页名同 2.4s.2,页名上方小字「设置 · 通用 · 闲置画面」,左侧说明同上
-- **2.4s.2e.1** 　第 1 个选项:「只留时钟」 `settings_idle_clock`
+- **2.4s.2e.1** 　第 1 个选项:「壁纸+时钟」 `settings_idle_clock`
 - **2.4s.2e.2** 　第 2 个选项:「全黑」 `settings_idle_black`
 - **2.4s.2e.3** 　第 3 个选项:「不变」 `settings_idle_nofade`
 - **2.5** 胶囊:「时钟显示」 `settings_clock_display`
@@ -68,14 +68,14 @@
 - **2.H2** 页名上方小字「设置 · 通用」
 - **2.H3** 当前默认桌面那一行的小标签:「当前」 `home_settings_current_label`
 - **2.H4** 读不到当前默认桌面时:「未知」 `home_settings_unknown`
-- **2.H5** 下面的说明:「按主页键时打开的桌面。Android 只允许在系统设置里更改。」 `home_settings_note`
+- **2.H5** 下面的说明:「按主页(Home)键时打开的桌面。Android 只允许在系统设置里更改。」 `home_settings_note`
 - **2.H6** 右边唯一一颗胶囊:「去系统设置更改」 `home_settings_change_button`
 
 ## 3 布局(第一层 → 布局)
 
 - **3.0** 页名同 1.4,页名上方小字同 1.2
 - **3.1** 胶囊:「编辑桌面」 `menu_edit`
-- **3.1a** 　左侧说明:「添加或移除应用、调整顺序、管理每一行。」 `menu_edit_desc`
+- **3.1a** 　左侧说明:「添加或移除应用卡片、调整顺序、管理每一行。」 `menu_edit_desc`
 - **3.1g** 　按确定:打开编辑桌面页
 - **3.2** 胶囊:「卡片大小」 `settings_card_size`
 - **3.2a** 　左侧说明:「小：一行 8 张 · 中：一行 6 张 · 大：一行 5 张」 `settings_card_size_desc`
@@ -97,16 +97,16 @@
 - **3.5c** 　滑块被选中时胶囊里显示的短名字:「卡片亮度」 `shell_slider_card_brightness`
 - **3.5d** 　滑块:左右键调,数值是百分比(没有文字)
 - **3.6** 胶囊:「卡片透明度」 `settings_card_opacity`
-- **3.6a** 　左侧说明:「没选中的卡片透出壁纸的程度，选中的那张始终不透明。」 `settings_card_opacity_desc`
+- **3.6a** 　左侧说明:「卡片透出壁纸的程度。」 `settings_card_opacity_desc`
 - **3.6c** 　滑块被选中时胶囊里显示的短名字:「卡片透明度」 `shell_slider_card_opacity`
 - **3.6d** 　滑块:左右键调,数值是百分比(没有文字)
 
 ## 4 外观(第一层 → 外观)
 
 - **4.0** 页名同 1.5,页名上方小字同 1.2
-- **4.1** 胶囊:「换壁纸」 `menu_wallpaper`
-- **4.1a** 　左侧说明:「从内置壁纸或你自己的照片里选一张。」 `menu_wallpaper_desc`
-- **4.1g** 　按确定:打开换壁纸页
+- **4.1** 胶囊:「切换壁纸」 `menu_wallpaper`
+- **4.1a** 　左侧说明:「从内置壁纸或你自己上传的照片里选一张。」 `menu_wallpaper_desc`
+- **4.1g** 　按确定:打开切换壁纸页
 - **4.2** 胶囊:「壁纸模糊」 `settings_wallpaper_blur`
 - **4.2a** 　左侧说明:「把壁纸调模糊，卡片会更醒目。」 `settings_wallpaper_blur_desc`
 - **4.2c** 　滑块被选中时胶囊里显示的短名字:「壁纸模糊」 `shell_slider_wallpaper_blur`
@@ -133,10 +133,10 @@
 ## 5 屏保(第一层 → 屏保)
 
 - **5.0** 页名同 1.6,页名上方小字同 1.2
-- **5.1** 胶囊:「立即开始屏保」 `settings_start_screensaver`
+- **5.1** 胶囊:「立即启动屏保」 `settings_start_screensaver`
 - **5.1a** 　左侧说明:「马上播放屏保，按任意键退出。」 `settings_start_screensaver_desc`
 - **5.1g** 　按确定:打开屏保(马上开始播放)
-- **5.2** 胶囊:「自动开始」 `settings_screensaver_after`
+- **5.2** 胶囊:「屏保启动时间」 `settings_screensaver_after`
 - **5.2a** 　左侧说明:「闲置画面出现之后，再过多久自动开始屏保。」 `settings_screensaver_after_desc`
 - **5.2b** 　胶囊第二行小字(只在某些情况出现,见下):「从桌面进入闲置画面算起」 `settings_screensaver_note_after_standby`
 - **5.2b2** 　第二行小字(屏保图库里没有照片时):「轮播里没有照片，屏保不会开始」 `settings_screensaver_note_empty`
@@ -147,14 +147,14 @@
 - **5.2e.3** 　第 3 个选项:同 2.4s.1e.2(这一处显示:5 分钟后)
 - **5.2e.4** 　第 4 个选项:同 2.4s.1e.2(这一处显示:10 分钟后)
 - **5.2e.5** 　第 5 个选项:同 2.4s.1e.2(这一处显示:30 分钟后)
-- **5.3** 胶囊:「每张停留」 `settings_screensaver_interval`
-- **5.3a** 　左侧说明:「每张照片停留多久，再换下一张。」 `settings_screensaver_interval_desc`
+- **5.3** 胶囊:「自动切换间隔」 `settings_screensaver_interval`
+- **5.3a** 　左侧说明:「每张屏保停留多久，再换下一张。」 `settings_screensaver_interval_desc`
 - **5.3e** 选项层(按确定进去的那一页):页名同 5.3,页名上方小字「设置 · 屏保」,左侧说明同上
 - **5.3e.1** 　第 1 个选项:「%1$d 秒」(例:30 秒) `settings_seconds`
 - **5.3e.2** 　第 2 个选项:「%1$d 分钟」(例:1 分钟) `settings_idle_minutes`
 - **5.3e.3** 　第 3 个选项:同 5.3e.2(这一处显示:5 分钟)
 - **5.4** 胶囊:「屏保图库」 `settings_screensaver_gallery`
-- **5.4a** 　左侧说明:「屏保播放的照片和视频。可以关掉内置图片，或从手机添加你自己的。」 `settings_screensaver_gallery_desc`
+- **5.4a** 　左侧说明:「屏保播放的图片和视频。可以采用内置图片，或上传你自己的图片或视频。」 `settings_screensaver_gallery_desc`
 - **5.4g** 　按确定:打开屏保图库页
 - **5.5** 胶囊:「系统屏保」 `settings_system_screensaver`
 - **5.5a** 　左侧说明:「在其他应用里闲置时，由电视启动的屏保。选 UnitedU，就会播放同一个屏保图库。」 `settings_system_screensaver_desc`
@@ -176,7 +176,7 @@
 - **5.6c2** 　胶囊第二行小字(读不到时):「在电视设置里找「自动关闭」「关机定时器」或「关闭显示屏」」 `settings_screen_off_where_generic`
 - **5.6g** 　按确定:打开电视设置
 
-## 6 电视设置
+## 6 原生电视设置
 
 - **6.1** 第一层胶囊见 1.7;按确定直接打开电视自己的设置,没有我们的页面
 
