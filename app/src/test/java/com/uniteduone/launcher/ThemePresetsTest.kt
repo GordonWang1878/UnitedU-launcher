@@ -14,10 +14,11 @@ class ThemePresetsTest {
         )
     }
 
-    @Test fun purpleIsDefault() {
-        assertEquals("purple", ThemePresets.DEFAULT_ID)
-        assertEquals("purple", Settings().themePresetId)
-        assertEquals(Color(0xFFC5B6DF), LocalThemeColorsDefault.accent)
+    /** R152:默认鼠尾草(R62–R151 是淡紫)。 */
+    @Test fun greenIsDefault() {
+        assertEquals("green", ThemePresets.DEFAULT_ID)
+        assertEquals("green", Settings().themePresetId)
+        assertEquals(Color(0xFFBBD5B3), LocalThemeColorsDefault.accent)
     }
 
     /** highlight 写成显式 hex,但必须等于 highlightFrom(accent) 算出来的值(跟随壁纸时走的是同一条算法)。 */
@@ -40,8 +41,8 @@ class ThemePresetsTest {
     }
 
     @Test fun unknownIdFallsBackToDefault() {
-        assertEquals("purple", ThemePresets.byId("nope").id)
-        assertEquals(3, ThemePresets.indexOf("nope"))
+        assertEquals("green", ThemePresets.byId("nope").id)
+        assertEquals(4, ThemePresets.indexOf("nope"))
     }
 
     // LocalThemeColors 的默认值是 staticCompositionLocalOf 的 lambda,JVM 上取不到;这里按它的定义式算一遍。

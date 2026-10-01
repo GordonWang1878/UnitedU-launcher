@@ -56,9 +56,9 @@ class SettingsTest {
     }
 
     @Test fun themePresetIdFallsBackToDefaultWhenAbsentOrBlank() {
-        // R62:默认淡紫 "purple"(此前 "material")
-        assertEquals("purple", parseSettings("""{}""").themePresetId)
-        assertEquals("purple", parseSettings("""{"themePresetId": ""}""").themePresetId)
+        // R152:默认鼠尾草 "green"(R62–R151 是淡紫 "purple",更早是 "material")
+        assertEquals("green", parseSettings("""{}""").themePresetId)
+        assertEquals("green", parseSettings("""{"themePresetId": ""}""").themePresetId)
         assertEquals("sunset", parseSettings("""{"themePresetId": "sunset"}""").themePresetId)
     }
 
@@ -232,18 +232,18 @@ class SettingsTest {
     }
 
     @Test fun restoredDefaultsKeepsOnlyBaselineAndOnboarding() {
-        val cur = Settings(cardsPerRow = 8, showTitles = true, language = "en", wallpaperBlur = 50,
+        val cur = Settings(cardsPerRow = 8, showTitles = false, language = "en", wallpaperBlur = 50,
             newAppsSeenAt = 1L, onboardingDone = true)
         val r = restoredDefaults(cur, 999L)
-        assertEquals(Settings().cardsPerRow, r.cardsPerRow); assertFalse(r.showTitles)
+        assertEquals(Settings().cardsPerRow, r.cardsPerRow); assertTrue(r.showTitles)  // R152:默认显示应用名
         assertEquals("system", r.language); assertEquals(0, r.wallpaperBlur)
         assertEquals(999L, r.newAppsSeenAt); assertEquals(true, r.onboardingDone)
         assertEquals(r, parseSettings(r.toJson()))
     }
 
-    @Test fun defaultThemePresetIsPurple() {
-        assertEquals("purple", Settings().themePresetId)
-        assertEquals("purple", parseSettings("{}").themePresetId)
+    @Test fun defaultThemePresetIsGreen() {
+        assertEquals("green", Settings().themePresetId)
+        assertEquals("green", parseSettings("{}").themePresetId)
     }
 
     /** R62:旧预设 id 读盘时就换成新的,下次写盘不再带旧 id。 */
@@ -257,12 +257,12 @@ class SettingsTest {
     }
 
     @Test fun screensaverFieldsDefaultWhenAbsent() {
-        // 不需要迁移(spec §0):旧 settings.json 没有这两个键 → 屏保启动 5 分、轮播 30 秒
+        // 不需要迁移(spec §0):旧 settings.json 没有这两个键 → 屏保启动 5 分、每张停留 1 分(R152 起;此前 30 秒)
         val s = parseSettings("""{"idleAfterMs": 180000}""")
         assertEquals(300_000L, s.screensaverAfterMs)
-        assertEquals(30_000L, s.screensaverIntervalMs)
+        assertEquals(60_000L, s.screensaverIntervalMs)
         assertEquals(300_000L, Settings().screensaverAfterMs)
-        assertEquals(30_000L, Settings().screensaverIntervalMs)
+        assertEquals(60_000L, Settings().screensaverIntervalMs)
     }
 
     @Test fun screensaverAfterMsMustBeOneOfAllowedValues() {
@@ -274,8 +274,8 @@ class SettingsTest {
     }
 
     @Test fun screensaverIntervalMsMustBeOneOfAllowedValues() {
-        assertEquals(30_000L, parseSettings("""{"screensaverIntervalMs": 45000}""").screensaverIntervalMs)
-        assertEquals(30_000L, parseSettings("""{"screensaverIntervalMs": 0}""").screensaverIntervalMs)
+        assertEquals(60_000L, parseSettings("""{"screensaverIntervalMs": 45000}""").screensaverIntervalMs)
+        assertEquals(60_000L, parseSettings("""{"screensaverIntervalMs": 0}""").screensaverIntervalMs)
         for (v in listOf(30_000L, 60_000L, 300_000L)) {
             assertEquals(v, parseSettings("""{"screensaverIntervalMs": $v}""").screensaverIntervalMs)
         }
@@ -289,9 +289,9 @@ class SettingsTest {
     }
 
     @Test fun restoredDefaultsResetsScreensaverFields() {
-        val r = restoredDefaults(Settings(screensaverAfterMs = 1_800_000L, screensaverIntervalMs = 60_000L), 1L)
+        val r = restoredDefaults(Settings(screensaverAfterMs = 1_800_000L, screensaverIntervalMs = 300_000L), 1L)
         assertEquals(300_000L, r.screensaverAfterMs)
-        assertEquals(30_000L, r.screensaverIntervalMs)
+        assertEquals(60_000L, r.screensaverIntervalMs)
     }
 
     // ---- R116 / R117:内置图 ----
@@ -343,14 +343,13 @@ class SettingsTest {
 
     // ---- R70:卡片淡化两项 ----
 
-    /** 旧文件没有这两个键 → 30 / 75 = R49 原来写死的常量,观感零变化。 */
-    @Test fun cardFadeDefaultsMatchR49Constants() {
+    /** R152:没有这两个键 → 100 / 100(不淡化,R70–R151 是 R49 写死的 30 / 75)。 */
+    @Test fun cardFadeDefaultsAreUnfaded() {
         val s = parseSettings("{\"cardsPerRow\": 6}")
-        assertEquals(30, s.cardSaturation)
-        assertEquals(75, s.cardBrightness)
-        assertEquals(Math.round(GtvLayout.CARD_FADE_SATURATION * 100), s.cardSaturation)
-        assertEquals(Math.round(GtvLayout.CARD_FADE_BRIGHTNESS * 100), s.cardBrightness)
+        assertEquals(100, s.cardSaturation)
+        assertEquals(100, s.cardBrightness)
         assertEquals(CardFade.DEFAULT, s.cardFade())
+        assertTrue(CardFade.DEFAULT.isIdentity)
     }
 
     @Test fun cardFadeClampsAndSnaps() {
@@ -364,26 +363,27 @@ class SettingsTest {
         assertEquals(100, c.cardSaturation)
         assertEquals(100, c.cardBrightness)
         val d = parseSettings("{\"cardSaturation\": \"x\", \"cardBrightness\": true}")
-        assertEquals(30, d.cardSaturation)
-        assertEquals(75, d.cardBrightness)
+        assertEquals(DEFAULT_CARD_SATURATION, d.cardSaturation)
+        assertEquals(DEFAULT_CARD_BRIGHTNESS, d.cardBrightness)
     }
 
     @Test fun cardFadeRoundTripsAndRestores() {
         val s = Settings(cardSaturation = 70, cardBrightness = 95)
         assertEquals(s, parseSettings(s.toJson()))
         val r = restoredDefaults(s, 1L)
-        assertEquals(30, r.cardSaturation)
-        assertEquals(75, r.cardBrightness)
+        assertEquals(100, r.cardSaturation)  // R152
+        assertEquals(100, r.cardBrightness)
     }
 
-    /** 缺省参数下的矩阵与 R49 原矩阵逐项相同;100 / 100 是恒等(淡化层整个跳过)。 */
+    /** 30 / 75 的矩阵与 R49 原矩阵逐项相同;100 / 100(R152 起的缺省)是恒等(淡化层整个跳过)。 */
     @Test fun cardFadeMatrixFollowsSettings() {
-        assertArrayEquals(GtvLayout.cardFadeMatrix(), CardFade.DEFAULT.matrix(), 1e-6f)
+        assertArrayEquals(GtvLayout.cardFadeMatrix(), CardFade(30, 75).matrix(), 1e-6f)
         val id = CardFade(100, 100)
         assertTrue(id.isIdentity)
         val m = id.matrix()
         assertEquals(1f, m[0], 1e-6f); assertEquals(0f, m[1], 1e-6f); assertEquals(1f, m[6], 1e-6f)
-        assertFalse(CardFade.DEFAULT.isIdentity)
+        assertFalse(CardFade(30, 75).isIdentity)
+        assertTrue(CardFade.DEFAULT.isIdentity)
     }
 
     // ---- R86:卡片不透明度 ----
@@ -394,7 +394,7 @@ class SettingsTest {
         assertEquals(100, s.cardOpacity)
         assertEquals(100, Settings().cardOpacity)
         assertEquals(1f, s.cardFade().restAlpha, 1e-6f)
-        assertEquals(CardFade.DEFAULT, s.cardFade())
+        assertEquals(CardFade(30, DEFAULT_CARD_BRIGHTNESS, 100), s.cardFade())
         assertEquals(100, parseSettings("{}").cardOpacity)
     }
 

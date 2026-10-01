@@ -251,8 +251,8 @@ internal fun AppCardImage(app: AppEntry, metrics: CardMetrics) {
 
 /**
  * **Ruling R70(2026-09-23 设置页改版)**:卡片淡化的两个参数(百分比)从常量改成设置
- * (`Settings.cardSaturation` / `cardBrightness`,R70 时在外观组,R120 起在布局组)。缺省值 = R49 原来写死的
- * [GtvLayout.CARD_FADE_SATURATION] / [GtvLayout.CARD_FADE_BRIGHTNESS],旧 settings.json 没有这两个键时观感零变化。
+ * (`Settings.cardSaturation` / `cardBrightness`,R70 时在外观组,R120 起在布局组)。缺省值 R70–R151 = R49 原来写死的
+ * [GtvLayout.CARD_FADE_SATURATION] / [GtvLayout.CARD_FADE_BRIGHTNESS](30 / 75);R152 起 100 / 100(不淡化,Gordon「默认设置优化」)。
  * 两项都 100 时是恒等变换,[gtvCardFade] 直接跳过离屏层。
  */
 data class CardFade(

@@ -263,7 +263,7 @@ class SettingsModelTest {
     @Test fun screensaverRowsMirrorSettings() {
         val d = settingsGroups(Settings(), {}, Recorder().actions, someImages)
         assertEquals(2, ctrl(d, "screensaverAfter").selected)      // 默认 5 分 = (关,1,5,10,30) 的第 2 档
-        assertEquals(0, ctrl(d, "screensaverInterval").selected)   // 默认 30 秒 = (30 秒,1 分,5 分) 的第 0 档
+        assertEquals(1, ctrl(d, "screensaverInterval").selected)   // 默认 1 分(R152)= (30 秒,1 分,5 分) 的第 1 档
         val o = settingsGroups(
             Settings(screensaverAfterMs = 0L, screensaverIntervalMs = 300_000L), {}, Recorder().actions, someImages,
         )
@@ -426,8 +426,8 @@ class SettingsModelTest {
         assertEquals(CtrlKind.SLIDER, bri.kind)
         assertEquals(11, sat.count)
         assertEquals(11, bri.count)
-        assertEquals(3, sat.selected)          // 30%
-        assertEquals(5, bri.selected)          // (75 − 50) / 5
+        assertEquals(10, sat.selected)         // 100%(R152 起的缺省)
+        assertEquals(10, bri.selected)         // (100 − 50) / 5
         sat.onSelect(10)
         assertEquals(100, written?.cardSaturation)
         bri.onSelect(0)

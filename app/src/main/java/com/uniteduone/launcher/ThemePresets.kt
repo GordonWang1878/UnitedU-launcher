@@ -99,8 +99,8 @@ fun usableAccent(rgb: Int): Int {
 }
 
 object ThemePresets {
-    /** 默认预设 id,与 [Settings] 的默认值一致。R62:material → purple(淡紫)。 */
-    const val DEFAULT_ID = "purple"
+    /** 默认预设 id,与 [Settings] 的默认值一致。R62:material → purple(淡紫);R152(2026-10-01 Gordon)起鼠尾草 green。 */
+    const val DEFAULT_ID = "green"
 
     /**
      * R62 删掉的旧 id → 新 id。读盘([parseSettings])与 [indexOf] / [byId] 都走 [migrateId]:

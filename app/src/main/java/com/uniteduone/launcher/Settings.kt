@@ -18,9 +18,10 @@ data class Settings(
     /** 不用,行数以 layout.json 为准(M4b spec §0-5)。 */
     val rowCount: Int = 3,
     val cardsPerRow: Int = 6,
-    val showTitles: Boolean = false,
+    /** R152(2026-10-01 Gordon「默认设置优化」):默认显示应用名(此前 false)。 */
+    val showTitles: Boolean = true,
     // (「输入源行」开关 showInputRow 2026-09-27 删掉,gtv spec R92:首页不再有输入源行;旧文件里的键按未知键忽略。)
-    /** 主题色预设 id(R62:默认淡紫 "purple";旧 id 读盘时经 [ThemePresets.migrateId] 换成新的)。 */
+    /** 主题色预设 id(R152 起默认鼠尾草 "green",R62–R151 是淡紫 "purple";旧 id 读盘时经 [ThemePresets.migrateId] 换成新的)。 */
     val themePresetId: String = ThemePresets.DEFAULT_ID,
     val followWallpaperColor: Boolean = false,
     // (「主题化卡片」开关 themedCards 2026-09-23 删掉,gtv spec R58:卡片的亮度 / 饱和度已由 R49 淡化统一压下来;
@@ -38,7 +39,7 @@ data class Settings(
      */
     val screensaverAfterMs: Long = 300_000L,
     /** 屏保换图间隔(「屏保轮播设置」,桌面与系统屏保共用)。合法值见 [VALID_SCREENSAVER_INTERVAL_MS]。 */
-    val screensaverIntervalMs: Long = 30_000L,
+    val screensaverIntervalMs: Long = DEFAULT_SCREENSAVER_INTERVAL_MS,
     /**
      * 不参与轮播的内置屏保图(R117):一组内置 ID(去掉扩展名的文件名)。旧文件没有这个键 = 空 = 全部参与。
      * 清单里已经没有的 ID 留着不清(Gordon 以后把那张加回来,用户的选择还在)。「恢复默认」不动它(见 [restoredDefaults])。
@@ -58,10 +59,10 @@ data class Settings(
     val wallpaperBrightness: Int = 0,
     /**
      * 卡片饱和度 0–100(%),步 10(R70,2026-09-23 设置页改版新增)。R49 卡片淡化原来写死在
-     * `GtvLayout.CARD_FADE_SATURATION`(30%),缺省值照抄——旧文件没有这个键时观感零变化。
+     * `GtvLayout.CARD_FADE_SATURATION`(30%),R70–R151 缺省值照抄;R152 起缺省 100(不淡化)。
      */
     val cardSaturation: Int = DEFAULT_CARD_SATURATION,
-    /** 卡片亮度 50–100(%),步 5(R70)。缺省 75 = 原 `GtvLayout.CARD_FADE_BRIGHTNESS`。 */
+    /** 卡片亮度 50–100(%),步 5(R70)。缺省 R70–R151 是 75(= 原 `GtvLayout.CARD_FADE_BRIGHTNESS`),R152 起 100。 */
     val cardBrightness: Int = DEFAULT_CARD_BRIGHTNESS,
     /**
      * 卡片不透明度 40–100(%),步 10(R86,2026-09-27 Gordon 定)。只作用于**未聚焦**的卡片,焦点卡恒 100%;
@@ -90,10 +91,13 @@ internal val VALID_LANGUAGES = listOf("system", "zh-CN", "zh-TW", "en")
 // M5(spec §3):「屏保启动」「屏保轮播设置」两行的唯一合法取值,同样一份表两处读(夹取 + 分段控件的档位顺序)。
 internal val VALID_SCREENSAVER_AFTER_MS = longArrayOf(0L, 60_000L, 300_000L, 600_000L, 1_800_000L)
 internal val VALID_SCREENSAVER_INTERVAL_MS = longArrayOf(30_000L, 60_000L, 300_000L)
+/** R152(2026-10-01 Gordon「默认设置优化」):每张停留默认 1 分钟(此前 30 秒)。 */
+internal const val DEFAULT_SCREENSAVER_INTERVAL_MS = 60_000L
 
-// R70:卡片淡化两条滑块的取值范围。缺省值 = R49 原来写死的常量(×100 取整),旧文件缺键时观感零变化。
-internal const val DEFAULT_CARD_SATURATION = 30
-internal const val DEFAULT_CARD_BRIGHTNESS = 75
+// R70:卡片淡化两条滑块的取值范围。R152(2026-10-01 Gordon「默认设置优化」)起缺省是 100 / 100(不淡化);
+// R70–R151 的缺省是 R49 写死的 30 / 75——没有这两个键的旧文件读进来会变成不淡化(写过一次设置的文件都带着这两个键,不受影响)。
+internal const val DEFAULT_CARD_SATURATION = 100
+internal const val DEFAULT_CARD_BRIGHTNESS = 100
 internal const val CARD_SATURATION_MIN = 0
 internal const val CARD_SATURATION_STEP = 10
 internal const val CARD_BRIGHTNESS_MIN = 50
@@ -116,11 +120,11 @@ internal const val WALLPAPER_BLUR_STEP = 5
 internal fun clampWallpaperBlur(v: Int?, default: Int): Int =
     if (v == null) default else ((v.coerceIn(0, WALLPAPER_BLUR_MAX) + WALLPAPER_BLUR_STEP / 2) / WALLPAPER_BLUR_STEP) * WALLPAPER_BLUR_STEP
 
-/** 卡片饱和度:0..100 夹取后四舍五入到 10 的倍数;解析不出 → 30(R70)。 */
+/** 卡片饱和度:0..100 夹取后四舍五入到 10 的倍数;解析不出 → [DEFAULT_CARD_SATURATION](R152 起 100,此前 30)。 */
 private fun clampCardSaturation(v: Int?): Int =
     if (v == null) DEFAULT_CARD_SATURATION else ((v.coerceIn(0, 100) + 5) / 10) * 10
 
-/** 卡片亮度:50..100 夹取后四舍五入到 5 的倍数;解析不出 → 75(R70)。 */
+/** 卡片亮度:50..100 夹取后四舍五入到 5 的倍数;解析不出 → [DEFAULT_CARD_BRIGHTNESS](R152 起 100,此前 75)。 */
 private fun clampCardBrightness(v: Int?): Int =
     if (v == null) DEFAULT_CARD_BRIGHTNESS else Math.round(v.coerceIn(CARD_BRIGHTNESS_MIN, 100) / 5f) * 5
 
@@ -158,9 +162,9 @@ private fun snapIdleAfterMs(v: Long?): Long =
 private fun snapScreensaverAfterMs(v: Long?): Long =
     if (v != null && VALID_SCREENSAVER_AFTER_MS.contains(v)) v else 300_000L
 
-/** 不在表里 → 默认 30 秒。 */
+/** 不在表里(含缺键)→ 默认值(R152 起 1 分钟,与 [Settings.screensaverIntervalMs] 同源)。 */
 private fun snapScreensaverIntervalMs(v: Long?): Long =
-    if (v != null && VALID_SCREENSAVER_INTERVAL_MS.contains(v)) v else 30_000L
+    if (v != null && VALID_SCREENSAVER_INTERVAL_MS.contains(v)) v else DEFAULT_SCREENSAVER_INTERVAL_MS
 
 // ---- 极简、零依赖的“扁平 JSON”读写 -----------------------------------------
 // org.json 在纯 JVM 单元测试里用不了:Android 的 unit-test 桩 jar 对它每个方法调用都抛
