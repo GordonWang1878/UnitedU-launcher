@@ -165,6 +165,8 @@
     <string name="pool_delete_title">删除这一项？</string>
     <string name="pool_delete_body">「%1$s」会从屏保图库删除，无法恢复</string>
     <string name="pool_delete_ok">删除</string>
+    <string name="wallpaper_delete_body">「%1$s」会从壁纸里删除，无法恢复</string>
+    <string name="wallpaper_delete_body_current">「%1$s」是正在用的壁纸，删除后换回内置壁纸，无法恢复</string>
 
     <!-- settings_* : UnitedU 设置页(分组带标题) -->
     <!-- R57(2026-09-23):设置页左栏四组 通用 / 布局 / 外观 / 屏保 -->

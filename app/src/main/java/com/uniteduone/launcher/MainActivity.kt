@@ -191,6 +191,13 @@ class MainActivity : ComponentActivity() {
      */
     private var poolDeleteTarget by mutableStateOf<java.io.File?>(null)
     /**
+     * **R153 换壁纸页长按删图**(同屏保图库那三个量):网格上报的聚焦格、删除确认页开着的那张、壁纸库版本(删完 +1,
+     * 网格据此重读)。只在 [pickerTarget] == [PICK_WALLPAPER] 时有意义;[pickWallpaper] 打开时与 HOME([onNewIntent])兜底清前两个(铁律 7)。
+     */
+    private var wallpaperFocused by mutableStateOf<PoolFocus?>(null)
+    private var wallpaperDeleteTarget by mutableStateOf<java.io.File?>(null)
+    private var wallpaperLibVersion by mutableStateOf(0)
+    /**
      * 屏保图库里胶囊菜单开着的那张内置图(R117);null = 没开。选了([toggleBuiltinScreensaver] 写完才清)、
      * 返回 / MENU(关菜单)各自清它,[openScreensaverPool] 打开时与 HOME([onNewIntent])再兜底清一次(铁律 7)。
      */
@@ -1036,15 +1043,25 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun PickerLayer(target: String, importCategory: String? = importOrigin?.type) {
         when (target) {
-            PICK_WALLPAPER -> WallpaperPicker(
-                directory = Paths.wallpaperLibrary(this),
-                title = stringResource(R.string.picker_wallpaper_title),
-                nonce = focusNonce,
-                onSelect = { file -> handlePick(file) },
-                onDismiss = { pickerTarget = null; focusNonce++ },
-                onAddFromPhone = { openImportFrom(PICK_WALLPAPER) },
-                landing = pickerLanding,
-            )
+            // R153:长按「我的」壁纸删图(识别在 dispatchKeyEvent「换壁纸页光着」那一支;接线同下面的屏保图库)
+            PICK_WALLPAPER -> {
+                val currentWallpaper = remember(settingsRevision) { SettingsStore.read(this@MainActivity).wallpaperFile }
+                WallpaperPicker(
+                    directory = Paths.wallpaperLibrary(this),
+                    title = stringResource(R.string.picker_wallpaper_title),
+                    nonce = focusNonce,
+                    onSelect = { file -> handlePick(file) },
+                    onDismiss = { pickerTarget = null; focusNonce++ },
+                    onAddFromPhone = { openImportFrom(PICK_WALLPAPER) },
+                    landing = pickerLanding,
+                    refresh = wallpaperLibVersion,
+                    onFocusedItem = { wallpaperFocused = it },
+                    deleteTarget = wallpaperDeleteTarget,
+                    isCurrent = { it.name == currentWallpaper },
+                    onConfirmDelete = ::deleteWallpaperImage,
+                    onCancelDelete = { wallpaperDeleteTarget = null; focusNonce++ },
+                )
+            }
             // M5 spec §5:长按缩略图删图。长按识别在 dispatchKeyEvent(「图库光着」那一支),这里只接线:
             // 网格上报聚焦的文件、确认框的目标与两个按钮。确认框自己负责焦点;关掉后(删除 / 取消都 focusNonce++)
             // deleteTarget 变 null 让 PickerGrid 的 covered 翻回 false,由它 (nonce, covered, focusRequesters)
@@ -1255,6 +1272,17 @@ class MainActivity : ComponentActivity() {
             // 与上面的 homeBare 天然互斥:homeBare 要求 !overlayOpen,而图库开着时 pickerTarget != null。
             // 全屏预览开着时网格失焦、poolFocused 已报 null,这一支不成立 = 预览里长按无效。
             // R117:聚焦的是内置图 → 胶囊菜单「不参与 / 加入轮播」(内置图删不掉,不弹删图框)。
+            // R153「换壁纸页光着」:页开着、确认页没开、焦点在「我的」某一张上。满 LONG_PRESS_MS 弹删除确认页,整下吞掉
+            // (UP 落不到缩略图上,不会顺带选用它)。内置图删不掉:长按照旧 = 确定(选用),不进这一支。
+            val wallpaperMine = (wallpaperFocused as? PoolFocus.Mine)?.file
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount > 0 && pickerTarget == PICK_WALLPAPER &&
+                wallpaperDeleteTarget == null && wallpaperMine != null && event.eventTime - event.downTime >= LONG_PRESS_MS
+            ) {
+                longPressDownTime = event.downTime
+                window.decorView.playSoundEffect(SoundEffectConstants.CLICK)
+                wallpaperDeleteTarget = wallpaperMine
+                return true
+            }
             val poolBare = pickerTarget == VIEW_SCREENSAVER_POOL && poolDeleteTarget == null && poolBuiltinMenu == null &&
                 poolFocused != null
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount > 0 && poolBare
@@ -1466,6 +1494,7 @@ class MainActivity : ComponentActivity() {
             importOrigin = null
             poolDeleteTarget = null
             poolBuiltinMenu = null
+            wallpaperDeleteTarget = null
             focusNonce++
         }
     }
@@ -1822,8 +1851,33 @@ class MainActivity : ComponentActivity() {
 
     private fun pickWallpaper() {
         if (Paths.baseOrNull(this) == null) { toast(getString(R.string.toast_storage_not_ready)); return }
+        wallpaperDeleteTarget = null
+        wallpaperFocused = null
         pickerLanding = null
         pickerTarget = PICK_WALLPAPER
+    }
+
+    /**
+     * 换壁纸页删图的「删除」键(R153,照 [deletePoolImage] 的顺序):开头比对目标;IO 线程删文件;删的是正在用的那张
+     * → 壁纸按 resolveWallpaperChoice 回落到内置第一张,`settingsRevision++` / `wallpaperParams++` 让首页当场换掉;
+     * 壁纸库版本 +1(网格重读)→ 收确认页 → `focusNonce++`(网格接回原位置)。删不掉记日志 + toast,那张图留在原处。
+     */
+    private fun deleteWallpaperImage(file: java.io.File) {
+        if (wallpaperDeleteTarget != file) return
+        lifecycleScope.launch {
+            val (gone, wasCurrent) = withContext(Dispatchers.IO) {
+                val current = SettingsStore.read(this@MainActivity).wallpaperFile == file.name
+                (file.delete() || !file.exists()) to current
+            }
+            if (!gone) {
+                android.util.Log.w("UnitedU", "壁纸删不掉: ${file.name}")
+                toast(getString(R.string.toast_pool_delete_failed, file.name))
+            }
+            if (gone && wasCurrent) { settingsRevision++; wallpaperParams++ }
+            wallpaperLibVersion++
+            wallpaperDeleteTarget = null
+            focusNonce++
+        }
     }
 
     /** 设置页「手机传输」总入口:不带分类,关掉就是关掉(回到设置页)。 */

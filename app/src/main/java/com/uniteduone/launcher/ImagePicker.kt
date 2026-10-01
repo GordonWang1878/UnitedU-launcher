@@ -126,6 +126,10 @@ private fun builtinName(image: BuiltinImage): String {
  * [onAddFromPhone] / [landing] 见 [PickerGrid]。没有图片时不再是单独的空态(原来那句「用 adb push 复制图片」
  * 已删,R63):网格只剩「＋」一格,标题下一行写「还没有图片可选」。
  * R115/R116:上块「内置」= assets/builtin/wallpapers/ 里的图(确定 = 选用,选中值记 `builtin:<ID>`),下块「我的」照旧。
+ * **R153 长按「我的」删图**(同屏保图库 M5 spec §5;内置图删不掉,长按 = 确定):长按识别在 MainActivity.dispatchKeyEvent,
+ * 这里只上报聚焦的那一格([onFocusedItem])、在 [deleteTarget] 非 null 时叠一页确认(取消 / 删除,默认在取消)。
+ * 确认页开着时网格 `covered` 让路、冻结目标(PickerGrid 的 frozenTarget);删完 [refresh] +1 按盘上实况重读,
+ * 网格把焦点夹到原位置(删掉的那格由下一张补上,删的是末张就夹到上一张)。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
@@ -137,9 +141,17 @@ fun WallpaperPicker(
     onDismiss: () -> Unit,
     onAddFromPhone: () -> Unit,
     landing: List<String>? = null,
+    /** 删图后 +1,文件列表据此重读(R153)。 */
+    refresh: Int = 0,
+    onFocusedItem: ((PoolFocus?) -> Unit)? = null,
+    deleteTarget: File? = null,
+    /** 这张是不是正在用的壁纸:确认页说明里多写一句「删掉后换回内置壁纸」。 */
+    isCurrent: (File) -> Boolean = { false },
+    onConfirmDelete: (File) -> Unit = {},
+    onCancelDelete: () -> Unit = {},
 ) {
-    // 从扫码页回来时本组合是新挂上的(扫码页替换了它),这里自然按盘上实况重读。
-    val files = remember(directory) { listImages(directory) }
+    // 从扫码页回来时本组合是新挂上的(扫码页替换了它),这里自然按盘上实况重读;删图后按 refresh 重读(R153)。
+    val files = remember(directory, refresh) { listImages(directory) }
     val builtins = rememberBuiltins(BuiltinKind.WALLPAPERS)
     val ghost = LocalPageGhost.current
     androidx.activity.compose.BackHandler(enabled = !ghost) { onDismiss() }
@@ -158,9 +170,31 @@ fun WallpaperPicker(
             emptyHint = stringResource(R.string.picker_no_images),
             onAddFromPhone = onAddFromPhone,
             landing = landing,
+            covered = deleteTarget != null,
+            onFocusedItem = onFocusedItem,
+        )
+    }
+    // R153:删图确认页(同屏保图库,OverlayStack 淡入淡出;残影画的是关掉前那一份)
+    val eyebrow = stringResource(R.string.menu_wallpaper)
+    OverlayStack(state = deleteTarget?.let { WallpaperDelete(it, isCurrent(it)) }, layerKey = { it.file.name }) { d ->
+        ConfirmDialog(
+            title = stringResource(R.string.pool_delete_title),
+            body = stringResource(
+                if (d.current) R.string.wallpaper_delete_body_current else R.string.wallpaper_delete_body,
+                d.file.name,
+            ),
+            okLabel = stringResource(R.string.pool_delete_ok),
+            cancelLabel = stringResource(R.string.dialog_cancel),
+            nonce = nonce,
+            eyebrow = eyebrow,
+            onOk = { onConfirmDelete(d.file) },
+            onCancel = onCancelDelete,
         )
     }
 }
+
+/** 换壁纸页上叠着的删图确认页(R153,给 [OverlayStack] 当状态;「是不是正在用」随状态带着,残影里不现查)。 */
+private class WallpaperDelete(val file: File, val current: Boolean)
 
 /**
  * 换卡片图。R118:上块「内置」= assets/builtin/cards/ 里的通用装饰图,任何应用都能选,照原图显示(不叠应用图标 / 名字),
