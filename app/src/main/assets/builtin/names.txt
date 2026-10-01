@@ -16,3 +16,5 @@ cards/01-wetv = WeTV | WeTV | WeTV
 cards/02-youku = 优酷 | 優酷 | Youku
 cards/03-youtube = YouTube | YouTube | YouTube
 cards/04-iqiyi = 爱奇艺 | 愛奇藝 | iQIYI
+cards/05-bilibili = 哔哩哔哩 | 嗶哩嗶哩 | bilibili
+cards/06-mangotv = 芒果TV | 芒果TV | Mango TV

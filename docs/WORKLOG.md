@@ -1827,3 +1827,8 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 核对:自适应图标前景 / 背景 5 个密度尺寸都对(108–432 px,前景带透明),banner 320×180,清单里 icon / roundIcon / banner 照旧;圆形遮罩下 U 的两臂上角略出 66 dp 安全圆(在 72 dp 可见区内,圆形 / 圆角方形预览都不裁);字体 Google Sans Flex(OFL,应用已内置同一个文件)。790 条单测全过(R157 删了 3 条)。唯一提醒:`docs/design/logo-concepts-2026-10-01/` 里没选中的方案有 macOS 自带字体(Futura 等)转出的轮廓,仓库将来公开前要不要删,另议。
 - 推送:Gordon 这次明确要推,取代上面「先不推」那条。34 个提交按约 5 MB 切两批(到 728a15b、到 d32ebd5),都一次成功;GitHub main = d32ebd5。
 - 装电视(R156 图标 / banner、R157 删新应用提示、R158 一并):Gordon 看完爱奇艺按 HOME 回首页后,`scripts/tv-install.sh` 第一次实用——首页下面紧挨着的正是 tvlin(root task 4246),先 `am stack remove` 清掉,15:21:34 装,编译第 2 次读回 `speed-profile`,md5 一致 `417cb0eb…`;装后日志只有首页恢复 + R151 拉回,没有 `<Set Stream Path>` / `<Image View On>`、tvlin 没再出现,前台是首页。模拟器 j_settings 用改好的行序重跑 82/82。
+
+## 2026-10-01 晚 · 内置卡片图加哔哩哔哩、芒果TV
+
+- Gordon 把两张图放进 `assets/builtin/cards/`(`05-bilibili.png`、`06-Mango TV.png`,都是 512×288 PNG,同 03 / 04)。按目录自动识别,不用改代码;`06-Mango TV` 按命名规则改成 `06-mangotv`(去空格、小写),名字表补两行(哔哩哔哩 / 嗶哩嗶哩 / bilibili;芒果TV / 芒果TV / Mango TV),NOTICE 商标一节补上两家。
+- 验证:790 条单测全过(含 `BuiltinNamesTest`);APK 里 6 张卡都在;模拟器「换卡片图」内置一块 6 张、名字对。

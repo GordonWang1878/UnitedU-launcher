@@ -36,7 +36,8 @@ This product's own assets:
 
 Third-party trademarks:
 
-- app/src/main/assets/builtin/cards/ contains the logos of WeTV, Youku, YouTube and iQIYI, offered only so users
-  can identify those apps on their own home screen. These names and logos are trademarks of their respective
-  owners (Tencent, Alibaba/Youku, Google LLC, iQIYI, Inc.). UnitedU is not affiliated with or endorsed by them,
+- app/src/main/assets/builtin/cards/ contains the logos of WeTV, Youku, YouTube, iQIYI, bilibili and Mango TV,
+  offered only so users can identify those apps on their own home screen. These names and logos are trademarks of
+  their respective owners (Tencent, Alibaba/Youku, Google LLC, iQIYI, Inc., Bilibili Inc., Hunan Happy Sunshine
+  Interactive Entertainment Media Co., Ltd. / Mango TV). UnitedU is not affiliated with or endorsed by them,
   and no license to these trademarks is granted by this project's license.
