@@ -1783,3 +1783,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - Gordon 要 review 设置页文案:`docs/design/settings-copy-zh.md`,按屏幕编号、简体中文、每句带资源 key,他直接改「」里的字。结构由一个临时单测从 `settingsGroups()` / `SHELL_ROOT` 导出(反射把 R.string 的 id 换回名字,跑完删掉),`scripts/settings-copy-zh.py` 读它与 strings.xml 生成。
 - R154 屏保图库 ✓ 角标:Gordon 没发现内置图可以关(交互藏在长按里,页头只有一句「长按可删除或关闭」)。改成参与轮播的每一格都带 ✓,页头写规矩;模拟器截图确认关掉的那张没有 ✓、变暗。
 - Gordon 改完了 `settings-copy-zh.md`(24 行),我 review 出 5 处必须改(「只留时钟」改名后说明没跟、屏保第一层小字还叫「自动开始」、「上传资料」与别处「从手机添加」两套名字、电视设置三种叫法、Andriod 拼错且超长)与几处建议,等他定再一起改进 strings。
+- R155 文案落地:逐条出卡定完(上传资料 / 原生电视设置全局统一、组名「外观偏好」、8 条逐一照改或保留),简 / 繁 / 英三份同改(34 个 key),`settings-copy-zh.md` 重新生成成定稿,`settings-inventory.md` 跟上。模拟器 `E2E_ONLY=j_i18n,j_settings` 查三种语言有没有字越出胶囊 / 屏幕。
