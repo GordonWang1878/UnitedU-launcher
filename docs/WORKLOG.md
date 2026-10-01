@@ -1777,3 +1777,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 10 个方向:01 托盘(包豪斯)/ 02 磁铁(中世纪海报)/ 03 焦点(极简黑 + 青柠)/ 04 方向键(博朗风工业)/ 05 印章「合」(宣纸朱砂)/ 06 测试色条(广播复古)/ 07 衬线 U 里藏 u(墨绿金)/ 08 门洞(U 倒过来是亮灯的门)/ 09 交叠(屏幕框 + 你的圆)/ 10 像素俄罗斯方块。
 - 迭代中淘汰:方向键第一版(粗环 + 白中心,像救生圈 → 改细缝 + 箭头 + 深色中键)、「一笔」单线绕圈(读成 Y / 8,认不出 U → 换成门洞)、「相扣」框 + 圆(就是通用的「超链接」图标 → 改交叠)。
 - 已知限制:banner 字标用的是 macOS 自带字体(Futura / Gill Sans / Didot 等)直接渲染,定稿时要转曲;07 的 Didot 细线在电视实际大小下偏细。代码一行未动,`app/src/main/res` 未改。
+- 装电视(R152 / R153,`base.apk` md5 与本地一致 `2d4bc269…`,编译第 2 次读回 `speed-profile`,未按键):装时电视在我们的屏保里、悬浮窗权限 Gordon 已开(`appops … allow`)——**R151 真机验证通过**:日志 `package replaced; HOME intent sent`、ActivityTaskManager `START … HOME … (BAL_ALLOW_ALLOWLISTED_COMPONENT)`,装完前台应用是 UnitedU 的 MainActivity(屏保随进程结束,电视进待机,醒来就是桌面,不再落到 HDMI)。
