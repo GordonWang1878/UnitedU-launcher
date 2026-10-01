@@ -61,10 +61,26 @@ object BuiltinImages {
         return parsed
     }
 
-    /** 三个分类一起列一遍、名字表读一遍(IO 线程,启动时预热:打开选图页时清单已在缓存里,网格不用等)。 */
+    @Volatile private var cardApps: Map<String, Set<String>>? = null
+
+    /**
+     * 内置卡片图 → 对应应用的包名(R159,见 [BUILTIN_CARD_APPS_ASSET]);进程内缓存,同 [names]。
+     * 读不到按空表处理:内置卡在任何应用的选图页里都不出现(宁可少给,不把别家的卡给出去)。
+     */
+    fun cardApps(ctx: Context): Map<String, Set<String>> {
+        cardApps?.let { return it }
+        val parsed = runCatching {
+            ctx.applicationContext.assets.open(BUILTIN_CARD_APPS_ASSET).use { it.readBytes().toString(Charsets.UTF_8) }
+        }.onFailure { Log.w(TAG, "内置卡片对应表读不了", it) }.getOrNull()?.let(::parseBuiltinCardApps) ?: emptyMap()
+        cardApps = parsed
+        return parsed
+    }
+
+    /** 三个分类一起列一遍、名字表与卡片对应表各读一遍(IO 线程,启动时预热:打开选图页时清单已在缓存里,网格不用等)。 */
     fun prewarm(ctx: Context) {
         for (k in BuiltinKind.entries) list(ctx, k)
         names(ctx)
+        cardApps(ctx)
     }
 
     /**

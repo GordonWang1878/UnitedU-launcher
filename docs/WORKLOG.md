@@ -1839,3 +1839,10 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - Gordon 回「推吧」(取代上面「先不推」):内置卡片图两轮 + tv-install 小修 + 记录一起推。
 - Gordon:WeTV 那张卡片的名字应该叫「腾讯」。名字表 `cards/01-wetv` 改为 腾讯 / 騰訊 / Tencent(文件名 = 身份,不动;卡片按内容复制,改名也不影响已换上的卡),NOTICE 写成 Tencent Video (WeTV)。
 - 「腾讯」改名装电视(22:11,md5 一致 `47ee136a…`,装完前台是首页)。推送:Gordon 选**先不推**。
+
+## 2026-10-01 晚 · R159 内置卡片图只给对应的应用
+
+- Gordon 电视上体验后:内置卡当成公共卡是错的决策,爱奇艺卡不能用到腾讯上。卡片问「默认用上 / 只在选图页出现」→ 只在选图页;方案(含 SmartTube)照做。
+- 包名先在电视上只读查(`pm list packages -3` + 拉 APK `aapt2 dump badging` 读应用名):云视听极光 / 银河奇异果 / CIBN酷喵 / 云视听小电视 / 咪视界 / 芒果TV(`com.starcor.mango`)/ YouTube;另有 QQ 音乐 TV(腾讯,但不是腾讯视频,不配)。
+- 实现:`assets/builtin/card-apps.txt`(ID → 包名)+ `parseBuiltinCardApps` / `builtinCardsFor`(BuiltinCatalog,纯 JVM)+ `BuiltinImages.cardApps`(进程缓存、启动预热)+ `IconPicker(packageName)` 只列这个包的卡。先写 `BuiltinCardAppsTest`(6 条)看它红,再实现;全量 796 条单测全过。
+- 模拟器(`unitedu-tv`):首页第一张换成 `com.ktcp.tvvideo` 打开换卡片图 → 内置只有「Tencent」;Play Store → 没有「内置」,焦点落「＋」。截图 `docs/screenshots/r159-card-picker-per-app.jpg`。

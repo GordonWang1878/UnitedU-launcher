@@ -197,13 +197,16 @@ fun WallpaperPicker(
 private class WallpaperDelete(val file: File, val current: Boolean)
 
 /**
- * 换卡片图。R118:上块「内置」= assets/builtin/cards/ 里的通用装饰图,任何应用都能选,照原图显示(不叠应用图标 / 名字),
+ * 换卡片图。R118:上块「内置」= assets/builtin/cards/ 里的品牌卡,照原图显示(不叠应用图标 / 名字),
  * 横幅判据照 R88/R107;选中时把**内容**复制成 icons/<包名>.png(与「我的」同一条路,内置与我的同名也不冲突)。
+ * **R159 起只列属于 [packageName] 的内置卡**(按 card-apps.txt,见 [builtinCardsFor]):爱奇艺卡不会出现在腾讯的选图页里;
+ * 一张都没有时「内置」整块不画,网格与内置目录为空时逐格相同(格子换算只认 builtinCount)。
  * 下块「我的」=「＋」+「恢复原图」+ 卡片图库。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun IconPicker(
+    packageName: String,
     directory: File,
     originalIcon: Bitmap?,
     nonce: Int = 0,
@@ -213,8 +216,12 @@ fun IconPicker(
     onAddFromPhone: () -> Unit,
     landing: List<String>? = null,
 ) {
+    val ctx = LocalContext.current
     val files = remember(directory) { listImages(directory) }
-    val builtins = rememberBuiltins(BuiltinKind.CARDS)
+    // 对应表启动时已预热进缓存(BuiltinImages.prewarm),这里同一帧就拿得到;清单到之前仍是 null,网格照旧等它。
+    val builtins = rememberBuiltins(BuiltinKind.CARDS)?.let { all ->
+        remember(all, packageName) { builtinCardsFor(all, BuiltinImages.cardApps(ctx), packageName) }
+    }
     // R63 起不再截到 16 项(TvHome 时期网格不能滚的遗留;现在是自算位移的视窗,换壁纸 / 屏保图库本来就不截):
     // 有了「从手机添加」,卡片图库超过 16 张是常态,截掉的话刚传的那张在网格里根本不存在、焦点也落不上去。
     val items = remember(originalIcon, files) {

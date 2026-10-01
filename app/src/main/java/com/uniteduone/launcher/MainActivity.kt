@@ -1094,6 +1094,7 @@ class MainActivity : ComponentActivity() {
             )
             // 其余取值都是包名 = 换这张卡的图。
             else -> IconPicker(
+                packageName = target,
                 directory = Paths.cardLibrary(this),
                 originalIcon = remember(target) { Apps.originalIcon(this, target) },
                 nonce = focusNonce,

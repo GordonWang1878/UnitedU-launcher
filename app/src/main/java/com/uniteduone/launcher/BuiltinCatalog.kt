@@ -142,6 +142,35 @@ internal fun builtinDisplayName(names: Map<String, List<String>>, image: Builtin
         ?: image.label
 }
 
+// ---- 卡片图对应的应用(R159)--------------------------------------------------------------------------
+
+/**
+ * **内置卡片图只给对应的应用用**(R159,2026-10-01 Gordon:「不能允许把内置的爱奇艺卡片用到腾讯上,那就乱套了」;
+ * 取代 R118 的「任何应用都能选」)。对应表是 `assets/builtin/card-apps.txt`,与名字表放在一起:一行一张,
+ * `ID = 包名, 包名, …`,`#` 开头是注释;ID 同 [BuiltinImage.id]。一张卡写全这个应用的各个版本(电视版、手机版、国际版……)。
+ * 换卡片图时「内置」一块只显示属于这个包的卡([builtinCardsFor]);一张都没有时整块不画(同内置目录为空)。
+ * 表里漏了某张卡 = 它谁都不给;单测 BuiltinCardAppsTest 查「每张卡都有一行、没有多余的行、一个包名只属于一张卡」。
+ */
+internal const val BUILTIN_CARD_APPS_ASSET = "$BUILTIN_ASSET_DIR/card-apps.txt"
+
+/** 解析 card-apps.txt:卡片 ID → 包名集合(逗号分隔,去掉首尾空白,空项丢掉)。空行、注释、没有 `=` 的行忽略。 */
+internal fun parseBuiltinCardApps(text: String): Map<String, Set<String>> {
+    val out = LinkedHashMap<String, Set<String>>()
+    for (raw in text.removePrefix("﻿").lineSequence()) {
+        val line = raw.trim()
+        if (line.isEmpty() || line.startsWith("#")) continue
+        val eq = line.indexOf('=')
+        if (eq <= 0) continue
+        val id = line.substring(0, eq).trim()
+        if (id.isNotEmpty()) out[id] = line.substring(eq + 1).split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+    }
+    return out
+}
+
+/** [cards] 里属于 [packageName] 的那几张(原顺序);对应表里没有的卡谁都不给。 */
+internal fun builtinCardsFor(cards: List<BuiltinImage>, apps: Map<String, Set<String>>, packageName: String): List<BuiltinImage> =
+    cards.filter { packageName in apps[it.id].orEmpty() }
+
 /** 伪路径文件 → 它是哪一张内置图;不是 → null。分类目录名不认识的也返回 null。 */
 internal fun builtinImageOf(file: File): BuiltinImage? {
     val rel = builtinAssetPathOf(file.path) ?: return null

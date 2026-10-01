@@ -1,0 +1,18 @@
+# 内置卡片图对应的应用(R159)。一行一张:ID = 包名, 包名, …(ID = 文件名去掉扩展名,同 names.txt)。
+# 换卡片图时「内置」只显示属于这个应用的卡;表里没有某张卡 = 它谁都不给。一张卡写全这个应用的各个版本。
+# 放了新卡就在这里补一行;漏补、多余的行、一个包名写在两张卡下,单测 BuiltinCardAppsTest 都会拦下。
+
+# 腾讯视频:云视听极光、极光 TV 另一个包、手机版、WeTV 国际版
+01-wetv = com.ktcp.video, com.ktcp.tvvideo, com.tencent.qqlive, com.tencent.qqlivei18n
+# 爱奇艺:银河奇异果、手机版、国际版
+02-iqiyi = com.gitvdemo.video, com.qiyi.video, com.iqiyi.i18n
+# 优酷:CIBN 酷喵、优酷 TV 版、手机版
+03-youku = com.cibn.tv, com.youku.taitan.tv, com.youku.phone
+# 哔哩哔哩:云视听小电视、手机版、国际版
+04-bilibili = com.xiaodianshi.tv.yst, tv.danmaku.bili, com.bilibili.app.in
+# 咪视界、咪咕视频手机版
+05-migu = cn.miguvideo.migutv, com.cmcc.cmvideo
+# 芒果TV:电视版(Gordon 电视上是 com.starcor.mango)、牌照版、国际版、手机版
+06-mangotv = com.starcor.mango, com.hunantv.license, com.mgtv.tv, com.hunantv.imgo.activity
+# YouTube:Android TV 版、Google TV 版、手机版、SmartTube(无 GMS 电视上看 YouTube 的常用客户端,Gordon 同意算进来)
+07-youtube = com.google.android.youtube.tv, com.google.android.youtube.googletv, com.google.android.youtube, com.liskovsoft.smarttubetv, com.liskovsoft.smarttubetv.beta
