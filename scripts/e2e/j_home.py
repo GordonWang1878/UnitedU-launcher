@@ -1,4 +1,4 @@
-"""旅程:首页长按菜单 → 改名(保存 / 取消 / 清空)、换卡片图(内置名字英文)、移出一行、应用内提示条、HOME 收浮层。"""
+"""旅程:首页长按菜单 → 改名(保存 / 取消 / 清空)、换卡片图(内置卡只给对应应用、名字英文,R159)、移出一行、应用内提示条、HOME 收浮层。"""
 import sys, time, json
 sys.path.insert(0, __import__("os").path.dirname(__file__))
 from lib import *
@@ -73,17 +73,28 @@ def run():
     check("清空保存后焦点回卡片", s.focus() == card0, (s.focus(), card0))
 
     journey("home-card-art-names")
+    # R159:内置卡只给对应的应用。第一张是占位应用 → 选图页没有「内置」一块、一张品牌卡都没有
     long_ok(); move_to(S("card_menu_icon")); key("ok"); time.sleep(2)
     s = screen()
     check("换卡片图页标题", s.has(S("picker_card_image_title")), s.texts()[:6])
-    for name in ["WeTV", "Youku", "YouTube", "iQIYI"]:
-        check(f"内置卡片图英文名「{name}」", s.has(name), [t for t in s.texts()][:20])
-    check("没有小写 id(wetv / iqiyi)", not s.has("wetv") and not s.has("iqiyi"))
-    shot("home-card-art-en")
+    check("占位应用:没有「内置」一块(R159)", not s.has("Built-in") and not any(s.has(n) for n in ["Tencent", "iQIYI", "YouTube"]),
+          [t for t in s.texts()][:20])
     check("选图页单个焦点", s.count_focused() == 1, s.count_focused())
     key("back"); time.sleep(1)
     s = screen()
     check("返回 → 焦点回卡片", s.focus() == card0, (s.focus(), card0))
+    # 第二行第三张是真的 YouTube(com.google.android.youtube.tv)→ 「内置」只有 YouTube 那张,名字是英文
+    key("down"); key("right"); key("right"); time.sleep(0.8)
+    yt = screen().focus()
+    long_ok(); move_to(S("card_menu_icon")); key("ok"); time.sleep(2)
+    s = screen()
+    check("YouTube:「内置」只有 YouTube 卡(R159)", s.has("Built-in") and s.has("YouTube")
+          and not any(s.has(n) for n in ["Tencent", "iQIYI", "Youku", "bilibili", "MIGU", "Mango TV"]), [t for t in s.texts()][:20])
+    check("没有小写 id(youtube)", not s.has("youtube") and not s.has("07-youtube"))
+    shot("home-card-art-en")
+    key("back"); time.sleep(1)
+    check("返回 → 焦点回 YouTube 卡", screen().focus() == yt, (screen().focus(), yt))
+    first_card()
 
     journey("home-home-intent-closes-overlays")
     long_ok()
@@ -106,6 +117,33 @@ def run():
     s = screen()
     check("菜单淡出期间按右键 → 落在右边那张卡", s.count_focused() == 1 and s.focus() and s.focus()[0] > card0[0], (s.focus(), card0))
     keys_fast("left", gap=0.1); time.sleep(0.8)
+
+    journey("home-empty-edit-button")
+    # R161:一个应用都没有(引导第 2 步跳过 = 三行空)→ 提示 + 「编辑桌面」按钮,焦点默认在按钮上,确定直接进编辑页
+    empty = {"rows": [{"name": n, "icon": i, "apps": []} for n, i in [("影视", "movie"), ("直播", "tv"), ("音乐", "music")]]}
+    restart(layout=empty)
+    ok, s = focus_stable()
+    check("空桌面:提示指向编辑桌面", s.has("Choose Edit Home Screen below"), s.texts()[:8])
+    check("空桌面:焦点默认在「编辑桌面」按钮", ok and s.label() == S("menu_edit"), (s.count_focused(), s.label()))
+    key("up"); time.sleep(0.6)
+    s = screen()
+    check("上 → 顶栏「设置」", s.count_focused() == 1 and "Settings" in s.label(), s.label())
+    key("down"); time.sleep(0.6)
+    s = screen()
+    check("下 → 回到按钮", s.label() == S("menu_edit"), s.label())
+    key("ok"); time.sleep(2)
+    s = screen()
+    check("确定 → 进编辑页", s.has(S("edit_hint")[:20]), s.texts()[:8])
+    shot("home-empty-edit-page")
+    key("back"); time.sleep(2)
+    ok, s = focus_stable()
+    check("返回 → 空桌面、焦点回按钮", ok and s.label() == S("menu_edit"), (s.count_focused(), s.label()))
+    key("up"); time.sleep(0.6); key("ok"); time.sleep(1.5)
+    key("back"); time.sleep(1.5)
+    ok, s = focus_stable()
+    check("从「设置」打开外壳再返回 → 焦点回「设置」(冻结的顶栏目标优先)", ok and "Settings" in s.label(), s.label())
+    shot("home-empty-hint")
+    restart(layout=LAYOUT)
 
 if __name__ == "__main__":
     run()

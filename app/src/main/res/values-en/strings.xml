@@ -136,7 +136,7 @@
     <string name="edit_picker_system_tools">System Tools</string>
 
     <!-- home_* : home screen and default-home settings card -->
-    <string name="home_empty_apps_hint">No apps on your home screen yet\nOpen All Apps at the top left, hold OK on an app, then choose Add to Home</string>
+    <string name="home_empty_apps_hint">No apps on your home screen yet\nChoose Edit Home Screen below, then add apps with the ＋ at the end of each row</string>
     <string name="home_settings_title">Default Home App</string>
     <string name="home_settings_current_label">Current</string>
     <string name="home_settings_change_button">Change in Native TV Settings</string>

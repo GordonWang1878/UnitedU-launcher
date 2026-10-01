@@ -76,6 +76,11 @@ fun HomeScreen(
     onApps: () -> Unit = {},
     /** R89:顶栏「输入源」胶囊 = 打开输入源页(同上)。R89 前这一格是屏保按钮(`onScreensaver`),挪进「设置 → 屏保」。 */
     onInputs: () -> Unit = {},
+    /**
+     * R161:桌面一张卡都没有时,提示下面的「编辑桌面」按钮 = 直接打开编辑页(同「设置 → 布局 → 编辑桌面」)。
+     * 编辑页每一行末尾的「＋」一次能加好几个,比去所有应用里一张张「加到桌面」快得多。
+     */
+    onEditHome: () -> Unit = {},
     focusNonce: Int,
     revision: Int = 0,
     showDate: Boolean = true,
@@ -310,6 +315,12 @@ fun HomeScreen(
     // 顶栏三颗胶囊各一个 requester(R89:设置 / 应用 / 输入源),下标 = 焦点账本里的 col。
     val pillFocus = remember { List(TOP_PILL_COUNT) { FocusRequester() } }
     val gearFocus = pillFocus[0]
+    /**
+     * R161 空桌面的「编辑桌面」按钮。焦点账本里记成 ([EMPTY_EDIT_ROW], 0):不是卡(cardAt 对负行号返回 null,长按不出菜单),
+     * 也不是顶栏(tgtPill 只认 -1 行),于是它拿到焦点时 tgtPill 置 -1,看门狗的空桌面分支把焦点送回这里。
+     * 只在「数据到了、一行都没有、没被浮层盖着」时画,看门狗也只在这时以它为目标(covered 时看门狗本来就让路)。
+     */
+    val emptyEditFocus = remember { FocusRequester() }
     /** 冻结的顶栏目标对应的 requester;越界(理论上不会)退回设置那颗。 */
     fun pillTarget(): FocusRequester = pillFocus.getOrElse(tgtPill) { gearFocus }
     // 哪一行是「当前行」——决定纵向锚定位移;跟着焦点走。Task 9 曾经把 -1 当合法值写进来
@@ -498,7 +509,9 @@ fun HomeScreen(
             // (upTarget/downTarget 用的就是它)。冷启动时两者是同一个节点,不构成回归。
             rows.isNotEmpty() ->
                 rowFocus.getOrNull((moveTarget?.row ?: tgtRow).coerceIn(0, rowFocus.lastIndex)) ?: firstCard
-            loaded != null -> gearFocus     // 空桌面:焦点给齿轮
+            // 空桌面:焦点给「编辑桌面」按钮(R161;此前给齿轮)。顶栏上冻结过的那一颗(tgtPill ≥ 0)在上一个分支优先,
+            // 所以从齿轮打开设置再关掉,仍回齿轮。
+            loaded != null -> emptyEditFocus
             else -> return@LaunchedEffect   // 还在加载,什么都还没建出来
         }
         var frames = 0
@@ -643,20 +656,31 @@ fun HomeScreen(
             // 每行 26.5dp 纵向漂移的来源之一(与 rowPitch() 假设的 ROW_GAP 对不上,见 GtvLayoutTest)。
             verticalArrangement = Arrangement.spacedBy(GtvLayout.ROW_GAP.dp),
         ) {
-            // 配置里的应用一个都装不到时,屏幕上只剩时钟和齿轮,看着像坏了。
-            // 给一句话告诉用户怎么自救(实测:此时齿轮菜单仍可用)。
-            // **被整屏浮层盖着时不画**(M7 T10):这句话说的是「齿轮已选中」,而浮层开着时齿轮
-            // 不可聚焦、焦点在浮层里——它是一句假话;首次引导的 α 0.85 遮罩下它还正好横在
-            // 语言按钮与「继续」之间(模拟器截图实测)。previewing = false 时行为不变。
+            // 配置里的应用一个都装不到(或引导第 2 步选了跳过)时,屏幕上只剩时钟和顶栏,看着像坏了。
+            // R161(2026-10-01 Gordon):一句话 + 一颗「编辑桌面」按钮,焦点默认在按钮上,确定直接进编辑页——那里每一行
+            // 末尾的「＋」一次能加好几个;R161 前这句话指去所有应用里一张张「加到桌面」。
+            // **被整屏浮层盖着时不画**(M7 T10):浮层开着时这一页不可聚焦、焦点在浮层里;首次引导的 α 0.85 遮罩下
+            // 它还正好横在语言按钮与「继续」之间(模拟器截图实测)。previewing = false 时行为不变。
             if (loaded != null && rows.isEmpty() && !previewing) {
-                BasicText(
-                    text = stringResource(R.string.home_empty_apps_hint),
+                Column(
                     // gtv 线内读一个常量(Fix 5,终审 2026-09-20):这个文件里以前 Theme.SidePadding
                     // 与 GtvLayout.CONTENT_KEYLINE 两个名字都指同一条 58dp 基准线,值相同、名字不同,
                     // 是与纵向 26.5dp 漂移同一类的命名漂移,统一改读后者。
                     modifier = Modifier.padding(start = GtvLayout.CONTENT_KEYLINE.dp),
-                    style = hintStyle,
-                )
+                    verticalArrangement = Arrangement.spacedBy(GtvLayout.EMPTY_HOME_BUTTON_GAP.dp),
+                ) {
+                    BasicText(text = stringResource(R.string.home_empty_apps_hint), style = hintStyle)
+                    MenuPill(
+                        label = stringResource(R.string.menu_edit),
+                        onClick = onEditHome,
+                        // 上 = 顶栏的设置那颗(左右下本来就到头:MenuPill 左右恒 Cancel,isLast 让下也 Cancel)
+                        modifier = Modifier
+                            .focusRequester(emptyEditFocus)
+                            .focusProperties { up = gearFocus },
+                        onFocusChange = { got -> report(EMPTY_EDIT_ROW, 0, got) },
+                        isLast = true,
+                    )
+                }
             }
             // Ruling R43 → R48:哪一行的行图标是「焦点行」近白态(R48 前是行标题大白态)。焦点在顶栏药丸组
             // (tgtPill ≥ 0)→ 没有焦点行(-1);否则就是 activeRowSafe(整页位移用的同一个量,图标与位移同时变)。
@@ -755,6 +779,8 @@ fun HomeScreen(
                 canFocus = !covered,
                 rowsEmpty = rows.isEmpty(),
                 downTarget = rowFocus.getOrNull(tgtRow.coerceIn(0, rowFocus.lastIndex)),
+                // R161:空桌面时按下去到「编辑桌面」按钮(按钮只在数据到了、没被盖着时才画;没画时仍是到头)
+                emptyDownTarget = if (loaded != null && rows.isEmpty() && !previewing) emptyEditFocus else null,
                 pillAlpha = contentAlpha,
                 clockAlpha = topBarClockAlpha,
                 showDate = showDate,

@@ -74,6 +74,8 @@ fun GtvTopBar(
     canFocus: Boolean,
     /** 桌面一张卡都没有时,下键锁 Cancel(与 `TopPills` 同名同义)。 */
     rowsEmpty: Boolean,
+    /** R161:一行都没有时按下去到哪(空桌面的「编辑桌面」按钮);null = 到头。 */
+    emptyDownTarget: FocusRequester? = null,
     /** 下键落点:通常是首页记住的那一行(与 `TopPills` 同名同义)。 */
     downTarget: FocusRequester?,
     /** 药丸组透明度(HomeScreen 的 `contentAlpha`)——待机随卡片行一起淡出的那一半。 */
@@ -124,6 +126,7 @@ fun GtvTopBar(
                 pillFocusRequesters = pillFocusRequesters,
                 canFocus = canFocus,
                 rowsEmpty = rowsEmpty,
+                emptyDownTarget = emptyDownTarget,
                 downTarget = downTarget,
                 onSettings = onSettings,
                 onApps = onApps,
@@ -165,6 +168,9 @@ private val TOP_PILLS = listOf(
 
 /** 顶栏胶囊个数(焦点账本里 row = -1 那组的 col 取值 0 until 它)。 */
 const val TOP_PILL_COUNT = 3
+
+/** R161:空桌面「编辑桌面」按钮在焦点账本里的行号(-1 是顶栏,≥ 0 是卡片行)。 */
+const val EMPTY_EDIT_ROW = -2
 
 /**
  * 「哪一颗在焦点」的显示状态,只跟 onFocusChange 的上报走:得到就是它,失去只清掉仍是它的那一颗
@@ -233,6 +239,8 @@ private fun PillGroup(
     pillFocusRequesters: List<FocusRequester>,
     canFocus: Boolean,
     rowsEmpty: Boolean,
+    /** R161:一行都没有时按下去到哪(空桌面的「编辑桌面」按钮);null = 到头。 */
+    emptyDownTarget: FocusRequester? = null,
     downTarget: FocusRequester?,
     onSettings: () -> Unit,
     onApps: () -> Unit,
@@ -240,7 +248,7 @@ private fun PillGroup(
     onFocusChange: (Int, Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val down = if (rowsEmpty) FocusRequester.Cancel else (downTarget ?: FocusRequester.Default)
+    val down = if (rowsEmpty) (emptyDownTarget ?: FocusRequester.Cancel) else (downTarget ?: FocusRequester.Default)
     val actions = listOf(onSettings, onApps, onInputs)
     Row(
         modifier = modifier

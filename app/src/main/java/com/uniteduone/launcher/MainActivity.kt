@@ -756,6 +756,8 @@ class MainActivity : ComponentActivity() {
                 HomeScreen(
                     // 残影(进编辑页那 EDIT_SWAP_MS)也当作被盖住:不可聚焦、不收键、看门狗让路
                     previewing = overlayOpen || LocalPageGhost.current,
+                    // R161:空桌面的「编辑桌面」按钮。外壳栈是空的,退出编辑页直接回首页。
+                    onEditHome = { editing = true },
                     idle = idle,
                     screensaver = screensaverActive,
                     idleContent = homeSettings.idleContent,
