@@ -28,7 +28,7 @@ adb emu kill                                     # 关闭
 改 settings.json 单个字段验证用:pull → 正则替换 → push → force-stop → `am start -n`(见 M3 计划 Task 5 的 setjson.sh)。
 
 **模拟器验证的坑**(M7 实测,细节见 WORKLOG 2026-09-17):
-- `KEYCODE_HOME` 不认 `set-home-activity`(原厂 Google TV 桌面照抢)→ 一律 `am start -n` 拉起;`set-home-activity` 带 `--user 0` 会返回 Success 却不生效。
+- `KEYCODE_HOME` 不认 `set-home-activity`(原厂 Google TV 桌面照抢)→ 一律 `am start -n` 拉起;`set-home-activity` 带 `--user 0` 会返回 Success 却不生效。**根因(2026-10-02 兼容性调研,AOSP 源码 + 两台 Google 镜像实测)**:系统解析 HOME 时候选优先级不同就直接取最高者,不看 HOME 角色;侧载应用被压成 0,Google 镜像里原厂桌面(`launcherx` / `tvlauncher`)是 2——所以角色改了也抢不到 HOME 键。国行 A95L 上所有桌面都是 0,角色才说了算。见 `docs/research/2026-10-02-tv-compatibility.md`。
 - 真机是被 HOME 拉起的:`am start -a android.intent.action.MAIN -c android.intent.category.HOME -n com.uniteduone.launcher/.MainActivity`。依赖启动 intent 的 bug 在 `am start -n` 下藏得住(`recreate()` 沿用原 intent)。
 - 按不住键:`settings put secure long_press_timeout 700` 后 `input keyevent --longpress KEYCODE_DPAD_CENTER`(注入的重复事件时间戳 = downTime + 该值,越过 600 ms 阈值;测完改回 400);或装 `LONG_PRESS_MS = 0` 的探针 APK。
 - HOME 角色进程受保护:`am kill` 无效,`am crash` 连任务带状态一起丢,`always_finish_activities` 不生效 ——「进程死后带 Bundle 重建」这台 AVD 造不出来。
