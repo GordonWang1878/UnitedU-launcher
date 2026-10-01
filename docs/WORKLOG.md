@@ -1803,4 +1803,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - Gordon 选字体 2(Google Sans Flex 圆头)。定稿生成器 `docs/design/icon-masters/gen.py`:banner 与图标共用同一个碗(圆头,线宽取该字体 U 的竖画 0.1847 em);图标按 108 dp 画布数值搜索最大字号 + 最佳基线,使整个标离中心 ≤ 32.5 dp(安全圆 33)。一次写出母版 3 张(覆盖 2026-09-23 GPT 出的彩虹 U,旧图在 git 历史里)+ `mipmap-{m,h,xh,xxh,xxxh}dpi` 两层 + xhdpi banner;`mipmap-anydpi-v26` 两个 XML 只改了注释。
 - 模拟器验证(`unitedu-gtv`,release 构建):**Google TV 的 launcherx 按版本号缓存图标**——versionCode 没变,覆盖安装后「Your apps」仍显示旧彩虹 U,force-stop launcherx 也不刷新(`pm clear --cache-only` 在这台 Android 14 上卡住不返回,已中止,没清 launcherx 数据)。改用无代码测试包 `com.uniteduone.logoprobe`(同一套 mipmap、label「UnitedU」)绕开缓存:新图标在「Your apps」里聚焦清楚(`docs/screenshots/gtv/24-new-tray-icon-in-google-tv-your-apps.jpg`);同一个包的 banner 在 UnitedU 所有应用页里与其他应用并排(`docs/design/icon-masters/in-unitedu-all-apps.jpg`)。测试包已卸载。
 - **推论(真机)**:电视上装新版后,系统设置 / 别的桌面可能照样显示旧图标,直到 versionCode 变或缓存进程重启(2026-09-23 已遇到过一次:设置进程常驻缓存旧图标)。
-- 未提交、未装电视。
+- 已提交(`594199c` 图片与生成器、`5f875dd` 文档)。**电视上已是这一版**:A95L 上的包 12:43 被装成同一个 release 构建(sha256 与本地 `app-release.apk` 一致,解出的 banner 就是新图),已编译(speed-profile);Gordon 待在电视系统设置 → 应用里看图标。
