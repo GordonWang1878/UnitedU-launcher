@@ -315,8 +315,10 @@ private fun PickerGrid(
      * 与换上去之后首页那张卡同一个样子;false(壁纸 / 屏保)照旧按 16:9 裁满。内置装饰图同样按卡面画(R118)。
      */
     asCard: Boolean = false,
-    /** 不参与轮播的内置屏保图 ID(R117,只有屏保图库传):这几格画暗 + 「已关」角标。 */
+    /** 不参与轮播的内置屏保图 ID(R117,只有屏保图库传):这几格画暗(R154 起没有 ✓ 角标)。 */
     excludedBuiltins: Set<String> = emptySet(),
+    /** 会被屏保播放的格子画 ✓ 角标(R154);只有屏保图库传 true。 */
+    rotationBadges: Boolean = false,
 ) {
     // 淡出中的残影(R108 的约定,R136 起选图页也淡入淡出):当作被盖住——定位效果与看门狗让路(守卫与 key 读的是
     // 同一个合并后的 covered,铁律 6);下面每一格再 canFocus = false、点击与焦点上报一律不接。
@@ -597,6 +599,8 @@ private fun PickerGrid(
                                 thumbHeight = thumbHeight,
                                 asCard = asCard,
                                 dimmed = item is PickerItem.Builtin && item.image.id in excludedBuiltins,
+                                inRotation = rotationBadges && (item is PickerItem.Library ||
+                                    (item is PickerItem.Builtin && item.image.id !in excludedBuiltins)),
                                 cellModifier = Modifier
                                     .focusRequester(focusRequesters[idx])
                                     .focusProperties {
@@ -699,19 +703,23 @@ private fun VideoBadge(durationMs: Long?, modifier: Modifier = Modifier) {
 }
 
 /**
- * 不参与轮播的内置屏保图的角标(R117):「已关」,样式同 [VideoBadge](半透明黑底圆角),贴左上角,
- * 画在缩略图框里、随聚焦放大。内置图不收视频,两个角标不会同时出现。
+ * **「参与轮播」角标**(R154,2026-10-01 Gordon:「有角标就参与轮播,没有角标就不参与」):屏保图库里会被屏保播放的每一格
+ * ——没关掉的内置图、用户传的全部照片与视频——右上角一个主题色圆底的 ✓;关掉的内置图没有角标(内容照旧压暗)。
+ * 取代 R117 的「已关」角标(那时是不参与的才标,参与的什么都没有,用户不知道还能关)。画在缩略图框里、随聚焦放大,不可聚焦;
+ * 视频的「▶ 时长」在右下角,不冲突。页头那句说明([R.string.pool_hint])写的就是这条规矩。
  */
 @Composable
-private fun OffBadge(modifier: Modifier = Modifier) {
+private fun RotationBadge(modifier: Modifier = Modifier) {
+    val accent = LocalThemeColors.current.accent
     Box(
         modifier = modifier
-            .padding(4.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .background(Color.Black.copy(alpha = 0.7f))
-            .padding(horizontal = 5.dp, vertical = 1.dp),
+            .padding(6.dp)
+            .size(22.dp)
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(accent),
+        contentAlignment = Alignment.Center,
     ) {
-        BasicText(text = stringResource(R.string.picker_builtin_off_badge), style = Type.micro.copy(color = Color.White))
+        CheckGlyph(color = Color(0xFF14181B), size = 16.dp)
     }
 }
 
@@ -722,8 +730,10 @@ private fun ThumbCard(
     thumbWidth: Dp,
     thumbHeight: Dp,
     asCard: Boolean = false,
-    /** 不参与轮播的内置屏保图(R117):缩略图内容压暗到 [EXCLUDED_THUMB_ALPHA] + 左上「已关」角标;聚焦时照样暗,状态一眼看得出。 */
+    /** 不参与轮播的内置屏保图(R117):缩略图内容压暗到 [EXCLUDED_THUMB_ALPHA];聚焦时照样暗。R154 起不再有「已关」角标(没有 ✓ 就是不参与)。 */
     dimmed: Boolean = false,
+    /** 这一格会被屏保播放(R154):右上角画 [RotationBadge]。只有屏保图库传 true。 */
+    inRotation: Boolean = false,
     cellModifier: Modifier = Modifier,
 ) {
     if (item is PickerItem.AddFromPhone) {
@@ -826,7 +836,7 @@ private fun ThumbCard(
                 BasicText("…", style = Type.caption)
             }
             if (isVideo && current != null) VideoBadge(current.videoMs, Modifier.align(Alignment.BottomEnd))
-            if (dimmed) OffBadge(Modifier.align(Alignment.TopStart))
+            if (inRotation) RotationBadge(Modifier.align(Alignment.TopEnd))
         }
 
         ThumbLabel(label, focused)
@@ -974,10 +984,11 @@ fun ScreensaverPoolViewer(
                 covered = previewIndex >= 0 || deleteTarget != null || builtinMenu != null || rescanning,
                 onFocusedItem = onFocusedItem,
                 emptyHint = stringResource(R.string.picker_no_screensavers),
-                backHint = R.string.picker_back_to_close,
+                backHint = R.string.pool_hint,
                 onAddFromPhone = onAddFromPhone,
                 landing = landing,
                 excludedBuiltins = excludedBuiltins,
+                rotationBadges = true,
             )
         }
     }

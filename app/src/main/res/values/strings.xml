@@ -143,7 +143,6 @@
     <string name="picker_wallpaper_title">选一张壁纸</string>
     <string name="picker_card_image_title">选一张卡片图</string>
     <string name="picker_no_images">还没有图片可选</string>
-    <string name="picker_back_to_close">按确定预览，长按可删除或关闭</string>
     <string name="picker_back_to_cancel">按确定选用，按返回键取消</string>
     <string name="picker_restore_original">恢复原图</string>
     <!-- 内置图名字表(assets/builtin/names.txt)取哪一列(R137);随这份 strings.xml 的语言走,不要翻译成别的值 -->
@@ -158,7 +157,7 @@
     <!-- R115:选图页「内置 / 我的」两块的分组标题;内置屏保图关掉之后的角标与胶囊菜单(R117) -->
     <string name="picker_section_builtin">内置</string>
     <string name="picker_section_mine">我的</string>
-    <string name="picker_builtin_off_badge">已关</string>
+    <string name="pool_hint">带 ✓ 的会在屏保里轮播。长按内置图可以取消或加回，长按你传的图可以删除；按确定预览</string>
     <string name="pool_builtin_exclude">不参与轮播</string>
     <string name="pool_builtin_include">加入轮播</string>
     <!-- pool_delete_* : 屏保图库长按删图的确认框(M5 spec §5);取消复用 dialog_cancel -->

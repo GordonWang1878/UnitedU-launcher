@@ -151,7 +151,6 @@
     <string name="picker_wallpaper_title">Choose a Wallpaper</string>
     <string name="picker_card_image_title">Choose Card Art</string>
     <string name="picker_no_images">No images available yet</string>
-    <string name="picker_back_to_close">Press OK to preview, hold OK to delete or turn off</string>
     <string name="picker_back_to_cancel">Press OK to choose, Back to cancel</string>
     <string name="picker_restore_original">Restore Original</string>
     <!-- 内置图名字表(assets/builtin/names.txt)取哪一列(R137);随这份 strings.xml 的语言走,不要翻译成别的值 -->
@@ -166,7 +165,7 @@
     <!-- R115: section titles of the "Built-in / Mine" blocks in the image pickers; off badge and capsule menu for built-in screensaver images (R117) -->
     <string name="picker_section_builtin">Built-in</string>
     <string name="picker_section_mine">Mine</string>
-    <string name="picker_builtin_off_badge">Off</string>
+    <string name="pool_hint">Items with ✓ play in the screensaver. Long-press a built-in to turn it off or on, or yours to delete. OK to preview</string>
     <string name="pool_builtin_exclude">Remove from Slideshow</string>
     <string name="pool_builtin_include">Add to Slideshow</string>
     <!-- pool_delete_* : long-press delete confirm in the screensaver gallery (M5 spec §5); cancel reuses dialog_cancel -->

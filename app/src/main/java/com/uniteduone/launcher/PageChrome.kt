@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,6 +59,17 @@ fun PageHeader(title: String, hint: String?, modifier: Modifier = Modifier) {
 fun PlusGlyph(color: Color, size: Dp = 26.dp, modifier: Modifier = Modifier) {
     Image(
         imageVector = Icons.Filled.Add,
+        contentDescription = null,
+        colorFilter = ColorFilter.tint(color),
+        modifier = modifier.size(size),
+    )
+}
+
+/** 「✓」图形(R154 屏保图库的「参与轮播」角标):与 [PlusGlyph] 同一个理由画成图标。 */
+@Composable
+fun CheckGlyph(color: Color, size: Dp, modifier: Modifier = Modifier) {
+    Image(
+        imageVector = Icons.Filled.Check,
         contentDescription = null,
         colorFilter = ColorFilter.tint(color),
         modifier = modifier.size(size),

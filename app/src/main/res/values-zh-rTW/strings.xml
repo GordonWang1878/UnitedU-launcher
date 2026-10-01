@@ -143,7 +143,6 @@
     <string name="picker_wallpaper_title">選一張桌布</string>
     <string name="picker_card_image_title">選一張卡片圖</string>
     <string name="picker_no_images">還沒有圖片可選</string>
-    <string name="picker_back_to_close">按確定預覽，長按可刪除或關閉</string>
     <string name="picker_back_to_cancel">按確定選用，按返回鍵取消</string>
     <string name="picker_restore_original">恢復原圖</string>
     <!-- 内置图名字表(assets/builtin/names.txt)取哪一列(R137);随这份 strings.xml 的语言走,不要翻译成别的值 -->
@@ -158,7 +157,7 @@
     <!-- R115:選圖頁「內建 / 我的」兩塊的分組標題;內建螢幕保護圖關掉之後的角標與膠囊選單(R117) -->
     <string name="picker_section_builtin">內建</string>
     <string name="picker_section_mine">我的</string>
-    <string name="picker_builtin_off_badge">已關</string>
+    <string name="pool_hint">帶 ✓ 的會在螢幕保護程式裡輪播。長按內建圖可以取消或加回，長按你傳的圖可以刪除；按確定預覽</string>
     <string name="pool_builtin_exclude">不參與輪播</string>
     <string name="pool_builtin_include">加入輪播</string>
     <!-- pool_delete_* : 螢幕保護圖庫長按刪圖的確認框(M5 spec §5);取消複用 dialog_cancel -->
