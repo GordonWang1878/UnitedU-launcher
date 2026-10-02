@@ -1,9 +1,9 @@
 package com.uniteduone.launcher
 
 import android.accessibilityservice.AccessibilityServiceInfo
-import android.app.AppOpsManager
 import android.content.Context
-import android.os.Process
+import android.content.pm.PackageInstaller
+import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityManager
@@ -14,7 +14,8 @@ enum class HomeKeyStatus { ON, OFF, NOT_RUNNING, RESTRICTED }
 
 /**
  * [enabled] 系统无障碍开关开着;[running] 服务这次开机以来连上过且没断(心跳),**而且**系统此刻真的绑定着它;[restricted] 受限设置锁着
- * (Android 13+ 用系统安装器侧载的包,见调研 §2.2 #9–#10)。系统开关显示开着却没在跑是 Projectivy 最常见的用户问题,所以分开报。
+ * (Android 13+ 用系统安装器侧载的包,见调研 §2.2 #9–#10;应用读不到锁本身,按安装来源推断,见 [HomeKeyState.isRestricted])。
+ * 系统开关显示开着却没在跑是 Projectivy 最常见的用户问题,所以分开报。
  */
 fun homeKeyStatus(enabled: Boolean, running: Boolean, restricted: Boolean): HomeKeyStatus = when {
     enabled && running -> HomeKeyStatus.ON
@@ -56,9 +57,6 @@ fun enabledServiceSetting(raw: String?, pkg: String): Boolean {
  * 只有服务一个写者,原子写;读失败一律当「没有心跳」。
  */
 object HomeKeyState {
-    /** 受限设置的 appop(`AppOpsManager.OPSTR_ACCESS_RESTRICTED_SETTINGS`,API 33;老系统没有这个 op,查询抛异常 → 当不受限)。 */
-    private const val OP_ACCESS_RESTRICTED_SETTINGS = "android:access_restricted_settings"
-
     private fun file(ctx: Context) = File(ctx.filesDir, "homekey.state")
 
     /** 读不到时两边都是 -1,等于不按开机计数把关——宁可少报一次「没在运行」。 */
@@ -92,11 +90,16 @@ object HomeKeyState {
             .any { it.resolveInfo.serviceInfo.packageName == ctx.packageName }
     }.getOrDefault(false)
 
-    /** 受限设置锁着(自己的 appop 不是 allow)。 */
+    /**
+     * 受限设置(Android 13+)锁不锁:系统在**安装时**按来源决定——用系统安装器装的本地 / 下载文件(`PACKAGE_SOURCE_LOCAL_FILE` /
+     * `DOWNLOADED_FILE`)才上锁,adb / 商店 / 会话安装不锁。锁本身(appop `ACCESS_RESTRICTED_SETTINGS`)应用读不到(要 MANAGE_APPOPS,
+     * 2026-10-02 模拟器实测抛 SecurityException),所以按来源推断;用户已用 adb 解锁但还没打开服务时会误报一次「不允许」,去系统设置照样能开。
+     * Android 13 以下没有这道锁 → false。
+     */
     fun isRestricted(ctx: Context): Boolean = runCatching {
-        val ops = ctx.getSystemService(AppOpsManager::class.java) ?: return false
-        @Suppress("DEPRECATION")
-        ops.checkOpNoThrow(OP_ACCESS_RESTRICTED_SETTINGS, Process.myUid(), ctx.packageName) != AppOpsManager.MODE_ALLOWED
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+        val source = ctx.packageManager.getInstallSourceInfo(ctx.packageName).packageSource
+        source == PackageInstaller.PACKAGE_SOURCE_LOCAL_FILE || source == PackageInstaller.PACKAGE_SOURCE_DOWNLOADED_FILE
     }.getOrDefault(false)
 
     fun status(ctx: Context): HomeKeyStatus =
