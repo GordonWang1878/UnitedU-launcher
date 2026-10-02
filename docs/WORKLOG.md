@@ -1938,3 +1938,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 ## 2026-10-02 深夜 · 发版 1.0.0
 
 - Gordon:「发版 1.0」。版本号 1.0.0 / versionCode 3(内部版 1.0.0-beta / 2 从未对外发;已装 beta 的电视按「检查更新」会看到 1.0.0)。走 `scripts/release.sh 1.0.0`:release 密钥构建 + 证书核对 + `latest.json` + tag `v1.0.0` + GitHub Release(latest)。README、设计定稿的「尚未发布」改掉。
+- `scripts/release.sh 1.0.0` 跑完:release 证书核对通过,`v1.0.0` tag 已推,GitHub Release(latest)带 `unitedu-1.0.0.apk` + `latest.json`:https://github.com/GordonWang1878/UnitedU-launcher/releases/tag/v1.0.0 。电视上装的仍是 versionCode 2 的最后一个内部包,「关于 → 检查更新」应能看到 1.0.0——这正是 A95L 上没验过的会话 API 更新路径,等 Gordon 自己按。
