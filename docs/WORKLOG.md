@@ -1922,3 +1922,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 未验证:电视没装(装包走 `scripts/tv-install.sh`,等 Gordon 点头);繁中 / 英文的编辑页没逐页截图(`j_edit` 英文跑过,英文药丸小字看过);设置 → 布局页的实时预览用的是首页同一份画法,没单独看。
 - 状态:本地两个提交(代码;文档 + 截图),未推。
 - 评审(R163,2026-10-02 晚):规格与焦点铁律都过,无需修项;记档的小项:①「选一行」药丸的应用名小字 11 sp,电视上看清不清由 Gordon 定(看不清就把摘要放进 15 sp 的标签);②降级到 R163 之前的版本读不了无 `name` 的 layout.json(会退到 `.prev` / 默认);③`AppsMenu.rows` 与 `rowApps` 是平行列表,`Apps.load` 失败时每行都显示「空」;④`GtvLayout.ROW_TITLE_LINE` 已无读者;⑤`ShellTitle(path)` 可给默认值;⑥CLAUDE.md 焦点表 83 / 88 行未提图标 + 小字药丸。参考截图:`docs/screenshots/home-rows-reference-r163.jpg`(首页)、`edit-rows-before-r163.jpg`(改前编辑页)、`upload-web-header.jpg`(网页页头)。
+- 装电视(20:5x):`tv-install.sh` 等首页在前台后装 `c4eacaa3…`(R163 + 上传页三处修正),md5 一致,编译第 2 次 `speed-profile`,装完前台是首页;电视上的 `layout.json` 仍是带 `name` 的老格式(三行都已有 icon),下次编辑才会改写成只剩 `icon` + `apps`。
