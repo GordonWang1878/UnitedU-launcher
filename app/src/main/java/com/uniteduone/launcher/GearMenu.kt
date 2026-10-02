@@ -227,7 +227,8 @@ private fun MenuBanner(app: AppEntry, name: String, body: String? = null) {
         // 这一页是干什么的(2026-10-02 Gordon:应用页「加到桌面… → 选一行」左边得写「添加至分栏」,文案才通顺):
         // 名字下一行、说明那一档灰;只有第二层传,第一层(打开 / 卸载 / 加到桌面…)不写。
         if (body != null) {
-            Spacer(Modifier.height(6.dp))
+            // 与应用名拉开一段(2026-10-02 Gordon:6 dp 紧贴着不好看)
+            Spacer(Modifier.height(18.dp))
             BasicText(text = body, style = Type.body.copy(textAlign = TextAlign.Center))
         }
     }
