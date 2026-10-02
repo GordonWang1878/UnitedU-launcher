@@ -135,6 +135,9 @@
     <string name="home_settings_change_button">去原生电视设置更改</string>
     <string name="home_settings_note">按主页(Home)键时打开的桌面。Android 只允许在原生电视设置里更改。</string>
     <string name="home_settings_unknown">未知</string>
+    <!-- R162 主页键接管:系统「无障碍」页里的服务名与说明 -->
+    <string name="homekey_service_label">UnitedU 主页键接管</string>
+    <string name="homekey_service_desc">只做一件事：在 UnitedU 不是默认桌面的电视上，按主页键回到 UnitedU。只看主页键和前台应用的名字，不读取屏幕内容。</string>
 
     <!-- picker_* : 壁纸/卡片图/屏保图库选择器 -->
     <string name="picker_wallpaper_title">选一张壁纸</string>

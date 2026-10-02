@@ -99,5 +99,21 @@
                 android:name="android.service.dream"
                 android:resource="@xml/dream" />
         </service>
+
+        <!-- R162 主页键接管:无障碍服务,独立进程(每一下按键都先经过它,不与首页抢主线程;常驻的只是这个小进程)。
+             BIND_ACCESSIBILITY_SERVICE = 只有系统能绑;系统来绑,exported 必须为 true。判定与探针见 docs/research/2026-10-02-home-key-takeover-prior-art.md。 -->
+        <service
+            android:name=".HomeKeyService"
+            android:exported="true"
+            android:label="@string/homekey_service_label"
+            android:process=":homekey"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/homekey_service" />
+        </service>
     </application>
 </manifest>
