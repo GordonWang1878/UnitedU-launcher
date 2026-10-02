@@ -123,6 +123,6 @@ onKeyEvent(e):
 5. **只在 UnitedU 不是默认桌面时才开按键过滤**(A95L 不受影响);`onKeyEvent` 只看 HOME、其余第一行返回 false,把对别的应用的副作用压到最低。
 6. **路 C 写进 README**:会 adb 的用户 `pm disable-user` 原厂桌面(Google TV 连带 `setupwraith`),比任何无障碍方案都干净;产品内不做。
 7. Projectivy 单进程、我们分进程:它整个桌面进程常驻;我们把服务放小进程,桌面进程照常可回收。
-8. (探针 #8)**屏保在前台时放行 HOME**——按窗口事件记「当前前台是不是 `android.service.dreams.DreamActivity`」;放行后系统按原生规则退出屏保。
+8. (探针 #8)**屏保播放中放行 HOME**——按系统广播 `ACTION_DREAMING_STARTED / STOPPED` 记(实现时发现屏保窗口的无障碍事件类名是 `android.widget.FrameLayout`、不是 `DreamActivity`:屏保内容是 DreamService 自己加的 TYPE_DREAM 窗口,不是 Activity 的窗口,按类名认不出来);放行后系统按原生规则退出屏保。
 9. (探针 #11 / #12)**应用内自我更新改走 PackageInstaller 会话 API**,否则每次更新都会把接管关掉;传 APK 装别的应用照旧。
 10. (探针 #9 / #10)Android 13+ 上侧载装的 UnitedU 打不开服务,电视设置也没有解锁入口:设置页要能认出这种状态(读自己的 `ACCESS_RESTRICTED_SETTINGS` appop),直接告诉用户那一条 adb 命令;Android 12 及以下(国产电视多数)没有这道锁。
