@@ -112,8 +112,9 @@ object HomeKeyState {
      * 2026-10-02 模拟器实测抛 SecurityException),所以按来源推断。
      *
      * **见过一次就记住**:本应用的会话更新(自我更新走会话 API)会把 `packageSource` 改回 0,而锁(appop deny)还在——只看当前来源就瞎了。
-     * 所以推断为真的那一刻写一个记号(`restrictedSeen`),之后记号在就一直算受限;[status] 在开关开着的那一刻清掉它(开得起来 = 锁显然开着)。
-     * 用户已用 adb 解锁但还没打开服务时,这里会一直报「不允许」,直到用户开过一次服务(受限时胶囊照样带去无障碍页,见 `openHomeKeySettings`)。
+     * 所以推断为真的那一刻写一个记号(`restrictedSeen`),之后记号在就一直算受限;[status] 在开关开着的那一刻清掉它(开得起来 = 锁显然已经开了)。
+     * 用户已用 adb 解锁但还没打开服务时,这里会一直报「不允许」,直到用户开过一次服务(受限时胶囊照样带去无障碍页,见 `openHomeKeySettings`)——
+     * 但清记号只对来源已被会话更新改回 0 的安装管用;来源仍是 3 / 4 的安装,关掉开关后记号又会从来源重新点亮(已知误报,见 [status])。
      * Android 13 以下没有这道锁 → false;读失败一律当不受限。
      */
     fun isRestricted(ctx: Context): Boolean = runCatching {
@@ -134,7 +135,9 @@ object HomeKeyState {
 
     fun status(ctx: Context): HomeKeyStatus {
         val enabled = isEnabled(ctx)
-        // 开关开着 = 锁显然开着:清记号,以后关掉开关不会被它拖回「不允许」。受限只在没开时才有意义([homeKeyStatus]),开着时不必再推断。
+        // 开关开着 = 锁显然已经开了:清记号。注意这只对「来源已被会话更新改回 0」的安装有意义——记号是它唯一的依据,清掉后关掉开关
+        // 回到「未开启」;来源仍是文件(3 / 4)的安装,关掉开关后 [isRestricted] 会从来源把记号重新点亮、小字回到「不允许」
+        // (已知误报:按钮照样带去无障碍页,不是死路)。受限只在没开时才有意义([homeKeyStatus]),开着时不必再推断。
         if (enabled) clearRestrictedMark(ctx)
         return homeKeyStatus(enabled, isRunning(read(ctx), bootCount(ctx)) && isBound(ctx), !enabled && isRestricted(ctx))
     }

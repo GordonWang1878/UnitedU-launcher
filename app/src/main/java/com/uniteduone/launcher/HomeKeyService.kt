@@ -8,17 +8,21 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
+import androidx.core.content.ContextCompat
 
 /**
  * 主页键接管(R162):UnitedU 不是默认桌面的电视(Google TV、锁 HOME 的国产品牌)上,按 HOME 回到 UnitedU。
  * 判定全在 `HomeKeyPolicy.kt`;这里只翻译系统事件、执行动作。两条路:
  * - 截键:[onKeyEvent] 先于系统看到 HOME(AOSP 里过滤器在 PhoneWindowManager 处理 HOME 之前),吃掉按下 + 松开、拉起首页——
- *   原厂桌面一帧都不画;
- * - 盯窗口:[onAccessibilityEvent] 看到别的桌面的 HOME Activity 到了前台就拉回来——开机、系统别的路径回桌面时的兜底,会先闪一下原厂桌面。
+ *   原厂桌面一帧都不画;一次按下只拉一次、松开跟着按下走(去重与配对见 [HomeKeyPresses]);
+ * - 盯窗口:[onAccessibilityEvent] 看到别的桌面的 HOME Activity 到了前台就拉回来——开机、系统别的路径回桌面时的兜底,会先闪一下原厂桌面;
+ *   拉起后 1 s 去抖内丢掉的原厂桌面窗口事件,在去抖结束后补查一次([recheck]),不然它之后不再发事件、用户就停在原厂桌面上。
  * 跑在独立进程 `:homekey`(清单 `android:process`):开着时电视上每一下按键都先经过它,不能和首页的绘制抢主线程;
  * 系统把被绑定的无障碍服务常驻,独立进程才不会把整个桌面(壁纸位图)钉在内存里。**这个进程不碰任何状态文件**(`LockedFile` 是进程内锁),
  * 只写自己的心跳文件([HomeKeyState])。
@@ -30,6 +34,16 @@ class HomeKeyService : AccessibilityService() {
     private var active = false
     private var stockHomes: Set<Pair<String, String>> = emptySet()
     private var refreshedAt = Long.MIN_VALUE / 2
+    private val presses = HomeKeyPresses()
+
+    // 去抖补查:最近一个窗口事件的 (包名, 类名)(每个带包名与类名的窗口事件都更新),与一个主线程上的一次性补查。
+    // 补查时再按它重判一遍 [onWindowChanged]:去抖期间我们自己的 MainActivity 窗口已经落地的话,lastWindow 早被它换掉,补查什么都不做。
+    private var lastWindow: Pair<String, String>? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private val recheck = Runnable {
+        val w = lastWindow ?: return@Runnable
+        if (onWindowChanged(active, w.first, w.second, stockHomes, lastLaunchAt, SystemClock.elapsedRealtime())) launch("recheck:${w.first}")
+    }
 
     // 前台是不是屏保,以系统广播为准,不看窗口事件:屏保窗口的事件类名是 android.widget.FrameLayout、不是 DreamActivity
     // (2026-10-02 模拟器实测,API 34:认不出屏保,屏保里按 HOME 被吞,UnitedU 在屏保后面被拉起,用户卡在屏保里)。
@@ -49,11 +63,16 @@ class HomeKeyService : AccessibilityService() {
         info.notificationTimeout = 0
         serviceInfo = info
         dreaming = false
+        // RECEIVER_NOT_EXPORTED:只收系统与本应用的广播(受保护的系统广播照收)。API 33 以前 ContextCompat 退回带签名权限的注册,系统(uid 1000)发的同样送得到。
         runCatching {
-            registerReceiver(dreamReceiver, IntentFilter().apply {
-                addAction(Intent.ACTION_DREAMING_STARTED)
-                addAction(Intent.ACTION_DREAMING_STOPPED)
-            })
+            ContextCompat.registerReceiver(
+                this, dreamReceiver,
+                IntentFilter().apply {
+                    addAction(Intent.ACTION_DREAMING_STARTED)
+                    addAction(Intent.ACTION_DREAMING_STOPPED)
+                },
+                ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
         }.onFailure { Log.w(TAG, "homekey dream receiver register failed", it) }
         refresh(force = true)
         HomeKeyState.write(this, connected = true)
@@ -63,6 +82,8 @@ class HomeKeyService : AccessibilityService() {
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
+        handler.removeCallbacksAndMessages(null)
+        lastWindow = null
         runCatching { unregisterReceiver(dreamReceiver) }
         HomeKeyState.write(this, connected = false)
         Log.i(TAG, "homekey unbound")
@@ -73,9 +94,15 @@ class HomeKeyService : AccessibilityService() {
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode != KeyEvent.KEYCODE_HOME) return false
-        val down = event.action == KeyEvent.ACTION_DOWN
-        if (down && event.repeatCount == 0) refresh(force = false)
-        return when (onHomeKey(active, dreaming, down, event.repeatCount)) {
+        // 松开:跟着它的按下走(吃了就吃、放行了就放行),不按此刻的状态重判。
+        if (event.action != KeyEvent.ACTION_DOWN) return presses.onUp()
+        // 按下:同一次按下(同一个 downTime)只判一次,遥控器连发的重复 DOWN 不再拉起——真实输入送进过滤器的 repeatCount 恒为 0,
+        // 光看 repeat 拦不住;去重与配对的理由见 [HomeKeyPresses]。
+        val action = presses.onDown(event.downTime) {
+            if (event.repeatCount == 0) refresh(force = false)
+            onHomeKey(active, dreaming, down = true, event.repeatCount)
+        }
+        return when (action) {
             HomeKeyAction.PASS -> false
             HomeKeyAction.CONSUME -> true
             HomeKeyAction.CONSUME_AND_LAUNCH -> { launch("key"); true }
@@ -87,9 +114,17 @@ class HomeKeyService : AccessibilityService() {
         val pkg = event.packageName?.toString()
         val cls = event.className?.toString()
         val now = SystemClock.elapsedRealtime()
+        if (pkg != null && cls != null) lastWindow = pkg to cls
         // 别的桌面来了才值得重算(resolveActivity / queryIntentActivities 是 binder 调用,窗口事件很频繁)
         if (pkg != null && pkg != packageName && stockHomes.any { it.first == pkg }) refresh(force = false)
-        if (onWindowChanged(active, pkg, cls, stockHomes, lastLaunchAt, now)) launch("window:$pkg")
+        if (onWindowChanged(active, pkg, cls, stockHomes, lastLaunchAt, now)) {
+            launch("window:$pkg")
+        } else if (debouncedOnly(active, pkg, cls, stockHomes, lastLaunchAt, now)) {
+            // 原厂桌面是在刚拉起我们之后冒出来的、被 1 s 去抖丢掉:去抖一结束再看一眼,它还在最前面就拉回来
+            // (我们的窗口先落地的话那时 lastWindow 已是我们,补查什么都不做)。
+            handler.removeCallbacks(recheck)
+            handler.postDelayed(recheck, recheckDelayMs(lastLaunchAt, now))
+        }
     }
 
     /** 默认桌面是谁、别的桌面有哪些:至多每 [REFRESH_MS] 重算一次(用户在系统设置里换默认桌面没有广播)。 */
