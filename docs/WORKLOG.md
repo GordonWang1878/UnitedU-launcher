@@ -1903,3 +1903,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 文档:REVIEW-GUIDE(`ApkInstaller` 不再写「与自我更新无关」、文件地图补新函数、§6 加开机拉起盖住 HDMI 与「来源仍是文件时记号重新点亮」)、README(`:76` / 效果 / 局限 / 两种情况拆成两句 / 长按面板 / 检查更新与上传)、设置清单(受限时按下:系统提示 + 照样打开无障碍页)、`HomeKeyState` 注释(清记号只对来源已归 0 的安装管用)、`scripts/settings-copy-zh.py`(2.H6 / 2.H7 与已提交的文档一致,重新生成不再改回去)。
 - **未验证**:①电视(A95L 是默认桌面、服务不生效,但这一轮没有电视回归);②API < 33 的 `ContextCompat` 路径;③真电视上「开机进上次信号源」被开机拉起盖住 HDMI 的实际表现;④上传自己新版的整条链在索尼安装器上的样子(要 Gordon 按键)。
 - 登记、没修的(终审 triage):过滤器在 UnitedU 已是默认桌面时也开着(`FLAG_REQUEST_FILTER_KEY_EVENTS` 常驻,后续用 `gfxinfo` 量一次);Google TV 上两个 `MainActivity` 实例(`RelaunchMarks` 最后写入者赢,1.0 前的老问题);`home_settings_note` 措辞;受限记号的纯函数抽取;「死键兜底」(`launch()` 失败时 HOME 照吃,1.0 前加:1.5 s 内没有 UnitedU 窗口就 `performGlobalAction(GLOBAL_ACTION_HOME)`)。
+- **电视回归(2026-10-02 19:51)**:`tv-install.sh` 等到首页连续在前台 30 s 后装 `fe9ba0d4…`(md5 一致),编译第 2 次读回 `speed-profile`,R151 拉回生效(`HOME intent sent`),装完前台是首页;A95L 上无障碍开关没开、HOME 仍解析到 UnitedU,接管是空操作、胶囊不出现。分支 `homekey` 已并入本地 main(未推)。
