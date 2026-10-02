@@ -52,7 +52,7 @@ data class MenuItem(val label: String, val hint: String, val icon: String? = nul
  * 这里只剩长按卡片菜单与编辑页的两个菜单三个调用点,都是单行药丸、不带说明(R17 的 `showHints` 随齿轮菜单
  * 一起搬去外壳:第一层 6 颗两行胶囊)。药丸本身抽到 `ShellCapsule.kt` 的 [MenuPill],外壳每一层共用同一颗。
  *
- * @param title 标题;null = 「设置」。长按菜单传该卡的显示名,行菜单传「管理这一行」。
+ * @param title 标题;null = 「设置」。长按菜单传该卡的显示名,行菜单传「分栏管理」。
  *   [app] 为 null 时(编辑页行菜单——没有对应单个应用)左半退化成只显示这个标题,
  *   不画 banner。
  * @param app 左半 banner 的取图来源;只取 [AppEntry.card] / [AppEntry.isWide] / [AppEntry.fallbackColor]

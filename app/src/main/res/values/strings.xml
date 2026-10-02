@@ -326,7 +326,7 @@
     <string name="edit_row_delete">删除此行</string>
     <string name="edit_row_delete_desc">行里的应用不会被卸载</string>
     <string name="edit_row_icon_heading">选择行图标</string>
-    <string name="edit_row_menu_title">管理这一行</string>
+    <string name="edit_row_menu_title">分栏管理</string>
     <string name="edit_row_delete_confirm_title">删除这一行？</string>
     <plurals name="edit_row_delete_confirm_body">
         <item quantity="one">这一行的 %1$d 个应用会从桌面移除，不会卸载。</item>

@@ -326,7 +326,7 @@
     <string name="edit_row_delete">刪除此列</string>
     <string name="edit_row_delete_desc">列裡的應用程式不會被解除安裝</string>
     <string name="edit_row_icon_heading">選擇列圖示</string>
-    <string name="edit_row_menu_title">管理這一列</string>
+    <string name="edit_row_menu_title">分欄管理</string>
     <string name="edit_row_delete_confirm_title">刪除這一列？</string>
     <plurals name="edit_row_delete_confirm_body">
         <item quantity="one">這一列的 %1$d 個應用程式會從桌面移除，不會解除安裝。</item>
