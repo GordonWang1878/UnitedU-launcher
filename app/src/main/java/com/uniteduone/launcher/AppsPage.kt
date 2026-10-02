@@ -512,11 +512,11 @@ data class AppsMenu(
 )
 
 /** 「加到桌面…」第二层小字里最多列几个应用名(R163);再多的写成「 等 N 个」。 */
-internal const val ROW_SUMMARY_MAX_NAMES = 3
+internal const val ROW_SUMMARY_MAX_NAMES = 2
 
 /**
- * 「加到桌面…」第二层每颗药丸的小字(R163,纯函数):该行现有应用的显示名,用 [sep] 连起来,最多前 [ROW_SUMMARY_MAX_NAMES] 个;
- * 超过的写成 [more](已连好的前几个, 这一行一共几个)——「A、B、C 等 5 个」;一个都没有写 [empty](「空」)。
+ * 「加到桌面…」第二层每颗药丸的标签(R163,纯函数;2026-10-02 Gordon:11 sp 小字太丑 → 改进 15 sp 标签、只列两个):该行现有应用的显示名,
+ * 用 [sep] 连起来,最多前 [ROW_SUMMARY_MAX_NAMES] 个;超过的写成 [more](已连好的前几个, 这一行一共几个)——「A、B 等 5 个」;一个都没有写 [empty](「空」)。
  * 分隔符与「等 N 个」的措辞跟界面语言走,由调用方按资源给。
  */
 internal fun rowNamesSummary(

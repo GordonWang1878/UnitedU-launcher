@@ -1925,3 +1925,5 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 装电视(20:5x):`tv-install.sh` 等首页在前台后装 `c4eacaa3…`(R163 + 上传页三处修正),md5 一致,编译第 2 次 `speed-profile`,装完前台是首页;电视上的 `layout.json` 仍是带 `name` 的老格式(三行都已有 icon),下次编辑才会改写成只剩 `icon` + `apps`。
 - Gordon:行菜单页头「管理这一行」→「分栏管理」(zh-TW 分欄管理,en Manage Row 不变);代码注释、spec R163、CLAUDE.md 焦点表同步。
 - 装电视(21:1x):`5c7eea16…`(分栏管理),md5 一致,编译 `speed-profile`,装完前台是首页。
+- Gordon 电视上看「选一行」药丸:小字太丑 → 应用名改进 15 sp 的标签(不再用 11 sp 小字),只列前两个、多的「等 N 个」(`ROW_SUMMARY_MAX_NAMES` 3 → 2);spec R163 ② 同步。
+- Gordon:这一页还要一句说明「添加至分栏」——`GearMenu` 的 `body` 有 banner 时画在应用名下(`MenuBanner(body)`),只有第二层传;三语 `apps_add_to_row_title`(繁體「新增至分欄」,en「Add to Row」)。

@@ -912,7 +912,11 @@ class MainActivity : ComponentActivity() {
                 state = if (am != null && amItems != null) am to amItems else null,
                 layerKey = { it.first.rows == null },
             ) { (menu, items) ->
-                GearMenu(items = items, onDismiss = ::closeAppsMenu, nonce = focusNonce, title = menu.app.label, app = menu.app)
+                // 第二层(选一行)在应用名下写「添加至分栏」(2026-10-02 Gordon:这一页得有说明,文案才通顺);第一层不写。
+                GearMenu(
+                    items = items, onDismiss = ::closeAppsMenu, nonce = focusNonce, title = menu.app.label, app = menu.app,
+                    body = if (menu.rows != null) stringResource(R.string.apps_add_to_row_title) else null,
+                )
             }
             // **输入源页**(R91)。叠在常驻首页之上,首页因 previewing(overlayOpen)让路;焦点归它自己的胶囊列。
             // 胶囊菜单 / 改名对话框盖在它上面时 covered 让路,那一层关掉 focusNonce++ 后它把焦点接回同一颗(按 id)。
@@ -2109,7 +2113,8 @@ class MainActivity : ComponentActivity() {
                 empty = getString(R.string.apps_row_empty),
                 more = { joined, total -> getString(R.string.apps_row_names_more, joined, total) },
             )
-            MenuItem(label = "", hint = summary, icon = r.icon) {
+            // 名字进 15 sp 的标签、不用 11 sp 的小字(2026-10-02 Gordon 电视上看:小字太丑);「已在这一行」也走标签
+            MenuItem(label = summary, hint = "", icon = r.icon) {
                 closeAppsMenu()
                 if (here) { toast(getString(R.string.toast_already_in_row)); return@MenuItem }
                 lifecycleScope.launch {

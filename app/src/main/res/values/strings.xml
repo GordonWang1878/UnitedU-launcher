@@ -370,6 +370,7 @@
     <string name="apps_page_title">所有应用</string>
     <string name="apps_page_hint">长按确定键或按菜单键，可以把应用加到桌面</string>
     <string name="apps_menu_add_to_home">加到桌面…</string>
+    <string name="apps_add_to_row_title">添加至分栏</string>
     <string name="apps_add_row_here">已在这一行</string>
     <!-- R163:「加到桌面…」选一行的按钮画行图标 + 该行现有的应用名;行没有名字 -->
     <string name="apps_row_empty">空</string>

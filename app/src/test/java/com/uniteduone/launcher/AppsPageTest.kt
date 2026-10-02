@@ -107,7 +107,7 @@ class AppsPageTest {
         assertEquals(listOf("a"), addToRow(rows, 1, "a")[1].apps)
     }
 
-    // ---- R163 「加到桌面…」第二层药丸的小字 ----
+    // ---- R163 「加到桌面…」第二层药丸的标签(只列前两个) ----
 
     private val sep = "、"
     private fun summary(names: List<String>) =
@@ -117,22 +117,21 @@ class AppsPageTest {
         assertEquals("空", summary(emptyList()))
     }
 
-    @Test fun rowSummaryListsUpToThreeNamesJoinedBySeparator() {
+    @Test fun rowSummaryListsUpToTwoNamesJoinedBySeparator() {
         assertEquals("YouTube", summary(listOf("YouTube")))
         assertEquals("YouTube、Play Store", summary(listOf("YouTube", "Play Store")))
-        assertEquals("A、B、C", summary(listOf("A", "B", "C")))
     }
 
-    @Test fun rowSummaryMoreThanThreeKeepsTheFirstThreeAndCountsAll() {
-        assertEquals("A、B、C 等 4 个", summary(listOf("A", "B", "C", "D")))
-        assertEquals("A、B、C 等 7 个", summary(listOf("A", "B", "C", "D", "E", "F", "G")))
-        assertEquals(3, ROW_SUMMARY_MAX_NAMES)
+    @Test fun rowSummaryMoreThanTwoKeepsTheFirstTwoAndCountsAll() {
+        assertEquals("A、B 等 3 个", summary(listOf("A", "B", "C")))
+        assertEquals("A、B 等 7 个", summary(listOf("A", "B", "C", "D", "E", "F", "G")))
+        assertEquals(2, ROW_SUMMARY_MAX_NAMES)
     }
 
     @Test fun rowSummaryTakesTheSeparatorFromTheCaller() {
         // 英文用「, 」:分隔符与「等 N 个」的措辞都由界面按语言给
         assertEquals("A, B", rowNamesSummary(listOf("A", "B"), ", ", "Empty") { j, n -> "$j ($n apps)" })
-        assertEquals("A, B, C (5 apps)", rowNamesSummary(listOf("A", "B", "C", "D", "E"), ", ", "Empty") { j, n -> "$j ($n apps)" })
+        assertEquals("A, B (5 apps)", rowNamesSummary(listOf("A", "B", "C", "D", "E"), ", ", "Empty") { j, n -> "$j ($n apps)" })
     }
 
     // ---- R105 缓存刷新合并 + 菜单 ----

@@ -59,7 +59,7 @@ data class MenuItem(val label: String, val hint: String, val icon: String? = nul
  *   三个字段,取图判断逻辑与 [AppCard] 一致(有横幅铺满 / 方图标居中留边 / 都没有回落纯色底)。
  *   名字仍由 [title] 给——调用方那份已经处理过改名覆盖、查不到时退回包名的兜底,这里不重复一遍。
  * @param eyebrow 页名上方的一行小字(R135):这页属于谁(「编辑桌面」「屏保图库」);只在没有 banner 时画。
- * @param body 页名下方的说明(R135):确认页写后果(「这一行的 3 个应用会从桌面移除,不会卸载」);只在没有 banner 时画。
+ * @param body 页名下方的说明(R135):确认页写后果(「这一行的 3 个应用会从桌面移除,不会卸载」);有 banner 时画在应用名下面(应用页「选一行」的「添加至分栏」,R163)。
  * @param icon 页名上方画的行图标 id(R163):这一页属于哪一行——行没有名字了,用它的图标认;只在没有 banner 时画。
  *
  * **R135(2026-09-30 外观轮)**:两按钮确认框 [ConfirmDialog] 也画成这一页(左边问题 + 后果,右边「取消 / 删除」两颗胶囊),
@@ -135,7 +135,7 @@ fun GearMenu(
                 val name = title ?: stringResource(R.string.menu_settings_title)
                 // 没有 banner(行菜单、确认页):与设置外壳没有预览的页同一个画法——路径小字、页名、说明。
                 if (app == null) ShellTitle(path = eyebrow, title = name, icon = icon, extra = body?.let { { ShellBody(it) } })
-                else MenuBanner(app = app, name = name)
+                else MenuBanner(app = app, name = name, body = body)
             }
             Box(
                 modifier = Modifier.weight(1f).fillMaxHeight(),
@@ -166,7 +166,7 @@ fun GearMenu(
 
 /** 左半:banner + 应用名(长按卡片菜单、应用页菜单)。没有 banner 的页走 [ShellTitle],不经这里。 */
 @Composable
-private fun MenuBanner(app: AppEntry, name: String) {
+private fun MenuBanner(app: AppEntry, name: String, body: String? = null) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         // banner 尺寸:参考图像素量测约 196×110dp,取 192×108dp。R59 之前直接借 LARGE 卡片档位(当时正是 192);
         // R59 把大档改成 153 之后改读自己的常量,菜单观感不随首页档位变(见 GtvLayout.MENU_BANNER_WIDTH)。
@@ -222,5 +222,11 @@ private fun MenuBanner(app: AppEntry, name: String) {
                 textAlign = TextAlign.Center,
             ),
         )
+        // 这一页是干什么的(2026-10-02 Gordon:应用页「加到桌面… → 选一行」左边得写「添加至分栏」,文案才通顺):
+        // 名字下一行、说明那一档灰;只有第二层传,第一层(打开 / 卸载 / 加到桌面…)不写。
+        if (body != null) {
+            Spacer(Modifier.height(6.dp))
+            BasicText(text = body, style = Type.body.copy(textAlign = TextAlign.Center))
+        }
     }
 }

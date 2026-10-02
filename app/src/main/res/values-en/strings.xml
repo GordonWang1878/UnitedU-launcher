@@ -378,6 +378,7 @@
     <string name="apps_page_title">All Apps</string>
     <string name="apps_page_hint">Hold OK or press Menu to add an app to your home screen</string>
     <string name="apps_menu_add_to_home">Add to Home…</string>
+    <string name="apps_add_to_row_title">Add to Row</string>
     <string name="apps_add_row_here">Already in this row</string>
     <!-- R163: the "Add to Home…" row buttons show the row icon + the apps already in it; the separator is quoted to keep its trailing space -->
     <string name="apps_row_empty">Empty</string>

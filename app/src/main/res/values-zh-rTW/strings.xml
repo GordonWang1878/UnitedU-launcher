@@ -369,6 +369,7 @@
     <string name="apps_page_title">所有應用程式</string>
     <string name="apps_page_hint">長按確定鍵或按選單鍵，可以把應用程式加到桌面</string>
     <string name="apps_menu_add_to_home">加到桌面…</string>
+    <string name="apps_add_to_row_title">新增至分欄</string>
     <string name="apps_add_row_here">已在這一列</string>
     <!-- R163:「加到桌面…」選一列的按鈕畫列圖示 + 該列現有的應用程式名;列沒有名字 -->
     <string name="apps_row_empty">空</string>
