@@ -118,7 +118,7 @@ UnitedU 设置   ← 左栏四组(gtv spec R57,2026-09-23):
 - **去 adb 依赖**:`RelaunchAfterUpdate` 检测 `SYSTEM_ALERT_WINDOW` appop 未授权时静默跳过;权限声明保留。
 - **文案**:全部抽到 `strings.xml`,简 / 繁 / 英三份(现在中英混写在 Kotlin 里)。
 - **发布件**:`LICENSE`(Apache-2.0)、`NOTICE`(~~DM Sans OFL~~ Google Sans Flex OFL 1.1、Material Icons Apache、NanoHTTPD(BSD-3)、ZXing(Apache-2.0)、内置壁纸 / 屏保 / 卡片装饰图来源〔R115 起放 `assets/builtin/`;**现状**:壁纸 / 屏保为 AI 生成、随本项目许可发布,卡片装饰图含 WeTV / 优酷 / YouTube / 爱奇艺商标,NOTICE 单列商标归属与免责〕)、面向用户的 README(安装、设默认桌面、上传图片、回退)。
-- **~~首发 v1.0.0-beta~~ → 1.0.0 已于 2026-10-02 发布(GitHub Release `v1.0.0`,versionCode 3;此前内部版 1.0.0-beta / 2 从未对外发)**。此后每次对外发布 versionCode +1、versionName 按语义版本号走;更新通道只查 GitHub Release(COS 未配置)。
+- **~~首发 v1.0.0-beta~~ → 1.0.0 已于 2026-10-02 发布(GitHub Release `v1.0.0`,versionCode 3;此前内部版 1.0.0-beta / 2 从未对外发)**。此后每次对外发布 versionCode +1、versionName 按语义版本号走;1.0.1(2026-10-03,versionCode 4)起更新通道 = 腾讯云 COS 公共读桶 `unitedu-1412760099`(ap-shanghai)在前、GitHub Release 在后,`scripts/release.sh` 用 coscli 双发。
 - 无崩溃上报;README 教 `adb logcat`。
 
 ## 9. 不做(v1 明确排除)
