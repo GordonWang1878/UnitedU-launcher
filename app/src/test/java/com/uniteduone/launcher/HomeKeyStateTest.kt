@@ -12,8 +12,10 @@ class HomeKeyStateTest {
         assertEquals(HomeKeyStatus.ON, homeKeyStatus(enabled = true, running = true, restricted = false))
         assertEquals(HomeKeyStatus.ON, homeKeyStatus(enabled = true, running = true, restricted = true))
         assertEquals(HomeKeyStatus.NOT_RUNNING, homeKeyStatus(enabled = true, running = false, restricted = false))
+        assertEquals(HomeKeyStatus.NOT_RUNNING, homeKeyStatus(enabled = true, running = false, restricted = true))
         assertEquals(HomeKeyStatus.RESTRICTED, homeKeyStatus(enabled = false, running = false, restricted = true))
         assertEquals(HomeKeyStatus.OFF, homeKeyStatus(enabled = false, running = false, restricted = false))
+        assertEquals(HomeKeyStatus.OFF, homeKeyStatus(enabled = false, running = true, restricted = false))
     }
 
     /** 不是默认桌面就画;是默认桌面但服务开着也画(得让人能关掉);A95L(默认桌面、没开)不画。 */
@@ -32,6 +34,7 @@ class HomeKeyStateTest {
         assertNull(parseHeartbeat(""))
         assertNull(parseHeartbeat("garbage"))
         assertNull(parseHeartbeat("1 x"))
+        assertNull(parseHeartbeat("2 5"))
     }
 
     /** 「在运行」= 这次开机连上过且没断;上次开机的心跳不算(重启后服务没起来,系统开关却还显示开着)。 */
@@ -40,5 +43,15 @@ class HomeKeyStateTest {
         assertFalse(isRunning(HomeKeyHeartbeat(true, 4), bootCount = 5))
         assertFalse(isRunning(HomeKeyHeartbeat(false, 5), bootCount = 5))
         assertFalse(isRunning(null, bootCount = 5))
+        assertTrue(isRunning(HomeKeyHeartbeat(true, -1), bootCount = -1))
+    }
+
+    @Test fun enabledSettingMatchesPackage() {
+        assertFalse(enabledServiceSetting(null, "com.uniteduone.launcher"))
+        assertFalse(enabledServiceSetting("", "com.uniteduone.launcher"))
+        assertTrue(enabledServiceSetting("com.uniteduone.launcher/com.uniteduone.launcher.HomeKeyService", "com.uniteduone.launcher"))
+        assertTrue(enabledServiceSetting("com.a/com.a.Svc:com.uniteduone.launcher/com.uniteduone.launcher.HomeKeyService:test.b/.C", "com.uniteduone.launcher"))
+        assertFalse(enabledServiceSetting("com.uniteduone.launcher2/com.uniteduone.launcher2.X", "com.uniteduone.launcher"))
+        assertTrue(enabledServiceSetting(" com.uniteduone.launcher /com.uniteduone.launcher.HomeKeyService", "com.uniteduone.launcher"))
     }
 }

@@ -5,6 +5,7 @@ import android.app.AppOpsManager
 import android.content.Context
 import android.os.Process
 import android.provider.Settings
+import android.util.Log
 import android.view.accessibility.AccessibilityManager
 import java.io.File
 
@@ -33,12 +34,22 @@ fun formatHeartbeat(h: HomeKeyHeartbeat): String = "${if (h.connected) 1 else 0}
 fun parseHeartbeat(text: String?): HomeKeyHeartbeat? {
     val parts = text?.trim()?.split(' ')?.takeIf { it.size == 2 } ?: return null
     val connected = parts[0].toIntOrNull() ?: return null
+    if (connected !in 0..1) return null
     val boot = parts[1].toIntOrNull() ?: return null
     return HomeKeyHeartbeat(connected == 1, boot)
 }
 
 /** 「在运行」= 这次开机连上过且没断。 */
 fun isRunning(h: HomeKeyHeartbeat?, bootCount: Int): Boolean = h != null && h.connected && h.bootCount == bootCount
+
+/** Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES 里有没有本包。`raw` 是冒号分隔的组件列表 (`pkg/component:pkg2/component2`)。 */
+fun enabledServiceSetting(raw: String?, pkg: String): Boolean {
+    if (raw.isNullOrBlank()) return false
+    return raw.split(':').any { entry ->
+        val pkgPart = entry.trim().substringBefore('/').trim()
+        pkgPart == pkg
+    }
+}
 
 /**
  * 心跳文件读写与系统状态查询。服务进程写、桌面进程读——跨进程,所以不用 SharedPreferences(它按进程缓存,另一个进程的写入看不到)。
@@ -50,18 +61,32 @@ object HomeKeyState {
 
     private fun file(ctx: Context) = File(ctx.filesDir, "homekey.state")
 
+    /** 读不到时两边都是 -1,等于不按开机计数把关——宁可少报一次「没在运行」。 */
     fun bootCount(ctx: Context): Int =
         runCatching { Settings.Global.getInt(ctx.contentResolver, Settings.Global.BOOT_COUNT) }.getOrDefault(-1)
 
     fun write(ctx: Context, connected: Boolean) {
         val text = formatHeartbeat(HomeKeyHeartbeat(connected, bootCount(ctx)))
-        runCatching { writeFileAtomically(file(ctx)) { it.write(text.toByteArray()) } }
+        runCatching {
+            val ok = writeFileAtomically(file(ctx)) { it.write(text.toByteArray()) }
+            if (!ok) {
+                Log.w("UnitedU", "homekey heartbeat write returned false")
+            }
+        }.onFailure { e ->
+            Log.w("UnitedU", "homekey heartbeat write failed", e)
+        }
     }
 
     fun read(ctx: Context): HomeKeyHeartbeat? = runCatching { parseHeartbeat(file(ctx).readText()) }.getOrNull()
 
-    /** 系统无障碍开关:已启用的服务里有没有本包的。 */
+    /** 系统无障碍开关(Settings 里那一项)。 */
     fun isEnabled(ctx: Context): Boolean = runCatching {
+        val raw = Settings.Secure.getString(ctx.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+        enabledServiceSetting(raw, ctx.packageName)
+    }.getOrDefault(false)
+
+    /** 系统此刻真的绑定着我们的服务(getEnabledAccessibilityServiceList 返回的是已绑定的,不是开关)。 */
+    fun isBound(ctx: Context): Boolean = runCatching {
         val am = ctx.getSystemService(AccessibilityManager::class.java) ?: return false
         am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
             .any { it.resolveInfo.serviceInfo.packageName == ctx.packageName }
@@ -75,5 +100,5 @@ object HomeKeyState {
     }.getOrDefault(false)
 
     fun status(ctx: Context): HomeKeyStatus =
-        homeKeyStatus(isEnabled(ctx), isRunning(read(ctx), bootCount(ctx)), isRestricted(ctx))
+        homeKeyStatus(isEnabled(ctx), isRunning(read(ctx), bootCount(ctx)) && isBound(ctx), isRestricted(ctx))
 }
