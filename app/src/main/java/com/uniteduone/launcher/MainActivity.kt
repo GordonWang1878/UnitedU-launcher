@@ -396,6 +396,8 @@ class MainActivity : ComponentActivity() {
         // 网格不用等;壁纸管线第一次解析默认壁纸时也不必现列目录。
         BuiltinImages.init(this)
         lifecycleScope.launch(Dispatchers.IO) { BuiltinImages.prewarm(applicationContext) }
+        // R162:受限记号在冷启动时也记一次,免得会话更新把安装来源抹成 0 之前没人读过
+        lifecycleScope.launch(Dispatchers.IO) { HomeKeyState.isRestricted(this@MainActivity) }
         // 「新应用」基线:首启把 newAppsSeenAt 写成现在,之前装的都不算新(design §2)。
         // **先读再判、只在真要改时才 update**:SettingsStore.update 无论闭包返不返回同一个对象
         // 都会走一遍写盘,挂在 onCreate 上就等于每次冷启动重写一次 settings.json。

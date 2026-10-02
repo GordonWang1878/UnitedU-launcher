@@ -148,7 +148,7 @@
     <string name="homekey_note_on">主页键接管已开启：按主页键回到 UnitedU。要还原，到原生电视设置的「无障碍」里关掉它。</string>
     <string name="homekey_note_not_running">电视显示已开启，但服务没在运行（更新或重启后常见）。到原生电视设置的「无障碍」里关掉再打开，或重启电视。</string>
     <string name="homekey_note_restricted">UnitedU 是用文件管理器或浏览器安装的，Android 13 起这台电视不允许打开它的无障碍服务。用电脑执行：adb shell appops set com.uniteduone.launcher ACCESS_RESTRICTED_SETTINGS allow，再到原生电视设置的「无障碍」里打开「UnitedU 主页键接管」；或改用 adb 安装 UnitedU。</string>
-    <string name="toast_homekey_restricted">这台电视不允许打开。按左侧说明用电脑解锁后再试</string>
+    <string name="toast_homekey_restricted">这台电视不允许打开。返回后按左侧说明用电脑解锁，再试一次</string>
 
     <!-- picker_* : 壁纸/卡片图/屏保图库选择器 -->
     <string name="picker_wallpaper_title">选一张壁纸</string>
