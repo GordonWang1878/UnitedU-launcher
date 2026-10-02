@@ -1931,3 +1931,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - Gordon:字改大后有的内容显示不全;括号里只写数字「(6)」,不写「等 6 个 / 6 apps」;「只改大一号」我改成了 15 sp,不止一号 → 改成 12 sp(`PillType.summary` = CAPTION,`MenuItem.compact`),`apps_row_names_more` = 「%1$s（%2$d）」/「%1$s (%2$d)」。
 - 装电视(23:2x):`8b0e3a91…`(12 sp 标签 + 「（N）」),md5 一致,编译 `speed-profile`,装完前台是首页。
 - Gordon:「添加至分栏」紧贴应用名不好看 → 名字下的间距 6 dp → 18 dp(`MenuBanner`),截图更新。
+- 装电视(23:3x):`aab5c257…`(添加至分栏间距 18 dp),md5 一致,编译 `speed-profile`,装完前台是首页。
