@@ -1945,3 +1945,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 ## 2026-10-03 · 腾讯云 COS 镜像通道 + 1.0.1
 
 - Gordon 建桶 `unitedu-1412760099`(ap-shanghai,公有读私有写,单 AZ,内容安全不开),自己 `coscli config init` 配密钥(`~/.cos.yaml`,我 `chmod 600`,不读内容);coscli v1.0.9 从腾讯官方 GitHub 发布页装到 `/opt/homebrew/bin`(sha256 核对)。探针上传 / 匿名读 / 删除都通。`gradle.properties` 的 `unitedu.updateUrls` = COS 在前、GitHub 在后。1.0.1 = versionCode 4,只是把通道编进包、其余与 1.0.0 相同;发布走 `COS_BUCKET=unitedu-1412760099 COS_REGION=ap-shanghai scripts/release.sh 1.0.1`。
+- `scripts/release.sh 1.0.1`(带 COS 环境变量)跑完:release 证书核对通过,tag `v1.0.1`,GitHub Release 带 `unitedu-1.0.1.apk` + `latest.json`;COS 上传 `unitedu/unitedu-1.0.1.apk`(15.3 MB,0.6 s)与 `unitedu/latest.json`(apkUrl 指向 COS)。待 Gordon 把电视切回有线直连实测「检查更新」。
