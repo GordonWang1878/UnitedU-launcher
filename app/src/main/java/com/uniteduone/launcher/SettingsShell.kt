@@ -307,8 +307,14 @@ fun ShellNote(text: String, reserve: List<String> = emptyList()) {
     val style = shellBodyStyle.copy(textAlign = TextAlign.Center)
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
         reserve.forEach { BasicText(it, style = style, modifier = Modifier.alpha(0f).clearAndSetSemantics {}) }
-        Crossfade(targetState = text, animationSpec = tween(GtvLayout.FOCUS_FADE_IN_MS), label = "shellNote") { t ->
-            BasicText(t, style = style)
+        // 铺满宽度(同 [RowDescription],R140 复审):Crossfade 的盒子默认左上对齐、宽取最宽的那一份,过渡中窄的说明会先偏左、淡完才跳回正中。
+        Crossfade(
+            targetState = text,
+            modifier = Modifier.fillMaxWidth(),
+            animationSpec = tween(GtvLayout.FOCUS_FADE_IN_MS),
+            label = "shellNote",
+        ) { t ->
+            BasicText(t, style = style, modifier = Modifier.fillMaxWidth())
         }
     }
 }
@@ -584,10 +590,13 @@ fun SettingsShell(
                 val status = remember(lastStatusKey[0]) { HomeKeyState.status(ctx) }
                 val enabled = status == HomeKeyStatus.ON || status == HomeKeyStatus.NOT_RUNNING
                 val takeover = showHomeKeyCapsule(home.pkg == ctx.packageName, enabled)
-                val items = buildList {
-                    add(Capsule(SHELL_CHANGE_HOME, stringResource(R.string.home_settings_change_button), onClick = onChangeHome))
-                    if (takeover) add(Capsule(SHELL_HOME_TAKEOVER, stringResource(R.string.homekey_capsule), onClick = onHomeKeyTakeover,
-                        hint = stringResource(homeKeyStatusRes(status))))
+                // 清单(HOME_CAPSULES)驱动界面:第二颗是条件行,按 takeover 画不画;单测钉住的就是屏幕上画的这张表。
+                val items = HOME_CAPSULES.filter { it != SHELL_HOME_TAKEOVER || takeover }.map { id ->
+                    if (id == SHELL_HOME_TAKEOVER) {
+                        Capsule(id, stringResource(R.string.homekey_capsule), onClick = onHomeKeyTakeover, hint = stringResource(homeKeyStatusRes(status)))
+                    } else {
+                        Capsule(id, stringResource(R.string.home_settings_change_button), onClick = onChangeHome)
+                    }
                 }
                 ShellScaffold(
                     left = {

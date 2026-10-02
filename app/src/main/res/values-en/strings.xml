@@ -155,8 +155,8 @@
     <string name="homekey_note_off">This TV gives the Home button to its stock home screen. With takeover on, Home goes straight to UnitedU; the stock home screen stays installed. Press OK to open “Accessibility” in Native TV Settings and turn on “UnitedU Home Button”.</string>
     <string name="homekey_note_on">Takeover is on: Home returns to UnitedU. To undo, turn it off under “Accessibility” in Native TV Settings.</string>
     <string name="homekey_note_not_running">The TV shows it as on, but the service is not running (common after an update or reboot). Turn it off and on again under “Accessibility” in Native TV Settings, or restart the TV.</string>
-    <string name="homekey_note_restricted">UnitedU was installed with a file manager; since Android 13 this TV will not let its accessibility service be turned on, and Settings has no unlock option. On a computer run: adb shell appops set com.uniteduone.launcher ACCESS_RESTRICTED_SETTINGS allow — or reinstall UnitedU with adb.</string>
-    <string name="toast_homekey_restricted">Not allowed on this TV. Unlock it from a computer as described on the left</string>
+    <string name="homekey_note_restricted">UnitedU was installed with a file manager or browser; since Android 13 this TV will not let its accessibility service be turned on. On a computer run: adb shell appops set com.uniteduone.launcher ACCESS_RESTRICTED_SETTINGS allow, then turn on “UnitedU Home Button” under “Accessibility” in Native TV Settings — or reinstall UnitedU with adb.</string>
+    <string name="toast_homekey_restricted">Not allowed on this TV. Unlock it from a computer as described on the left, then try again</string>
 
     <!-- picker_* : wallpaper / card-image / screensaver pickers -->
     <string name="picker_wallpaper_title">Choose a Wallpaper</string>

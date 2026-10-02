@@ -33,6 +33,20 @@ class HomeKeyStateTest {
         assertEquals(notes.size, notes.toSet().size)
     }
 
+    /**
+     * 受限设置按安装来源推断:Android 13+ 且来源是系统安装器装的本地 / 下载文件(3 / 4)才算;adb / 商店 / 会话安装(1 / 2 / 0)不算;
+     * Android 12 及以下没有这道锁。会话更新会把来源改回 0 而锁还在,所以光看当前来源不够——那一半由 `isRestricted` 的记号管。
+     */
+    @Test fun restrictedBySourceTable() {
+        assertFalse(restrictedBySource(sdk = 32, source = 3))
+        assertFalse(restrictedBySource(sdk = 32, source = 4))
+        assertTrue(restrictedBySource(sdk = 33, source = 3))
+        assertTrue(restrictedBySource(sdk = 33, source = 4))
+        assertTrue(restrictedBySource(sdk = 34, source = 3))
+        for (source in 0..2) assertFalse("source=$source", restrictedBySource(sdk = 33, source = source))
+        assertFalse(restrictedBySource(sdk = 34, source = 0))
+    }
+
     @Test fun heartbeatRoundTrip() {
         val h = HomeKeyHeartbeat(connected = true, bootCount = 17)
         assertEquals("1 17", formatHeartbeat(h))

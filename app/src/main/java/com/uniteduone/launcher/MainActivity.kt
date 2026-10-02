@@ -1008,7 +1008,7 @@ class MainActivity : ComponentActivity() {
                     // 先结束(写 onboardingDone = true)再跳系统页:从系统页回来落在普通首页,
                     // 即使进程在系统页里被杀,引导也不会再出现。
                     onOpenHomeSettings = { endOnboarding(); switchHome() },
-                    // 同上:先结束引导再跳系统页;受限设置锁着时只 toast、引导不结束(见 openHomeKeySettings)。
+                    // 同上:先结束引导再跳系统页;受限时提示后照样跳、但引导不结束(见 openHomeKeySettings)。
                     onOpenHomeKey = { openHomeKeySettings(beforeJump = ::endOnboarding) },
                     onFinish = ::endOnboarding,
                     onBack = ::stepBackInOnboarding,
@@ -1621,7 +1621,8 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * 结束引导**只有这一条路**(第 3 步的「继续」/「跳过」、第 3 步去系统设置、第 1 步按返回)。
+     * 结束引导**只有这一条路**(第 3 步的「完成」、第 3 步去系统设置、第 3 步的「主页键接管」去无障碍页、第 1 步按返回)。
+     * 受限时的「主页键接管」不走这里:提示后照样去无障碍页,但引导留在第 3 步(见 [openHomeKeySettings])。
      * 顺序是死的:先写 `onboardingDone = true`(同步写完——第 3 步紧接着就要离开本应用,进程可能在
      * 系统页里被杀),再收浮层,再 `focusNonce++` 让首页从冻结的目标(冷启动即第一张卡,空桌面即齿轮)
      * 把焦点接回来。写盘失败也照样收起:用户明确结束了,本次会话不再打扰(盘上仍是 false,
@@ -2237,14 +2238,17 @@ class MainActivity : ComponentActivity() {
 
     /**
      * R162:「主页键接管」胶囊 → 系统无障碍设置(候选链 + 弹回检测,回来时 onResume 的 focusNonce++ 让页面重读状态)。
-     * 受限设置锁着时系统页上开关一拨就弹回、没有任何解释,不如直接提示(说明里有 adb 命令)。
      *
-     * [beforeJump]:真要跳系统页之前先做的事(引导第 3 步用它先结束引导,理由见调用处)。受限时只 toast、不跳页,
-     * 它**不会**被调用——引导留在第 3 步,toast 里说的「左侧说明」还在屏幕上。
+     * 受限(按安装来源推断,见 [HomeKeyState.isRestricted])时**先提示、照样带去**:推断没法知道用户是不是已经用 adb 解锁了——解锁后
+     * 来源不会变,小字会一直写「不允许」,直到开过一次服务;这时只 toast 不跳页就成了死路。还锁着的话开关会在系统页上弹回,
+     * toast 里已经说了要先用电脑解锁。马上要离开本应用,应用内提示条会被盖住,所以用系统 Toast(同 [switchHome] 的兜底,R139)。
+     *
+     * [beforeJump]:真要跳系统页之前先做的事(引导第 3 步用它先结束引导,理由见调用处)。**受限时不调用**——引导留在第 3 步,
+     * 从系统页回来还停在那一步、左侧说明还在屏幕上(代价:进程若在系统页里被杀,引导下次重新判出来,从第 1 步再来)。
      */
     private fun openHomeKeySettings(beforeJump: () -> Unit = {}) {
-        if (HomeKeyState.status(this) == HomeKeyStatus.RESTRICTED) { toast(getString(R.string.toast_homekey_restricted)); return }
-        beforeJump()
+        if (HomeKeyState.status(this) == HomeKeyStatus.RESTRICTED) toast(getString(R.string.toast_homekey_restricted), system = true)
+        else beforeJump()
         openSystemPage(ACCESSIBILITY_SETTINGS_PAGES, R.string.toast_system_settings_unavailable)
     }
 

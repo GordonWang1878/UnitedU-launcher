@@ -27,6 +27,15 @@ fun homeKeyStatus(enabled: Boolean, running: Boolean, restricted: Boolean): Home
 /** 胶囊画不画:UnitedU 不是默认桌面就画;是默认桌面但服务开着也画(得让人能关掉)。A95L(默认桌面、没开)不画。 */
 fun showHomeKeyCapsule(isDefaultHome: Boolean, enabled: Boolean): Boolean = !isDefaultHome || enabled
 
+/**
+ * 受限设置(Android 13+)按**安装来源**推断:系统在安装时,对用系统安装器装的本地 / 下载文件(`PACKAGE_SOURCE_LOCAL_FILE` /
+ * `DOWNLOADED_FILE`)上锁,adb(1)/ 商店(2)/ 会话安装(0)不锁;Android 12 及以下没有这道锁。纯函数,[source] 是
+ * `InstallSourceInfo.getPackageSource()` 的值。**只看当前来源不够**:本应用的会话更新会把来源改回 0 而锁还在——见 [HomeKeyState.isRestricted] 的记号。
+ */
+fun restrictedBySource(sdk: Int, source: Int): Boolean =
+    sdk >= Build.VERSION_CODES.TIRAMISU &&
+        (source == PackageInstaller.PACKAGE_SOURCE_LOCAL_FILE || source == PackageInstaller.PACKAGE_SOURCE_DOWNLOADED_FILE)
+
 /** 心跳文件的内容:`connected bootCount`。 */
 data class HomeKeyHeartbeat(val connected: Boolean, val bootCount: Int)
 
@@ -55,9 +64,16 @@ fun enabledServiceSetting(raw: String?, pkg: String): Boolean {
 /**
  * 心跳文件读写与系统状态查询。服务进程写、桌面进程读——跨进程,所以不用 SharedPreferences(它按进程缓存,另一个进程的写入看不到)。
  * 只有服务一个写者,原子写;读失败一律当「没有心跳」。
+ * 例外:「见过受限」的记号([isRestricted])只有主进程(设置页 / 引导 / MainActivity)读写,服务进程不碰,用单进程的 SharedPreferences 就够。
  */
 object HomeKeyState {
+    private const val MARKS_FILE = "homekey"
+    private const val KEY_RESTRICTED_SEEN = "restrictedSeen"
+
     private fun file(ctx: Context) = File(ctx.filesDir, "homekey.state")
+
+    /** 记号文件;写入一律 `commit()`(同 [RelaunchMarks]:进程随时可能被更新整个杀掉,异步写可能来不及落盘)。 */
+    private fun marks(ctx: Context) = ctx.getSharedPreferences(MARKS_FILE, Context.MODE_PRIVATE)
 
     /** 读不到时两边都是 -1,等于不按开机计数把关——宁可少报一次「没在运行」。 */
     fun bootCount(ctx: Context): Int =
@@ -91,19 +107,37 @@ object HomeKeyState {
     }.getOrDefault(false)
 
     /**
-     * 受限设置(Android 13+)锁不锁:系统在**安装时**按来源决定——用系统安装器装的本地 / 下载文件(`PACKAGE_SOURCE_LOCAL_FILE` /
-     * `DOWNLOADED_FILE`)才上锁,adb / 商店 / 会话安装不锁。锁本身(appop `ACCESS_RESTRICTED_SETTINGS`)应用读不到(要 MANAGE_APPOPS,
-     * 2026-10-02 模拟器实测抛 SecurityException),所以按来源推断;用户已用 adb 解锁但还没打开服务时会误报一次「不允许」,去系统设置照样能开。
-     * Android 13 以下没有这道锁 → false。
+     * 受限设置(Android 13+)锁不锁:系统在**安装时**按来源决定——用系统安装器装的本地 / 下载文件才上锁,adb / 商店 / 会话安装不锁
+     * (判据见 [restrictedBySource])。锁本身(appop `ACCESS_RESTRICTED_SETTINGS`)应用读不到(要 MANAGE_APPOPS,
+     * 2026-10-02 模拟器实测抛 SecurityException),所以按来源推断。
+     *
+     * **见过一次就记住**:本应用的会话更新(自我更新走会话 API)会把 `packageSource` 改回 0,而锁(appop deny)还在——只看当前来源就瞎了。
+     * 所以推断为真的那一刻写一个记号(`restrictedSeen`),之后记号在就一直算受限;[status] 在开关开着的那一刻清掉它(开得起来 = 锁显然开着)。
+     * 用户已用 adb 解锁但还没打开服务时,这里会一直报「不允许」,直到用户开过一次服务(受限时胶囊照样带去无障碍页,见 `openHomeKeySettings`)。
+     * Android 13 以下没有这道锁 → false;读失败一律当不受限。
      */
     fun isRestricted(ctx: Context): Boolean = runCatching {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+        val prefs = marks(ctx)
+        if (prefs.getBoolean(KEY_RESTRICTED_SEEN, false)) return true
         val source = ctx.packageManager.getInstallSourceInfo(ctx.packageName).packageSource
-        source == PackageInstaller.PACKAGE_SOURCE_LOCAL_FILE || source == PackageInstaller.PACKAGE_SOURCE_DOWNLOADED_FILE
+        restrictedBySource(Build.VERSION.SDK_INT, source).also { if (it) prefs.edit().putBoolean(KEY_RESTRICTED_SEEN, true).commit() }
     }.getOrDefault(false)
 
-    fun status(ctx: Context): HomeKeyStatus =
-        homeKeyStatus(isEnabled(ctx), isRunning(read(ctx), bootCount(ctx)) && isBound(ctx), isRestricted(ctx))
+    /** 开关开着的那一刻清「见过受限」的记号。没有记号时什么都不写(不白落一次盘)。 */
+    private fun clearRestrictedMark(ctx: Context) {
+        runCatching {
+            val prefs = marks(ctx)
+            if (prefs.getBoolean(KEY_RESTRICTED_SEEN, false)) prefs.edit().remove(KEY_RESTRICTED_SEEN).commit()
+        }
+    }
+
+    fun status(ctx: Context): HomeKeyStatus {
+        val enabled = isEnabled(ctx)
+        // 开关开着 = 锁显然开着:清记号,以后关掉开关不会被它拖回「不允许」。受限只在没开时才有意义([homeKeyStatus]),开着时不必再推断。
+        if (enabled) clearRestrictedMark(ctx)
+        return homeKeyStatus(enabled, isRunning(read(ctx), bootCount(ctx)) && isBound(ctx), !enabled && isRestricted(ctx))
+    }
 }
 
 /** 胶囊下的状态小字。 */
