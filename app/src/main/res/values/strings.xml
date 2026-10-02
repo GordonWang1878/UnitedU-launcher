@@ -283,6 +283,7 @@
     <string name="toast_icon_restored">已恢复原始图标</string>
     <string name="toast_opened_stock_launcher">已打开原厂桌面；要永久切换请在原生电视设置里改主屏幕应用</string>
     <string name="toast_stock_launcher_not_found">找不到原厂桌面</string>
+    <string name="toast_home_settings_bounced">这台电视的设置里没有「主屏幕应用」页。按遥控器的主页键，在弹出的选择框里选要用的桌面，再选「始终」</string>
     <string name="toast_restored">已恢复默认设置</string>
     <string name="toast_system_screensaver_unavailable">打不开系统屏保设置</string>
     <string name="toast_system_settings_unavailable">打不开原生电视设置</string>

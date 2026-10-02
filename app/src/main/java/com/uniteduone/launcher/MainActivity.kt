@@ -2213,9 +2213,13 @@ class MainActivity : ComponentActivity() {
      */
     private fun switchHome() {
         val home = Intent("android.settings.HOME_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (home.resolveActivity(packageManager) != null &&
-            runCatching { startActivity(home) }.isSuccess
-        ) return
+        // 能解析就走跳系统页那一套(带弹回检测):Android 9 的 AOSP 电视设置里 HOME_SETTINGS 只映射到一个
+        // 打开即关的空壳页(2026-10-02 兼容性调研,AOSP 源码),启动报成功、页面当场没了,用户按下去什么都没发生。
+        // 弹回就提示改用 HOME 键弹出的选择框——Android 9 没有 HOME 角色,换桌面本来就靠它。
+        if (home.resolveActivity(packageManager) != null) {
+            openSystemPage(listOf(SystemPage(action = "android.settings.HOME_SETTINGS")), R.string.toast_home_settings_bounced)
+            return
+        }
         val pm = packageManager
         val fallback = pm.getLeanbackLaunchIntentForPackage("com.dangbei.TVHomeLauncher")
             ?: pm.getLaunchIntentForPackage("com.dangbei.TVHomeLauncher")

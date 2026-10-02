@@ -291,6 +291,7 @@
     <string name="toast_icon_restored">Original icon restored</string>
     <string name="toast_opened_stock_launcher">Opened the stock launcher; to switch permanently, change the default home app in Native TV Settings</string>
     <string name="toast_stock_launcher_not_found">Stock launcher not found</string>
+    <string name="toast_home_settings_bounced">This TV\'s settings have no Home app page. Press Home on the remote, pick the home screen you want in the chooser, then choose Always</string>
     <string name="toast_restored">Defaults restored</string>
     <string name="toast_system_screensaver_unavailable">Can\'t open system screensaver settings</string>
     <string name="toast_system_settings_unavailable">Can\'t open Native TV Settings</string>

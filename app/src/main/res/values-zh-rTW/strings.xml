@@ -283,6 +283,7 @@
     <string name="toast_icon_restored">已恢復原始圖示</string>
     <string name="toast_opened_stock_launcher">已開啟原廠桌面；要永久切換請在原生電視設定裡變更主畫面應用程式</string>
     <string name="toast_stock_launcher_not_found">找不到原廠桌面</string>
+    <string name="toast_home_settings_bounced">這台電視的設定裡沒有「主畫面應用程式」頁。按遙控器的主頁鍵，在跳出的選擇框裡選要用的桌面，再選「一律」</string>
     <string name="toast_restored">已恢復預設設定</string>
     <string name="toast_system_screensaver_unavailable">無法開啟系統螢幕保護設定</string>
     <string name="toast_system_settings_unavailable">無法開啟原生電視設定</string>
