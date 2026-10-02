@@ -7,4 +7,12 @@ set -euo pipefail
 source "$(dirname "$0")/../env.sh"
 S=${1:-emulator-5554}
 adb -s "$S" push "$(dirname "$0")/hid-home.json" /data/local/tmp/hid-home.json >/dev/null
-adb -s "$S" shell hid /data/local/tmp/hid-home.json >/dev/null 2>&1 || true
+if ! adb -s "$S" shell 'test -x /system/bin/hid'; then
+  echo "hwhome: /system/bin/hid missing on $S" >&2
+  exit 1
+fi
+# hid 自己的报错留在 stderr(不吞),失败就让脚本非零退出——不然「没按到」会被当成「按了没反应」。
+if ! adb -s "$S" shell hid /data/local/tmp/hid-home.json >/dev/null; then
+  echo "hwhome: hid failed on $S" >&2
+  exit 1
+fi

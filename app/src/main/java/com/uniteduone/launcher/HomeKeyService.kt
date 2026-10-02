@@ -8,7 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
@@ -31,9 +30,6 @@ class HomeKeyService : AccessibilityService() {
     private var active = false
     private var stockHomes: Set<Pair<String, String>> = emptySet()
     private var refreshedAt = Long.MIN_VALUE / 2
-
-    // 截键只在 Android 11+ 开:屏保放行只在 API 34 上验过,老系统上屏保里按 HOME 被吞会把用户卡在屏保里,所以老系统只盯窗口(最坏是原厂桌面闪一下)。
-    private val keyPathAllowed = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
 
     // 前台是不是屏保,以系统广播为准,不看窗口事件:屏保窗口的事件类名是 android.widget.FrameLayout、不是 DreamActivity
     // (2026-10-02 模拟器实测,API 34:认不出屏保,屏保里按 HOME 被吞,UnitedU 在屏保后面被拉起,用户卡在屏保里)。
@@ -79,7 +75,7 @@ class HomeKeyService : AccessibilityService() {
         if (event.keyCode != KeyEvent.KEYCODE_HOME) return false
         val down = event.action == KeyEvent.ACTION_DOWN
         if (down && event.repeatCount == 0) refresh(force = false)
-        return when (onHomeKey(active && keyPathAllowed, dreaming, down, event.repeatCount)) {
+        return when (onHomeKey(active, dreaming, down, event.repeatCount)) {
             HomeKeyAction.PASS -> false
             HomeKeyAction.CONSUME -> true
             HomeKeyAction.CONSUME_AND_LAUNCH -> { launch("key"); true }
@@ -104,7 +100,7 @@ class HomeKeyService : AccessibilityService() {
         val pm = packageManager
         val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
         val default = runCatching { pm.resolveActivity(home, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName }.getOrNull()
-        // 没有默认桌面(null,按 HOME 弹选择框)也算生效:接管开着就是要回 UnitedU。
+        // 没有默认桌面时解析到的是系统选择器(包名 android)或 null,都 ≠ 本包 → 也算生效
         active = default != packageName
         // activity-alias 在 queryIntentActivities 里报别名、窗口事件里带的是真实类名:两个名字都收,才认得出别的桌面。
         stockHomes = runCatching {

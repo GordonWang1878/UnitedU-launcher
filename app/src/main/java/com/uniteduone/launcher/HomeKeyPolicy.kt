@@ -17,7 +17,7 @@ enum class HomeKeyAction {
 
 /**
  * @param active 接管此刻生效 = UnitedU **不是**默认桌面(是的话系统自己会回到我们,服务只旁观——A95L 上就是这样)。
- * @param dreaming 前台是屏保(任何包的 `DreamActivity`):放行,让系统按原生规则「HOME 只退出屏保、不回桌面」
+ * @param dreaming 屏保正在播放(服务按系统广播 ACTION_DREAMING_STARTED / STOPPED 记,任何包的屏保都算):放行,让系统按原生规则「HOME 只退出屏保、不回桌面」
  *   (探针实测:吃掉的话屏保不退出,UnitedU 在屏保后面被拉起,用户卡在屏保里)。
  * @param down 按下(false = 松开);@param repeat 重复计数(长按时 > 0,长按等于短按)。
  * 松开也要吃:系统是在松开那一下才回桌面(AOSP `DisplayHomeButtonHandler.handleHomeButton`),只吃按下照样回原厂桌面。
@@ -26,20 +26,6 @@ fun onHomeKey(active: Boolean, dreaming: Boolean, down: Boolean, repeat: Int): H
     !active || dreaming -> HomeKeyAction.PASS
     down && repeat == 0 -> HomeKeyAction.CONSUME_AND_LAUNCH
     else -> HomeKeyAction.CONSUME
-}
-
-/** 任何包的屏保 Activity 在窗口事件里的类名。 */
-const val DREAM_ACTIVITY_CLASS = "android.service.dreams.DreamActivity"
-
-/**
- * 「前台是不是屏保」只跟着 **Activity** 窗口走:屏保 Activity 来了 = 在屏保里;别的 Activity 来了 = 不在;
- * 弹窗 / 非 Activity 的窗口(`android.widget.*`、`android.app.Dialog` 这类类名)和没有类名的事件不改状态。
- */
-fun nextDreaming(prev: Boolean, cls: String?): Boolean = when {
-    cls == null -> prev
-    cls == DREAM_ACTIVITY_CLASS -> true
-    cls.startsWith("android.widget.") || cls.startsWith("android.app.") || cls.startsWith("android.view.") -> prev
-    else -> false
 }
 
 /** 别的桌面的 (包名, HOME Activity 类名):`queryIntentActivities(MAIN + HOME)` 的结果去掉自己。 */

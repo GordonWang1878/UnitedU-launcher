@@ -145,7 +145,7 @@
     <string name="home_settings_unknown">Unknown</string>
     <!-- R162 Home-button takeover: service name and description on the system Accessibility page -->
     <string name="homekey_service_label">UnitedU Home Button</string>
-    <string name="homekey_service_desc">Does one thing: on TVs where UnitedU is not the default home app, the Home button returns to UnitedU. It only sees the Home button and the name of the app in front; it never reads screen content.</string>
+    <string name="homekey_service_desc">Does one thing: on TVs where UnitedU is not the default home app, the Home button returns to UnitedU. It only acts on the Home button and the name of the app in front; it never reads screen content.</string>
 
     <!-- picker_* : wallpaper / card-image / screensaver pickers -->
     <string name="picker_wallpaper_title">Choose a Wallpaper</string>

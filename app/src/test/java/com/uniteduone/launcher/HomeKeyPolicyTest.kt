@@ -20,16 +20,6 @@ class HomeKeyPolicyTest {
         assertEquals(HomeKeyAction.CONSUME, onHomeKey(active = true, dreaming = false, down = true, repeat = 3))
     }
 
-    /** 屏保状态:DreamActivity → 在屏保里;别的 Activity → 不在;弹窗 / 非 Activity 类名不改状态。 */
-    @Test fun dreamingTracksActivityWindowsOnly() {
-        assertTrue(nextDreaming(prev = false, cls = DREAM_ACTIVITY_CLASS))
-        assertTrue(nextDreaming(prev = true, cls = "android.widget.FrameLayout"))
-        assertTrue(nextDreaming(prev = true, cls = "android.app.Dialog"))
-        assertTrue(nextDreaming(prev = true, cls = null))
-        assertFalse(nextDreaming(prev = true, cls = "com.android.tv.settings.MainSettings"))
-        assertFalse(nextDreaming(prev = false, cls = "com.uniteduone.launcher.MainActivity"))
-    }
-
     @Test fun stockHomesExcludesSelf() {
         val all = listOf(launcherx, "com.uniteduone.launcher" to "com.uniteduone.launcher.MainActivity", tvlauncher)
         assertEquals(stock, stockHomes(all, "com.uniteduone.launcher"))
