@@ -274,8 +274,11 @@ class UploadServer(
 
     /**
      * 传 APK:存到 cacheDir/apk/upload-<唯一名>.apk(FileProvider 只开放这个目录;每次上传独占一个文件,见 [uploadApks])→ 校验是 APK →
-     * 主线程调 [ApkInstaller.install](startActivity 不能在请求线程)→ 把结果告诉手机。
-     * STARTED 路径的 [onNotice] 在 `startActivity` **之前**、同一个主线程回合里调用——先撑开
+     * 主线程装(startActivity / 开会话都不能在请求线程)→ 把结果告诉手机。**两条装法,按包名分**(R162 ⑥):
+     * 装别的应用走 [ApkInstaller.install](`ACTION_VIEW` 交系统安装器,它经 FileProvider 异步读文件,所以这条留着文件);
+     * 传的是 UnitedU 自己走 [SelfUpdate.install](PackageInstaller 会话 API,字节在调用里就拷进会话,文件立即释放)——
+     * `ACTION_VIEW` 装的更新会把本包标成本地文件来源,Android 13+ 当场重新锁上无障碍开关、停掉正在跑的主页键接管服务。
+     * STARTED 路径的 [onNotice] 在 `startActivity` / 提交会话 **之前**、同一个主线程回合里调用——先撑开
      * `suppressStopUntil` 窗口再放系统安装器出场,不然安装器自己的 ON_STOP 可能抢在窗口插上之前
      * 就把页面拆了(T4 复审发现,同一个 looper 上两件事没有 happens-before)。NEEDS_PERMISSION
      * 分支事后再回调一次,把提示改写成更准确的那句。
@@ -307,26 +310,30 @@ class UploadServer(
         if (tmp.length() > MAX_APK_BYTES) { tmp.delete(); return json(Response.Status.OK, jsonFail("size")) }
         // 每次上传一个独占文件(2026-09-30 Codex 评审 P2):原来都写固定的 upload.apk,两台手机同时传时,
         // 后一个请求会在前一个解析完、安装器还没读之前把文件换掉,失败分支还会删掉别人的文件。
-        // 交给安装器的文件本进程内不注销(安装器经 FileProvider 异步读,读完时刻不可知),下次开服务的 sweep 清。
+        // 交给系统安装器(ACTION_VIEW)的文件本进程内不注销(安装器经 FileProvider 异步读,读完时刻不可知),下次开服务的 sweep 清。
         val apks = uploadApks(ctx)
         val dst = apks.reserve(".apk").also { it.parentFile?.mkdirs() }
         if (!moveInto(tmp, dst)) { apks.release(dst); return json(Response.Status.OK, jsonFail("write")) }
         val info = ApkInstaller.archiveInfo(ctx, dst) ?: run { apks.release(dst); return json(Response.Status.OK, jsonFail("invalid")) }
+        // R162 ⑥:传的是 UnitedU 自己时走会话 API,不能走 ACTION_VIEW——系统安装器装的更新会把本包重新标成
+        // 「本地文件」来源,Android 13+ 当场锁上无障碍开关、把正在跑的主页键接管服务停掉(探针 #11);会话安装没有来源标记(#12)。
+        val viaSession = info.first == ctx.packageName
         val task = java.util.concurrent.FutureTask {
             if (!isAlive || !isForeground()) return@FutureTask ApkInstaller.Result.BACKGROUND
             onNotice(R.string.import_apk_started)
-            ApkInstaller.install(ctx, dst)
+            if (viaSession) SelfUpdate.install(ctx, dst) else ApkInstaller.install(ctx, dst)
         }
         main.post(task)
-        // 只有真正交给了安装器(STARTED)才保留登记(2026-09-30 Codex 复审 P2):NEEDS_PERMISSION / INVALID / BACKGROUND
-        // 都没人再用这个文件,留着登记会让 sweep 永远跳过它,每次重试多一份;等待主线程回合时抛异常同样释放再上抛。
+        // 只有 ACTION_VIEW 真正交给了系统安装器(STARTED)才保留登记(2026-09-30 Codex 复审 P2):NEEDS_PERMISSION / INVALID / BACKGROUND
+        // 都没人再用这个文件,留着登记会让 sweep 永远跳过它,每次重试多一份;走会话 API 的(viaSession)字节已在 SelfUpdate.install 里
+        // 拷进会话,STARTED 之后同样没人再读,立即释放;等待主线程回合时抛异常同样释放再上抛。
         val result = try {
             task.get()
         } catch (e: Exception) {
             apks.release(dst)
             throw e
         }
-        if (!keepUploadedApk(result)) apks.release(dst)
+        if (!keepUploadedApk(result, viaSession)) apks.release(dst)
         return when (result) {
             ApkInstaller.Result.STARTED ->
                 json(Response.Status.OK, jsonOk("\"package\":${jsonStr(info.first)},\"version\":${jsonStr(info.second)}"))
@@ -543,8 +550,12 @@ const val DEFAULT_WEB_ACCENT: Int = 0xFFC5B6DF.toInt()
 /** ARGB → CSS 的 `#RRGGBB`(丢掉透明度;网页只拿它当不透明的填充色)。 */
 fun cssHex(argb: Int): String = "#%06X".format(argb and 0xFFFFFF)
 
-/** 上传的 APK 在这个安装结局之后还要不要留着:只有交给了系统安装器(它经 FileProvider 异步读)才留。 */
-fun keepUploadedApk(result: ApkInstaller.Result): Boolean = result == ApkInstaller.Result.STARTED
+/**
+ * 上传的 APK 在这个安装结局之后还要不要留着:只有 `ACTION_VIEW` 交给了系统安装器(它经 FileProvider 异步读)才留。
+ * [viaSession] = 走了会话 API(传的是 UnitedU 自己,R162 ⑥):字节在 [SelfUpdate.install] 里就拷进会话,STARTED 之后也不再有人读它,不留。
+ */
+fun keepUploadedApk(result: ApkInstaller.Result, viaSession: Boolean = false): Boolean =
+    result == ApkInstaller.Result.STARTED && !viaSession
 
 /** 手机传来的 APK 的文件名:每次上传 `upload-<唯一名>.apk`,以及旧版固定名 `upload.apk`(清扫时一并清掉)。 */
 fun isUploadApkName(name: String): Boolean =

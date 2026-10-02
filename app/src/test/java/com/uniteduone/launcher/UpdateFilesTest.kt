@@ -129,12 +129,17 @@ class UpdateFilesTest {
         assertTrue(a.exists() && b.exists())
     }
 
-    /** 2026-09-30 Codex 复审 P2:只有交给安装器(STARTED)才保留登记,其余结局释放——否则 sweep 永远跳过、每次重试多一份。 */
+    /**
+     * 2026-09-30 Codex 复审 P2:只有 `ACTION_VIEW` 交给安装器(STARTED)才保留登记,其余结局释放——否则 sweep 永远跳过、每次重试多一份。
+     * R162 ⑥:传的是 UnitedU 自己时走会话 API(`viaSession`),字节已在 [SelfUpdate.install] 里拷进会话,任何结局都不留。
+     */
     @Test fun onlyStartedUploadKeepsTheApk() {
         assertTrue(keepUploadedApk(ApkInstaller.Result.STARTED))
+        assertTrue(keepUploadedApk(ApkInstaller.Result.STARTED, viaSession = false))
         for (r in ApkInstaller.Result.values().filter { it != ApkInstaller.Result.STARTED }) {
             assertFalse("$r 应释放", keepUploadedApk(r))
         }
+        for (r in ApkInstaller.Result.values()) assertFalse("$r(会话)应释放", keepUploadedApk(r, viaSession = true))
         // 释放之后 sweep 能清掉(登记簿里没了)
         val uploads = UpdateFiles(dir, "upload-", ::isUploadApkName)
         val f = uploads.reserve(".apk").apply { writeText("x") }

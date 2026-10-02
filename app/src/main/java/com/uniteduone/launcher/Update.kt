@@ -295,7 +295,8 @@ object Update {
  *
  * 交给安装器的文件**本进程内不再注销**(只对传 APK 装别的应用那一路成立,`UploadServer` 的 [uploadApks]):
  * 安装器经 FileProvider 异步读它,什么时候读完我们无从得知;它会在下一次冷启动被 [sweep] 清掉。
- * 自我更新(R162 ⑥)走会话 API,字节在 [SelfUpdate.install] 里就拷进会话,文件由 [Update.discard] 当场删,没有这一条。
+ * 自我更新(R162 ⑥;手机传的恰是 UnitedU 自己时同理)走会话 API,字节在 [SelfUpdate.install] 里就拷进会话,文件由 [Update.discard] /
+ * `UploadServer` 当场删,没有这一条。
  */
 class UpdateFiles(
     private val dir: File,

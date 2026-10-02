@@ -7,12 +7,14 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.os.Build
 import android.util.Log
+import android.widget.Toast
 import java.io.File
 
 /**
  * 自我更新走 PackageInstaller **会话** API(R162 ⑥,探针 #11 / #12):用 `ACTION_VIEW` 交给系统安装器的更新会把本包标成
  * `PACKAGE_SOURCE_LOCAL_FILE`,Android 13+ 当场锁上「受限设置」、把正在跑的主页键接管服务停掉、开关清空;会话安装不带来源标记,
- * appop 原样、服务更新后由系统自动重连。传 APK 装**别的**应用照旧走 [ApkInstaller](别人的受限状态与我们无关)。
+ * appop 原样、服务更新后由系统自动重连。两个调用方:关于页的「下载并安装」,和手机传 APK 时传的恰是 UnitedU 自己
+ * (`UploadServer.serveApk` 按包名分流;装**别的**应用照旧走 [ApkInstaller],别人的受限状态与我们无关)。
  * 字节在 [install] 里就拷进会话,文件之后可以删;确认页由系统经 [SelfUpdateResult] 要我们打开。
  */
 object SelfUpdate {
@@ -60,18 +62,28 @@ object SelfUpdate {
 /**
  * 会话结果。要用户确认时系统给一个确认页的 intent,这里替它打开(用户刚按了「安装更新」,本应用在前台,启动不受后台限制);
  * 装成功后旧进程已被杀,成功状态由新进程里的这个接收器收到(模拟器实测),只记日志。
- * 用户取消(STATUS_FAILURE_ABORTED)时关于页停在「安装中」、按钮可重试,与改前一致;其它失败(存储不足、被策略拦下)
- * 这里只记日志,关于页不会自己变成失败态——以后要做就经一个回调把状态送回去。
+ * 用户取消(STATUS_FAILURE_ABORTED)时关于页停在「安装中」、按钮可重试,与改前一致;**其它失败**(存储不足、签名不符、
+ * 被策略拦下等)弹一条系统 Toast(`toast_self_update_failed`,带状态码)——手机传 APK 的那条路没有关于页可看,
+ * 关于页那条路也不会自己变成失败态(以后要做就经一个回调把状态送回去)。
  */
 class SelfUpdateResult : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
         Log.i(TAG, "self-update status=$status msg=${intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)}")
-        if (status != PackageInstaller.STATUS_PENDING_USER_ACTION) return
-        @Suppress("DEPRECATION")
-        val confirm = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT) ?: return
-        runCatching { context.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-            .onFailure { Log.w(TAG, "self-update confirm page failed", it) }
+        when (status) {
+            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                @Suppress("DEPRECATION")
+                val confirm = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT) ?: return
+                runCatching { context.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    .onFailure { Log.w(TAG, "self-update confirm page failed", it) }
+            }
+            PackageInstaller.STATUS_SUCCESS, PackageInstaller.STATUS_FAILURE_ABORTED -> Unit
+            else -> {
+                // 接收器的 context 没经过 MainActivity.attachBaseContext:不套应用内语言就跟着系统语言走,与别的系统 Toast 不一致。
+                val localized = runCatching { context.withLanguage(SettingsStore.read(context).language) }.getOrDefault(context)
+                Toast.makeText(localized, localized.getString(R.string.toast_self_update_failed, status), Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     private companion object {

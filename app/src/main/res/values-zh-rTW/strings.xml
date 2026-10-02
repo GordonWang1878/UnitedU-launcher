@@ -149,6 +149,7 @@
     <string name="homekey_note_not_running">電視顯示已開啟，但服務沒在執行（更新或重新啟動後常見）。到原生電視設定的「無障礙」裡關掉再開啟，或重新啟動電視。</string>
     <string name="homekey_note_restricted">UnitedU 是用檔案管理員或瀏覽器安裝的，Android 13 起這台電視不允許開啟它的無障礙服務。用電腦執行：adb shell appops set com.uniteduone.launcher ACCESS_RESTRICTED_SETTINGS allow，再到原生電視設定的「無障礙」裡開啟「UnitedU 主畫面鍵接管」；或改用 adb 安裝 UnitedU。</string>
     <string name="toast_homekey_restricted">這台電視不允許開啟。返回後按左側說明用電腦解鎖，再試一次</string>
+    <string name="toast_self_update_failed">更新沒有裝上（%1$d）。可以在「關於」裡重試</string>
 
     <!-- picker_* : 桌布/卡片圖/螢幕保護圖庫選擇器 -->
     <string name="picker_wallpaper_title">選一張桌布</string>

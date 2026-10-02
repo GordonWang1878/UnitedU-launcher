@@ -8,8 +8,9 @@ import androidx.core.content.FileProvider
 import java.io.File
 
 /**
- * 传 APK 安装(spec §4)。[install] 会 startActivity,**必须在主线程调用**。
- * 检查更新(装本应用自己的新版)R162 ⑥ 起改走 [SelfUpdate] 的会话安装,与这里只共用 [requestInstallPermission]。
+ * 传 APK 装**别的**应用(spec §4):`ACTION_VIEW` 交给系统安装器。[install] 会 startActivity,**必须在主线程调用**。
+ * 装本应用自己的新版——关于页的检查更新、手机传来的恰是 UnitedU 自己(`UploadServer.serveApk` 按包名分流)——R162 ⑥ 起一律走
+ * [SelfUpdate] 的会话安装(`ACTION_VIEW` 会把本包标成受限、停掉主页键接管服务),与这里只共用 [requestInstallPermission] 与 [Result]。
  */
 object ApkInstaller {
     /**
