@@ -375,7 +375,7 @@
     <!-- R163:「加到桌面…」选一行的按钮画行图标 + 该行现有的应用名;行没有名字 -->
     <string name="apps_row_empty">空</string>
     <string name="apps_row_name_sep">、</string>
-    <string name="apps_row_names_more">%1$s 等 %2$d 个</string>
+    <string name="apps_row_names_more">%1$s（%2$d）</string>
     <string name="toast_added_to_row">已加到桌面</string>
     <string name="toast_already_in_row">这一行里已经有它了</string>
     <string name="toast_add_to_row_failed">没能加到桌面，请稍后再试</string>

@@ -383,7 +383,7 @@
     <!-- R163: the "Add to Home…" row buttons show the row icon + the apps already in it; the separator is quoted to keep its trailing space -->
     <string name="apps_row_empty">Empty</string>
     <string name="apps_row_name_sep">", "</string>
-    <string name="apps_row_names_more">%1$s (%2$d apps)</string>
+    <string name="apps_row_names_more">%1$s (%2$d)</string>
     <string name="toast_added_to_row">Added to Home</string>
     <string name="toast_already_in_row">It\'s already in this row</string>
     <string name="toast_add_to_row_failed">Couldn\'t add it to Home, try again</string>

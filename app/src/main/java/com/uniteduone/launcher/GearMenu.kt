@@ -35,7 +35,8 @@ import androidx.tv.material3.MaterialTheme
  * 菜单里的一项。[hint] 是 R69 之前的第二行说明,**R69 起不画**(单行药丸);[icon] 非 null 时例外(R163「加到桌面…」选一行):
  * 药丸画这个行图标(id 见 RowIcons.kt),[label] 可以是空串,小字写 [hint]。
  */
-data class MenuItem(val label: String, val hint: String, val icon: String? = null, val action: () -> Unit)
+/** [compact]:标签用比小字大一号的 12 sp(「加到桌面… → 选一行」的应用名,2026-10-02 Gordon:11 sp 太丑、15 sp 又放不下)。 */
+data class MenuItem(val label: String, val hint: String, val icon: String? = null, val compact: Boolean = false, val action: () -> Unit)
 
 /**
  * 菜单浮层。编辑页条目菜单、首页长按卡片菜单、编辑页行菜单共用这一份(齿轮菜单 R69 起换成设置页外壳)。
@@ -156,6 +157,7 @@ fun GearMenu(
                             // R163:带行图标的药丸(「加到桌面…」选一行)用 hint 当小字;其余项的 hint 是 R69 前的说明,不画
                             icon = item.icon,
                             hint = if (item.icon != null) item.hint else null,
+                            compactLabel = item.compact,
                         )
                     }
                 }

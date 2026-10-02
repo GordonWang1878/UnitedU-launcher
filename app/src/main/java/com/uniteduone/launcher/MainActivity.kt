@@ -2113,8 +2113,9 @@ class MainActivity : ComponentActivity() {
                 empty = getString(R.string.apps_row_empty),
                 more = { joined, total -> getString(R.string.apps_row_names_more, joined, total) },
             )
-            // 名字进 15 sp 的标签、不用 11 sp 的小字(2026-10-02 Gordon 电视上看:小字太丑);「已在这一行」也走标签
-            MenuItem(label = summary, hint = "", icon = r.icon) {
+            // 名字进标签、不用 11 sp 的小字(2026-10-02 Gordon 电视上看:小字太丑);15 sp 又放不下两个名字 → 12 sp 的紧凑标签;
+            // 「已在这一行」也走标签
+            MenuItem(label = summary, hint = "", icon = r.icon, compact = true) {
                 closeAppsMenu()
                 if (here) { toast(getString(R.string.toast_already_in_row)); return@MenuItem }
                 lifecycleScope.launch {

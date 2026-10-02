@@ -1928,3 +1928,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - Gordon 电视上看「选一行」药丸:小字太丑 → 应用名改进 15 sp 的标签(不再用 11 sp 小字),只列前两个、多的「等 N 个」(`ROW_SUMMARY_MAX_NAMES` 3 → 2);spec R163 ② 同步。
 - Gordon:这一页还要一句说明「添加至分栏」——`GearMenu` 的 `body` 有 banner 时画在应用名下(`MenuBanner(body)`),只有第二层传;三语 `apps_add_to_row_title`(繁體「新增至分欄」,en「Add to Row」)。
 - 装电视(23:0x):`126692d4…`(选一行药丸 15 sp 标签、只列两个 + 「添加至分栏」),md5 一致,编译 `speed-profile`,装完前台是首页;截图 `docs/screenshots/r163/apps-add-to-row.jpg` 已换成新版。
+- Gordon:字改大后有的内容显示不全;括号里只写数字「(6)」,不写「等 6 个 / 6 apps」;「只改大一号」我改成了 15 sp,不止一号 → 改成 12 sp(`PillType.summary` = CAPTION,`MenuItem.compact`),`apps_row_names_more` = 「%1$s（%2$d）」/「%1$s (%2$d)」。

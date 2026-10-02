@@ -120,6 +120,8 @@ fun MenuPill(
     leadingDot: Color? = null,
     /** 标签前的行图标 id(见上);null = 不画。 */
     icon: String? = null,
+    /** 标签用 [PillType.summary](12 sp,比第二行小字大一号):「加到桌面… → 选一行」列应用名用,15 sp 放不下两个名字。 */
+    compactLabel: Boolean = false,
 ) {
     // R134:所有胶囊同一套字号([PillType]:标签 15 / 第二行 11);此前设置页 15 / 11(R109)、长按与编辑页菜单 16 / 12。
     var focused by remember { mutableStateOf(false) }
@@ -239,7 +241,7 @@ fun MenuPill(
                         // 放得下才走到这里,值不设 VALUE_MAX_WIDTH 上限(那个上限是给单行胶囊「标签至少留一半」的)。
                         LabelTrailingRow(label, trailing, focused, textColor, accent, valueMax = null, Modifier.fillMaxWidth())
                     } else if (label.isNotEmpty()) {
-                        MenuPillLabel(label, focused, textColor)
+                        MenuPillLabel(label, focused, textColor, compact = compactLabel)
                     }
                     secondary.forEach { line ->
                         BasicText(
@@ -263,7 +265,7 @@ fun MenuPill(
                 }
             } else {
                 if (trailing == Trailing.None) {
-                    MenuPillLabel(label, focused, textColor)
+                    MenuPillLabel(label, focused, textColor, compact = compactLabel)
                 } else {
                     LabelTrailingRow(label, trailing, focused, textColor, accent, valueMax = VALUE_MAX_WIDTH, Modifier.weight(1f))
                 }
@@ -492,7 +494,7 @@ internal fun CompactPill(
 }
 
 @Composable
-private fun MenuPillLabel(label: String, focused: Boolean, textColor: Color, modifier: Modifier = Modifier) {
+private fun MenuPillLabel(label: String, focused: Boolean, textColor: Color, modifier: Modifier = Modifier, compact: Boolean = false) {
     BasicText(
         text = label,
         modifier = modifier,
@@ -502,7 +504,7 @@ private fun MenuPillLabel(label: String, focused: Boolean, textColor: Color, mod
             fontFamily = Theme.Sans,
             fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
             color = textColor,
-            fontSize = PillType.text.sp,
+            fontSize = (if (compact) PillType.summary else PillType.text).sp,
         ),
     )
 }
@@ -514,6 +516,8 @@ private fun MenuPillLabel(label: String, focused: Boolean, textColor: Color, mod
 object PillType {
     const val text: Float = Type.LABEL
     const val hint: Float = Type.MICRO
+    /** 紧凑标签:比第二行小字大一号(「选一行」列应用名)。 */
+    const val summary: Float = Type.CAPTION
     const val chevron: Float = text * GtvLayout.CHEVRON_SCALE
 }
 
