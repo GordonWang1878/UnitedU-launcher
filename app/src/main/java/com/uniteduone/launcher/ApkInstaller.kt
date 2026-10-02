@@ -7,7 +7,10 @@ import android.provider.Settings
 import androidx.core.content.FileProvider
 import java.io.File
 
-/** 传 APK 安装(spec §4)。M7 检查更新复用同一个入口。[install] 会 startActivity,**必须在主线程调用**。 */
+/**
+ * 传 APK 安装(spec §4)。[install] 会 startActivity,**必须在主线程调用**。
+ * 检查更新(装本应用自己的新版)R162 ⑥ 起改走 [SelfUpdate] 的会话安装,与这里只共用 [requestInstallPermission]。
+ */
 object ApkInstaller {
     /**
      * [BACKGROUND] 是**调用方**的判定,[install] 自己永不返回它:导入页不在前台时不该弹安装器
@@ -29,26 +32,33 @@ object ApkInstaller {
     }
 
     /**
-     * 只做「权限引导 + 交给系统安装器」,**不解析文件**:调用方已在 IO 线程上核对过
-     * (关于页:哈希 + 包名 + 版本 + 签名,见 `Update.verify`)。主线程调用。
+     * 「允许安装未知应用」的引导:`canRequestPackageInstalls()` 为假时由调用方调,调完照样返回 [Result.NEEDS_PERMISSION]。
+     * [launch] 与 [SelfUpdate.install] 共用。主线程调用。
+     */
+    internal fun requestInstallPermission(ctx: Context) {
+        // 「允许安装未知应用」只能用户自己在系统页点;我们跳过去,电视端与手机端各提示一句。
+        // 跳转本身要兜住:国行定制 TV 固件不一定有这个设置页(ActivityNotFoundException),
+        // 跳不过去照样返回 NEEDS_PERMISSION——那句提示足以让用户自己去系统设置里开,
+        // 不该因为跳不过去就把整个请求变成 500(结局仍是「权限不够」,不是「服务坏了」)。
+        runCatching {
+            ctx.startActivity(
+                Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${ctx.packageName}"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
+    }
+
+    /**
+     * 只做「权限引导 + 交给系统安装器」,**不解析文件**:调用方([install])已确认它是个 APK。主线程调用。
      */
     fun launch(ctx: Context, file: File): Result {
         if (!ctx.packageManager.canRequestPackageInstalls()) {
-            // 「允许安装未知应用」只能用户自己在系统页点;我们跳过去,电视端与手机端各提示一句。
-            // 跳转本身要兜住:国行定制 TV 固件不一定有这个设置页(ActivityNotFoundException),
-            // 跳不过去照样返回 NEEDS_PERMISSION——那句提示足以让用户自己去系统设置里开,
-            // 不该因为跳不过去就把整个请求变成 500(结局仍是「权限不够」,不是「服务坏了」)。
-            runCatching {
-                ctx.startActivity(
-                    Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${ctx.packageName}"))
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                )
-            }
+            requestInstallPermission(ctx)
             return Result.NEEDS_PERMISSION
         }
         // getUriForFile 在 file 落在 file_paths.xml 声明范围外时抛 IllegalArgumentException;
         // startActivity 找不到能处理这个 Intent 的 Activity 时抛 ActivityNotFoundException——
-        // M7 检查更新会拿任意来源的文件复用这个入口,两种异常都不该让调用方崩溃,按 INVALID 处理。
+        // 传 APK 拿的是任意来源的文件,两种异常都不该让调用方崩溃,按 INVALID 处理。
         return runCatching {
             val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
             ctx.startActivity(

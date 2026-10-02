@@ -205,7 +205,8 @@ class AboutController(
 
     /**
      * 下载 → 校验(SHA-256 + 包名 / 版本 / 签名,见 [Update.verify])→ 交给系统安装器
-     * (复用 M6 的 [ApkInstaller] 权限引导与 `RelaunchAfterUpdate`)。任何一项校验不过:删文件、
+     * (走 [SelfUpdate] 的会话安装,权限引导复用 [ApkInstaller.requestInstallPermission];
+     * 装完由 `RelaunchAfterUpdate` 拉回桌面)。任何一项校验不过:删文件、
      * 提示「校验失败」。被取消(返回键 / 关页)时,半截的临时文件由 [Update.download] 删,
      * 目标文件由 [downloadVerifyInstall] 的 `finally` 删——只有全部校验通过的文件才会留下。
      */
@@ -279,8 +280,7 @@ class AboutController(
     /**
      * 主线程。前台判断与 `startActivity` 在同一个主线程回合里,中间插不进生命周期变化:
      * 不在前台 → 停在 [AboutState.ReadyToInstall](文件留着、仍登记);在前台 → 交给安装器。
-     * 交出去的文件**不再注销**(安装器异步读它,见 [UpdateFiles]);没交出去的(需要授权 / 失败)删掉,
-     * 重试时重新下载。
+     * 字节已拷进会话,文件一律删掉(安装器读的是会话里的那份,不再读缓存文件);需要授权 / 失败的,重试时重新下载。
      */
     private fun handOver(info: LatestInfo, file: File) {
         if (!activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
@@ -309,14 +309,15 @@ class AboutController(
         }
         // R151 ①:记下「用户刚发起了这次更新」,新进程收到 MY_PACKAGE_REPLACED 时据此把桌面拉回来
         RelaunchMarks.markUpdatePending(activity)
-        val result = ApkInstaller.launch(activity, file)
+        // R162 ⑥:自我更新走会话 API(ACTION_VIEW 会把本包标成受限、把主页键接管服务停掉)。字节已拷进会话,文件不必再留。
+        val result = SelfUpdate.install(activity, file)
         Log.i(TAG, "update ${info.versionName} (${info.versionCode}) verified; installer: $result (${file.name})")
         state = when (result) {
             ApkInstaller.Result.STARTED -> AboutState.Installing(info)
             ApkInstaller.Result.NEEDS_PERMISSION -> AboutState.NeedsPermission(info)
             ApkInstaller.Result.INVALID, ApkInstaller.Result.BACKGROUND -> AboutState.InstallFailed(info)
         }
-        if (result != ApkInstaller.Result.STARTED) Update.discard(activity, file)
+        Update.discard(activity, file)
     }
 
     /**
