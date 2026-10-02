@@ -29,4 +29,11 @@ class RelaunchPolicyTest {
         assertFalse("超出窗口", isRecentUpdateRequest(t, t + UPDATE_REQUEST_WINDOW_MS + 1))
         assertFalse("时钟倒退", isRecentUpdateRequest(t, t - 1))
     }
+
+    /** R162:不是默认桌面但主页键接管开着,更新后也拉回(intent 点名自己,见 RelaunchAfterUpdate)。 */
+    @Test fun takeoverCountsAsHome() {
+        assertTrue(homeOrTakeover(isDefaultHome = true, takeoverEnabled = false))
+        assertTrue(homeOrTakeover(isDefaultHome = false, takeoverEnabled = true))
+        assertFalse(homeOrTakeover(isDefaultHome = false, takeoverEnabled = false))
+    }
 }

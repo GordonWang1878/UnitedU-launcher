@@ -21,3 +21,6 @@ const val UPDATE_REQUEST_WINDOW_MS = 30 * 60 * 1000L
 /** [pendingAt](关于页交给安装器的时刻,0 = 没有)离 [now] 不超过 [window]。时钟倒退(pendingAt 在未来)不算。 */
 fun isRecentUpdateRequest(pendingAt: Long, now: Long, window: Long = UPDATE_REQUEST_WINDOW_MS): Boolean =
     pendingAt > 0L && now >= pendingAt && now - pendingAt <= window
+
+/** R162:主页键接管开着时,HOME 本来就会回到我们,更新后拉回与默认桌面同一待遇。 */
+fun homeOrTakeover(isDefaultHome: Boolean, takeoverEnabled: Boolean): Boolean = isDefaultHome || takeoverEnabled
