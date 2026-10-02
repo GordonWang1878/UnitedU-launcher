@@ -51,16 +51,18 @@ val SUB_PAGE_ROWS: Set<String> = setOf(STANDBY_ROW)
 fun optionId(i: Int) = "opt:$i"
 fun optionIndex(id: String?): Int? = id?.removePrefix("opt:")?.takeIf { id.startsWith("opt:") }?.toIntOrNull()
 
-/** 「恢复默认」页两颗胶囊、「默认桌面」页一颗胶囊的 id。 */
+/** 「恢复默认」页两颗胶囊、「默认桌面」页两颗胶囊的 id。 */
 const val SHELL_CANCEL = "cancel"
 const val SHELL_CONFIRM = "confirm"
 const val SHELL_CHANGE_HOME = "changeHome"
+/** R162:「主页键接管」条件胶囊(不是默认桌面、或服务已开着时才画)。 */
+const val SHELL_HOME_TAKEOVER = "homeTakeover"
 
 /** 「恢复默认」确认层的胶囊,自上而下(默认焦点「取消」在上,破坏性动作在下;界面按这张表画)。 */
 val RESTORE_CAPSULES: List<String> = listOf(SHELL_CANCEL, SHELL_CONFIRM)
 
-/** 「默认桌面」页的胶囊。 */
-val HOME_CAPSULES: List<String> = listOf(SHELL_CHANGE_HOME)
+/** 「默认桌面」页的胶囊(全部出现时)。第二颗是条件行,界面按 [showHomeKeyCapsule] 决定画不画;缺省焦点仍是第一颗。 */
+val HOME_CAPSULES: List<String> = listOf(SHELL_CHANGE_HOME, SHELL_HOME_TAKEOVER)
 
 /**
  * 关于页的第二颗胶囊「恢复默认」(R128:从「通用」组挪来,照 Google TV 把重置放在 系统 → 关于 里)。

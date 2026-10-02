@@ -209,5 +209,8 @@ class SystemStatusTest {
         // 两条链都以系统设置首页收尾
         assertEquals("android.settings.SETTINGS", DREAM_SETTINGS_PAGES.last().action)
         assertEquals("android.settings.SETTINGS", ANIMATION_SETTINGS_PAGES.last().action)
+        // R162:「主页键接管」胶囊的链——无障碍设置在前,同样以系统设置首页收尾
+        assertEquals("android.settings.ACCESSIBILITY_SETTINGS", ACCESSIBILITY_SETTINGS_PAGES.first().action)
+        assertEquals("android.settings.SETTINGS", ACCESSIBILITY_SETTINGS_PAGES.last().action)
     }
 }

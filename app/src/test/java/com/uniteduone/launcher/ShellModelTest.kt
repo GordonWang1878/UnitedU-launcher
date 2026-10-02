@@ -137,7 +137,9 @@ class ShellModelTest {
         assertEquals("restoreDefaults", ABOUT_RESTORE)
         assertEquals(ABOUT_CAPSULES, pageCapsuleIds(ShellPages.ABOUT, groups()))
         assertEquals(listOf(SHELL_CANCEL, SHELL_CONFIRM), pageCapsuleIds(ShellPages.RESTORE, groups()))
-        assertEquals(listOf(SHELL_CHANGE_HOME), pageCapsuleIds(ShellPages.HOME, groups()))
+        // R162:第二颗「主页键接管」是条件行(界面按 showHomeKeyCapsule 画不画),清单里按全部出现算
+        assertEquals(listOf(SHELL_CHANGE_HOME, SHELL_HOME_TAKEOVER), pageCapsuleIds(ShellPages.HOME, groups()))
+        assertEquals(listOf(SHELL_CHANGE_HOME, SHELL_HOME_TAKEOVER), HOME_CAPSULES)
         assertNull(pageCapsuleIds(ShellPages.SYSTEM_SETTINGS, groups()))
         // 「恢复默认」不再是任何一组里的行
         assertTrue(allRows(groups(sys = SystemUiStatus.UNKNOWN)).none { it.id == ABOUT_RESTORE })

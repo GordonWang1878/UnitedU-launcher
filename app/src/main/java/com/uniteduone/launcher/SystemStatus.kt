@@ -271,6 +271,12 @@ internal val SCREEN_OFF_SETTINGS_PAGES = listOf(
     SystemPage(action = "android.settings.SETTINGS"), // Settings.ACTION_SETTINGS
 )
 
+/** R162:「主页键接管」胶囊 → 系统无障碍设置(TvSettings 的无障碍页列出我们的服务);没有这一页的固件退到系统设置首页。 */
+internal val ACCESSIBILITY_SETTINGS_PAGES = listOf(
+    SystemPage(action = "android.settings.ACCESSIBILITY_SETTINGS"), // Settings.ACTION_ACCESSIBILITY_SETTINGS
+    SystemPage(action = "android.settings.SETTINGS"),
+)
+
 /**
  * 「关闭屏幕」行下的小字(R127c):读得到路径 →「在 系统 → 电源和能耗 → 自动关闭 里修改」(路径用电视自己的菜单名,
  * 各家叫法不同:索尼「自动关闭」、Google TV 原生「关机定时器」);读不到 → 通用提示。返回 (资源 id, 参数)。

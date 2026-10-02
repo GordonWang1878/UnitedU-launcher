@@ -25,6 +25,14 @@ class HomeKeyStateTest {
         assertFalse(showHomeKeyCapsule(isDefaultHome = true, enabled = false))
     }
 
+    /** 四种状态各有自己的小字与说明;不共用,免得改一处漏一处。 */
+    @Test fun statusTexts() {
+        val labels = HomeKeyStatus.entries.map { homeKeyStatusRes(it) }
+        val notes = HomeKeyStatus.entries.map { homeKeyNoteRes(it) }
+        assertEquals(labels.size, labels.toSet().size)
+        assertEquals(notes.size, notes.toSet().size)
+    }
+
     @Test fun heartbeatRoundTrip() {
         val h = HomeKeyHeartbeat(connected = true, bootCount = 17)
         assertEquals("1 17", formatHeartbeat(h))

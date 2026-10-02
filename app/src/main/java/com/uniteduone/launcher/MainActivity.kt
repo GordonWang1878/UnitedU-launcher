@@ -870,6 +870,7 @@ class MainActivity : ComponentActivity() {
                             onOpenAbout = { if (live) { aboutFocus = null; about = true } },
                             onConfirmRestore = { if (live) confirmRestoreDefaults() },
                             onChangeHome = { if (live) switchHome() },
+                            onHomeKeyTakeover = { if (live) openHomeKeySettings() },
                             onWritten = { settingsRevision++ },
                             focusNonce = focusNonce,
                             // 关于页从「恢复默认」进确认层时让开(aboutShown 为假),外壳这时不能再当自己被盖着。
@@ -1007,6 +1008,8 @@ class MainActivity : ComponentActivity() {
                     // 先结束(写 onboardingDone = true)再跳系统页:从系统页回来落在普通首页,
                     // 即使进程在系统页里被杀,引导也不会再出现。
                     onOpenHomeSettings = { endOnboarding(); switchHome() },
+                    // 同上:先结束引导再跳系统页;受限设置锁着时只 toast、引导不结束(见 openHomeKeySettings)。
+                    onOpenHomeKey = { openHomeKeySettings(beforeJump = ::endOnboarding) },
                     onFinish = ::endOnboarding,
                     onBack = ::stepBackInOnboarding,
                 )
@@ -2230,6 +2233,19 @@ class MainActivity : ComponentActivity() {
         } else {
             toast(getString(R.string.toast_stock_launcher_not_found))
         }
+    }
+
+    /**
+     * R162:「主页键接管」胶囊 → 系统无障碍设置(候选链 + 弹回检测,回来时 onResume 的 focusNonce++ 让页面重读状态)。
+     * 受限设置锁着时系统页上开关一拨就弹回、没有任何解释,不如直接提示(说明里有 adb 命令)。
+     *
+     * [beforeJump]:真要跳系统页之前先做的事(引导第 3 步用它先结束引导,理由见调用处)。受限时只 toast、不跳页,
+     * 它**不会**被调用——引导留在第 3 步,toast 里说的「左侧说明」还在屏幕上。
+     */
+    private fun openHomeKeySettings(beforeJump: () -> Unit = {}) {
+        if (HomeKeyState.status(this) == HomeKeyStatus.RESTRICTED) { toast(getString(R.string.toast_homekey_restricted)); return }
+        beforeJump()
+        openSystemPage(ACCESSIBILITY_SETTINGS_PAGES, R.string.toast_system_settings_unavailable)
     }
 
     override fun onDestroy() {

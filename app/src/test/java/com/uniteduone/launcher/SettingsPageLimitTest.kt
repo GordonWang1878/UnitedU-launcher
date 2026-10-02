@@ -87,7 +87,10 @@ class SettingsPageLimitTest {
         SHELL_ROOT.map { it.id }.filter { it != ShellPages.SYSTEM_SETTINGS }.forEach { assertTrue(it, it in pages) }
     }
 
-    /** R128 之后的具体数:第一层 6、通用 5(+ 条件行 6)、布局 6、外观 5、屏保 6、待机 2、关于 2、恢复默认 2、默认桌面 1。 */
+    /**
+     * R128 之后的具体数:第一层 6、通用 5(+ 条件行 6)、布局 6、外观 5、屏保 6、待机 2、关于 2、恢复默认 2、
+     * 默认桌面 2(R162 起:第二颗「主页键接管」是条件行,按全部出现算)。
+     */
     @Test fun capsuleCountsAfterR128() {
         val plain = settingsGroups(Settings(), {}, noActions, 3, system = normal)
         fun n(page: String, g: List<GroupSpec> = plain) = pageCapsuleIds(page, g)!!.size
@@ -100,7 +103,7 @@ class SettingsPageLimitTest {
         assertEquals(2, n(ShellPages.sub(STANDBY_ROW)))
         assertEquals(2, n(ShellPages.ABOUT))
         assertEquals(2, n(ShellPages.RESTORE))
-        assertEquals(1, n(ShellPages.HOME))
+        assertEquals(2, n(ShellPages.HOME))
         // 选项层里最多的是主题色 5 个预设、待机时长 5 档、屏保启动 5 档
         val optionMax = shellPages(plain).filter { ShellPages.optionsRow(it) != null }.maxOf { n(it) }
         assertEquals(5, optionMax)

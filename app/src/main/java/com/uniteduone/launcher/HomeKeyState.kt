@@ -13,7 +13,7 @@ import java.io.File
 enum class HomeKeyStatus { ON, OFF, NOT_RUNNING, RESTRICTED }
 
 /**
- * [enabled] 系统无障碍开关开着;[running] 服务这次开机以来连上过且没断(心跳);[restricted] 受限设置锁着
+ * [enabled] 系统无障碍开关开着;[running] 服务这次开机以来连上过且没断(心跳),**而且**系统此刻真的绑定着它;[restricted] 受限设置锁着
  * (Android 13+ 用系统安装器侧载的包,见调研 §2.2 #9–#10)。系统开关显示开着却没在跑是 Projectivy 最常见的用户问题,所以分开报。
  */
 fun homeKeyStatus(enabled: Boolean, running: Boolean, restricted: Boolean): HomeKeyStatus = when {
@@ -101,4 +101,20 @@ object HomeKeyState {
 
     fun status(ctx: Context): HomeKeyStatus =
         homeKeyStatus(isEnabled(ctx), isRunning(read(ctx), bootCount(ctx)) && isBound(ctx), isRestricted(ctx))
+}
+
+/** 胶囊下的状态小字。 */
+fun homeKeyStatusRes(s: HomeKeyStatus): Int = when (s) {
+    HomeKeyStatus.ON -> R.string.homekey_state_on
+    HomeKeyStatus.OFF -> R.string.homekey_state_off
+    HomeKeyStatus.NOT_RUNNING -> R.string.homekey_state_not_running
+    HomeKeyStatus.RESTRICTED -> R.string.homekey_state_restricted
+}
+
+/** 左侧说明(光标在这颗胶囊时;引导第 3 步直接画在当前桌面下面)。 */
+fun homeKeyNoteRes(s: HomeKeyStatus): Int = when (s) {
+    HomeKeyStatus.ON -> R.string.homekey_note_on
+    HomeKeyStatus.OFF -> R.string.homekey_note_off
+    HomeKeyStatus.NOT_RUNNING -> R.string.homekey_note_not_running
+    HomeKeyStatus.RESTRICTED -> R.string.homekey_note_restricted
 }

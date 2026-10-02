@@ -138,6 +138,17 @@
     <!-- R162 主畫面鍵接管:系統「無障礙」頁裡的服務名與說明 -->
     <string name="homekey_service_label">UnitedU 主畫面鍵接管</string>
     <string name="homekey_service_desc">只做一件事：在 UnitedU 不是預設桌面的電視上，按主畫面鍵回到 UnitedU。只回應主畫面鍵和前景應用程式的名稱，不讀取螢幕內容。</string>
+    <!-- R162 主畫面鍵接管:設定「預設桌面」頁與引導第 3 步的膠囊、狀態小字與左側說明 -->
+    <string name="homekey_capsule">主畫面鍵接管</string>
+    <string name="homekey_state_on">已開啟</string>
+    <string name="homekey_state_off">未開啟</string>
+    <string name="homekey_state_not_running">已開啟，但沒在執行</string>
+    <string name="homekey_state_restricted">這台電視不允許</string>
+    <string name="homekey_note_off">這台電視把主畫面鍵交給了原廠桌面。開啟主畫面鍵接管後，按主畫面鍵會直接回到 UnitedU，原廠桌面不用解除安裝。按確定前往原生電視設定的「無障礙」，開啟「UnitedU 主畫面鍵接管」。</string>
+    <string name="homekey_note_on">主畫面鍵接管已開啟：按主畫面鍵回到 UnitedU。要還原，到原生電視設定的「無障礙」裡關掉它。</string>
+    <string name="homekey_note_not_running">電視顯示已開啟，但服務沒在執行（更新或重新啟動後常見）。到原生電視設定的「無障礙」裡關掉再開啟，或重新啟動電視。</string>
+    <string name="homekey_note_restricted">用檔案管理員安裝的 UnitedU，這台電視不允許開啟它的無障礙服務，設定裡也沒有解鎖入口。用電腦執行：adb shell appops set com.uniteduone.launcher ACCESS_RESTRICTED_SETTINGS allow；或改用 adb 安裝 UnitedU。</string>
+    <string name="toast_homekey_restricted">這台電視不允許開啟。按左側說明用電腦解鎖</string>
 
     <!-- picker_* : 桌布/卡片圖/螢幕保護圖庫選擇器 -->
     <string name="picker_wallpaper_title">選一張桌布</string>
@@ -286,7 +297,7 @@
     <string name="toast_icon_restored">已恢復原始圖示</string>
     <string name="toast_opened_stock_launcher">已開啟原廠桌面；要永久切換請在原生電視設定裡變更主畫面應用程式</string>
     <string name="toast_stock_launcher_not_found">找不到原廠桌面</string>
-    <string name="toast_home_settings_bounced">這台電視的設定裡沒有「主畫面應用程式」頁。按遙控器的主頁鍵，在跳出的選擇框裡選要用的桌面，再選「一律」</string>
+    <string name="toast_home_settings_bounced">這台電視的設定裡沒有「主畫面應用程式」頁。按遙控器的主畫面鍵，在跳出的選擇框裡選要用的桌面，再選「一律」</string>
     <string name="toast_restored">已恢復預設設定</string>
     <string name="toast_system_screensaver_unavailable">無法開啟系統螢幕保護設定</string>
     <string name="toast_system_settings_unavailable">無法開啟原生電視設定</string>

@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -45,6 +46,7 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -295,6 +297,23 @@ fun ShellBody(text: String) {
 }
 
 /**
+ * 随光标换的整段说明(R162:「默认桌面」页与引导第 3 步,光标在「主页键接管」上时换成它那段 4–6 行的说明)。
+ * 与 [RowDescription] 同一个道理:R131——光标在说明长短不同的行之间移动,上面的页名一动不动,所以高度按 [reserve]
+ * 里最高的那一段留(只量高:不画、不进无障碍树);R136——换说明时交叉淡化,不是一帧换一段字。
+ * [reserve] 缺省 = 只有 [text] 自己,版式与 [ShellBody] 相同。
+ */
+@Composable
+fun ShellNote(text: String, reserve: List<String> = emptyList()) {
+    val style = shellBodyStyle.copy(textAlign = TextAlign.Center)
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+        reserve.forEach { BasicText(it, style = style, modifier = Modifier.alpha(0f).clearAndSetSemantics {}) }
+        Crossfade(targetState = text, animationSpec = tween(GtvLayout.FOCUS_FADE_IN_MS), label = "shellNote") { t ->
+            BasicText(t, style = style)
+        }
+    }
+}
+
+/**
  * 有预览的页(R73):路径 + 页名压在预览框上方;预览框本身是 MainActivity 缩小进来的真首页,这里只画 1 dp 14% 白
  * 描边(产品默认无壁纸时首页底色与 `MenuBg` 几乎一样,没有描边预览会融进背景,README 第 3 条);框下方一行
  * 「● 预览:大 · 按确定保存,按返回不改」只在有未保存预览时出现([pending])。几何全读 [previewRect],与
@@ -369,6 +388,8 @@ fun SettingsShell(
     onOpenAbout: () -> Unit,
     onConfirmRestore: () -> Unit,
     onChangeHome: () -> Unit,
+    /** R162:「主页键接管」胶囊(「设置默认桌面」页第二颗,条件行)。 */
+    onHomeKeyTakeover: () -> Unit,
     onWritten: () -> Unit,
     focusNonce: Int,
     /** 有东西盖在外壳之上(选择器 / 扫码页 / 关于页 / 引导):让路,焦点归那一层(铁律 3)。 */
@@ -556,10 +577,17 @@ fun SettingsShell(
             }
 
             top.page == ShellPages.HOME -> {
-                // 取代 M7 的 HomeSettingsCard 浮层(R74):左边当前默认桌面 + 说明,右边一颗「在系统设置中更改」。
+                // 取代 M7 的 HomeSettingsCard 浮层(R74):左边当前默认桌面 + 说明,右边「在系统设置中更改」。
+                // R162:第二颗「主页键接管」是条件行——不是默认桌面、或服务已开着才画;状态从系统设置回来(onResume 的 focusNonce++)重读。
                 val home = rememberCurrentHome(revision, focusNonce)
-                val items = HOME_CAPSULES.map { id ->
-                    Capsule(id, stringResource(R.string.home_settings_change_button), onClick = onChangeHome)
+                // 与 systemStatus 同一个 key(R140):关外壳时 focusNonce++,残影沿用上一份,不再当场做一遍跨进程读取。
+                val status = remember(lastStatusKey[0]) { HomeKeyState.status(ctx) }
+                val enabled = status == HomeKeyStatus.ON || status == HomeKeyStatus.NOT_RUNNING
+                val takeover = showHomeKeyCapsule(home.pkg == ctx.packageName, enabled)
+                val items = buildList {
+                    add(Capsule(SHELL_CHANGE_HOME, stringResource(R.string.home_settings_change_button), onClick = onChangeHome))
+                    if (takeover) add(Capsule(SHELL_HOME_TAKEOVER, stringResource(R.string.homekey_capsule), onClick = onHomeKeyTakeover,
+                        hint = stringResource(homeKeyStatusRes(status))))
                 }
                 ShellScaffold(
                     left = {
@@ -567,7 +595,14 @@ fun SettingsShell(
                             Column(Modifier.width(360.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                 CurrentHomeRow(home)
                                 Spacer(Modifier.height(14.dp))
-                                BasicText(stringResource(R.string.home_settings_note), style = shellBodyStyle.copy(textAlign = TextAlign.Center))
+                                // 光标在「主页键接管」上时说明换成它的(R131 同一个道理:说明跟着光标所在那一行);
+                                // 两段说明一样高地留位,换来换去页名不动(ShellNote)。没有第二颗时只有默认那段,版式与原来相同。
+                                val homeNote = stringResource(R.string.home_settings_note)
+                                val takeoverNote = if (takeover) stringResource(homeKeyNoteRes(status)) else null
+                                ShellNote(
+                                    text = if (takeoverNote != null && target == SHELL_HOME_TAKEOVER) takeoverNote else homeNote,
+                                    reserve = listOfNotNull(homeNote, takeoverNote),
+                                )
                             }
                         }
                     },

@@ -43,6 +43,8 @@ private val INFO_BLOCK_W = 360.dp
 private const val ONB_FILL = "fill"
 private const val ONB_SKIP = "skip"
 private const val ONB_CHANGE_HOME = "changeHome"
+/** R162:第 3 步的「主页键接管」条件胶囊。 */
+private const val ONB_HOME_KEY = "homeKey"
 private const val ONB_DONE = "done"
 private fun onbLanguageId(i: Int) = "lang:$i"
 
@@ -55,8 +57,9 @@ private fun onbLanguageId(i: Int) = "lang:$i"
  * 2. **铺应用**:左边列出「将放到桌面的应用」= 内置分类表 ∩ 已装(按行分组,空行不显示);右边「放到桌面」→ 按已装过滤
  *    写 layout.json,「跳过」→ 三行保留、应用清空。一个都没找到时只有一颗「继续」(此时两条路写下的文件完全相同,
  *    `plannedLayout` 的单测钉住)。
- * 3. **默认桌面**:左边 [CurrentHomeRow](与设置「默认桌面」页同一块)+ 一句说明;右边「去系统设置更改」「完成」。
- *    两颗都结束引导;去系统设置那一颗先结束引导、再打开系统页,从系统页回来落在普通首页。
+ * 3. **默认桌面**:左边 [CurrentHomeRow](与设置「默认桌面」页同一块)+ 一句说明;右边「去系统设置更改」「主页键接管」
+ *    (条件行,R162:UnitedU 不是默认桌面、或接管服务已开着才画,与设置「默认桌面」页同一条规则)「完成」。
+ *    每一颗都结束引导;去系统设置 / 主页键接管那两颗先结束引导、再打开系统页,从系统页回来落在普通首页。
  *
  * 返回键 = 上一步,第 1 步 = 结束整个引导([onBack] 由 Activity 按 `onboardingBack` 分派)。
  * 结束的每一条路都由 Activity 先写 `onboardingDone = true`,本页不碰任何文件。
@@ -82,6 +85,8 @@ fun Onboarding(
     onFill: () -> Unit,
     onSkipFill: () -> Unit,
     onOpenHomeSettings: () -> Unit,
+    /** R162:第 3 步「主页键接管」胶囊(条件行)。 */
+    onOpenHomeKey: () -> Unit,
     onFinish: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -113,6 +118,7 @@ fun Onboarding(
                     revision = revision,
                     nonce = nonce,
                     onOpenHomeSettings = onOpenHomeSettings,
+                    onOpenHomeKey = onOpenHomeKey,
                     onFinish = onFinish,
                 )
             }
@@ -226,24 +232,34 @@ private fun PlanPanel(plan: List<PlanRow>?) {
     }
 }
 
-/** 第 3 步:左边当前默认桌面 + 说明(不可聚焦),右边「去系统设置更改」「完成」。 */
+/** 第 3 步:左边当前默认桌面 + 说明(不可聚焦),右边「去系统设置更改」「主页键接管」(条件,R162)「完成」。 */
 @Composable
-private fun HomeStep(eyebrow: String, revision: Int, nonce: Int, onOpenHomeSettings: () -> Unit, onFinish: () -> Unit) {
+private fun HomeStep(eyebrow: String, revision: Int, nonce: Int, onOpenHomeSettings: () -> Unit, onOpenHomeKey: () -> Unit, onFinish: () -> Unit) {
     val ctx = LocalContext.current
-    val home = rememberCurrentHome(revision)
+    val home = rememberCurrentHome(revision, nonce)
+    val status = remember(nonce) { HomeKeyState.status(ctx) }
+    val enabled = status == HomeKeyStatus.ON || status == HomeKeyStatus.NOT_RUNNING
+    val takeover = showHomeKeyCapsule(home.pkg == ctx.packageName, enabled)
     // 已经是默认桌面时,初始焦点给「完成」;否则给「去系统设置更改」——这一步真正要做的事。
     var target by remember { mutableStateOf<String?>(if (home.pkg == ctx.packageName) ONB_DONE else ONB_CHANGE_HOME) }
-    val items = listOf(
-        Capsule(ONB_CHANGE_HOME, stringResource(R.string.home_settings_change_button), onClick = onOpenHomeSettings),
-        Capsule(ONB_DONE, stringResource(R.string.onb_done), onClick = onFinish),
-    )
+    val items = buildList {
+        add(Capsule(ONB_CHANGE_HOME, stringResource(R.string.home_settings_change_button), onClick = onOpenHomeSettings))
+        if (takeover) add(Capsule(ONB_HOME_KEY, stringResource(R.string.homekey_capsule), onClick = onOpenHomeKey, hint = stringResource(homeKeyStatusRes(status))))
+        add(Capsule(ONB_DONE, stringResource(R.string.onb_done), onClick = onFinish))
+    }
     ShellScaffold(
         left = {
             ShellTitle(eyebrow, stringResource(R.string.onb_step3_title)) {
                 Column(Modifier.width(INFO_BLOCK_W), horizontalAlignment = Alignment.CenterHorizontally) {
                     CurrentHomeRow(home)
                     Spacer(Modifier.height(14.dp))
-                    ShellBody(stringResource(R.string.home_settings_note))
+                    // 同设置「默认桌面」页:说明跟着光标走,两段一样高地留位,页名不跳(ShellNote)
+                    val homeNote = stringResource(R.string.home_settings_note)
+                    val takeoverNote = if (takeover) stringResource(homeKeyNoteRes(status)) else null
+                    ShellNote(
+                        text = if (takeoverNote != null && target == ONB_HOME_KEY) takeoverNote else homeNote,
+                        reserve = listOfNotNull(homeNote, takeoverNote),
+                    )
                 }
             }
         },
