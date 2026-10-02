@@ -11,7 +11,10 @@ internal const val NEW_ROW_ICON = "apps"
 
 internal fun isRowIconId(id: String?): Boolean = id != null && id in ROW_ICON_IDS
 
-/** 没存图标的旧行按名字匹配——与 M4b 之前 RowIcon 的 when 逐条对应,外观不变;其余一律 tv。 */
+/**
+ * 老文件(R163 之前)里没存图标的行按**旧名字**回落——与 M4b 之前 RowIcon 的 when 逐条对应,外观不变;其余一律 tv。
+ * **只给读盘用**([rowIconFromDisk]):行没有名字了,内存里不再有这个输入。
+ */
 internal fun legacyRowIconId(name: String): String = when (name.uppercase()) {
     "VIDEO" -> "movie"
     "LIVE" -> "tv"
@@ -19,6 +22,12 @@ internal fun legacyRowIconId(name: String): String = when (name.uppercase()) {
     else -> "tv"
 }
 
-/** 这一行最终用哪个图标 id:存了合法 id 就用它,否则按名字回落。 */
-internal fun effectiveRowIconId(name: String, icon: String?): String =
-    if (icon != null && isRowIconId(icon)) icon else legacyRowIconId(name)
+/** 这个 id 能不能直接画:合法就用,否则 [NEW_ROW_ICON]。 */
+internal fun effectiveRowIconId(icon: String?): String = icon?.takeIf { isRowIconId(it) } ?: NEW_ROW_ICON
+
+/**
+ * 读盘时一行最终用哪个图标 id(R163):盘上存了合法 id 就用它;没有(缺失 / 非法)时,**老文件**带着 `name` →
+ * 按旧名字回落([legacyRowIconId]);新文件没有 `name` → [NEW_ROW_ICON]。`name` 到这里就用完了,不会进内存里的行。
+ */
+internal fun rowIconFromDisk(name: String?, icon: String?): String =
+    icon?.takeIf { isRowIconId(it) } ?: name?.let { legacyRowIconId(it) } ?: NEW_ROW_ICON

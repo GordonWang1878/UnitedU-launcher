@@ -67,7 +67,7 @@ def run():
     uninstall("test.dummy.app00")
     s = settle_and_check("菜单开着时卸掉它对应的应用")
     check("菜单开着时卸掉:app00 从 layout.json 清掉", "test.dummy.app00" not in all_apps(), rows()[0]["apps"][:4])
-    check("菜单开着时卸掉:其余行不动", [r["name"] for r in rows()] == [r["name"] for r in LAYOUT["rows"]], [r["name"] for r in rows()])
+    check("菜单开着时卸掉:其余行不动", [r["icon"] for r in rows()] == [r["icon"] for r in LAYOUT["rows"]], [r["icon"] for r in rows()])
     if s.has(S("card_menu_open")):
         key("ok"); time.sleep(2)
         check("在已卸载应用的菜单上按「打开」不崩", not fatal() and foreground() == PKG, (fatal()[:2], foreground()))

@@ -65,7 +65,7 @@ class PrunePureTest {
     }
 
     @Test fun withoutPackagesKeepsRowsAndOrder() {
-        val rows = listOf(LayoutRow("A", apps = listOf("a", "x", "b")), LayoutRow("B", icon = "tv", apps = listOf("x")))
+        val rows = listOf(LayoutRow("movie", apps = listOf("a", "x", "b")), LayoutRow("tv", apps = listOf("x")))
         val next = withoutPackages(rows, setOf("x"))
         assertEquals(listOf(listOf("a", "b"), emptyList()), next.map { it.apps })
         assertEquals("tv", next[1].icon)

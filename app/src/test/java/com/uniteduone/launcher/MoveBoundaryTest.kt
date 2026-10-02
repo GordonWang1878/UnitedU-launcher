@@ -10,11 +10,12 @@ import org.junit.Test
  */
 class MoveBoundaryTest {
     private fun app(p: String) = AppEntry(packageName = p, label = p, card = null, isWide = false)
-    private fun row(name: String, layoutRow: Int, vararg pkgs: String) =
-        Row(name = name, apps = pkgs.map { app(it) }, layoutRow = layoutRow)
+    // R163:行没有名字,测试里用图标 id 认行(movie / music / tv = 原来的 VIDEO / MUSIC / …)
+    private fun row(icon: String, layoutRow: Int, vararg pkgs: String) =
+        Row(icon = icon, apps = pkgs.map { app(it) }, layoutRow = layoutRow)
     private fun names(rows: List<Row>) = rows.map { r -> r.apps.map { it.packageName } }
 
-    private val home = listOf(row("VIDEO", 0, "a", "b", "c"), row("MUSIC", 2, "d"))
+    private val home = listOf(row("movie", 0, "a", "b", "c"), row("music", 2, "d"))
 
     // ---- 首页 ----
 
@@ -39,7 +40,7 @@ class MoveBoundaryTest {
     }
 
     @Test fun theOnlyCardOnTheHomeCannotMove() {
-        val one = listOf(row("ONLY", 0, "a"))
+        val one = listOf(row("photos", 0, "a"))
         for (dir in MoveDir.entries) {
             val (r, p) = moveCard(one, MovePos(0, 0), dir)
             assertSame(one, r)
@@ -62,7 +63,7 @@ class MoveBoundaryTest {
 
     @Test fun movingKeepsTheLayoutRowNumbersOfTheRenderedRows() {
         // 首页不显示空行:渲染行号 0、1 对应 layout.json 的 0、3,搬完仍是 0、3
-        val rows = listOf(row("A", 0, "a", "b"), row("B", 3, "c"))
+        val rows = listOf(row("movie", 0, "a", "b"), row("music", 3, "c"))
         val (r, p) = moveCard(rows, MovePos(0, 1), MoveDir.DOWN)
         assertEquals(listOf(0, 3), r.map { it.layoutRow })
         assertEquals(MovePos(1, 1), p)
@@ -70,7 +71,7 @@ class MoveBoundaryTest {
 
     @Test fun emptyingTheTopRowKeepsTheLayoutRowNumbersOfTheRest() {
         // 源行被移空、从工作副本里去掉:剩下的行仍带着自己在 layout.json 里的行号(放下时按它合并)
-        val rows = listOf(row("A", 0, "a"), row("B", 1, "b"), row("C", 2, "c"))
+        val rows = listOf(row("movie", 0, "a"), row("music", 1, "b"), row("tv", 2, "c"))
         val (r, p) = moveCard(rows, MovePos(0, 0), MoveDir.DOWN)
         assertEquals(listOf(listOf("a", "b"), listOf("c")), names(r))
         assertEquals(listOf(1, 2), r.map { it.layoutRow })
@@ -80,9 +81,9 @@ class MoveBoundaryTest {
     // ---- 编辑页 ----
 
     private val layout = listOf(
-        LayoutRow("VIDEO", apps = listOf("a", "b")),
-        LayoutRow("EMPTY"),
-        LayoutRow("MUSIC", apps = listOf("d")),
+        LayoutRow("movie", apps = listOf("a", "b")),
+        LayoutRow("games"),                        // 空行
+        LayoutRow("music", apps = listOf("d")),
     )
 
     @Test fun editNegativeOrCardlessPositionsAreNoOps() {
@@ -101,11 +102,11 @@ class MoveBoundaryTest {
         val (r2, p2) = moveInLayout(r1, p1, MoveDir.DOWN)
         assertEquals(MovePos(2, 0), p2)
         assertEquals(listOf(listOf("a"), emptyList(), listOf("b", "d")), r2.map { it.apps })
-        assertEquals(listOf("VIDEO", "EMPTY", "MUSIC"), r2.map { it.name })
+        assertEquals(listOf("movie", "games", "music"), r2.map { it.icon })
     }
 
     @Test fun editEmptiedRowCanBeRefilledAndStaysInPlace() {
-        val one = listOf(LayoutRow("A", apps = listOf("a")), LayoutRow("B"))
+        val one = listOf(LayoutRow("movie", apps = listOf("a")), LayoutRow("music"))
         val (r1, p1) = moveInLayout(one, MovePos(0, 0), MoveDir.DOWN)
         assertEquals(listOf(emptyList(), listOf("a")), r1.map { it.apps })
         val (r2, p2) = moveInLayout(r1, p1, MoveDir.UP)
@@ -120,14 +121,14 @@ class MoveBoundaryTest {
     }
 
     @Test fun mergeIgnoresRenderedRowsThatNoLongerExistOnDisk() {
-        val disk = listOf(LayoutRow("VIDEO", apps = listOf("a", "b", "c")))
-        assertEquals(disk, mergeMove(disk, home, listOf(row("VIDEO", 0, "a", "b", "c"), row("MUSIC", 2, "c", "d"))))
+        val disk = listOf(LayoutRow("movie", apps = listOf("a", "b", "c")))
+        assertEquals(disk, mergeMove(disk, home, listOf(row("movie", 0, "a", "b", "c"), row("music", 2, "c", "d"))))
     }
 
     @Test fun mergeNeverWritesAPackageTwice() {
         // 工作副本里出现了磁盘上首页没显示的 x(不该发生):distinct 保证一行里不写出两个 x
-        val disk = listOf(LayoutRow("VIDEO", apps = listOf("a", "x")))
-        val merged = mergeMove(disk, listOf(row("VIDEO", 0, "a")), listOf(row("VIDEO", 0, "x", "a")))
+        val disk = listOf(LayoutRow("movie", apps = listOf("a", "x")))
+        val merged = mergeMove(disk, listOf(row("movie", 0, "a")), listOf(row("movie", 0, "x", "a")))
         assertEquals(listOf("x", "a"), merged[0].apps)
     }
 }

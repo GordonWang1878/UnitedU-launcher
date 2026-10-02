@@ -9,7 +9,7 @@ import org.junit.Test
  * 同一行后面的卡左移一格——按坐标认会把菜单换成下一张卡,「移出」就移错了应用。
  */
 class EditActingTest {
-    private fun row(vararg apps: String) = LayoutRow("r", apps = apps.toList())
+    private fun row(vararg apps: String) = LayoutRow("games", apps = apps.toList())
 
     @Test fun columnFollowsThePackageWhenCardsBeforeItDisappear() {
         val a = EditActing(row = 0, col = 2, pkg = "c")

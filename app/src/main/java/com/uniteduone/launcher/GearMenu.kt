@@ -31,7 +31,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.MaterialTheme
 
-data class MenuItem(val label: String, val hint: String, val action: () -> Unit)
+/**
+ * 菜单里的一项。[hint] 是 R69 之前的第二行说明,**R69 起不画**(单行药丸);[icon] 非 null 时例外(R163「加到桌面…」选一行):
+ * 药丸画这个行图标(id 见 RowIcons.kt),[label] 可以是空串,小字写 [hint]。
+ */
+data class MenuItem(val label: String, val hint: String, val icon: String? = null, val action: () -> Unit)
 
 /**
  * 菜单浮层。编辑页条目菜单、首页长按卡片菜单、编辑页行菜单共用这一份(齿轮菜单 R69 起换成设置页外壳)。
@@ -48,7 +52,7 @@ data class MenuItem(val label: String, val hint: String, val action: () -> Unit)
  * 这里只剩长按卡片菜单与编辑页的两个菜单三个调用点,都是单行药丸、不带说明(R17 的 `showHints` 随齿轮菜单
  * 一起搬去外壳:第一层 6 颗两行胶囊)。药丸本身抽到 `ShellCapsule.kt` 的 [MenuPill],外壳每一层共用同一颗。
  *
- * @param title 标题;null = 「设置」。长按菜单传该卡的显示名,行菜单传行名。
+ * @param title 标题;null = 「设置」。长按菜单传该卡的显示名,行菜单传「管理这一行」。
  *   [app] 为 null 时(编辑页行菜单——没有对应单个应用)左半退化成只显示这个标题,
  *   不画 banner。
  * @param app 左半 banner 的取图来源;只取 [AppEntry.card] / [AppEntry.isWide] / [AppEntry.fallbackColor]
@@ -56,6 +60,7 @@ data class MenuItem(val label: String, val hint: String, val action: () -> Unit)
  *   名字仍由 [title] 给——调用方那份已经处理过改名覆盖、查不到时退回包名的兜底,这里不重复一遍。
  * @param eyebrow 页名上方的一行小字(R135):这页属于谁(「编辑桌面」「屏保图库」);只在没有 banner 时画。
  * @param body 页名下方的说明(R135):确认页写后果(「这一行的 3 个应用会从桌面移除,不会卸载」);只在没有 banner 时画。
+ * @param icon 页名上方画的行图标 id(R163):这一页属于哪一行——行没有名字了,用它的图标认;只在没有 banner 时画。
  *
  * **R135(2026-09-30 外观轮)**:两按钮确认框 [ConfirmDialog] 也画成这一页(左边问题 + 后果,右边「取消 / 删除」两颗胶囊),
  * 与设置里「恢复默认」的确认层(R74)同一个样子;原来是屏幕中间的小面板 + 带描边的方按钮。
@@ -70,6 +75,7 @@ fun GearMenu(
     app: AppEntry? = null,
     eyebrow: String? = null,
     body: String? = null,
+    icon: String? = null,
 ) {
     val ghost = LocalPageGhost.current
     val rowFocus = remember(items.size) { List(items.size.coerceAtLeast(1)) { FocusRequester() } }
@@ -128,7 +134,7 @@ fun GearMenu(
             ) {
                 val name = title ?: stringResource(R.string.menu_settings_title)
                 // 没有 banner(行菜单、确认页):与设置外壳没有预览的页同一个画法——路径小字、页名、说明。
-                if (app == null) ShellTitle(path = eyebrow, title = name, extra = body?.let { { ShellBody(it) } })
+                if (app == null) ShellTitle(path = eyebrow, title = name, icon = icon, extra = body?.let { { ShellBody(it) } })
                 else MenuBanner(app = app, name = name)
             }
             Box(
@@ -147,6 +153,9 @@ fun GearMenu(
                             },
                             isFirst = i == 0,
                             isLast = i == items.lastIndex,
+                            // R163:带行图标的药丸(「加到桌面…」选一行)用 hint 当小字;其余项的 hint 是 R69 前的说明,不画
+                            icon = item.icon,
+                            hint = if (item.icon != null) item.hint else null,
                         )
                     }
                 }

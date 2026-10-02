@@ -96,6 +96,8 @@ object GtvLayout {
      *  **Ruling R48(2026-09-22)起首页不再画行标题**(见 [ROW_ICON_SIZE]),`rowPitch` 不再含这一项;
      *  这个常量只剩编辑页的行标题行盒(`EditScreen`,13sp)与 `RowIcon` 固定尺寸那个重载(编辑页、
      *  首次引导用)的图标框在读。
+     *  **R163(行没有名字)起这两处都没了**:编辑页的行图标挪进左边空档、与首页同一个画法([ROW_ICON_SIZE]),
+     *  `RowIcon` 只剩一个按 `boxSize` 画的版本——这个常量**不再有任何读者**,只留作 R15 / R25 实测值的标定记录。
      *  R48 同时删掉了只有首页行标题在用的 `ROW_TITLE_TEXT`(14sp)、`ROW_TITLE_TO_CARD`(12.5dp)、
      *  `ROW_TITLE_ICON_GAP`(8dp)、`ROW_TITLE_FOCUS_SCALE`(1.78)、`ROW_TITLE_CAP_EM`(0.711)。 */
     const val ROW_TITLE_LINE = 20f
@@ -114,6 +116,9 @@ object GtvLayout {
      * **Ruling R50(2026-09-23)**:26 → **22** dp。owner 原话:「每一行的行图标:位置没问题(每行左侧纵向居中),
      * 但偏大了,改小一点点。」位置规则(水平中心 = [CONTENT_KEYLINE] / 2、与卡片纵向居中)不变,只改方框边长;
      * 墨迹随之 19.5 → 16.5 dp。
+     *
+     * **Ruling R163(2026-10-02)**:编辑页的行图标也画在这个位置、这个尺寸(原来是每行卡片上方一行 20 dp 的「图标 + 行名」);
+     * 菜单药丸里的行图标同为 22 dp,页头里的是 24 dp。
      */
     const val ROW_ICON_SIZE = 22f
     /** Fix round 1(R15,2026-09-20):**125.5 dp 同样是 Google 用 Latin 量出来的行距,对中文标题不

@@ -117,15 +117,24 @@ class CopyTest {
         assertEquals(listOf(HintPart.Text("UnitedU")), defaultHomeSummary(DefaultHome.App("UnitedU")))
     }
 
-    @Test fun defaultRowsTakeInterfaceLanguageAndKeepIcons() {
-        val names = mapOf("VIDEO" to "影视", "LIVE" to "直播", "MUSIC" to "音乐")
-        val rows = localizedDefaultRows(DEFAULT_LAYOUT, names)
-        assertEquals(listOf("影视", "直播", "音乐"), rows.map { it.name })
-        // 名字换了,图标照旧是按英文名推出来的那一个,而且写死在行上
-        assertEquals(listOf("movie", "tv", "music"), rows.map { it.icon })
-        assertEquals(DEFAULT_LAYOUT.map { it.apps }, rows.map { it.apps })
-        // 用户自己的行不动
-        val mine = LayoutRow(name = "我的", icon = "games", apps = listOf("a"))
-        assertEquals(listOf(mine), localizedDefaultRows(listOf(mine), names))
+    /**
+     * R163:行没有名字——写进 layout.json 的内置三行不再带名字,界面里也没有地方显示行名,所以每种语言里都不再有
+     * 「内置行名 / 重命名此行 / 新行」这几条文案;「加到桌面…」第二层的药丸与几条提示不再带行名占位。
+     */
+    @Test fun rowsHaveNoNamesAnyMore() {
+        val gone = listOf(
+            "row_default_video", "row_default_live", "row_default_music",
+            "edit_row_rename", "edit_row_rename_desc", "edit_row_rename_heading", "edit_row_rename_hint", "edit_new_row_name",
+        )
+        for (l in langs) {
+            val s = strings(l)
+            for (k in gone) assertTrue("$l 里还有 $k(R163 起行没有名字)", k !in s)
+            // 这几条原来带 %1$s = 行名;现在一个占位都不带
+            for (k in listOf("edit_row_delete_confirm_title", "apps_add_row_here", "toast_added_to_row", "toast_already_in_row")) {
+                assertEquals("$l 的 $k 不该再带占位符", emptySet<String>(), placeholders(s.getValue(k)))
+            }
+            // 「加到桌面…」药丸小字:应用名 + 个数(两个占位,三种语言一致由 placeholdersMatchAcrossLanguages 保证)
+            assertEquals(setOf("%1\$s", "%2\$d"), placeholders(s.getValue("apps_row_names_more")))
+        }
     }
 }

@@ -36,9 +36,12 @@ def run():
     check("菜单有 Add to Home…", s.has(S("apps_menu_add_to_home")))
     move_to(S("apps_menu_add_to_home")); key("ok"); time.sleep(1.2)
     s = screen()
-    names = [r["name"] for r in rows()]
-    check("第二层列出各行", all(s.has(n) for n in names), (names, s.texts()[:8]))
-    target_row = names[-1]
+    # R163:行没有名字——第二层每行一颗药丸:行图标(content-desc)+ 小字应用名(同行图标的两行靠小字分)。
+    # 右栏(x > 1100)里每个行图标都得有一颗(首页行图标在左边距里,x < 100,不会混进来)
+    icons = [r["icon"] for r in rows()]
+    check("第二层列出各行(每行一颗,画行图标)", all(
+        any(n["desc"] == S("row_icon_" + i) and n["b"][0] > 1100 for n in s.nodes) for i in icons), (icons, s.texts()[-10:]))
+    target_row = S("row_icon_" + icons[-1])   # 最后一行:图标互不相同,按它的名字(content-desc)走过去
     move_to(target_row); key("ok", gap=0.2)
     # 提示条只显示 3.5 s:紧跟着确定键读屏(宿主负载高时一次读屏就要 2 s 多,先睡再读会错过)
     s = screen()

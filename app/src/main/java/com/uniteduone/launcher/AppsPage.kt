@@ -501,5 +501,45 @@ internal object AppsPagePerf {
 /**
  * 应用页的长按 / MENU 菜单状态(R90):[rows] == null 是第一层,非 null 是「加到哪一行」那一层(layout.json 的行)。
  * [canUninstall]:第一层列不列「卸载应用」(R106,[appsMenuActions])。
+ * [rowApps](R163)与 [rows] 一一对应:每一行**现有应用的显示名**(行内顺序、只含装着的)。行没有名字了,第二层的药丸
+ * 画「行图标 + 小字应用名」认行(两行图标相同时靠小字分),见 [rowNamesSummary]。
  */
-data class AppsMenu(val app: AppEntry, val canUninstall: Boolean = false, val rows: List<LayoutRow>? = null)
+data class AppsMenu(
+    val app: AppEntry,
+    val canUninstall: Boolean = false,
+    val rows: List<LayoutRow>? = null,
+    val rowApps: List<List<String>> = emptyList(),
+)
+
+/** 「加到桌面…」第二层小字里最多列几个应用名(R163);再多的写成「 等 N 个」。 */
+internal const val ROW_SUMMARY_MAX_NAMES = 3
+
+/**
+ * 「加到桌面…」第二层每颗药丸的小字(R163,纯函数):该行现有应用的显示名,用 [sep] 连起来,最多前 [ROW_SUMMARY_MAX_NAMES] 个;
+ * 超过的写成 [more](已连好的前几个, 这一行一共几个)——「A、B、C 等 5 个」;一个都没有写 [empty](「空」)。
+ * 分隔符与「等 N 个」的措辞跟界面语言走,由调用方按资源给。
+ */
+internal fun rowNamesSummary(
+    names: List<String>,
+    sep: String,
+    empty: String,
+    more: (joined: String, total: Int) -> String,
+): String = when {
+    names.isEmpty() -> empty
+    names.size <= ROW_SUMMARY_MAX_NAMES -> names.joinToString(sep)
+    else -> more(names.take(ROW_SUMMARY_MAX_NAMES).joinToString(sep), names.size)
+}
+
+/**
+ * 每一行现有应用的显示名(R163,给 [AppsMenu.rowApps]):行内顺序、只含**装着且能启动**的包(与首页同口径);显示名取
+ * 自定义标题,没有就用应用名,应用名读不到用包名。IO 线程调用(枚举应用 + 读标签 + 读 titles.json,不解码任何位图)。
+ */
+@androidx.annotation.WorkerThread
+internal fun rowAppNames(ctx: Context, layout: List<LayoutRow>): List<List<String>> {
+    val needed = layout.flatMap { it.apps }.toSet()
+    val entries = runCatching { Apps.load(ctx, needed, withBitmaps = emptySet(), withLabels = needed) }.getOrDefault(emptyMap())
+    val titles = Titles.read(ctx)
+    return layout.map { row ->
+        row.apps.mapNotNull { pkg -> entries[pkg]?.let { e -> titles[pkg] ?: e.label.ifBlank { pkg } } }
+    }
+}

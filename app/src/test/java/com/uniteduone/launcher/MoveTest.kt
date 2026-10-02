@@ -6,11 +6,12 @@ import org.junit.Test
 
 class MoveTest {
     private fun app(p: String) = AppEntry(packageName = p, label = p, card = null, isWide = false)
-    private fun row(name: String, layoutRow: Int, vararg pkgs: String) =
-        Row(name = name, apps = pkgs.map { app(it) }, layoutRow = layoutRow)
+    // R163:行没有名字,测试里用图标 id 认行(movie / music / tv = 原来的 VIDEO / MUSIC / LIVE)
+    private fun row(icon: String, layoutRow: Int, vararg pkgs: String) =
+        Row(icon = icon, apps = pkgs.map { app(it) }, layoutRow = layoutRow)
     private fun names(rows: List<Row>) = rows.map { r -> r.apps.map { it.packageName } }
 
-    private val home = listOf(row("VIDEO", 0, "a", "b", "c"), row("MUSIC", 2, "d"))
+    private val home = listOf(row("movie", 0, "a", "b", "c"), row("music", 2, "d"))
 
     @Test fun leftAndRightSwapWithinTheRowAndStopAtTheEnds() {
         val (r1, p1) = moveCard(home, MovePos(0, 1), MoveDir.LEFT)
@@ -34,14 +35,14 @@ class MoveTest {
     }
 
     @Test fun emptiedSourceRowDisappearsAndTheTargetIndexFollows() {
-        // d 在 MUSIC 第 0 列,上移落到 VIDEO 第 0 列;MUSIC 被移空、从工作副本去掉,VIDEO 行号仍是 0
+        // d 在音乐行第 0 列,上移落到影片行第 0 列;音乐行被移空、从工作副本去掉,影片行号仍是 0
         val (r, p) = moveCard(home, MovePos(1, 0), MoveDir.UP)
         assertEquals(listOf(listOf("d", "a", "b", "c")), names(r))
         assertEquals(MovePos(0, 0), p)
     }
 
     @Test fun emptiedRowAboveTheTargetShiftsTheTargetUp() {
-        val rows = listOf(row("A", 0, "a"), row("B", 1, "b1", "b2"))
+        val rows = listOf(row("movie", 0, "a"), row("music", 1, "b1", "b2"))
         val (r, p) = moveCard(rows, MovePos(0, 0), MoveDir.DOWN)
         assertEquals(listOf(listOf("a", "b1", "b2")), names(r))
         assertEquals(MovePos(0, 0), p)
@@ -49,59 +50,59 @@ class MoveTest {
 
     @Test fun mergeKeepsUnrenderedPackagesAndEmptiedRows() {
         val disk = listOf(
-            LayoutRow("VIDEO", apps = listOf("a", "x", "b", "c")),   // x 没装,首页不显示
-            LayoutRow("EMPTY"),
-            LayoutRow("MUSIC", icon = "music", apps = listOf("d")),
+            LayoutRow("movie", apps = listOf("a", "x", "b", "c")),   // x 没装,首页不显示
+            LayoutRow("games"),                                       // 空行
+            LayoutRow("music", apps = listOf("d")),
         )
-        val original = listOf(row("VIDEO", 0, "a", "b", "c"), row("MUSIC", 2, "d"))
-        val working = listOf(row("VIDEO", 0, "b", "a"), row("MUSIC", 2, "d", "c"))
+        val original = listOf(row("movie", 0, "a", "b", "c"), row("music", 2, "d"))
+        val working = listOf(row("movie", 0, "b", "a"), row("music", 2, "d", "c"))
         assertEquals(
             listOf(
-                LayoutRow("VIDEO", apps = listOf("b", "a", "x")),
-                LayoutRow("EMPTY"),
-                LayoutRow("MUSIC", icon = "music", apps = listOf("d", "c")),
+                LayoutRow("movie", apps = listOf("b", "a", "x")),
+                LayoutRow("games"),
+                LayoutRow("music", apps = listOf("d", "c")),
             ),
             mergeMove(disk, original, working),
         )
     }
 
     @Test fun mergeWritesAnEmptiedRowAsEmpty() {
-        val disk = listOf(LayoutRow("VIDEO", apps = listOf("a")), LayoutRow("MUSIC", apps = listOf("d")))
-        val original = listOf(row("VIDEO", 0, "a"), row("MUSIC", 1, "d"))
-        val working = listOf(row("MUSIC", 1, "d", "a"))   // VIDEO 被移空、已从工作副本里去掉
+        val disk = listOf(LayoutRow("movie", apps = listOf("a")), LayoutRow("music", apps = listOf("d")))
+        val original = listOf(row("movie", 0, "a"), row("music", 1, "d"))
+        val working = listOf(row("music", 1, "d", "a"))   // 影片行被移空、已从工作副本里去掉
         assertEquals(
-            listOf(LayoutRow("VIDEO"), LayoutRow("MUSIC", apps = listOf("d", "a"))),
+            listOf(LayoutRow("movie"), LayoutRow("music", apps = listOf("d", "a"))),
             mergeMove(disk, original, working),
         )
     }
 
     @Test fun mergeLeavesAnUntouchedRowExactlyAsOnDisk() {
-        // 这次只在 MUSIC 里搬;VIDEO 可见顺序没变,中间那个没装的 x 必须原地不动(不被挪到行尾)
+        // 这次只在音乐行里搬;影片行可见顺序没变,中间那个没装的 x 必须原地不动(不被挪到行尾)
         val disk = listOf(
-            LayoutRow("VIDEO", apps = listOf("a", "x", "b")),
-            LayoutRow("MUSIC", icon = "music", apps = listOf("d", "e")),
+            LayoutRow("movie", apps = listOf("a", "x", "b")),
+            LayoutRow("music", apps = listOf("d", "e")),
         )
-        val original = listOf(row("VIDEO", 0, "a", "b"), row("MUSIC", 1, "d", "e"))
-        val working = listOf(row("VIDEO", 0, "a", "b"), row("MUSIC", 1, "e", "d"))
+        val original = listOf(row("movie", 0, "a", "b"), row("music", 1, "d", "e"))
+        val working = listOf(row("movie", 0, "a", "b"), row("music", 1, "e", "d"))
         val merged = mergeMove(disk, original, working)
         assertSame(disk[0], merged[0])
-        assertEquals(LayoutRow("MUSIC", icon = "music", apps = listOf("e", "d")), merged[1])
+        assertEquals(LayoutRow("music", apps = listOf("e", "d")), merged[1])
     }
 
     @Test fun mergeJudgesARowByItsVisibleOrderNotByWhetherTheCardPassedThrough() {
-        // 卡从 VIDEO 搬出去又搬回原位:可见顺序与原来相同,这一行照磁盘原样,x 仍在中间
-        val disk = listOf(LayoutRow("VIDEO", apps = listOf("a", "x", "b")), LayoutRow("MUSIC", apps = listOf("d")))
-        val original = listOf(row("VIDEO", 0, "a", "b"), row("MUSIC", 1, "d"))
-        val working = listOf(row("VIDEO", 0, "a", "b"), row("MUSIC", 1, "d"))
+        // 卡从影片行搬出去又搬回原位:可见顺序与原来相同,这一行照磁盘原样,x 仍在中间
+        val disk = listOf(LayoutRow("movie", apps = listOf("a", "x", "b")), LayoutRow("music", apps = listOf("d")))
+        val original = listOf(row("movie", 0, "a", "b"), row("music", 1, "d"))
+        val working = listOf(row("movie", 0, "a", "b"), row("music", 1, "d"))
         assertEquals(disk, mergeMove(disk, original, working))
     }
 
     @Test fun changingRowIntoARowThatAlreadyHasTheAppIsANoOp() {
-        val rows = listOf(row("VIDEO", 0, "a", "b"), row("MUSIC", 1, "c", "a"), row("LIVE", 2, "e"))
-        // a 往下:MUSIC 已经有 a → 原地不动,也不越过 MUSIC 跳到 LIVE
+        val rows = listOf(row("movie", 0, "a", "b"), row("music", 1, "c", "a"), row("tv", 2, "e"))
+        // a 往下:音乐行已经有 a → 原地不动,也不越过它跳到下一行
         val (r1, p1) = moveCard(rows, MovePos(0, 0), MoveDir.DOWN)
         assertSame(rows, r1); assertEquals(MovePos(0, 0), p1)
-        // MUSIC 的 a 往上:VIDEO 已经有 a → 原地不动
+        // 音乐行的 a 往上:影片行已经有 a → 原地不动
         val (r2, p2) = moveCard(rows, MovePos(1, 1), MoveDir.UP)
         assertSame(rows, r2); assertEquals(MovePos(1, 1), p2)
         // 左右不受影响
@@ -110,9 +111,9 @@ class MoveTest {
     }
 
     private val layout = listOf(
-        LayoutRow("VIDEO", apps = listOf("a", "b", "c")),
-        LayoutRow("NEW"),                       // 编辑页里新建的空行
-        LayoutRow("MUSIC", apps = listOf("d")),
+        LayoutRow("movie", apps = listOf("a", "b", "c")),
+        LayoutRow(NEW_ROW_ICON),                // 编辑页里新建的空行
+        LayoutRow("music", apps = listOf("d")),
     )
 
     @Test fun editLeftRightSwapAndStopAtTheEnds() {
@@ -138,7 +139,7 @@ class MoveTest {
     }
 
     @Test fun editUpIntoARowThatHasTheAppIsANoOp() {
-        val rows = listOf(LayoutRow("A", apps = listOf("x", "y")), LayoutRow("B", apps = listOf("y")))
+        val rows = listOf(LayoutRow("movie", apps = listOf("x", "y")), LayoutRow("music", apps = listOf("y")))
         val (r, p) = moveInLayout(rows, MovePos(1, 0), MoveDir.UP)
         assertSame(rows, r); assertEquals(MovePos(1, 0), p)
     }
@@ -151,7 +152,7 @@ class MoveTest {
     }
 
     @Test fun editColumnClampsToTheShorterRow() {
-        val rows = listOf(LayoutRow("A", apps = listOf("a", "b", "c")), LayoutRow("B", apps = listOf("d")))
+        val rows = listOf(LayoutRow("movie", apps = listOf("a", "b", "c")), LayoutRow("music", apps = listOf("d")))
         val (r, p) = moveInLayout(rows, MovePos(0, 2), MoveDir.DOWN)
         assertEquals(listOf("d", "c"), r[1].apps)   // 第 2 列越过 B 的行尾 → 放在行尾
         assertEquals(MovePos(1, 1), p)
@@ -164,8 +165,8 @@ class MoveTest {
 
     @Test fun editVerticalMoveIntoTheMiddleOfALongerRowKeepsTheColumn() {
         val rows = listOf(
-            LayoutRow("A", apps = listOf("a0", "a1")),
-            LayoutRow("B", apps = listOf("b0", "b1", "b2", "b3")),
+            LayoutRow("movie", apps = listOf("a0", "a1")),
+            LayoutRow("music", apps = listOf("b0", "b1", "b2", "b3")),
         )
         // 第 1 列没有越过 B 的行尾(4 张)→ 原列保留,落在 B 中间,不是被夹到行尾
         val (r, p) = moveInLayout(rows, MovePos(0, 1), MoveDir.DOWN)
@@ -176,13 +177,13 @@ class MoveTest {
 
     @Test fun editUntouchedRowsKeepIdentityAndTheMovedFromRowKeepsItsIcon() {
         val rows = listOf(
-            LayoutRow("A", icon = "movie", apps = listOf("a0", "a1")),
-            LayoutRow("B", icon = "music", apps = listOf("b0")),
-            LayoutRow("C", icon = "tv", apps = listOf("c0")),
+            LayoutRow("movie", apps = listOf("a0", "a1")),
+            LayoutRow("music", apps = listOf("b0")),
+            LayoutRow("tv", apps = listOf("c0")),
         )
         val (r, p) = moveInLayout(rows, MovePos(0, 0), MoveDir.DOWN)
         assertSame(rows[2], r[2])         // 没碰到的行原样是同一个引用
-        assertEquals("movie", r[0].icon)  // 被移空一张的源行只改 apps,name/icon 原样留着
+        assertEquals("movie", r[0].icon)  // 被移空一张的源行只改 apps,icon 原样留着
         assertEquals(MovePos(1, 0), p)
     }
 

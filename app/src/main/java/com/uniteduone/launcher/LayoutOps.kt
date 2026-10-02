@@ -4,34 +4,16 @@ package com.uniteduone.launcher
 internal const val MIN_ROWS = 1
 internal const val MAX_ROWS = 5
 
-/** 在第 [index] 行下方插一个空行(默认图标 [NEW_ROW_ICON]);已满 [MAX_ROWS] 行或越界 → 原样返回同一个 list。 */
-internal fun addRowBelow(rows: List<LayoutRow>, index: Int, name: String): List<LayoutRow> {
+/** 在第 [index] 行下方插一个空行(默认图标 [NEW_ROW_ICON],R163 起行没有名字);已满 [MAX_ROWS] 行或越界 → 原样返回同一个 list。 */
+internal fun addRowBelow(rows: List<LayoutRow>, index: Int): List<LayoutRow> {
     if (rows.size >= MAX_ROWS || index !in rows.indices) return rows
-    return rows.toMutableList().apply { add(index + 1, LayoutRow(name = name, icon = NEW_ROW_ICON)) }
+    return rows.toMutableList().apply { add(index + 1, LayoutRow(icon = NEW_ROW_ICON)) }
 }
 
 /** 删第 [index] 行;只剩 [MIN_ROWS] 行或越界 → 原样返回。行里的应用只是离开桌面,不卸载。 */
 internal fun deleteRow(rows: List<LayoutRow>, index: Int): List<LayoutRow> {
     if (rows.size <= MIN_ROWS || index !in rows.indices) return rows
     return rows.filterIndexed { i, _ -> i != index }
-}
-
-/**
- * 改名:与卡片标题同一套清洗([sanitizeTitle]:去首尾空白、截到 [MAX_TITLE_CHARS]);清洗后为空、越界,
- * 或与现在的名字相同 → 原样返回同一个 list(行必须有名字;名字没变就不写盘,也不去钉图标)。
- * **改名不改图标**:没存图标的旧行靠名字回落([effectiveRowIconId]),改了名回落结果就跟着变(MUSIC 改成 "Kids"
- * 会从音符变成电视)——所以这种行改名时把**当前看到的**图标存进 `icon`;已经存了图标的行照旧。
- */
-internal fun renameRow(rows: List<LayoutRow>, index: Int, name: String): List<LayoutRow> {
-    val clean = sanitizeTitle(name)
-    if (clean.isEmpty() || index !in rows.indices) return rows
-    if (clean == rows[index].name) return rows
-    return rows.mapIndexed { i, r ->
-        // 用 effectiveRowIconId(r.name, r.icon) 而不是 r.icon ?: effectiveRowIconId(r.name, null):
-        // 后者只在 icon 为 null 时才回落,存了非法 id(比如手改坏的文件)的行会被原样带过去;
-        // 前者连非法 id 也一并纠正(终审 Minor #4)。
-        if (i == index) r.copy(name = clean, icon = effectiveRowIconId(r.name, r.icon)) else r
-    }
 }
 
 /** 换图标;不认识的 id 或越界 → 原样返回。 */
@@ -41,13 +23,14 @@ internal fun setRowIcon(rows: List<LayoutRow>, index: Int, icon: String): List<L
 }
 
 /**
- * 所有应用页「加到桌面…」(R90):把 [pkg] 加到第 [index] 行末尾。那一行不在、名字对不上 [expectName](菜单打开之后
- * 别处改过 layout.json:删行 / 换序 / 改名),或那一行里已经有它(一行里一个包只能有一张,`Layout.read` 做 distinct)
- * → 原样返回**同一个** list,[Layout.update] 据此不写盘。其余行一个字节不动。
+ * 所有应用页「加到桌面…」(R90):把 [pkg] 加到第 [index] 行末尾。那一行不在(越界),或那一行里已经有它
+ * (一行里一个包只能有一张,`Layout.read` 做 distinct)→ 原样返回**同一个** list,[Layout.update] 据此不写盘。
+ * 其余行一个字节不动。(R163 前还要核对行名,防「菜单打开之后别处改过 layout.json」;行没有名字了,只认下标——
+ * 菜单开着时没有别的入口能改行序 / 删行,那些只能在编辑页里做。)
  */
-internal fun addToRow(rows: List<LayoutRow>, index: Int, expectName: String, pkg: String): List<LayoutRow> {
+internal fun addToRow(rows: List<LayoutRow>, index: Int, pkg: String): List<LayoutRow> {
     val row = rows.getOrNull(index) ?: return rows
-    if (row.name != expectName || pkg in row.apps) return rows
+    if (pkg in row.apps) return rows
     return rows.mapIndexed { i, r -> if (i == index) r.copy(apps = r.apps + pkg) else r }
 }
 
@@ -65,7 +48,7 @@ internal fun swapRows(rows: List<LayoutRow>, a: Int, b: Int): List<LayoutRow> {
  * 规则:快照里的包,**上次已知在盘上**([knownOnDisk])、此刻**不在盘上**、且**没装**——三条同时成立才去掉
  * (= 被别人清理掉的卸载)。刚在本页加进来、还没落过盘的包不在 [knownOnDisk] 里,一律保留;
  * 卸载后又重装、用户又加回来的包 [installed] 为 true,也保留。一个都没去掉时返回**同一个** list。
- * 行名、行序、其余包的顺序都不动。
+ * 行序、行图标、其余包的顺序都不动。
  */
 internal fun dropRemovedElsewhere(
     snapshot: List<LayoutRow>,
@@ -102,7 +85,7 @@ internal fun editCardShown(pkg: String, checked: Set<String>?, found: Set<String
     checked == null || pkg !in checked || pkg in found
 
 /**
- * 编辑页**看得见的**那份行(R67):行一一对应(行数、行名、图标、行序都照 [rows]),每行只留 [shown] 的包。
+ * 编辑页**看得见的**那份行(R67):行一一对应(行数、图标、行序都照 [rows]),每行只留 [shown] 的包。
  * 编辑页里一切「第几行第几格」(焦点目标、搬运位置、卡片菜单)都按这份算——与首页同一个口径,
  * 所以不再有「编辑页列号 = layout.json 下标、首页列号不是」的两套坐标。改完之后经 [withVisibleEdits] 合回整份。
  */
@@ -111,7 +94,7 @@ internal fun visibleRows(rows: List<LayoutRow>, shown: (String) -> Boolean): Lis
 
 /**
  * 把编辑页对**可见那份**([visibleRows])做的改动合回整份 [full](R67)。[edited] 与 [full] 行一一对应
- * (行级操作——增删、交换、改名、换图标——直接作用在整份上,不经这里;这里只管行内的包)。
+ * (行级操作——增删、交换、换图标——直接作用在整份上,不经这里;这里只管行内的包)。
  *
  * 每一行:[full] 里看不见的包(`!shown`)**留在原来的下标上**(行变短放不下时依次往前挤,彼此顺序不变),
  * 其余的格子按 [edited] 的顺序填可见的包。所以

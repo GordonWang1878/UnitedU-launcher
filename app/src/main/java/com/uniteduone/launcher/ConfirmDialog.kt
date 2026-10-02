@@ -21,13 +21,16 @@ fun ConfirmDialog(
     onOk: () -> Unit,
     onCancel: () -> Unit,
     eyebrow: String? = null,
+    /** 页名上方的行图标 id(R163 删行确认:这一页问的是哪一行,行没有名字了就画它的图标);null = 不画。 */
+    icon: String? = null,
 ) {
     GearMenu(
-        items = listOf(MenuItem(cancelLabel, "", onCancel), MenuItem(okLabel, "", onOk)),
+        items = listOf(MenuItem(cancelLabel, "", action = onCancel), MenuItem(okLabel, "", action = onOk)),
         onDismiss = onCancel,
         nonce = nonce,
         title = title,
         eyebrow = eyebrow,
         body = body,
+        icon = icon,
     )
 }

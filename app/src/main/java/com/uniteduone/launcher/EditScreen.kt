@@ -87,8 +87,9 @@ internal fun editFirstRow(
 
 /**
  * 编辑分栏(原「编辑桌面」)。范围按设计文档 Q5:应用的**进出与排序**、换卡片图;
- * M4b 起还管**行本身**:每行行尾的「+」打开行菜单——添加应用 / 重命名此行 / 更换此行图标 /
+ * M4b 起还管**行本身**:每行行尾的「+」打开行菜单——添加应用 / 更换此行图标 /
  * 此行上移 / 此行下移 / 在下方新建一行 / 删除此行(不适用的不列,M4b spec §0-2..8)。
+ * **R163 起行没有名字**(没有「重命名此行」):每行只有一个图标,画在卡片左边的空档里、与卡片纵向居中——与首页同一个位置。
  * 卡片菜单的「移动位置」进入**搬运模式**(M4b spec §0-18):与首页原地移动同一套键位,可以跨行,空行也是落点。
  */
 @Composable
@@ -146,12 +147,11 @@ fun EditScreen(
     var rows by remember { mutableStateOf(Layout.read(ctx)) }
     var picking by remember { mutableStateOf<Int?>(null) }        // 正在给第几行加应用
     var acting by remember { mutableStateOf<EditActing?>(null) } // 卡片操作菜单开在哪张卡上(按包名认,见 EditActing)
-    // M4b 行管理的四层浮层,都记「第几行」(= layout.json 行号 = 本页 rows 下标)。
+    // M4b 行管理的三层浮层(R163 起没有改行名那一层),都记「第几行」(= layout.json 行号 = 本页 rows 下标)。
     // **坐标口径(Ruling R67)**:`rows` 是整份(盘上的原样,含看不见的包);凡是「第几格」(acting 的列、
     // 搬运位置、焦点目标)一律是**看得见的那份**(view(),与首页同口径)里的列号。行内改动在 view() 上算,
-    // 经 applyView() 合回整份(看不见的包留在原位,见 withVisibleEdits);行级操作(增删 / 交换 / 改名 / 图标)直接作用在整份上。
+    // 经 applyView() 合回整份(看不见的包留在原位,见 withVisibleEdits);行级操作(增删 / 交换 / 图标)直接作用在整份上。
     var rowMenu by remember { mutableStateOf<Int?>(null) }          // 行菜单(按行尾「+」打开)
-    var renamingRow by remember { mutableStateOf<Int?>(null) }      // 改行名对话框
     var iconRow by remember { mutableStateOf<Int?>(null) }          // 行图标选择器
     var confirmDeleteRow by remember { mutableStateOf<Int?>(null) } // 删非空行之前的确认框
     /**
@@ -160,7 +160,7 @@ fun EditScreen(
      * 漏一个,关掉那一层时看门狗不会重启(`picking` 当年就是这样让整个界面只剩返回键能用)。
      */
     val overlayOpen = picking != null || acting != null ||
-        rowMenu != null || renamingRow != null || iconRow != null || confirmDeleteRow != null
+        rowMenu != null || iconRow != null || confirmDeleteRow != null
     /**
      * **搬运模式**(M4b spec §0-18,真机验收后补定):卡片菜单「移动位置」进入,键位与首页原地移动同一套。null = 不在搬运。
      * 一个值装三样,理由同首页的 [MoveState]——三者总是一起变,拆成几个可空量就会有「只清了一半」的中间态:
@@ -493,7 +493,8 @@ fun EditScreen(
     var firstVisibleRow by remember { mutableStateOf(0) }
     val edgePx = with(density) { EditEdgePad.roundToPx() }
     val gapPx = with(density) { Theme.EditRowSpacing.roundToPx() }
-    // 行高取各行实测的最大值(每行都含「标题行 + 卡片行 + 行距」;开了卡片标题时,只有「+」的空行比别的行矮一截标题)
+    // 行高取各行实测的最大值(每行都含「卡片行 + 行距」,R163 起没有上方那一行「图标 + 行名」——图标挪进了左边空档;
+    // 开了卡片标题时,只有「+」的空行比别的行矮一截标题)
     val pitchPx = (0 until rows.size).maxOfOrNull { rowHeights[it] ?: 0 } ?: 0
     /** 扣掉 [reservedPx] 之后视窗里放得下几整行;末行的行距不必露出来。量到之前 = 全部。 */
     fun rowsThatFit(reservedPx: Int): Int =
@@ -549,9 +550,9 @@ fun EditScreen(
         // 取消 = 什么都没做,焦点必须留在原来那张卡上。这三条路原本根本没有安排重定位,
         // 于是 Compose 的默认恢复把焦点丢到第一行第一张。
         val a = acting; val p = picking
-        // 行菜单 / 改名 / 图标 / 删行确认各自带 BackHandler(组合得更晚、先接管),这里是同一种兜底:
+        // 行菜单 / 图标 / 删行确认各自带 BackHandler(组合得更晚、先接管),这里是同一种兜底:
         // 万一没接住,只收掉那一层、焦点回该行的「+」,绝不一步退出整个编辑页。
-        val r = rowMenu ?: renamingRow ?: iconRow ?: confirmDeleteRow
+        val r = rowMenu ?: iconRow ?: confirmDeleteRow
         // 搬运中:下面那个搬运专用的 BackHandler 组合得更晚、先接管;这里是同一种兜底,绝不一步退出编辑页
         if (carry != null) {
             cancelCarry()
@@ -560,7 +561,7 @@ fun EditScreen(
             picking = null; acting = null
             retarget(ri, a?.let { editActingCol(it, view()) ?: it.col } ?: (view().getOrNull(ri)?.apps?.size ?: 0))
         } else if (r != null) {
-            rowMenu = null; renamingRow = null; iconRow = null; confirmDeleteRow = null
+            rowMenu = null; iconRow = null; confirmDeleteRow = null
             toRowEnd(r)
         } else onExit()
     }
@@ -667,31 +668,31 @@ fun EditScreen(
                     style = Type.body,
                 )
             }
+            val accent = LocalThemeColors.current.accent
             viewRows.forEachIndexed { ri, row ->
-                val name = row.name
                 val pkgs = row.apps
-                Column(
+                // **R163:行没有名字,每行只有一个图标,画在卡片左边的空档里、与卡片纵向居中——与首页同一个位置**
+                // (首页 HomeScreen.CategoryRow 的画法:水平中心 = CONTENT_KEYLINE / 2,纵向中心 = 卡片竖直中线)。
+                // 此前是卡片上方一行「图标 + 行名」。卡片起点不动:两页的卡片都在 CONTENT_KEYLINE = Theme.SidePadding = 58 dp 那条线上。
+                // 颜色同首页:焦点行 accent,其余 accent × ROW_ICON_IDLE_ALPHA;**编辑页不做动画**,按 focusRow 判焦点行(搬运中
+                // focusRow 冻结在被搬的卡那一行,见 mark())。Box 里先画图标、再画卡片行:行放不下、整行左移(下面的 dx)时
+                // 卡片从图标上面滑过、把它盖住,与首页一致。图标只是画出来:不可聚焦、不进任何焦点账本 / 看门狗 / 重定位。
+                Box(
                     Modifier
-                        // 量在行距之前:量到的是「标题行 + 卡片行 + 行距」,正好是一个行距(pitch)
+                        // 量在行距之前:量到的是「卡片行 + 行距」,正好是一个行距(pitch)
                         .onSizeChanged { rowHeights[ri] = it.height }
                         .padding(bottom = Theme.EditRowSpacing),
-                    verticalArrangement = Arrangement.spacedBy(Theme.EditRowTitleGap),
                 ) {
-                    // 行名前画这一行的图标(M4b spec §2):`RowIcon` 固定尺寸的那个重载,方框 = 行盒高
-                    // GtvLayout.ROW_TITLE_LINE(20dp),accent 色。**与首页不是同一套画法**:R48 起首页不画行名,
-                    // 行图标走另一个重载(26dp、放在左边距、焦点行近白 / 其余灰)。行高固定、竖直居中,
-                    // 中英文名字的行高差不会让各行高低不一。
-                    Row(
-                        // Ruling R18:行标题行高改读 GtvLayout,不再是 HomeLayout.ROW_TITLE_LINE(24dp,main 线
-                        // titleMedium 的默认行高反推值)——编辑页用的是 gtv 三档卡片,行标题理应对齐同一条 gtv 几何。
-                        // (R18 时首页 CategoryRow 也读这个值;R48 起首页没有行标题,这里是它仅剩的行盒读者。)
-                        modifier = Modifier.padding(start = Theme.SidePadding).height(GtvLayout.ROW_TITLE_LINE.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Theme.EditRowIconGap),
-                    ) {
-                        RowIcon(name, row.icon, tint = LocalThemeColors.current.accent)
-                        BasicText(text = name, maxLines = 1, style = Type.label.copy(color = Ink.Primary))
-                    }
+                    val iconColor = if (ri == focusRow) accent else accent.copy(alpha = GtvLayout.ROW_ICON_IDLE_ALPHA)
+                    RowIcon(
+                        row.icon,
+                        tint = { iconColor },
+                        boxSize = GtvLayout.ROW_ICON_SIZE.dp,
+                        modifier = Modifier.padding(
+                            start = ((GtvLayout.CONTENT_KEYLINE - GtvLayout.ROW_ICON_SIZE) / 2f).dp,
+                            top = metrics.rowVerticalPad + metrics.cardHeight / 2 - (GtvLayout.ROW_ICON_SIZE / 2f).dp,
+                        ),
+                    )
                     // 同首页:**不能用 LazyRow**,可滚动容器会挡住纵向焦点外出,
                     // 表现为「进编辑界面后按下键焦点就没了,之后按什么都没反应」。
                     // 横向位移自己算(把行尾的加号也算成一格)。
@@ -807,7 +808,7 @@ fun EditScreen(
 
         // 搬运中的底部提示(M4b spec §0-18:视觉只复用首页移动态那两样——被搬卡的 accent 描边与这一行)。
         // 字样、垫底与首页那条一致(HomeScreen 的 hintStyle 与移动态提示):onSurface α0.75 / 15sp,
-        // 垫一层 surface α0.8 的胶囊底——下面一行的行标题可能正好露在屏幕底部。**位置不同**:编辑页仍距底
+        // 垫一层 surface α0.8 的胶囊底——下面一行的卡片(及卡片标题)可能正好露在屏幕底部。**位置不同**:编辑页仍距底
         // PILL_TOP;首页那条 2026-09-23 起挪到顶栏下方(GtvLayout.MOVE_HINT_TOP,R52 焦点线让焦点行卡底压到了
         // 原来的贴底位置),编辑页不走 R52 焦点线,这里没跟着挪。
         if (carry != null) {
@@ -830,18 +831,17 @@ fun EditScreen(
         LaunchedEffect(acting, actingCol) { if (acting != null && actingCol == null) acting = null }
         // 行浮层同理(M4b):指向的行不在了就收掉,组合期只负责不渲染——否则 overlayOpen 一直为真、
         // 看门狗永远让路,而屏幕上什么浮层都没有。收掉之后看门狗重启,把焦点接回 focusRow。
-        val rowOverlayStale = listOfNotNull(rowMenu, renamingRow, iconRow, confirmDeleteRow).any { it !in rows.indices }
+        val rowOverlayStale = listOfNotNull(rowMenu, iconRow, confirmDeleteRow).any { it !in rows.indices }
         LaunchedEffect(rowOverlayStale) {
-            if (rowOverlayStale) { rowMenu = null; renamingRow = null; iconRow = null; confirmDeleteRow = null }
+            if (rowOverlayStale) { rowMenu = null; iconRow = null; confirmDeleteRow = null }
         }
-        // **R136:编辑页的六种浮层是一摞,淡入淡出**([OverlayStack]):打开 / 关掉淡入淡出,换一层(行菜单 → 改名页 /
-        // 图标页 / 确认页 / 添加应用)交叉淡化。残影画的是关掉前最后那一份——[EditOverlay] 把要显示的字(行名、卡片名、
+        // **R136:编辑页的浮层是一摞,淡入淡出**([OverlayStack]):打开 / 关掉淡入淡出,换一层(行菜单 →
+        // 图标页 / 确认页 / 添加应用)交叉淡化。残影画的是关掉前最后那一份——[EditOverlay] 把要显示的东西(行图标、卡片名、
         // 应用数)与 banner 都带上,不读此刻可能已经变了的 rows(删完一行之后同一个行号已经是另一行)。
         // 残影里的菜单项点不动、不可聚焦(各页面照 LocalPageGhost 让路),下面这些回调只有活着的那一层会调到。
-        val editTitle = stringResource(R.string.edit_title)
         val overlay: EditOverlay? = run {
             val a = acting
-            val rm = rowMenu; val rn = renamingRow; val ic = iconRow; val cd = confirmDeleteRow; val pk = picking
+            val rm = rowMenu; val ic = iconRow; val cd = confirmDeleteRow; val pk = picking
             when {
                 a != null && actingCol != null -> EditOverlay.Card(
                     a.row, actingCol, a.pkg,
@@ -851,13 +851,11 @@ fun EditScreen(
                     // gtv 线 Task 8:左半 banner。all 就是这份数据本来的来源,按 pkg 查。
                     app = all?.get(a.pkg),
                 )
-                rm != null && rm in rows.indices -> EditOverlay.RowMenu(rm, rows[rm].name, rows.size)
-                rn != null && rn in rows.indices -> EditOverlay.Rename(rn, rows[rn].name)
-                ic != null && ic in rows.indices ->
-                    EditOverlay.Icon(ic, rows[ic].name, effectiveRowIconId(rows[ic].name, rows[ic].icon))
+                rm != null && rm in rows.indices -> EditOverlay.RowMenu(rm, rows[rm].icon, rows.size)
+                ic != null && ic in rows.indices -> EditOverlay.Icon(ic, rows[ic].icon)
                 cd != null && cd in rows.indices ->
-                    EditOverlay.Confirm(cd, rows[cd].name, viewRows.getOrNull(cd)?.apps?.size ?: 0)
-                pk != null -> EditOverlay.Pick(pk, rows.getOrNull(pk)?.name, rows.flatMap { it.apps }.toSet())
+                    EditOverlay.Confirm(cd, rows[cd].icon, viewRows.getOrNull(cd)?.apps?.size ?: 0)
+                pk != null -> EditOverlay.Pick(pk, rows.getOrNull(pk)?.icon, rows.flatMap { it.apps }.toSet())
                 else -> null
             }
         }
@@ -897,17 +895,14 @@ fun EditScreen(
 
                 // **行菜单**(M4b spec §0-2):行尾「+」打开。与卡片的 acting 菜单同一个浮层机制、同一套让路;
                 // 焦点归 GearMenu 自己(初始循环 + 看门狗)。每个动作先收菜单再改数据,然后经 retarget 落焦点——
-                // 改名 / 换图标 / 添加应用是「换一层浮层」,焦点交给下一层,那一层关掉时再落回本行的「+」。
+                // 换图标 / 添加应用是「换一层浮层」,焦点交给下一层,那一层关掉时再落回本行的「+」。
+                // **R163**:行没有名字——页头画这一行的图标(页名「管理这一行」),不再写行名;也没有「重命名此行」这一项。
                 is EditOverlay.RowMenu -> {
                     val ri = ov.row
-                    val newRowName = stringResource(R.string.edit_new_row_name)
                     GearMenu(
                         items = buildList {
                             add(MenuItem(stringResource(R.string.edit_row_add_app), stringResource(R.string.edit_row_add_app_desc)) {
                                 rowMenu = null; picking = ri
-                            })
-                            add(MenuItem(stringResource(R.string.edit_row_rename), stringResource(R.string.edit_row_rename_desc)) {
-                                rowMenu = null; renamingRow = ri
                             })
                             add(MenuItem(stringResource(R.string.edit_row_icon), stringResource(R.string.edit_row_icon_desc)) {
                                 rowMenu = null; iconRow = ri
@@ -926,7 +921,7 @@ fun EditScreen(
                             // 新行是空行,(ri + 1, 0) 就是它的「+」(M4b spec §0-3)
                             if (ov.rowCount < MAX_ROWS) add(MenuItem(stringResource(R.string.edit_row_new), stringResource(R.string.edit_row_new_desc)) {
                                 rowMenu = null
-                                rows = addRowBelow(rows, ri, newRowName); persist()
+                                rows = addRowBelow(rows, ri); persist()
                                 retarget(ri + 1, 0)
                             })
                             // 空行直接删;非空行先确认(M4b spec §0-4)
@@ -938,43 +933,17 @@ fun EditScreen(
                         },
                         onDismiss = { rowMenu = null; toRowEnd(ri) },
                         nonce = focusNonce,
-                        title = ov.name,
-                        eyebrow = editTitle,
+                        title = stringResource(R.string.edit_row_menu_title),
+                        icon = ov.icon,
                     )
                 }
 
-                // **改行名**(M4b spec §0-7):通用化后的 TitleDialog;清空 = 不改(renameRow 挡住空名)。
-                // 以「这一层还开着、而且是这一行」当守卫:IME 的 Done 与确定键在极端时序下可能各触发一次,第二次直接忽略。
-                is EditOverlay.Rename -> {
-                    val ri = ov.row
-                    TitleDialog(
-                        key = "row-$ri",
-                        current = ov.name,
-                        heading = stringResource(R.string.edit_row_rename_heading),
-                        hint = stringResource(R.string.edit_row_rename_hint),
-                        onSave = { text ->
-                            if (renamingRow == ri) {
-                                renamingRow = null
-                                val renamed = renameRow(rows, ri, text)
-                                if (renamed !== rows) { rows = renamed; persist() }
-                                toRowEnd(ri)
-                            }
-                        },
-                        onCancel = { renamingRow = null; toRowEnd(ri) },
-                        nonce = focusNonce,
-                        subtitle = ov.name,
-                        // 清空 = 不改名:空着时把现在的行名淡淡地垫在输入框里
-                        placeholder = ov.name,
-                    )
-                }
-
-                // **行图标选择器**(M4b spec §0-6):当前图标(没存 id 的旧行按名字回落)预先聚焦,焦点归它自己。
+                // **行图标选择器**(M4b spec §0-6):当前图标预先聚焦(页头也画它,R163),焦点归它自己。
                 is EditOverlay.Icon -> {
                     val ri = ov.row
                     RowIconPicker(
-                        current = ov.current,
+                        current = ov.icon,
                         nonce = focusNonce,
-                        rowName = ov.name,
                         onPick = { id ->
                             if (iconRow == ri) {
                                 iconRow = null
@@ -990,12 +959,12 @@ fun EditScreen(
                 is EditOverlay.Confirm -> {
                     val ri = ov.row
                     ConfirmDialog(
-                        title = stringResource(R.string.edit_row_delete_confirm_title, ov.name),
+                        title = stringResource(R.string.edit_row_delete_confirm_title),
                         body = androidx.compose.ui.res.pluralStringResource(R.plurals.edit_row_delete_confirm_body, ov.apps, ov.apps),
                         okLabel = stringResource(R.string.edit_row_delete_ok),
                         cancelLabel = stringResource(R.string.dialog_cancel),
                         nonce = focusNonce,
-                        eyebrow = editTitle,
+                        icon = ov.icon,   // R163:行没有名字,问的是哪一行就画它的图标(原来标题里写行名、小字写「编辑桌面」)
                         onOk = { if (confirmDeleteRow == ri) { confirmDeleteRow = null; deleteRowAt(ri) } },
                         onCancel = { confirmDeleteRow = null; toRowEnd(ri) },
                     )
@@ -1006,7 +975,7 @@ fun EditScreen(
                     AppPicker(
                         nonce = focusNonce,
                         ctx = ctx,
-                        rowName = ov.name,
+                        rowIcon = ov.icon,
                         exclude = ov.exclude,
                         onPick = { pkg ->
                             rows = rows.mapIndexed { i, r ->
@@ -1027,25 +996,24 @@ fun EditScreen(
 /**
  * 编辑页上叠着的那一层(R136,给 [OverlayStack] 当状态)。每一种都带上自己要显示的东西:关掉之后残影还要画一个淡出时长,
  * 那时 `rows` 可能已经变了(删完一行,同一个行号指到了下一行)。[layer] 区分是哪一层(换层 = 交叉淡化)。
+ * (R163 起没有「改行名」那一层:行没有名字。)
  */
 private sealed interface EditOverlay {
     val layer: String
     class Card(val row: Int, val col: Int, val pkg: String, val title: String, val app: AppEntry?) : EditOverlay {
         override val layer get() = "card:$row:$pkg"
     }
-    class RowMenu(val row: Int, val name: String, val rowCount: Int) : EditOverlay {
+    // R163:行没有名字——这几层要显示「是哪一行」时带的是行图标 [icon](残影画关掉前那一份,删完一行后同一个行号已是另一行)
+    class RowMenu(val row: Int, val icon: String, val rowCount: Int) : EditOverlay {
         override val layer get() = "rowMenu:$row"
     }
-    class Rename(val row: Int, val name: String) : EditOverlay {
-        override val layer get() = "rename:$row"
-    }
-    class Icon(val row: Int, val name: String, val current: String) : EditOverlay {
+    class Icon(val row: Int, val icon: String) : EditOverlay {
         override val layer get() = "icon:$row"
     }
-    class Confirm(val row: Int, val name: String, val apps: Int) : EditOverlay {
+    class Confirm(val row: Int, val icon: String, val apps: Int) : EditOverlay {
         override val layer get() = "confirm:$row"
     }
-    class Pick(val row: Int, val name: String?, val exclude: Set<String>) : EditOverlay {
+    class Pick(val row: Int, val icon: String?, val exclude: Set<String>) : EditOverlay {
         override val layer get() = "pick:$row"
     }
 }
@@ -1137,8 +1105,8 @@ private fun AppPicker(
     ctx: Context,
     exclude: Set<String>,
     onPick: (String) -> Unit,
-    /** 加到哪一行(页名上方的小字);null = 不画。 */
-    rowName: String? = null,
+    /** 加到哪一行(页名上方画这一行的图标,R163 起行没有名字);null = 不画。 */
+    rowIcon: String? = null,
 ) {
     // 淡出中的残影(R108 的约定):不再请求焦点、每一项不可聚焦、点击不回调。
     val ghost = LocalPageGhost.current
@@ -1189,7 +1157,7 @@ private fun AppPicker(
     // 「系统工具」分组标题画在该组第一项里(不可聚焦,见 PickerRow 的 header)。
     val firstTool = list.indexOfFirst { it.group == PickerGroup.SYSTEM_TOOLS }
 
-    // R135 换皮:与设置各层同一个版式——整屏 MenuBg,左边页名(上方一行小字写加到哪一行,下方写「正在读取 / 没有可添加的」),
+    // R135 换皮:与设置各层同一个版式——整屏 MenuBg,左边页名(上方画加到哪一行的图标,R163 前是一行小字写行名;下方写「正在读取 / 没有可添加的」),
     // 右边一列应用。此前是屏幕中间 460 dp 的小面板、标题 16 sp。列表本身(LazyColumn + 逐项 requester)未动。
     Box(
         Modifier
@@ -1205,7 +1173,8 @@ private fun AppPicker(
         ShellScaffold(
             left = {
                 ShellTitle(
-                    path = rowName,
+                    path = null,
+                    icon = rowIcon,
                     title = stringResource(R.string.edit_add_app_title),
                     extra = status?.let { { ShellBody(it) } },
                 )

@@ -45,8 +45,10 @@ def run():
     plus = row_end()
     key("ok"); time.sleep(1.2)
     s = screen()
-    for k in ["edit_row_add_app", "edit_row_rename", "edit_row_icon", "edit_row_up", "edit_row_down", "edit_row_new", "edit_row_delete"]:
+    for k in ["edit_row_add_app", "edit_row_icon", "edit_row_up", "edit_row_down", "edit_row_new", "edit_row_delete"]:
         check(f"行菜单有「{S(k)}」", s.has(S(k)))
+    # R163:行没有名字,「重命名此行」整项取消(英文文案已从 strings.xml 删掉,按字面认)
+    check("行菜单没有「Rename Row」(R163)", not s.has("Rename"), s.texts()[-8:])
     check("行菜单单个焦点", s.count_focused() == 1, s.count_focused())
     shot("edit-row-menu")
     # 添加应用
@@ -61,16 +63,8 @@ def run():
     check("加了一个应用到第 2 行", after == before + 1, (before, after, lab))
     s = screen()
     check("加完焦点回到这一行的「+」", s.focus() is not None and abs(s.focus()[1] - plus[1]) < 10, (s.focus(), plus))
-    # 改行名
+    # 行图标(R163 起行没有名字,也就没有「改行名」这一步)
     plus = row_end()
-    key("ok"); time.sleep(1); move_to(S("edit_row_rename")); key("ok"); time.sleep(1.2)
-    s = screen()
-    check("改行名页", s.has(S("edit_row_rename_heading")), s.texts()[:6])
-    sh("input keyevent " + " ".join(["67"] * 20)); text_input("E2E Row"); key("enter"); time.sleep(1.5)
-    check("行名写盘", rows()[1]["name"] == "E2E Row", rows()[1]["name"])
-    s = screen()
-    check("改名后焦点回「+」", s.focus() is not None and abs(s.focus()[1] - plus[1]) < 10, (s.focus(), plus))
-    # 行图标
     key("ok"); time.sleep(1); move_to(S("edit_row_icon")); key("ok"); time.sleep(1.2)
     s = screen()
     check("行图标页", s.has(S("edit_row_icon_heading")), s.texts()[:6])
@@ -80,13 +74,14 @@ def run():
     check("行图标写盘变化", rows()[1].get("icon") != icon_before, (icon_before, rows()[1].get("icon")))
     s = screen()
     check("换图标后焦点回「+」", s.focus() is not None and abs(s.focus()[1] - plus[1]) < 10, (s.focus(), plus))
-    # 下移 / 上移
-    name0 = [r["name"] for r in rows()]
+    check("写盘每行只有 icon + apps,没有 name(R163)", all(set(r) == {"icon", "apps"} for r in rows()), rows()[:2])
+    # 下移 / 上移(行没有名字:按整行内容——图标 + 应用——认)
+    before = rows(); mine = before[1]
     key("ok"); time.sleep(1); move_to(S("edit_row_down")); key("ok"); time.sleep(1.5)
-    name1 = [r["name"] for r in rows()]
-    check("下移一行", name1[2] == "E2E Row", name1)
+    after = rows()
+    check("下移一行", after[2] == mine and after[1] == before[2], (mine, after[1:3]))
     key("ok"); time.sleep(1); move_to(S("edit_row_up")); key("ok"); time.sleep(1.5)
-    check("上移回来", [r["name"] for r in rows()] == name0, [r["name"] for r in rows()])
+    check("上移回来", rows() == before, rows())
     # 新建一行 → 空行直接删(不弹框)
     n0 = len(rows())
     key("ok"); time.sleep(1); move_to(S("edit_row_new")); key("ok"); time.sleep(1.5)
@@ -100,7 +95,7 @@ def run():
     plus = s.focus()
     key("ok"); time.sleep(1); move_to(S("edit_row_delete")); key("ok"); time.sleep(1.5)
     s = screen()
-    check("非空行弹确认页", s.has("Delete “"), s.texts()[:6])
+    check("非空行弹确认页", s.has(S("edit_row_delete_confirm_title")), s.texts()[:6])
     check("确认页默认焦点在 Cancel", S("dialog_cancel") in s.label(), s.label())
     shot("edit-delete-confirm")
     key("ok"); time.sleep(1.5)

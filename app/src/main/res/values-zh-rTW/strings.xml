@@ -312,13 +312,11 @@
     <string name="settings_hidden_inputs_count">%1$d 個</string>
     <string name="toast_inputs_restored">已恢復全部輸入源</string>
     <string name="title_dialog_hint_input">確定儲存 · 返回取消 · 清空恢復系統名稱</string>
-    <!-- edit_row_* / row_icon_* : 編輯頁行選單(行尾「+」)、行改名、行圖示選擇器、刪行確認框(M4b Task 4) -->
+    <!-- edit_row_* / row_icon_* : 編輯頁行選單(行尾「+」)、行圖示選擇器、刪行確認框(M4b Task 4;R163 起行沒有名字,「行改名」整頁取消) -->
     <string name="edit_row_add_app">新增應用程式</string>
     <string name="edit_row_add_app_desc">從已安裝的應用程式裡挑</string>
-    <string name="edit_row_rename">重新命名此列</string>
-    <string name="edit_row_rename_desc">改這一列的名字</string>
     <string name="edit_row_icon">更換此列圖示</string>
-    <string name="edit_row_icon_desc">更換列名前的圖示</string>
+    <string name="edit_row_icon_desc">更換這一列的圖示</string>
     <string name="edit_row_up">此列上移</string>
     <string name="edit_row_up_desc">和上面一列對調</string>
     <string name="edit_row_down">此列下移</string>
@@ -327,11 +325,9 @@
     <string name="edit_row_new_desc">在這一列下面加一個空列</string>
     <string name="edit_row_delete">刪除此列</string>
     <string name="edit_row_delete_desc">列裡的應用程式不會被解除安裝</string>
-    <string name="edit_new_row_name">新列</string>
-    <string name="edit_row_rename_heading">重新命名此列</string>
-    <string name="edit_row_rename_hint">確定儲存 · 返回取消 · 清空不會改名</string>
     <string name="edit_row_icon_heading">選擇列圖示</string>
-    <string name="edit_row_delete_confirm_title">刪除「%1$s」？</string>
+    <string name="edit_row_menu_title">管理這一列</string>
+    <string name="edit_row_delete_confirm_title">刪除這一列？</string>
     <plurals name="edit_row_delete_confirm_body">
         <item quantity="one">這一列的 %1$d 個應用程式會從桌面移除，不會解除安裝。</item>
         <item quantity="other">這一列的 %1$d 個應用程式會從桌面移除，不會解除安裝。</item>
@@ -373,9 +369,13 @@
     <string name="apps_page_title">所有應用程式</string>
     <string name="apps_page_hint">長按確定鍵或按選單鍵，可以把應用程式加到桌面</string>
     <string name="apps_menu_add_to_home">加到桌面…</string>
-    <string name="apps_add_row_here">%1$s（已在這一列）</string>
-    <string name="toast_added_to_row">已加到「%1$s」</string>
-    <string name="toast_already_in_row">「%1$s」這一列裡已經有它了</string>
+    <string name="apps_add_row_here">已在這一列</string>
+    <!-- R163:「加到桌面…」選一列的按鈕畫列圖示 + 該列現有的應用程式名;列沒有名字 -->
+    <string name="apps_row_empty">空</string>
+    <string name="apps_row_name_sep">、</string>
+    <string name="apps_row_names_more">%1$s 等 %2$d 個</string>
+    <string name="toast_added_to_row">已加到桌面</string>
+    <string name="toast_already_in_row">這一列裡已經有它了</string>
     <string name="toast_add_to_row_failed">沒能加到桌面，請稍後再試</string>
     <string name="inputs_page_title">輸入源</string>
     <string name="inputs_page_current">目前：%1$s</string>
@@ -412,10 +412,6 @@
     <string name="settings_system_screensaver_desc">在其他應用程式中閒置時，由電視啟動的螢幕保護。選 UnitedU，就會播放同一個螢幕保護圖庫。</string>
     <string name="settings_screen_off_desc">多久沒操作，電視就自動關閉螢幕。這是原生電視設定裡的選項，按確定前往。</string>
     <string name="settings_sys_never_starts">不會自動開始</string>
-    <!-- R133:内置三行的名字(新建布局时按界面语言写进 layout.json;老布局不动) -->
-    <string name="row_default_video">影視</string>
-    <string name="row_default_live">直播</string>
-    <string name="row_default_music">音樂</string>
     <!-- R133:首次引导(欢迎语、找不到应用时的说明、第 2 / 3 步的按钮) -->
     <string name="onb_step1_body">歡迎使用 UnitedU——沒有廣告，只有你自己的應用程式。先選擇介面語言。</string>
     <string name="onb_step2_body_empty">沒有找到常見的影音、直播或音樂應用程式。之後可以在「所有應用程式」裡把任何應用程式加到桌面。</string>

@@ -125,4 +125,8 @@ dependencies {
     implementation("org.nanohttpd:nanohttpd:2.3.1")
     implementation("com.google.zxing:core:3.5.3")
     testImplementation("junit:junit:4.13.2")
+    // R163:`Layout.parse` / `Layout.toJson` 用 Android 自带的 org.json,而 Android 单测桩 jar 里它的每个方法都抛「not mocked」
+    // (Settings / Titles / UploadPure 干脆不用 org.json,见各自注释)。layout.json 是嵌套结构、读盘是持久化的关键路径,
+    // 不为了可测去重写解析——测试类路径上放一份真的 org.json(只进单测,不进 APK),LayoutTest 才能喂文本核对旧文件兼容与落盘字段。
+    testImplementation("org.json:json:20240303")
 }

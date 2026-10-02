@@ -8,8 +8,23 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** layout.json 的一行(M4b):名字、可选的图标 id(见 RowIcons.kt;null = 按名字回落)、有序的包名。 */
-data class LayoutRow(val name: String, val icon: String? = null, val apps: List<String> = emptyList())
+/**
+ * layout.json 的一行。**R163 起没有名字**:行只靠图标认——桌面上、编辑页里、各种菜单里都画这一行的图标,不再有行名。
+ * [icon] 必为 [ROW_ICON_IDS] 里的合法 id(读盘时缺失 / 非法的值已补成合法值,见 [layoutRowFromDisk]);[apps] 是有序的包名。
+ */
+data class LayoutRow(val icon: String, val apps: List<String> = emptyList())
+
+/**
+ * 读盘:把 layout.json 里一行取出来的三个原始字段变成 [LayoutRow]。纯函数(`org.json` 只负责取字段,见 [Layout.parse]),JVM 单测钉住。
+ * - **图标**:盘上存了合法 id 就用;没有(缺失 / 非法)时,**老文件**(R163 之前,每行带 `name`)按旧名字回落
+ *   (VIDEO → movie、LIVE → tv、MUSIC → music、其它 → tv,外观与取消行名之前一致),新文件没有 `name` → [NEW_ROW_ICON]
+ *   (见 [rowIconFromDisk])。**`name` 只在这里用一次**:不进内存里的行,也不再写回盘。
+ * - **应用**:去首尾空白、去掉空串、**同一行里去重**(重复的包名会让列表 key 撞车,状态和焦点会挂到错卡片上)。
+ */
+internal fun layoutRowFromDisk(name: String?, icon: String?, apps: List<String>): LayoutRow = LayoutRow(
+    icon = rowIconFromDisk(name, icon),
+    apps = apps.map { it.trim() }.filter { it.isNotEmpty() }.distinct(),
+)
 
 /**
  * 内置分类表(= 缺省布局):三行,每行是「国行电视上常见、我们认得出该归哪一类」的包。
@@ -22,15 +37,16 @@ data class LayoutRow(val name: String, val icon: String? = null, val apps: List<
 internal val DEFAULT_LAYOUT: List<LayoutRow> = listOf(
     // R160(2026-10-01 Gordon):影视加上腾讯视频的云视听极光(com.ktcp.video,A95L 上就是它),去掉 NewTV极光
     // (com.ktcp.tvvideo);直播只留央视频、咪视界(去掉虎牙);音乐只留网易云、QQ 音乐(去掉当贝音乐)。
+    // R163:行没有名字了,三行显式写图标(原来靠名字 VIDEO / LIVE / MUSIC 回落:影片 / 电视 / 音乐)。
     LayoutRow(
-        name = "VIDEO",
+        icon = "movie",
         apps = listOf(
             "com.ktcp.video", "com.gitvdemo.video", "com.cibn.tv",
             "com.starcor.mango", "com.xiaodianshi.tv.yst",
         ),
     ),
-    LayoutRow(name = "LIVE", apps = listOf("com.newtv.cboxtv", "cn.miguvideo.migutv")),
-    LayoutRow(name = "MUSIC", apps = listOf("com.netease.cloudmusic.tv", "com.tencent.qqmusictv")),
+    LayoutRow(icon = "tv", apps = listOf("com.newtv.cboxtv", "cn.miguvideo.migutv")),
+    LayoutRow(icon = "music", apps = listOf("com.netease.cloudmusic.tv", "com.tencent.qqmusictv")),
 )
 
 /**
@@ -54,8 +70,9 @@ internal val layoutWrites: CoroutineDispatcher = Dispatchers.IO.limitedParalleli
 
 /**
  * layout.json 形如:
- *   {"rows":[{"name":"VIDEO","icon":"movie","apps":["com.a","com.b"]}, ...]}
- * `icon` 是可选字段(M4b 起,见 RowIcons.kt):缺失或不认识的 id 一律按名字回落,不影响读取。
+ *   {"rows":[{"icon":"movie","apps":["com.a","com.b"]}, ...]}
+ * **R163 起行没有名字**:写盘只写 `icon` + `apps`。老文件里的 `name` 读盘时只用来给没存合法 `icon` 的行回落图标
+ * ([layoutRowFromDisk]),此后写盘就不再带它;新文件没有 `name` 也能读。
  * 缺失或损坏时回落到内置默认([DEFAULT_LAYOUT])按已装过滤的那份([installedDefaultLayout]),并写回磁盘,方便 adb 拉下来改。
  *
  * **「文件缺失就写默认」是首次引导三态判定的前提**(spec §8):任何跑过旧版本的用户都一定有
@@ -66,18 +83,9 @@ internal val layoutWrites: CoroutineDispatcher = Dispatchers.IO.limitedParalleli
  * 同一个已装集合(`plannedLayout` + `installedDefaultApps`);查询失败时 `Apps.load` 返回空,结果是三个空行
  * (与「跳过」相同),桌面空着但编辑页的「+」都在,不是死胡同。在 [Layout] 的锁里调用(IO 线程)。
  */
-internal fun installedDefaultLayout(ctx: Context): List<LayoutRow> = localizedDefaultRows(
+internal fun installedDefaultLayout(ctx: Context): List<LayoutRow> =
     runCatching { plannedLayout(DEFAULT_LAYOUT, installedDefaultApps(ctx).keys) }
-        .getOrElse { skippedLayout(DEFAULT_LAYOUT) },
-    defaultRowNames(ctx),
-)
-
-/** 内置三行在当前界面语言下的名字(R133,见 [localizedDefaultRows])。 */
-internal fun defaultRowNames(ctx: Context): Map<String, String> = mapOf(
-    "VIDEO" to ctx.getString(R.string.row_default_video),
-    "LIVE" to ctx.getString(R.string.row_default_live),
-    "MUSIC" to ctx.getString(R.string.row_default_music),
-)
+        .getOrElse { skippedLayout(DEFAULT_LAYOUT) }
 
 object Layout {
     private const val TAG = "UnitedU"
@@ -119,7 +127,8 @@ object Layout {
         }
     }
 
-    private fun parse(text: String): List<LayoutRow> {
+    /** 文本 → 行(`internal`:JVM 单测直接喂文本,见 LayoutTest)。语法坏了 / 缺 `rows` / 缺 `apps` / 零行都抛,交给 [LockedFile.load] 当损坏处理。 */
+    internal fun parse(text: String): List<LayoutRow> {
         if (text.length > 1_000_000) error("layout.json 大得离谱: ${text.length} 字符")
         val rows = JSONObject(text).getJSONArray("rows")
         // "rows":[] 是功能性死胡同:一行都没有 = 一个加号都没有,界面里再也加不回应用,
@@ -128,16 +137,20 @@ object Layout {
         return (0 until rows.length()).map { i ->
             val r = rows.getJSONObject(i)
             val apps = r.getJSONArray("apps")
-            LayoutRow(
-                name = r.getString("name"),
-                // 缺失 / 非法 id 一律 null,渲染时按名字回落(老文件原样可读)
-                icon = r.optString("icon", "").takeIf { isRowIconId(it) },
-                apps = (0 until apps.length())
-                    .map { apps.getString(it).trim() }
-                    .filter { it.isNotEmpty() }
-                    .distinct(),   // 同一行里重复的包名会让列表 key 撞车,状态和焦点会挂到错卡片上
+            layoutRowFromDisk(
+                // R163:新文件没有 name(缺了不抛);老文件有,只用来给没存合法 icon 的行回落图标
+                name = if (r.has("name")) r.optString("name", "") else null,
+                icon = if (r.has("icon")) r.optString("icon", "") else null,
+                apps = (0 until apps.length()).map { apps.getString(it) },
             )
         }
+    }
+
+    /** 行 → 文本(`internal`:单测核对落盘字段)。每行只有 `icon` + `apps`,**不写 `name`**(R163);缩进 2 格,adb 拉下来好读好改。 */
+    internal fun toJson(rows: List<LayoutRow>): String {
+        val arr = JSONArray()
+        rows.forEach { row -> arr.put(JSONObject().put("icon", row.icon).put("apps", JSONArray(row.apps))) }
+        return JSONObject().put("rows", arr).toString(2)
     }
 
     /**
@@ -174,7 +187,7 @@ object Layout {
 
     /**
      * 纯函数:把一个包从所有行里去掉。一行都没命中时返回**同一个** list(调用方用 `!==` 判断要不要写盘)。
-     * 行名、行序、其余包的顺序都不动;整行空了也保留(空行只是没有卡片,不是损坏——`read` 只把「零行」当损坏)。
+     * 行序、行图标、其余包的顺序都不动;整行空了也保留(空行只是没有卡片,不是损坏——`read` 只把「零行」当损坏)。
      */
     fun withoutPackage(rows: List<LayoutRow>, pkg: String): List<LayoutRow> {
         if (rows.none { pkg in it.apps }) return rows
@@ -203,15 +216,7 @@ object Layout {
     fun write(ctx: Context, rows: List<LayoutRow>): Boolean = store.locked {
         val base = Paths.baseOrNull(ctx) ?: return@locked false
         try {
-            val arr = JSONArray()
-            rows.forEach { row ->
-                arr.put(
-                    JSONObject().put("name", row.name)
-                        .also { o -> row.icon?.let { o.put("icon", it) } }
-                        .put("apps", JSONArray(row.apps)),
-                )
-            }
-            store.write(base, JSONObject().put("rows", arr).toString(2))
+            store.write(base, toJson(rows))
         } catch (e: Throwable) {
             Log.w(TAG, "layout.json 写不了: ${e.message}")
             false

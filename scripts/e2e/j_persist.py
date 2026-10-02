@@ -8,8 +8,9 @@ sys.path.insert(0, os.path.dirname(__file__))
 from lib import *
 
 BASE_SETTINGS = {"language": "en", "onboardingDone": True, "showTitles": False}
-PREV_LAYOUT = {"rows": [{"name": "PrevRow", "icon": "movie", "apps": ["test.dummy.app09", "test.dummy.app14", "test.dummy.app15"]},
-                        {"name": "Second", "apps": ["test.dummy.app00"]}]}
+# R163:行没有名字——.prev 里的布局靠(各行的)应用列表认,与默认三行(装着的认得的应用)不会撞
+PREV_LAYOUT = {"rows": [{"icon": "movie", "apps": ["test.dummy.app09", "test.dummy.app14", "test.dummy.app15"]},
+                        {"icon": "kids", "apps": ["test.dummy.app00"]}]}
 
 
 def push_raw(name, text):
@@ -63,8 +64,8 @@ def layout_case(tag, main_text, with_prev, expect_rows_from_prev, expect_bad=Tru
     lay = pull_json("layout.json")
     check(f"{tag}:layout.json 写回成可解析的文件", bool(lay and lay.get("rows")), str(lay)[:160])
     if expect_rows_from_prev:
-        names = [r.get("name") for r in (lay or {}).get("rows", [])]
-        check(f"{tag}:从 .prev 恢复了用户的布局(不是默认三行)", names == ["PrevRow", "Second"], names)
+        got = [r.get("apps") for r in (lay or {}).get("rows", [])]
+        check(f"{tag}:从 .prev 恢复了用户的布局(不是默认三行)", got == [r["apps"] for r in PREV_LAYOUT["rows"]], got)
     if main_text is not None and expect_bad:
         check(f"{tag}:坏的正式文件改名 .bad 留证", exists("layout.json.bad"))
     if not expect_bad:
@@ -82,10 +83,10 @@ def run():
     layout_case("layout 零行 + 有 .prev", '{"rows": []}', True, True)
     layout_case("layout 顶层是数组 + 有 .prev", '[1,2,3]', True, True)
     layout_case("layout 截断的半截 JSON + 有 .prev", json.dumps(LAYOUT)[:57], True, True)
-    layout_case("layout 超大(1.2 MB)+ 有 .prev", '{"rows":[{"name":"' + "x" * 1_200_000 + '","apps":[]}]}', True, True)
+    layout_case("layout 超大(1.2 MB)+ 有 .prev", '{"rows":[{"icon":"' + "x" * 1_200_000 + '","apps":[]}]}', True, True)
     layout_case("layout 正式文件缺失 + 有 .prev", None, True, True)
     layout_case("layout 乱码、没有 .prev(回落默认)", "\x00\x01garbage", False, False)
-    # 字段类型怪但语法合法:apps 里混进数字 / null / 对象、行名是数字 —— 读得出来,不崩
+    # 字段类型怪但语法合法:apps 里混进数字 / null / 对象、icon 是数字、老字段 name 也是数字 —— 读得出来,不崩
     layout_case("layout 字段类型怪(apps 混数字 / null / 对象)", json.dumps(
         {"rows": [{"name": 42, "icon": 7, "apps": ["test.dummy.app00", 1, None, {"x": 1}, "", "  test.dummy.app01  "]}]}), True, False,
         expect_bad=False)
@@ -114,7 +115,7 @@ def run():
         if isinstance(st, dict):
             check(f"{tag}:壁纸文件名不含路径", "/" not in st.get("wallpaperFile", "") and ".." not in st.get("wallpaperFile", ""), st.get("wallpaperFile"))
             check(f"{tag}:idleAfterMs 在五档之内", st.get("idleAfterMs") in (0, 60000, 180000, 300000, 600000), st.get("idleAfterMs"))
-            check(f"{tag}:layout 没被换成默认", [r["name"] for r in (pull_json("layout.json") or {}).get("rows", [])] == [r["name"] for r in LAYOUT["rows"]])
+            check(f"{tag}:layout 没被换成默认", [(r.get("icon"), r.get("apps")) for r in (pull_json("layout.json") or {}).get("rows", [])] == [(r["icon"], r["apps"]) for r in LAYOUT["rows"]])
 
     journey("persist-titles-hidden")
     for tag, name, text in [("titles 乱码", "titles.json", "{oops"), ("titles 类型错(数字值)", "titles.json", '{"test.dummy.app00": 5, "test.dummy.app01": null}'),

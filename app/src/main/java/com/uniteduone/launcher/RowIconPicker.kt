@@ -51,9 +51,9 @@ private const val ICON_CELL_CORNER = 18f
  * 行图标选择器(M4b spec §0-6):4 × 3 图标格,打开时 [current] 那一格预先聚焦。
  * 确定 = [onPick](图标 id,见 [ROW_ICON_IDS]);返回 = [onDismiss]。
  *
- * **R135(2026-09-30 外观轮)换皮**:与设置各层同一个版式——整屏 `MenuBg`,左边页名、上方一行小字写是哪一行([rowName]),
- * 右边图标格;每一格与胶囊同一个焦点画法(聚焦填主题色、图标与字取对比色,150 ms 过渡)。此前是屏幕中间的小面板、
- * 标题 16 sp 带字距、聚焦画外扩描边、底部 10 sp 深灰的「按返回键取消」。焦点账本逐字未动。
+ * **R135(2026-09-30 外观轮)换皮**:与设置各层同一个版式——整屏 `MenuBg`,左边页名、上方一行小字写是哪一行(R163 起行没有名字,
+ * 改成画这一行现在的图标,即 [current]),右边图标格;每一格与胶囊同一个焦点画法(聚焦填主题色、图标与字取对比色,150 ms 过渡)。
+ * 此前是屏幕中间的小面板、标题 16 sp 带字距、聚焦画外扩描边、底部 10 sp 深灰的「按返回键取消」。焦点账本逐字未动。
  *
  * 焦点账本(与 [GearMenu] 同一写法;这个浮层开着时编辑页的看门狗让路,**丢了焦点只能靠它自己**,铁律 3):
  * - 逐格一个 [FocusRequester];
@@ -71,8 +71,6 @@ fun RowIconPicker(
     nonce: Int,
     onPick: (String) -> Unit,
     onDismiss: () -> Unit,
-    /** 这是哪一行的图标(页名上方的小字);null = 不画。 */
-    rowName: String? = null,
 ) {
     val ids = ROW_ICON_IDS
     val rowFocus = remember(ids.size) { List(ids.size) { FocusRequester() } }
@@ -113,7 +111,8 @@ fun RowIconPicker(
             .pageBackdrop(),   // R142
     ) {
         ShellScaffold(
-            left = { ShellTitle(path = rowName, title = stringResource(R.string.edit_row_icon_heading)) },
+            // 页头画这一行现在的图标(current 在页面开着期间不变:选中即关页,聚焦在格子间移动不改它)
+            left = { ShellTitle(path = null, icon = current, title = stringResource(R.string.edit_row_icon_heading)) },
             right = {
                 Column(verticalArrangement = Arrangement.spacedBy(ICON_CELL_GAP.dp)) {
                     rowsOfIds.forEachIndexed { r, rowIds ->

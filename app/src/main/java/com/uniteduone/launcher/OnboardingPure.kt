@@ -16,7 +16,7 @@ internal const val ONBOARDING_STEPS = 3
 /**
  * 第 2 步「继续」要写进 layout.json 的布局:内置分类表**逐行**按已装过滤。
  *
- * - 行名、行序、行内顺序都照抄 [default];
+ * - 行图标、行序、行内顺序都照抄 [default];
  * - **行保留,哪怕过滤后是空的**——空行在首页不显示(`buildRows` 会丢掉),但编辑页照样画出这一行
  *   和它行尾的「＋」,用户之后还能往里加;而一行都没有的文件会被 `Layout.read` 当成损坏;
  * - 只做减法:已装但不在分类表里的应用一个都不加(零推荐,spec §0「只铺分类表命中的」)。
@@ -27,14 +27,6 @@ internal fun plannedLayout(
     installed: Set<String>,
 ): List<LayoutRow> =
     default.map { it.copy(apps = it.apps.filter { p -> p in installed }) }
-
-/**
- * 内置三行的名字换成界面语言(R133,2026-09-30):分类表里写的是英文大写 VIDEO / LIVE / MUSIC,原样写进 layout.json 后
- * 中文用户在编辑页、「加到桌面…」的行列表里看到的是英文。[names] = 分类表里的名字 → 当前语言的名字(界面层按资源给);
- * 改了名的行同时写上原来按名字推出来的图标([legacyRowIconId]),图标不再依赖名字。不在 [names] 里的行原样返回。
- */
-internal fun localizedDefaultRows(rows: List<LayoutRow>, names: Map<String, String>): List<LayoutRow> =
-    rows.map { r -> names[r.name]?.let { r.copy(name = it, icon = r.icon ?: legacyRowIconId(r.name)) } ?: r }
 
 /** 第 2 步「跳过」:三行保留、`apps` 清空(spec §8)。桌面从空白开始,由用户自己在编辑分栏里添加。 */
 internal fun skippedLayout(default: List<LayoutRow>): List<LayoutRow> =
@@ -53,15 +45,14 @@ internal fun planView(
 ): List<PlanRow> =
     planned.mapNotNull { row ->
         if (row.apps.isEmpty()) null
-        else PlanRow(row.name, row.icon, row.apps.map { pkg -> pkg to (labels[pkg]?.takeIf { it.isNotBlank() } ?: pkg) })
+        else PlanRow(row.icon, row.apps.map { pkg -> pkg to (labels[pkg]?.takeIf { it.isNotBlank() } ?: pkg) })
     }
 
 /**
- * 计划列表的一行:行名、**行图标 id**、(包名, 显示名)。
- * 图标 id 要随行带着(R140 复审):R133 起默认行名跟界面语言走(「影视 / 直播 / 音乐」),只按行名回落图标
- * (`legacyRowIconId` 只认 VIDEO / LIVE / MUSIC)的话,中文界面三行全变成电视图标。
+ * 计划列表的一行:**行图标 id**、(包名, 显示名)。R163 起行没有名字,屏幕上只画图标 + 这一行将放下的应用名
+ * (R133 的「默认行名跟界面语言走」随行名一起没了)。
  */
-internal data class PlanRow(val name: String, val icon: String?, val apps: List<Pair<String, String>>)
+internal data class PlanRow(val icon: String, val apps: List<Pair<String, String>>)
 
 /**
  * `onCreate` 的三态判定(spec §8):返回要写回 `settings.json` 的 `onboardingDone`;

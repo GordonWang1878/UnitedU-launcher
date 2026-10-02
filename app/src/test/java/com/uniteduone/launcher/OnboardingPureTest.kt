@@ -12,10 +12,11 @@ import org.junit.Test
  */
 class OnboardingPureTest {
 
+    // R163:行没有名字,测试里用图标 id 认行(movie / tv / music = 内置三行的图标)
     private val fixture = listOf(
-        LayoutRow("VIDEO", apps = listOf("com.v1", "com.v2", "com.v3")),
-        LayoutRow("LIVE", apps = listOf("com.l1", "com.l2")),
-        LayoutRow("MUSIC", apps = listOf("com.m1", "com.m2")),
+        LayoutRow("movie", apps = listOf("com.v1", "com.v2", "com.v3")),
+        LayoutRow("tv", apps = listOf("com.l1", "com.l2")),
+        LayoutRow("music", apps = listOf("com.m1", "com.m2")),
     )
 
     // ---- 第 2 步:写盘的两种布局 ------------------------------------------------
@@ -24,9 +25,9 @@ class OnboardingPureTest {
         val planned = plannedLayout(fixture, setOf("com.m2", "com.v3", "com.v1", "com.m1"))
         assertEquals(
             listOf(
-                LayoutRow("VIDEO", apps = listOf("com.v1", "com.v3")),
-                LayoutRow("LIVE", apps = emptyList()),
-                LayoutRow("MUSIC", apps = listOf("com.m1", "com.m2")),
+                LayoutRow("movie", apps = listOf("com.v1", "com.v3")),
+                LayoutRow("tv", apps = emptyList()),
+                LayoutRow("music", apps = listOf("com.m1", "com.m2")),
             ),
             planned,
         )
@@ -34,7 +35,7 @@ class OnboardingPureTest {
 
     @Test fun plannedLayoutKeepsEmptyRowsSoTheEditPageStillHasTheirAddButtons() {
         val planned = plannedLayout(fixture, setOf("com.l2"))
-        assertEquals(listOf("VIDEO", "LIVE", "MUSIC"), planned.map { it.name })
+        assertEquals(listOf("movie", "tv", "music"), planned.map { it.icon })
         assertEquals(listOf(emptyList(), listOf("com.l2"), emptyList<String>()), planned.map { it.apps })
     }
 
@@ -46,7 +47,7 @@ class OnboardingPureTest {
 
     @Test fun plannedLayoutWithNothingInstalledIsAllEmptyAndEqualsSkipped() {
         val planned = plannedLayout(DEFAULT_LAYOUT, emptySet())
-        assertEquals(listOf("VIDEO", "LIVE", "MUSIC"), planned.map { it.name })
+        assertEquals(listOf("movie", "tv", "music"), planned.map { it.icon })
         assertTrue(planned.all { it.apps.isEmpty() })
         // 「继续」在一个都没装的机器上与「跳过」写下同一份文件(brief:plan 为空时继续 = 跳过)。
         assertEquals(skippedLayout(DEFAULT_LAYOUT), planned)
@@ -54,13 +55,15 @@ class OnboardingPureTest {
 
     @Test fun skippedLayoutKeepsTheThreeDefaultRowsWithNoApps() {
         val skipped = skippedLayout(DEFAULT_LAYOUT)
-        assertEquals(listOf("VIDEO", "LIVE", "MUSIC"), skipped.map { it.name })
+        assertEquals(listOf("movie", "tv", "music"), skipped.map { it.icon })
         assertEquals(List(3) { emptyList<String>() }, skipped.map { it.apps })
     }
 
     @Test fun defaultLayoutIsTheBuiltInThreeRowTable() {
         // R160(2026-10-01 Gordon):影视加腾讯(云视听极光)、去掉 NewTV极光;直播只留央视频、咪视界;音乐只留网易云、QQ 音乐。
-        assertEquals(listOf("VIDEO", "LIVE", "MUSIC"), DEFAULT_LAYOUT.map { it.name })
+        // R163:三行显式写图标(原来靠名字 VIDEO / LIVE / MUSIC 回落)——影片 / 电视 / 音乐;每个都是合法 id
+        assertEquals(listOf("movie", "tv", "music"), DEFAULT_LAYOUT.map { it.icon })
+        assertTrue(DEFAULT_LAYOUT.all { isRowIconId(it.icon) })
         assertEquals(
             listOf(
                 listOf("com.ktcp.video", "com.gitvdemo.video", "com.cibn.tv", "com.starcor.mango", "com.xiaodianshi.tv.yst"),
@@ -78,27 +81,25 @@ class OnboardingPureTest {
         val view = planView(planned, mapOf("com.v1" to "Video One", "com.m2" to "Music Two"))
         assertEquals(
             listOf(
-                "VIDEO" to listOf("com.v1" to "Video One"),
-                "MUSIC" to listOf("com.m2" to "Music Two"),
+                "movie" to listOf("com.v1" to "Video One"),
+                "music" to listOf("com.m2" to "Music Two"),
             ),
-            view.map { it.name to it.apps },
+            view.map { it.icon to it.apps },
         )
     }
 
     @Test fun planViewFallsBackToPackageNameWhenLabelIsBlankOrMissing() {
-        val view = planView(listOf(LayoutRow("LIVE", apps = listOf("com.l1", "com.l2"))), mapOf("com.l1" to "  "))
-        assertEquals(listOf("LIVE" to listOf("com.l1" to "com.l1", "com.l2" to "com.l2")), view.map { it.name to it.apps })
+        val view = planView(listOf(LayoutRow("tv", apps = listOf("com.l1", "com.l2"))), mapOf("com.l1" to "  "))
+        assertEquals(listOf("tv" to listOf("com.l1" to "com.l1", "com.l2" to "com.l2")), view.map { it.icon to it.apps })
     }
 
-    /** R140 复审:行名本地化之后(「影视」),计划列表的图标照行里存的 id 画,不按行名回落成电视图标。 */
+    /** R163:行没有名字,计划列表的每一行就是「行里存的图标 id + 将放下的应用」;内置三行是 影片 / 电视 / 音乐。 */
     @Test fun planViewCarriesTheRowIcon() {
-        val names = mapOf("VIDEO" to "影视", "LIVE" to "直播", "MUSIC" to "音乐")
-        val rows = localizedDefaultRows(plannedLayout(DEFAULT_LAYOUT, DEFAULT_LAYOUT.flatMap { it.apps }.toSet()), names)
+        val rows = plannedLayout(DEFAULT_LAYOUT, DEFAULT_LAYOUT.flatMap { it.apps }.toSet())
         val view = planView(rows, emptyMap())
-        assertEquals(listOf("影视", "直播", "音乐"), view.map { it.name })
         assertEquals(listOf("movie", "tv", "music"), view.map { it.icon })
-        // 按行名回落的话,中文行名三行都会落成 tv——带着 id 画才对
-        assertEquals(listOf("tv", "tv", "tv"), view.map { legacyRowIconId(it.name) })
+        // 没有标签时退回包名,行内顺序照分类表
+        assertEquals(DEFAULT_LAYOUT.map { r -> r.apps.map { it to it } }, view.map { it.apps })
     }
 
     @Test fun planViewOfAnAllEmptyLayoutIsEmpty() {

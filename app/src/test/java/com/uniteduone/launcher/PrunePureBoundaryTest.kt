@@ -69,11 +69,11 @@ class PrunePureBoundaryTest {
     @Test fun withoutPackagesEdges() {
         val none = emptyList<LayoutRow>()
         assertSame(none, withoutPackages(none, setOf("a")))
-        val rows = listOf(LayoutRow("A", apps = listOf("a")), LayoutRow("B", icon = "tv", apps = listOf("b")))
-        assertEquals(listOf(LayoutRow("A"), LayoutRow("B", icon = "tv")), withoutPackages(rows, setOf("a", "b", "zzz")))
+        val rows = listOf(LayoutRow("movie", apps = listOf("a")), LayoutRow("tv", apps = listOf("b")))
+        assertEquals(listOf(LayoutRow("movie"), LayoutRow("tv")), withoutPackages(rows, setOf("a", "b", "zzz")))
         assertSame(rows[1], withoutPackages(rows, setOf("a"))[1])
         // 同一行里重复出现的包整个去掉
-        assertEquals(listOf("b"), withoutPackages(listOf(LayoutRow("A", apps = listOf("x", "b", "x"))), setOf("x"))[0].apps)
+        assertEquals(listOf("b"), withoutPackages(listOf(LayoutRow("movie", apps = listOf("x", "b", "x"))), setOf("x"))[0].apps)
     }
 
     // ---- 「正在更新」窗口 ----

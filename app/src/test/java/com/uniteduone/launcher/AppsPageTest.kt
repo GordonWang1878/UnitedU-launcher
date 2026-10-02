@@ -92,19 +92,47 @@ class AppsPageTest {
         assertEquals(0f, appsPageScroll(few, 1, 0f, h), 0f)
     }
 
-    @Test fun addToRowAppendsOnceAndChecksTheRowName() {
-        val rows = listOf(LayoutRow("VIDEO", apps = listOf("a", "b")), LayoutRow("MUSIC", icon = "music"))
+    @Test fun addToRowAppendsOnce() {
+        // R163:行没有名字,不再核对行名——只认下标;这一行里已经有它 / 越界 → 同一个 list,不写盘
+        val rows = listOf(LayoutRow("movie", apps = listOf("a", "b")), LayoutRow("music"))
         assertEquals(
-            listOf(LayoutRow("VIDEO", apps = listOf("a", "b")), LayoutRow("MUSIC", icon = "music", apps = listOf("c"))),
-            addToRow(rows, 1, "MUSIC", "c"),
+            listOf(LayoutRow("movie", apps = listOf("a", "b")), LayoutRow("music", apps = listOf("c"))),
+            addToRow(rows, 1, "c"),
         )
-        assertEquals(listOf("a", "b", "c"), addToRow(rows, 0, "VIDEO", "c")[0].apps)
-        // 已在这一行 / 行名对不上(菜单打开后别处改过)/ 越界 → 同一个 list,不写盘
-        assertSame(rows, addToRow(rows, 0, "VIDEO", "a"))
-        assertSame(rows, addToRow(rows, 0, "MUSIC", "c"))
-        assertSame(rows, addToRow(rows, 5, "VIDEO", "c"))
+        assertEquals(listOf("a", "b", "c"), addToRow(rows, 0, "c")[0].apps)
+        assertSame(rows, addToRow(rows, 0, "a"))
+        assertSame(rows, addToRow(rows, 5, "c"))
+        assertSame(rows, addToRow(rows, -1, "c"))
         // 在别的行里有它不影响:一个包可以在两行各有一张
-        assertEquals(listOf("a"), addToRow(rows, 1, "MUSIC", "a")[1].apps)
+        assertEquals(listOf("a"), addToRow(rows, 1, "a")[1].apps)
+    }
+
+    // ---- R163 「加到桌面…」第二层药丸的小字 ----
+
+    private val sep = "、"
+    private fun summary(names: List<String>) =
+        rowNamesSummary(names, sep, empty = "空") { joined, total -> "$joined 等 $total 个" }
+
+    @Test fun rowSummaryEmptyRowSaysEmpty() {
+        assertEquals("空", summary(emptyList()))
+    }
+
+    @Test fun rowSummaryListsUpToThreeNamesJoinedBySeparator() {
+        assertEquals("YouTube", summary(listOf("YouTube")))
+        assertEquals("YouTube、Play Store", summary(listOf("YouTube", "Play Store")))
+        assertEquals("A、B、C", summary(listOf("A", "B", "C")))
+    }
+
+    @Test fun rowSummaryMoreThanThreeKeepsTheFirstThreeAndCountsAll() {
+        assertEquals("A、B、C 等 4 个", summary(listOf("A", "B", "C", "D")))
+        assertEquals("A、B、C 等 7 个", summary(listOf("A", "B", "C", "D", "E", "F", "G")))
+        assertEquals(3, ROW_SUMMARY_MAX_NAMES)
+    }
+
+    @Test fun rowSummaryTakesTheSeparatorFromTheCaller() {
+        // 英文用「, 」:分隔符与「等 N 个」的措辞都由界面按语言给
+        assertEquals("A, B", rowNamesSummary(listOf("A", "B"), ", ", "Empty") { j, n -> "$j ($n apps)" })
+        assertEquals("A, B, C (5 apps)", rowNamesSummary(listOf("A", "B", "C", "D", "E"), ", ", "Empty") { j, n -> "$j ($n apps)" })
     }
 
     // ---- R105 缓存刷新合并 + 菜单 ----

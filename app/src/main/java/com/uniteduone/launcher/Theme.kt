@@ -57,8 +57,6 @@ object Theme {
      *  **= 金预设的 accent 原值**(金预设 R62 删掉);同上,界面代码读 `LocalThemeColors.current.accent`,这里只留作标定记录。 */
     val ChampagneGold = Color(0xFFC0A73A)
 
-    val RowTitle = Color(0xFFFFFFFF)
-
     // ---- UI chrome palette (M2 Task A: consolidated, values unchanged) ----
     // **R134(2026-09-30 外观轮)**:下面的文字色不再各有各的值,一律指到 [Ink] 的四档(见 Type.kt);名字留着是因为
     // 调用点很多、名字本身说明了用途。新代码直接用 `Type.*` 的样式,不再挑这里的颜色。
@@ -295,12 +293,9 @@ object Theme {
      * 只有 `GtvFocusStroke.gtvAppFocusFrame` 的进焦分支读它。
      */
     val AppFocusScaleInEasing = androidx.compose.animation.core.CubicBezierEasing(0f, 0f, 0.2f, 1f)
-    /** 编辑页专用(观感不动,M8 不碰二级界面);随二级界面换皮时删。 */
+    /** 编辑页专用(观感不动,M8 不碰二级界面);随二级界面换皮时删。(R163:行没有名字、图标挪进左边空档,
+     *  原来卡片上方「图标 + 行名」那一行用的 `EditRowTitleGap` / `EditRowIconGap` 随之删掉。) */
     val EditRowSpacing = 25.4.dp
-    val EditRowTitleGap = 2.3.dp
-    /** 编辑页行名前的图标与行名之间的间距。M4b 起就是 8dp,当时与首页行标题的图标间距同值;gtv 线首页曾把
-     *  那个值常量化为 `GtvLayout.ROW_TITLE_ICON_GAP`,R48 随首页行标题一起删掉,此后只剩编辑页在用。 */
-    val EditRowIconGap = 8.dp
 
     // 邻居压暗的数值写在 AppCard 的 shade 里,以那里为准(左邻居 0.09、隔一张 0.06、
     // 右邻居 0.05)。这里不再复述——注释抄一份就会各自漂移,先前就漂成了 0.17/0.09/0.04。

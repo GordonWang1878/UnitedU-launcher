@@ -27,15 +27,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** 第 2 步列表里行名那一列的宽度(图标 + 行名),让几行的应用名左对齐。 */
-private val PLAN_ROW_NAME_W = 96.dp
+/** 第 2 步列表里行图标那一列的宽度(R163 起行没有名字,只剩图标),让几行的应用名左对齐。 */
+private val PLAN_ROW_ICON_W = 32.dp
+/** 第 2 步列表里行图标的方框边长(比应用名一行 [Type.body] 的行高 21 略矮)。 */
+private val PLAN_ROW_ICON_SIZE = 20.dp
 /** 第 2、3 步左边信息块(计划列表、当前默认桌面)的宽度:与设置「默认桌面」页那一块同宽。 */
 private val INFO_BLOCK_W = 360.dp
 
@@ -190,10 +192,11 @@ private fun FillStep(eyebrow: String, revision: Int, nonce: Int, onFill: () -> U
     )
 }
 
-/** 第 2 步的计划列表:每行 = 行图标 + 行名 + 这一行将放下的应用名。纯展示。 */
+/** 第 2 步的计划列表:每行 = 行图标 + 这一行将放下的应用名(R163 起行没有名字)。纯展示。 */
 @Composable
 private fun PlanPanel(plan: List<PlanRow>?) {
     val accent = LocalThemeColors.current.accent
+    val lineDp = with(LocalDensity.current) { Type.body.lineHeight.toDp() }   // 应用名一行的行高,图标按它居中
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -205,21 +208,11 @@ private fun PlanPanel(plan: List<PlanRow>?) {
         if (plan == null) {
             BasicText(text = stringResource(R.string.edit_loading_apps), style = Type.body)
         } else plan.forEach { row ->
-            val rowName = row.name
             val apps = row.apps
             Row(verticalAlignment = Alignment.Top) {
-                Row(
-                    modifier = Modifier.width(PLAN_ROW_NAME_W),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    RowIcon(rowName, row.icon, tint = accent)
-                    BasicText(
-                        text = rowName,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = Type.body.copy(fontWeight = FontWeight.Medium, color = accent),
-                    )
+                // 图标放在第一行字的正中(应用名折成两行时仍贴着第一行)
+                Box(Modifier.width(PLAN_ROW_ICON_W).height(lineDp), contentAlignment = Alignment.CenterStart) {
+                    RowIcon(row.icon, tint = { accent }, boxSize = PLAN_ROW_ICON_SIZE)
                 }
                 // 应用名一行放不下就折到第二行,再多就省略——不滚动(铁律 1),默认表每行最多 5 个。
                 BasicText(
@@ -308,7 +301,7 @@ internal fun installedDefaultApps(ctx: Context): Map<String, String> {
 @WorkerThread
 internal fun onboardingPlan(ctx: Context): List<PlanRow> {
     val labels = installedDefaultApps(ctx)
-    return planView(localizedDefaultRows(plannedLayout(DEFAULT_LAYOUT, labels.keys), defaultRowNames(ctx)), labels)
+    return planView(plannedLayout(DEFAULT_LAYOUT, labels.keys), labels)
 }
 
 /**
@@ -319,5 +312,5 @@ internal fun onboardingPlan(ctx: Context): List<PlanRow> {
 internal fun writeOnboardingLayout(ctx: Context, fill: Boolean): Boolean = runCatching {
     val rows = if (fill) plannedLayout(DEFAULT_LAYOUT, installedDefaultApps(ctx).keys)
     else skippedLayout(DEFAULT_LAYOUT)
-    Layout.write(ctx, localizedDefaultRows(rows, defaultRowNames(ctx)))
+    Layout.write(ctx, rows)
 }.getOrDefault(false)

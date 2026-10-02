@@ -1008,9 +1008,9 @@ private fun CategoryRow(
     ) {
         // 水平中心 x = CONTENT_KEYLINE / 2(29 dp),纵向中心 = 卡片中心(上侧描边留白 + 半个卡高;
         // 卡片标题开着时标题在卡下方,不参与居中——效果图 A2 对齐的是卡片本身)。
-        // 行名由 RowIcon 的 contentDescription 带给无障碍服务。图标不随 xShift 走。
+        // 图标的名字(「影片」「电视」……)由 RowIcon 的 contentDescription 带给无障碍服务(R163 起行没有名字)。图标不随 xShift 走。
         RowIcon(
-            row.name, row.icon,
+            row.icon,
             tint = iconColor,
             boxSize = GtvLayout.ROW_ICON_SIZE.dp,
             modifier = Modifier.padding(
@@ -1116,7 +1116,7 @@ private fun buildRows(ctx: Context): List<Row> {
     // 丢掉之后剩下行的下标就不再等于它们在 layout.json 里的下标。
     // 「移除 / 移动位置」写的是 layout.json,拿渲染下标去写就会打在别人那一行上。
     return layout.mapIndexed { layoutIndex, row ->
-        Row(name = row.name, icon = row.icon, apps = row.apps.mapNotNull { all[it] }, layoutRow = layoutIndex)
+        Row(icon = row.icon, apps = row.apps.mapNotNull { all[it] }, layoutRow = layoutIndex)
     }.filter { it.apps.isNotEmpty() }
     // ⚠️ 这个 filter 不只是显示意图,**它同时是焦点的不变量**:
     // upTarget/downTarget 指向相邻行的 rowFocus,而 rowFocus 只挂在非空行的卡片上。

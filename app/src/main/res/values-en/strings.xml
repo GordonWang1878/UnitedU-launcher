@@ -320,13 +320,11 @@
     <string name="settings_hidden_inputs_count">%1$d hidden</string>
     <string name="toast_inputs_restored">All inputs restored</string>
     <string name="title_dialog_hint_input">OK saves · Back cancels · empty restores the system name</string>
-    <!-- edit_row_* / row_icon_* : edit-screen row menu (row-end +), row rename, row icon picker, delete-row confirm (M4b Task 4) -->
+    <!-- edit_row_* / row_icon_* : edit-screen row menu (row-end +), row icon picker, delete-row confirm (M4b Task 4; since R163 rows have no names, so the rename page is gone) -->
     <string name="edit_row_add_app">Add App</string>
     <string name="edit_row_add_app_desc">Pick from installed apps</string>
-    <string name="edit_row_rename">Rename Row</string>
-    <string name="edit_row_rename_desc">Change the name of this row</string>
     <string name="edit_row_icon">Change Row Icon</string>
-    <string name="edit_row_icon_desc">Pick the icon next to the row name</string>
+    <string name="edit_row_icon_desc">Pick the icon for this row</string>
     <string name="edit_row_up">Move Row Up</string>
     <string name="edit_row_up_desc">Swap with the row above</string>
     <string name="edit_row_down">Move Row Down</string>
@@ -335,11 +333,9 @@
     <string name="edit_row_new_desc">Add an empty row under this one</string>
     <string name="edit_row_delete">Delete Row</string>
     <string name="edit_row_delete_desc">The apps in it won\'t be uninstalled</string>
-    <string name="edit_new_row_name">New Row</string>
-    <string name="edit_row_rename_heading">Rename Row</string>
-    <string name="edit_row_rename_hint">OK saves · Back cancels · empty keeps the current name</string>
     <string name="edit_row_icon_heading">Choose Row Icon</string>
-    <string name="edit_row_delete_confirm_title">Delete “%1$s”?</string>
+    <string name="edit_row_menu_title">Manage Row</string>
+    <string name="edit_row_delete_confirm_title">Delete this row?</string>
     <plurals name="edit_row_delete_confirm_body">
         <item quantity="one">The app in this row leaves your home screen. It won\'t be uninstalled.</item>
         <item quantity="other">The %1$d apps in this row leave your home screen. They won\'t be uninstalled.</item>
@@ -382,9 +378,13 @@
     <string name="apps_page_title">All Apps</string>
     <string name="apps_page_hint">Hold OK or press Menu to add an app to your home screen</string>
     <string name="apps_menu_add_to_home">Add to Home…</string>
-    <string name="apps_add_row_here">%1$s (already here)</string>
-    <string name="toast_added_to_row">Added to “%1$s”</string>
-    <string name="toast_already_in_row">It\'s already in “%1$s”</string>
+    <string name="apps_add_row_here">Already in this row</string>
+    <!-- R163: the "Add to Home…" row buttons show the row icon + the apps already in it; the separator is quoted to keep its trailing space -->
+    <string name="apps_row_empty">Empty</string>
+    <string name="apps_row_name_sep">", "</string>
+    <string name="apps_row_names_more">%1$s (%2$d apps)</string>
+    <string name="toast_added_to_row">Added to Home</string>
+    <string name="toast_already_in_row">It\'s already in this row</string>
     <string name="toast_add_to_row_failed">Couldn\'t add it to Home, try again</string>
     <string name="inputs_page_title">Inputs</string>
     <string name="inputs_page_current">Current: %1$s</string>
@@ -421,10 +421,6 @@
     <string name="settings_system_screensaver_desc">The screensaver your TV starts when idle in other apps. Choose UnitedU to play the same gallery.</string>
     <string name="settings_screen_off_desc">How long the TV sits unused before it turns the screen off. This is in Native TV Settings; press OK to go there.</string>
     <string name="settings_sys_never_starts">Never starts</string>
-    <!-- R133:内置三行的名字(新建布局时按界面语言写进 layout.json;老布局不动) -->
-    <string name="row_default_video">Video</string>
-    <string name="row_default_live">Live</string>
-    <string name="row_default_music">Music</string>
     <!-- R133:首次引导(欢迎语、找不到应用时的说明、第 2 / 3 步的按钮) -->
     <string name="onb_step1_body">Welcome to UnitedU: no ads, just your apps. First, pick a language.</string>
     <string name="onb_step2_body_empty">We didn\'t find common video, live TV or music apps. You can add any app later from All Apps.</string>

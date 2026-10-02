@@ -116,9 +116,6 @@ def o_edit_row_menu():
 def o_edit_add_app():
     r = _edit_row_menu(); move_to(S("edit_row_add_app")); key("ok"); time.sleep(2.5); return r
 
-def o_edit_rename_row():
-    r = _edit_row_menu(); move_to(S("edit_row_rename")); key("ok"); time.sleep(1.2); return r
-
 def o_edit_row_icon():
     r = _edit_row_menu(); move_to(S("edit_row_icon")); key("ok"); time.sleep(1.2); return r
 
@@ -165,8 +162,10 @@ CASES = [
     ("恢复默认确认页", o_restore_confirm, lambda s: s.has(S("restore_title"))),
     ("所有应用页", o_apps, apps_page_open),
     ("所有应用页·菜单第一层", o_apps_menu1, lambda s: s.has(S("card_menu_open")) and s.has(S("apps_menu_add_to_home"))),
-    # 第二层的胶囊是 text 节点;首页行名(在应用页底下仍被 uiautomator 报出来)只是行图标的 content-desc
-    ("所有应用页·菜单第二层", o_apps_menu2, lambda s: not s.has(S("apps_menu_add_to_home")) and any(n["text"] == LAYOUT["rows"][0]["name"] for n in s.nodes)),
+    # R163:行没有名字,第二层每行一颗药丸 = 行图标(content-desc)+ 小字应用名。右栏(x > 1100)里每个行图标都得有一颗
+    # (首页行图标在左边距里,x < 100,不会混进来)
+    ("所有应用页·菜单第二层", o_apps_menu2, lambda s: not s.has(S("apps_menu_add_to_home")) and all(
+        any(n["desc"] == S("row_icon_" + r["icon"]) and n["b"][0] > 1100 for n in s.nodes) for r in LAYOUT["rows"])),
     ("输入源页", o_inputs, lambda s: s.count_focused() == 1 and s.focus()[0] > 1000),
     ("输入源·胶囊菜单", o_inputs_menu, lambda s: s.has(S("input_menu_rename"))),
     ("输入源·改名页", o_inputs_rename, lambda s: s.has(S("title_dialog_hint_input"))),
@@ -177,9 +176,8 @@ CASES = [
     ("编辑·卡片菜单", o_edit_card_menu, lambda s: s.has(S("edit_remove"))),
     ("编辑·行菜单", o_edit_row_menu, lambda s: s.has(S("edit_row_add_app")) and s.has(S("edit_row_delete"))),
     ("编辑·添加应用", o_edit_add_app, lambda s: s.has(S("edit_add_app_title")) and not s.has(S("edit_row_delete"))),
-    ("编辑·改行名", o_edit_rename_row, lambda s: s.has(S("edit_row_rename_hint"))),
     ("编辑·行图标", o_edit_row_icon, lambda s: s.has(S("edit_row_icon_heading"))),
-    ("编辑·删行确认", o_edit_delete_confirm, lambda s: s.has("Delete “")),
+    ("编辑·删行确认", o_edit_delete_confirm, lambda s: s.has(S("edit_row_delete_confirm_title"))),
     ("编辑·换卡片图", o_edit_cardart, lambda s: s.has(S("picker_card_image_title"))),
     ("换壁纸页", o_wallpaper, lambda s: s.has(S("picker_wallpaper_title"))),
     # 设置·屏保页上有一颗同名胶囊(右栏 x ≥ 1172,图库开着时它仍在树里),只认左上的页头「Screensaver Gallery · N items」
@@ -232,7 +230,7 @@ def run():
                     check(f"{name}:HOME 后焦点恰好 1 个", s.count_focused() == 1, s.count_focused())
                 else:
                     key("back")
-                    if name.endswith("改名页") or name == "编辑·改行名":
+                    if name.endswith("改名页"):
                         key("back")    # 第一下收输入法
                     time.sleep(1.2)
                     s = screen()

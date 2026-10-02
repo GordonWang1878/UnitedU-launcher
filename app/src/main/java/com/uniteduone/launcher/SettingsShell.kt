@@ -271,9 +271,12 @@ private fun focusedNote(rows: List<RowSpec>, focusId: String?): String? {
 /**
  * 没有预览的页:路径(小字灰)+ 页名(32 sp)放在左半屏正中(效果图 README 第 4 条「照 M1 的做法」);
  * [extra] 是页名下方的说明 / 信息块(默认桌面、恢复默认、关于、屏保启动的提示)。
+ * [icon] 非 null(R163):这一页属于哪一行——行没有名字了,用它的行图标认,画在 [path] 下、页名上(24 dp,主题色);
+ * 此时 [path] 通常是 null(图标顶替了「属于谁」那一行小字)。
  */
 @Composable
-fun BoxScope.ShellTitle(path: String?, title: String, extra: (@Composable () -> Unit)? = null) {
+fun BoxScope.ShellTitle(path: String?, title: String, icon: String? = null, extra: (@Composable () -> Unit)? = null) {
+    val accent = LocalThemeColors.current.accent
     Column(
         modifier = Modifier.align(Alignment.Center).widthIn(max = PREVIEW_WIDTH_DP.dp).padding(horizontal = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -282,6 +285,10 @@ fun BoxScope.ShellTitle(path: String?, title: String, extra: (@Composable () -> 
             BasicText(path, style = pathStyle.copy(textAlign = TextAlign.Center))
             Spacer(Modifier.height(4.dp))
         }
+        if (icon != null) {
+            RowIcon(icon, tint = { accent }, boxSize = TITLE_ROW_ICON_DP.dp)
+            Spacer(Modifier.height(8.dp))
+        }
         BasicText(title, style = titleStyle.copy(textAlign = TextAlign.Center))
         if (extra != null) {
             Spacer(Modifier.height(20.dp))
@@ -289,6 +296,9 @@ fun BoxScope.ShellTitle(path: String?, title: String, extra: (@Composable () -> 
         }
     }
 }
+
+/** 页头里行图标的方框边长(dp,R163,[ShellTitle] 的 `icon`)。 */
+private const val TITLE_ROW_ICON_DP = 24f
 
 /** 没有预览的页页名下方的一段说明(居中):确认页的后果、默认桌面页的注释。 */
 @Composable

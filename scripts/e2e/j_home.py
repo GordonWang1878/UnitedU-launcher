@@ -131,7 +131,7 @@ def run():
 
     journey("home-empty-edit-button")
     # R161:一个应用都没有(引导第 2 步跳过 = 三行空)→ 提示 + 「立即前往」胶囊,焦点默认在按钮上,确定直接进编辑页
-    empty = {"rows": [{"name": n, "icon": i, "apps": []} for n, i in [("影视", "movie"), ("直播", "tv"), ("音乐", "music")]]}
+    empty = {"rows": [{"icon": i, "apps": []} for i in ("movie", "tv", "music")]}   # R163:行没有名字
     # 不用 restart():它拉起后会按一下「下、上」(唤醒 / 退出触摸模式),「上」正好把焦点从按钮送到顶栏
     sh(f"am force-stop {PKG}"); push_json("layout.json", empty); home_intent()
     if foreground() != PKG: home_intent()

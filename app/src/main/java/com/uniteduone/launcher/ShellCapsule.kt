@@ -100,6 +100,8 @@ data class SliderLook(
  * @param hint Ruling R17 的第二行说明小字(外壳第一层用;R127 起屏保组「关闭屏幕」行也用,与右端的值同时出现;
  *   null / 空白 = 单行)。
  * @param slider 非空且聚焦时画成滑块;未聚焦时照 [trailing] 画值。
+ * @param icon 行图标 id(见 RowIcons.kt;R163「加到桌面…」选一行的药丸):在标签位置先画这个图标(22 dp,与 [leadingDot] 同一个位置),
+ *   [label] 可以是空串——行没有名字,药丸靠图标 + [hint] 小字(该行现有的应用名)认。未聚焦画主题色,聚焦(胶囊填的就是主题色)画对比文字色。
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -116,6 +118,8 @@ fun MenuPill(
     onStep: ((Int) -> Unit)? = null,
     /** 标签前的色点(主题色选项层:每一档画自己的预设色)。 */
     leadingDot: Color? = null,
+    /** 标签前的行图标 id(见上);null = 不画。 */
+    icon: String? = null,
 ) {
     // R134:所有胶囊同一套字号([PillType]:标签 15 / 第二行 11);此前设置页 15 / 11(R109)、长按与编辑页菜单 16 / 12。
     var focused by remember { mutableStateOf(false) }
@@ -218,9 +222,15 @@ fun MenuPill(
                 )
                 Spacer(Modifier.width(10.dp))
             }
+            if (icon != null) {
+                // R163:行图标。**读 focused 的是绘制阶段的 lambda**(同首页行图标),聚焦切换只重绘这一个图标。
+                RowIcon(icon, tint = { if (focused) textColor else accent }, boxSize = PILL_ROW_ICON_DP.dp)
+                Spacer(Modifier.width(10.dp))
+            }
             if (hasHint) {
                 // 两行胶囊(外壳第一层):标题 + 说明占满剩余宽度,右端只可能是一个 ›(自然宽度)。
                 // R127:带值且放得下(valueWraps 已判过)时第一行是「标签 … 值」,说明在下面占满整宽。
+                // R163:带行图标的药丸可以没有标签(空串),只剩小字——不给空标签留一行的高度。
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(GtvLayout.MENU_ITEM_HINT_GAP.dp),
@@ -228,7 +238,7 @@ fun MenuPill(
                     if (trailing is Trailing.Value) {
                         // 放得下才走到这里,值不设 VALUE_MAX_WIDTH 上限(那个上限是给单行胶囊「标签至少留一半」的)。
                         LabelTrailingRow(label, trailing, focused, textColor, accent, valueMax = null, Modifier.fillMaxWidth())
-                    } else {
+                    } else if (label.isNotEmpty()) {
                         MenuPillLabel(label, focused, textColor)
                     }
                     secondary.forEach { line ->
@@ -406,6 +416,9 @@ private const val SLIDER_KNOB_MS = 120
 
 /** 单行胶囊右端值的宽度上限(约内宽 220 dp 的一半):值优先量,再长的摘要省略,标签至少留一半。 */
 private const val VALUE_MAX_WIDTH = 110f
+
+/** 胶囊里行图标的方框边长(dp,R163)。 */
+private const val PILL_ROW_ICON_DP = 22f
 
 /** [MenuPill] 的标题行,单行/两行两种布局共用,避免样式在两处漂移。 */
 

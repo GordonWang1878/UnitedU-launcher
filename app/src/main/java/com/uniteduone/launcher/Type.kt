@@ -35,7 +35,7 @@ object Ink {
  * | [TITLE] | 31 | 每个整屏页面的页名(设置各层、所有应用、编辑桌面、选图页、确认页、引导、从手机添加) |
  * | [HEADLINE] | 22 | 要人照着抄的一行(扫码页的网址) |
  * | [SECTION] | 17 | 分组标题(系统工具、内置 / 我的)、分步说明 |
- * | [LABEL] | 15 | 胶囊与按钮、列表项、行名、页名上方的路径 |
+ * | [LABEL] | 15 | 胶囊与按钮、列表项、页名上方的路径 |
  * | [BODY] | 14 | 说明文字、卡片名 |
  * | [CAPTION] | 12 | 缩略图名字、页脚提示、长按菜单里应用图下的名字 |
  * | [MICRO] | 11 | 胶囊第二行、角标、许可声明 |
@@ -76,7 +76,7 @@ object Type {
         fontFamily = Theme.Sans, fontWeight = FontWeight.Medium, color = Ink.Primary,
         fontSize = TITLE.sp, lineHeight = (TITLE * 1.2f).sp, lineBreak = Balanced,
     )
-    /** 页名上方的一行小字:路径(「设置 · 通用」)、所属对象(行名、应用名)、引导的步数。 */
+    /** 页名上方的一行小字:路径(「设置 · 通用」)、所属对象(应用名)、引导的步数。 */
     val eyebrow = TextStyle(fontFamily = Theme.Sans, color = Ink.Secondary, fontSize = LABEL.sp, lineHeight = 20.sp)
     /** 要人照着抄的一行(网址)。 */
     val headline = TextStyle(

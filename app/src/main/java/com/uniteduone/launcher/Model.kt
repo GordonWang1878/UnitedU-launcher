@@ -18,13 +18,12 @@ data class AppEntry(
     val firstInstallTime: Long = 0L,
 )
 
-/** 一行。名字与图标来自 layout.json(M4b 起可在编辑页改),由 layout.json 决定成员与顺序。
+/** 一行。图标与成员来自 layout.json(图标可在编辑页换),由 layout.json 决定成员与顺序。**R163 起行没有名字,只认图标。**
  *  (R92 起首页没有输入源行了——输入源搬到顶栏「输入源」胶囊打开的页面,`RowKind` 随之删掉。) */
 data class Row(
-    val name: String,
     val apps: List<AppEntry>,
-    /** layout.json 里存的图标 id;null = 按名字回落,见 RowIcons.kt。 */
-    val icon: String? = null,
+    /** layout.json 里存的图标 id(见 RowIcons.kt;读盘时已补成合法值,默认值只给单测用)。 */
+    val icon: String = NEW_ROW_ICON,
     /**
      * 这一行在 **layout.json** 里的下标;-1 = 没有对应条目(只在单测里出现)。
      *

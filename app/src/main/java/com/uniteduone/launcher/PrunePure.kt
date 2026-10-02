@@ -52,7 +52,7 @@ internal fun planPrune(
     return PrunePlan.Remove(missing)
 }
 
-/** 纯函数:把 [gone] 从每一行去掉;一个都没命中时返回**同一个** list。行名、行序、空行都保留。 */
+/** 纯函数:把 [gone] 从每一行去掉;一个都没命中时返回**同一个** list。行图标、行序、空行都保留。 */
 internal fun withoutPackages(rows: List<LayoutRow>, gone: Set<String>): List<LayoutRow> {
     if (gone.isEmpty() || rows.none { r -> r.apps.any { it in gone } }) return rows
     return rows.map { r -> if (r.apps.any { it in gone }) r.copy(apps = r.apps.filter { it !in gone }) else r }

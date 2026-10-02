@@ -292,7 +292,8 @@ class MainActivity : ComponentActivity() {
     private var appsFocused: PickerCandidate? = null
     /**
      * 应用页的长按 / MENU 菜单(R90):null = 没开;`rows == null` = 第一层「打开 / 加到桌面…」;非 null = 第二层「加到哪一行」
-     * (打开第二层时读一次 layout.json 的行名)。每次打开都是一个新对象,关掉只有 [closeAppsMenu] 一条路。
+     * (打开第二层时读一次 layout.json 与每行现有的应用名,R163 起行没有名字,药丸靠行图标 + 这些应用名认)。
+     * 每次打开都是一个新对象,关掉只有 [closeAppsMenu] 一条路。
      */
     private var appsMenu by mutableStateOf<AppsMenu?>(null)
 
@@ -2073,7 +2074,8 @@ class MainActivity : ComponentActivity() {
 
     /**
      * 应用页菜单(R90)。第一层:打开应用 /(能卸载的)卸载应用 / 加到桌面…([appsMenuActions],R106);
-     * 第二层:layout.json 的每一行一颗(已经有这个应用的那一行注明)。
+     * 第二层:layout.json 的每一行一颗——**R163 起行没有名字**:药丸画这一行的图标,小字写该行现有的应用名([rowNamesSummary],
+     * 空行写「空」;已经有这个应用的那一行小字改写「已在这一行」)。
      * 加到桌面走 [Layout.update](锁内读 → [addToRow] → 写,落盘铁律),写完 `revision++` 让首页重读。
      * 卸载与首页长按菜单同一份实现([requestUninstall]);卸载完成后应用页的列表随缓存刷新,焦点按包名落到同组补上来的那张。
      */
@@ -2089,24 +2091,33 @@ class MainActivity : ComponentActivity() {
                 }
                 AppsMenuAction.ADD_TO_HOME -> MenuItem(getString(R.string.apps_menu_add_to_home), "") {
                     lifecycleScope.launch {
-                        val layout = withContext(Dispatchers.IO) { Layout.read(this@MainActivity) }
+                        // 布局与每行现有应用的显示名(第二层药丸的小字)一次读好,放进菜单状态
+                        val (layout, names) = withContext(Dispatchers.IO) {
+                            Layout.read(this@MainActivity).let { it to rowAppNames(this@MainActivity, it) }
+                        }
                         // 读盘期间菜单被关了 / 换成别的应用了:不再弹第二层
-                        if (appsMenu === m) { appsMenu = m.copy(rows = layout); focusNonce++ }
+                        if (appsMenu === m) { appsMenu = m.copy(rows = layout, rowApps = names); focusNonce++ }
                     }
                 }
             }
         }
         return rows.mapIndexed { i, r ->
             val here = m.app.packageName in r.apps
-            MenuItem(if (here) getString(R.string.apps_add_row_here, r.name) else r.name, "") {
+            val summary = if (here) getString(R.string.apps_add_row_here) else rowNamesSummary(
+                m.rowApps.getOrNull(i).orEmpty(),
+                sep = getString(R.string.apps_row_name_sep),
+                empty = getString(R.string.apps_row_empty),
+                more = { joined, total -> getString(R.string.apps_row_names_more, joined, total) },
+            )
+            MenuItem(label = "", hint = summary, icon = r.icon) {
                 closeAppsMenu()
-                if (here) { toast(getString(R.string.toast_already_in_row, r.name)); return@MenuItem }
+                if (here) { toast(getString(R.string.toast_already_in_row)); return@MenuItem }
                 lifecycleScope.launch {
                     val ok = withContext(Dispatchers.IO) {
-                        Layout.update(this@MainActivity) { addToRow(it, i, r.name, m.app.packageName) }
+                        Layout.update(this@MainActivity) { addToRow(it, i, m.app.packageName) }
                     }
                     if (ok) {
-                        toast(getString(R.string.toast_added_to_row, r.name))
+                        toast(getString(R.string.toast_added_to_row))
                         revision++
                     } else {
                         toast(getString(R.string.toast_add_to_row_failed))
