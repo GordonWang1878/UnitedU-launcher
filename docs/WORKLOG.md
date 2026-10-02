@@ -1904,3 +1904,7 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - **未验证**:①电视(A95L 是默认桌面、服务不生效,但这一轮没有电视回归);②API < 33 的 `ContextCompat` 路径;③真电视上「开机进上次信号源」被开机拉起盖住 HDMI 的实际表现;④上传自己新版的整条链在索尼安装器上的样子(要 Gordon 按键)。
 - 登记、没修的(终审 triage):过滤器在 UnitedU 已是默认桌面时也开着(`FLAG_REQUEST_FILTER_KEY_EVENTS` 常驻,后续用 `gfxinfo` 量一次);Google TV 上两个 `MainActivity` 实例(`RelaunchMarks` 最后写入者赢,1.0 前的老问题);`home_settings_note` 措辞;受限记号的纯函数抽取;「死键兜底」(`launch()` 失败时 HOME 照吃,1.0 前加:1.5 s 内没有 UnitedU 窗口就 `performGlobalAction(GLOBAL_ACTION_HOME)`)。
 - **电视回归(2026-10-02 19:51)**:`tv-install.sh` 等到首页连续在前台 30 s 后装 `fe9ba0d4…`(md5 一致),编译第 2 次读回 `speed-profile`,R151 拉回生效(`HOME intent sent`),装完前台是首页;A95L 上无障碍开关没开、HOME 仍解析到 UnitedU,接管是空操作、胶囊不出现。分支 `homekey` 已并入本地 main(未推)。
+
+## 2026-10-02 晚 · 上传页尺寸建议
+
+- Gordon:怕用户随便什么照片都往上传、显示效果不好,上传壁纸 / 屏保时给个尺寸建议,只加一两句文案。壁纸 / 屏保都是 `ContentScale.Crop` 填满 16:9,竖图只剩中间一段,所以文案写「横向 16:9、至少 1920×1080;4K 电视用 3840×2160 更清晰;竖着的照片会被裁掉上下」。落点两处:电视端扫码页三步下面一句灰字(`import_size_hint`,卡片图页不写——网页说明已有 16:9),手机网页壁纸 / 屏保两栏的说明(`web_desc_wallpapers` / `web_desc_screensavers`)。三语,CopyTest 过;模拟器截图 `docs/screenshots/import-size-hint.jpg`;814 单测全过。

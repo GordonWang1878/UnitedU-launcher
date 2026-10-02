@@ -45,6 +45,8 @@
     <string name="import_step_wifi">手机连上和电视相同的 Wi-Fi</string>
     <string name="import_step_scan">用手机相机扫描右边的二维码</string>
     <string name="import_step_pick">在打开的网页里选好文件，电视这边马上就能用</string>
+    <!-- 尺寸建议(2026-10-02 Gordon):怕用户随便什么照片都往上传、显示效果不好;壁纸 / 屏保 / 总入口页在三步下面写一句 -->
+    <string name="import_size_hint">照片建议横向 16:9、至少 1920×1080；4K 电视用 3840×2160 更清晰。竖着的照片会被裁掉上下，只留中间一段。</string>
     <string name="import_url_hint">扫不了？在手机浏览器里输入</string>
     <string name="import_waiting">等待手机发送…</string>
     <plurals name="import_received">
@@ -67,9 +69,9 @@
     <string name="web_tab_cards">卡片图</string>
     <string name="web_tab_screensavers">屏保</string>
     <string name="web_tab_apk">装应用</string>
-    <string name="web_desc_wallpapers">电视桌面的背景图，横向照片效果最好。</string>
+    <string name="web_desc_wallpapers">电视桌面的背景图。建议横向 16:9、至少 1920×1080（4K 电视用 3840×2160 更清晰）；竖着的照片会被裁掉上下，只留中间一段。</string>
     <string name="web_desc_cards">给应用卡片换上的图，16:9 横图最合适。传完在电视上长按应用，选「换卡片图」就能用。</string>
-    <string name="web_desc_screensavers">屏保轮播用的照片和视频。视频静音播放，最长播 60 秒，每个不超过 500 MB。</string>
+    <string name="web_desc_screensavers">屏保轮播用的照片和视频。照片建议横向 16:9、至少 1920×1080（4K 电视用 3840×2160 更清晰），竖图会被裁掉上下；视频静音播放，最长播 60 秒，每个不超过 500 MB。</string>
     <string name="web_desc_apk">把手机里的安卓安装包（.apk）装到电视上。发送后，电视会请你确认安装。</string>
     <string name="web_pick_photos">选择照片</string>
     <string name="web_pick_media">选择照片或视频</string>

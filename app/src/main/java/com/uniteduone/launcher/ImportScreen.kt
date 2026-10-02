@@ -235,6 +235,12 @@ fun ImportScreen(
                                 if (i > 0) Spacer(Modifier.height(16.dp))
                                 ImportStep(n = i + 1, text = stringResource(res))
                             }
+                            // 尺寸建议(2026-10-02 Gordon):怕用户随便什么照片都往上传、显示效果不好。壁纸 / 屏保 / 总入口页写一句;
+                            // 卡片图页不写(它的网页说明已经写了 16:9)。用说明那一档灰,不抢三步的视线。
+                            if (category != "cards") {
+                                Spacer(Modifier.height(16.dp))
+                                BasicText(text = stringResource(R.string.import_size_hint), style = importBody.copy(color = Ink.Secondary))
+                            }
                             Spacer(Modifier.height(28.dp))
                             // 状态:没收到时「等待手机发送…」,收到后「已收到 N 个文件 · 最近:名字」;APK 的提示压在下面一行。
                             val last = lastName

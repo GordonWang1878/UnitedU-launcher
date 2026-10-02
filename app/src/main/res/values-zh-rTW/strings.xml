@@ -45,6 +45,7 @@
     <string name="import_step_wifi">手機連上和電視相同的 Wi-Fi</string>
     <string name="import_step_scan">用手機相機掃描右邊的 QR 碼</string>
     <string name="import_step_pick">在開啟的網頁裡選好檔案，電視這邊馬上就能使用</string>
+    <string name="import_size_hint">相片建議橫向 16:9、至少 1920×1080；4K 電視用 3840×2160 更清晰。直向相片會被裁掉上下，只留中間一段。</string>
     <string name="import_url_hint">無法掃描？在手機瀏覽器輸入</string>
     <string name="import_waiting">等待手機傳送…</string>
     <plurals name="import_received">
@@ -67,9 +68,9 @@
     <string name="web_tab_cards">卡片圖</string>
     <string name="web_tab_screensavers">螢幕保護</string>
     <string name="web_tab_apk">裝應用程式</string>
-    <string name="web_desc_wallpapers">電視桌面的背景圖，橫向相片效果最好。</string>
+    <string name="web_desc_wallpapers">電視桌面的背景圖。建議橫向 16:9、至少 1920×1080（4K 電視用 3840×2160 更清晰）；直向相片會被裁掉上下，只留中間一段。</string>
     <string name="web_desc_cards">替應用程式卡片換上的圖，16:9 橫圖最合適。傳完在電視上長按應用程式，選「換卡片圖」就能使用。</string>
-    <string name="web_desc_screensavers">螢幕保護輪播用的相片和影片。影片靜音播放，最長播放 60 秒，每部不超過 500 MB。</string>
+    <string name="web_desc_screensavers">螢幕保護輪播用的相片和影片。相片建議橫向 16:9、至少 1920×1080（4K 電視用 3840×2160 更清晰），直向相片會被裁掉上下；影片靜音播放，最長播放 60 秒，每部不超過 500 MB。</string>
     <string name="web_desc_apk">把手機裡的 Android 安裝檔（.apk）裝到電視上。傳送後，電視會請你確認安裝。</string>
     <string name="web_pick_photos">選擇相片</string>
     <string name="web_pick_media">選擇相片或影片</string>

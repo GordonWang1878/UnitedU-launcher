@@ -53,6 +53,7 @@
     <string name="import_step_wifi">Connect your phone to the same Wi-Fi as this TV</string>
     <string name="import_step_scan">Scan the QR code with your phone\'s camera</string>
     <string name="import_step_pick">Pick files on the page that opens. They\'re ready on the TV right away.</string>
+    <string name="import_size_hint">Photos: landscape 16:9, at least 1920×1080; 3840×2160 looks sharper on a 4K TV. Portrait photos are cropped to a middle strip.</string>
     <string name="import_url_hint">Can\'t scan? Type this into your phone\'s browser</string>
     <string name="import_waiting">Waiting for your phone…</string>
     <plurals name="import_received">
@@ -75,9 +76,9 @@
     <string name="web_tab_cards">Card Art</string>
     <string name="web_tab_screensavers">Screensaver</string>
     <string name="web_tab_apk">Apps</string>
-    <string name="web_desc_wallpapers">Backgrounds for your TV\'s home screen. Landscape photos look best.</string>
+    <string name="web_desc_wallpapers">Backgrounds for your TV\'s home screen. Use landscape 16:9 photos, at least 1920×1080 (3840×2160 looks sharper on a 4K TV); portrait photos are cropped to a middle strip.</string>
     <string name="web_desc_cards">Custom art for app cards; 16:9 images fit best. On the TV, hold OK on an app and choose Change Card Art.</string>
-    <string name="web_desc_screensavers">Photos and videos for the screensaver slideshow. Videos play muted, up to 60 seconds, 500 MB max each.</string>
+    <string name="web_desc_screensavers">Photos and videos for the screensaver slideshow. Photos: landscape 16:9, at least 1920×1080 (3840×2160 looks sharper on a 4K TV); portrait photos are cropped to a middle strip. Videos play muted, up to 60 seconds, 500 MB max each.</string>
     <string name="web_desc_apk">Install an Android app (.apk) from this phone on your TV. The TV will ask you to confirm.</string>
     <string name="web_pick_photos">Choose Photos</string>
     <string name="web_pick_media">Choose Photos or Videos</string>
