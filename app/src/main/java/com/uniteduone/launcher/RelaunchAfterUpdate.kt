@@ -33,6 +33,8 @@ class RelaunchAfterUpdate : BroadcastReceiver() {
                 "onScreen=$wasOnScreen (home=${marks.homeVisible} dream=${marks.dreaming}) userStarted=$userStarted")
             return
         }
+        // type=home 的桌面任务靠 MAIN + HOME 类别认(上面的 home 带着);只点名 Activity、不带 HOME 的 intent 会变成普通任务。
+        // 被后台启动限制拦下时 startActivity 不抛异常,判定要看 ActivityTaskManager 的日志。
         val target = if (isDefaultHome) home else home.setComponent(android.content.ComponentName(context, MainActivity::class.java))
         runCatching { context.startActivity(target.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
             .onSuccess { Log.i(TAG, "package replaced; HOME intent sent (verdict in ActivityTaskManager log)") }

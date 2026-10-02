@@ -35,5 +35,8 @@ class RelaunchPolicyTest {
         assertTrue(homeOrTakeover(isDefaultHome = true, takeoverEnabled = false))
         assertTrue(homeOrTakeover(isDefaultHome = false, takeoverEnabled = true))
         assertFalse(homeOrTakeover(isDefaultHome = false, takeoverEnabled = false))
+        // 接管开着也要悬浮窗 appop 和「在屏幕上 / 刚发起更新」之一
+        assertTrue(shouldRelaunchHome(homeOrTakeover(false, true), canDrawOverlays = true, wasOnScreen = true, userStartedUpdate = false))
+        assertFalse(shouldRelaunchHome(homeOrTakeover(false, true), canDrawOverlays = false, wasOnScreen = true, userStartedUpdate = false))
     }
 }
