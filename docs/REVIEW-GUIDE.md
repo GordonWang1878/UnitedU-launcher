@@ -1,6 +1,6 @@
 # 代码评审入口(给外部评审者)
 
-2026-09-29 写,对应 main `6549fa0` 之后;2026-09-30 外观轮(R134–R136:字号 / 版式 / 动效统一)后更新;同日五路独立复审 + 模拟器端到端测试、R137–R140 修复后再更新;同日晚「视觉高级感」R141–R144 与测试轮(R145:JVM 边界单测 + 九段新端到端旅程 + 六个修复)后再更新。先读这一份,再按需要跳到它指的文件;这里只讲「是什么、在哪、哪些看起来像 bug 其实是刻意的」,不重复设计论证。
+2026-09-29 写,对应 main `6549fa0` 之后;2026-09-30 外观轮(R134–R136:字号 / 版式 / 动效统一)后更新;同日五路独立复审 + 模拟器端到端测试、R137–R140 修复后再更新;同日晚「视觉高级感」R141–R144 与测试轮(R145:JVM 边界单测 + 九段新端到端旅程 + 六个修复)后再更新;2026-10-02 加了主页键接管(R162:无障碍服务 + 自我更新改走会话 API)后再更新。先读这一份,再按需要跳到它指的文件;这里只讲「是什么、在哪、哪些看起来像 bug 其实是刻意的」,不重复设计论证。
 
 ## 1. 这是什么
 
@@ -13,7 +13,7 @@
 ## 2. 怎么构建、测试
 
 - 需要 JDK 17、Android SDK(compileSdk 35、build-tools **35.0.0**,`app/build.gradle.kts` 里显式钉了)、Gradle 8.14.x。**仓库里没有 Gradle Wrapper**。作者机器上工具链刻意不进 PATH,用 `source scripts/env.sh` 注入(路径是作者本机的,仅供参考)。
-- 构建:`gradle --no-daemon assembleRelease`;单测:`gradle --no-daemon testReleaseUnitTest`(`app/src/test/`,72 个文件、约 800 个 JVM 单测;**没有仪器测试**,界面行为靠模拟器端到端脚本 `scripts/e2e/`(15 段旅程,跑法见那里的 README)+ 真机验收,记录在 `WORKLOG.md`)。
+- 构建:`gradle --no-daemon assembleRelease`;单测:`gradle --no-daemon testReleaseUnitTest`(`app/src/test/`,74 个文件、约 810 个 JVM 单测;**没有仪器测试**,界面行为靠模拟器端到端脚本 `scripts/e2e/`(15 段旅程,跑法见那里的 README)+ 真机验收,记录在 `WORKLOG.md`)。
 - 没有 `~/.unitedu/release.jks` 时 release 自动用 debug keystore 签名(`-PrequireReleaseKey=true` 时改为构建失败,`scripts/release.sh` 总带这个参数)。R8 开着(`proguard-rules.pro`),资源裁剪关着(理由见 `build.gradle.kts` 注释)。
 - lint:`lintVitalRelease` 通过;完整 `lintRelease` 报 22 个 error,其中 21 个是误报(`ProduceStateDoesNotAssignValue` ×16、`dispatchKeyEvent` 上的 `RestrictedApi` ×5),1 个是刻意的(`QUERY_ALL_PACKAGES`,桌面必须列出全部应用)。详见同日体检报告 [`design/health-check-2026-09-29.md`](design/health-check-2026-09-29.md)。
 - 内置壁纸 / 屏保图有一道构建前置:`app/src/main/assets/builtin/{wallpapers,screensavers}/` 里的图必须先经 `scripts/hdr-assets.py --in-place` 转成双写法 HDR JPEG,否则单测 `BuiltinHdrAssetsTest` 失败(见 §5)。
@@ -22,16 +22,16 @@
 
 - **一个 Activity,一棵 Compose 树**。首页(`HomeScreen`)常驻;设置外壳、关于页、所有应用页、输入源页、选图页、扫码页、引导、各种菜单都是叠在它上面的**浮层**,开关状态全部住在 `MainActivity`(`shellStack`、`about`、`appsPage`、`inputsPage`、`pickerTarget`、`editing`、`onboarding`……),按键分发也在 `MainActivity.dispatchKeyEvent`(长按按「持续满 `LONG_PRESS_MS` = 600 ms」识别,不按 `repeatCount`)。
 - **数据都在外置应用目录** `/sdcard/Android/data/com.uniteduone.launcher/files/`(`Paths.kt`,刻意不回落 internal,理由见其 KDoc):`layout.json`(行与应用)、`settings.json`、`titles.json`(自定义标题 / 输入源改名)、`hidden-inputs.json`、`icons/<包名>.png`(换过的卡片图)、`library/{wallpapers,cards,screensavers}/`(用户上传)。壁纸处理缓存在外置 cache。内置图直接从 APK assets 读,不复制。
-- **进程模型**:所有组件(`MainActivity`、清单里的 `PackageRemovedReceiver` / `RelaunchAfterUpdate`、系统屏保 `UnitedUDream`、上传服务的请求线程)同一进程,所以文件锁用进程内锁就够(`LockedFile`)。
+- **进程模型**:除 `:homekey` 外所有组件(`MainActivity`、清单里的 `PackageRemovedReceiver` / `RelaunchAfterUpdate` / `SelfUpdateResult`、系统屏保 `UnitedUDream`、上传服务的请求线程)同一进程,所以文件锁用进程内锁就够(`LockedFile`)。**主页键接管的无障碍服务 `HomeKeyService` 跑在独立进程 `:homekey`**(R162:每一下按键都先经过它,不与首页抢主线程;桌面进程照常可回收),它**不碰任何状态文件**——`LockedFile` 的锁不跨进程——只写自己的心跳文件 `homekey.state`(单写者、原子写),主进程只读。
 - **纯函数 / Android 分文件**:凡是能在 JVM 上测的规则都拆成不碰 Android 的文件(`*Pure.kt`、`*Model.kt`、`*Math.kt`、`PickerCells.kt`、`StandbySchedule.kt`、`UpdateChecker.kt`……),Compose / IO 那一半只接线。评审「规则对不对」看纯函数和它的单测,评审「接线 / 生命周期对不对」看 Compose 文件。
 
-## 4. 文件地图(`app/src/main/java/com/uniteduone/launcher/`,80 个文件)
+## 4. 文件地图(`app/src/main/java/com/uniteduone/launcher/`,84 个文件)
 
 **入口与全局状态**
 - `MainActivity.kt`(2100+ 行):浮层状态机、按键分发、待机计时、Bundle 保存 / 还原、包变动广播、语言切换 `recreate()`。评审重点文件。
 - `LocaleOverride.kt`:应用内语言(不用 AppCompat per-app locale);`SettingsRestorePolicy.kt`:重建时要不要把设置外壳从 Bundle 种回。
 - `AppToast.kt`:应用内提示条(R139:`ToastHost` 画在整棵树最上层,页面经 `LocalToast` 发,MainActivity 的 `toast()` 也走它)。
-- `RelaunchAfterUpdate.kt` / `RelaunchPolicy.kt` / `RelaunchMarks.kt`:更新本应用会删掉首页任务;更新后要不要要求一次 HOME 把桌面拉回来(R151:仍是默认桌面 + 有「显示在其他应用上层」权限 + 被杀那一刻桌面 / 屏保在屏幕上或刚从关于页发起更新;别的应用在前台时不拉)。
+- `RelaunchAfterUpdate.kt` / `RelaunchPolicy.kt` / `RelaunchMarks.kt`:更新本应用会删掉首页任务;更新后要不要要求一次 HOME 把桌面拉回来(R151:仍是默认桌面〔R162:或主页键接管开着,此时 intent 点名自己〕+ 有「显示在其他应用上层」权限 + 被杀那一刻桌面 / 屏保在屏幕上或刚从关于页发起更新;别的应用在前台时不拉)。
 - `Ambient.kt`:整屏页的氛围底(R142:当前壁纸的模糊影子,`pageBackdrop()`;纯计算 `ambientPixels` 有 JVM 单测)。
 
 **首页、行、卡片**
@@ -51,7 +51,7 @@
 
 **设置外壳**
 - `SettingsModel.kt`(四组、每行、写入函数,纯数据)、`ShellModel.kt`(导航栈、页 id、每页缺省焦点、`MAX_CAPSULES_PER_PAGE`、预览状态机,纯模型)、`SettingsShell.kt`(`CapsuleColumn`:外壳每一层的焦点账本)、`ShellCapsule.kt`(`MenuPill` 胶囊渲染)、`SettingsFade.kt`(淡入淡出 `FadeSwitch`、残影 `LocalPageGhost`、`ShellMotion`;R136 起所有浮层经 `OverlayStack` 走同一套)。
-- `AboutScreen.kt` + `Update.kt` + `UpdateChecker.kt` + `ApkInstaller.kt`:关于页与手动检查更新(判定全在 `UpdateChecker.kt`,纯函数);`HomeSettingsCard.kt`:当前默认桌面;`SystemStatus.kt` + `SystemStatusReader.kt`:只读系统屏保 / 动画缩放 / `sleep_timeout` 快照;`TitleDialog.kt`(改名页)/ `ConfirmDialog.kt`(R135 起只是 `GearMenu` 的薄封装:两颗胶囊「取消 / 确定」)。
+- `AboutScreen.kt` + `Update.kt` + `UpdateChecker.kt`:关于页与手动检查更新(判定全在 `UpdateChecker.kt`,纯函数;装更新交给 `SelfUpdate.kt`);`ApkInstaller.kt`:传 APK 装**别的**应用(扫码页上传,`ACTION_VIEW` + FileProvider),与自我更新无关;`HomeSettingsCard.kt`:当前默认桌面;`SystemStatus.kt` + `SystemStatusReader.kt`:只读系统屏保 / 动画缩放 / `sleep_timeout` 快照;`TitleDialog.kt`(改名页)/ `ConfirmDialog.kt`(R135 起只是 `GearMenu` 的薄封装:两颗胶囊「取消 / 确定」)。
 - `Onboarding.kt` + `OnboardingPure.kt`:首次引导三步(R135 起每步一份 `CapsuleColumn`,不再自带焦点账本)。
 
 **选图、导入、上传**
@@ -63,6 +63,12 @@
 - `StandbySchedule.kt`(待机 / 屏保两个时刻,纯函数)、`Screensaver.kt`(桌面屏保层)、`ScreensaverPlayer.kt`(进程级播放器单例:扫描、下标、换图计时、引用计数)、`ScreensaverMotion.kt`(推拉摇移)、`ScreensaverMedia.kt`(照片 / 视频判定与上限)、`UnitedUDream.kt`(系统屏保 `DreamService`,自己管 Lifecycle / SavedState)。
 - `VideoPlayback.kt`:进程内同一时刻最多一个 `MediaPlayer`(`VideoGate`)、`TextureView` 播放、首帧缩略图。**资源泄漏类评审的重点**。
 - `HdrImageMath.kt`(解码尺寸、增益图几何,纯函数)+ `HdrGainmaps.kt`(API 34+ `Gainmap`、HDR/SDR 比例档位监听)。
+
+**主页键接管、自我更新(R162)**
+- `HomeKeyService.kt`:无障碍服务,**独立进程 `:homekey`**。`onKeyEvent` 截 HOME(按下拉起首页,按下 + 松开都吃——系统在松开那一下才回桌面;长按等于短按)+ `onAccessibilityEvent` 盯别的桌面的 HOME Activity 到前台就拉回(开机、系统别的路径回桌面的兜底,会先闪一下原厂桌面);拉起一律 `MAIN + HOME` + 显式组件(任务才是 `type=home`,从应用按返回不闪);只在 UnitedU 不是默认桌面时生效;屏保播放中放行 HOME(按系统 `ACTION_DREAMING_*` 广播记,屏保窗口的无障碍事件类名认不出屏保)。只写自己的心跳文件。
+- `HomeKeyPolicy.kt`:上面所有判定的纯函数(`onHomeKey` / `onWindowChanged` / `shouldLaunchOnConnect` / `stockHomes`),一行 Android 都不碰,单测 `HomeKeyPolicyTest`。
+- `HomeKeyState.kt`:状态合成与读写——心跳文件(服务写、主进程读)、「开关开着」(系统已启用服务列表含本包)、「在运行」(心跳 + 系统此刻真的绑定着)、「受限」(Android 13+,按安装来源推断,加一个「见过一次」的记号 `restrictedSeen`,主进程的 SharedPreferences `homekey`);`HomeKeyStatus` 四态与设置页 / 引导的文案取用函数。单测 `HomeKeyStateTest`。
+- `SelfUpdate.kt`:自我更新走 PackageInstaller **会话** API + 结果接收器 `SelfUpdateResult`(替系统打开确认页)。不是 `ApkInstaller` 的 `ACTION_VIEW`:那会把本包标成受限、把正在跑的接管服务当场停掉(调研 §2.2 #11 / #12)。
 
 **更新后自启**:`RelaunchAfterUpdate.kt` + `RelaunchPolicy.kt`(`MY_PACKAGE_REPLACED` 后在满足条件时把自己拉回前台)。
 
@@ -106,6 +112,8 @@
 - **遗留代码**:`Theme.cardMetrics` / `HomeLayout` 是旧 main 线几何,只剩测试与少量常量引用;`GtvLayout.SETTINGS_TYPE_STEP` / `settingsSp` 是 R109 的记录,界面代码不再读(`Clock.kt` 的 `HeroClock` 已在 R134 删掉)。
 - **代码注释里的少量过时描述**:例如 `GtvLayout.kt` 约 981 行 `ROW_ENTER_*` 的 KDoc 仍写 `FastOutSlowIn`(R129e 起实际是 `LinearEasing`,见 `Theme.homeRowEnterSpec` 与同处 R129e 注释);`Settings.kt` 里 `wallpaperBlur` 注释写「0–100,步 10」(R119 起 0–50、步 5,以 `WALLPAPER_BLUR_MAX` / `_STEP` 为准);`MainActivity` 顶部 KDoc 仍提「齿轮菜单入口」(R69 起是设置外壳)。以代码为准。
 - **测试轮留着没修的两处**(`docs/design/test-round-2026-09-30.md`):`standbyPlan(1, Long.MAX_VALUE)` 溢出成负数——设置只允许固定档位,实际走不到,单测里是 `@Ignore` 用例;`sanitizeUploadName` 不去 C1 控制字符(U+0080–009F),它们在 ext4 上是合法文件名,不影响落盘与删除。
+- **主页键接管(R162)的接受限制**:开机时服务连上之前(约 1.5 s)原厂桌面会先露面;待机唤醒那一下 HOME 截不到(屏幕关着时按键不送无障碍,只唤醒);服务刚连上时屏保若已在播放,`dreaming` 要等下一次广播才对(没有公开查询,那一次 HOME 被吃);Android 13+ 用系统安装器侧载的包受「受限设置」锁,电视设置里没有解锁入口,只能 adb(设置页直接写出命令);Fire OS 不支持(Fire OS 8 的 HOME 在系统按键策略里先被吃掉,送不到无障碍过滤器)。依据与探针见 `research/2026-10-02-home-key-takeover-prior-art.md`。
+- **「这台电视不允许」是推断,不是读锁**:应用读不到那个 appop(要 `MANAGE_APPOPS`),按安装来源(`packageSource` 为本地 / 下载文件)加「见过一次」记号推断;会话更新会把来源归 0 而锁还在(靠记号);已用 adb 解锁但还没开过服务时仍报「不允许」(按钮照样带去无障碍页);`pm clear` 清记号而 appop 不清、Auto Backup 可能把记号带到别的机器——都只影响小字。**自我更新的 16 MB 拷贝 + fsync 在主线程**(`SelfUpdate.install`,确认前台与 `commit` 要在同一个主线程回合;电视上若有卡顿再挪到 IO)。复审时登记、没修的两处:`HomeKeyService.launch()` 失败(厂商拦后台启动)时 HOME 照吃,成了死键;自我更新的非取消类失败(存储不足、被策略拦下)只记日志,关于页停在「安装中」。
 - **更新通道未配置镜像**:缺省只查 GitHub Release,而仓库还没有 Release,「检查更新」现在只会显示「检查失败」(COS 地址在 `gradle.properties` 里仍是注释)。
 
 ## 7. 最有价值的评审方向

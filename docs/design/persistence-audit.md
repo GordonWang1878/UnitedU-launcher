@@ -5,8 +5,10 @@
 失败,走兜底 `dst.delete()`,正式文件就没了,下一次 read 按首次运行写回默认。修复见 commit `e2ba6d4`(`LockedFile`)。
 本表把应用写的**每一个**持久化文件都过一遍。
 
-**进程模型**:全部组件(MainActivity、`PackageRemovedReceiver`、`UnitedUDream`、`UploadServer` 的请求线程)都在同一个进程里,
-清单没有 `android:process`,所以进程内锁就够用。外部写者只有 `adb push`(开发后门),不在防护范围内。
+**进程模型**:除 `HomeKeyService` 外,全部组件(MainActivity、`PackageRemovedReceiver`、`UnitedUDream`、`SelfUpdateResult`、
+`UploadServer` 的请求线程)都在同一个进程里,所以进程内锁就够用。**R162 起清单里有一个 `android:process=":homekey"`**
+(主页键接管的无障碍服务):它不碰上面任何状态文件,只写自己的心跳文件(见下面「主页键接管」);跨进程的状态不能靠 `LockedFile`
+的进程内锁,也不用 `SharedPreferences`(按进程缓存,另一个进程的写入看不到)。外部写者只有 `adb push`(开发后门),不在防护范围内。
 
 ## JSON 状态文件(外置 files/ 根目录)
 
@@ -32,6 +34,13 @@
 | 更新包 `cache/apk/update-<uuid>.{part,apk}` | `Update.download`(IO) | `UpdateFiles` 已经做到每次独立文件名 + 进程内登记簿 + 锁内 promote 和 sweep | 无需修 |
 | NanoHTTPD multipart 临时文件 `cache/upload/` | NanoHTTPD | 每个请求独立;开服时清掉超过 60 s 的 | 无需修 |
 | 屏保视频原始上传临时文件 `cache/upload/raw*.part`(R103,2026-09-27) | `UploadServer.serveRawUpload`(请求线程) | 每次 `File.createTempFile` 独立命名;按 Content-Length 流式写入、fsync;`finally` 删除;校验过后经 `saveIntoLibrary` 移入(同卷 rename,跨卷回落 `writeFileAtomically`) | 新增即按铁律写;进程被杀留下的由开服 `sweepStale`(> 60 s)清掉。模拟器实测 300 MB 上传 5 s、Java 堆全程 ~7 MB、上传后目录为空 |
+
+## 主页键接管(R162,2026-10-02)
+
+| 文件 | 写者 | 风险 | 处置 |
+|---|---|---|---|
+| `filesDir/homekey.state`(内置 files,内容 `connected bootCount`) | **只有** `HomeKeyService`(`:homekey` 进程,连上与解绑各写一次);主进程只读 | 跨进程,进程内锁无意义;读失败一律当「没有心跳」 | 单写者 + `writeFileAtomically`,不进 `LockedFile` |
+| SharedPreferences `homekey`(键 `restrictedSeen`,「见过受限」的记号) | **只有主进程**(设置页 / 引导 / `MainActivity` 冷启动读,`commit()` 写;服务进程不碰) | 单进程单文件,`commit()` 同步落盘(同 `RelaunchMarks`:进程随时可能被更新杀掉);`pm clear` 会清它而系统 appop 不清,Auto Backup 可能把它带到别的机器——都只影响「这台电视不允许」那行小字 | 无需修 |
 
 ## 没改的,以及理由
 

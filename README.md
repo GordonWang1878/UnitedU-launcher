@@ -28,7 +28,7 @@
 | ⚠️ 能当桌面,但有条件 | 海信 / Vidda(国行安卓机型) | 按 HOME 键会弹出桌面选择框,选 UnitedU 即可;断电重启后会回到聚好看 |
 | | 康佳 | 系统里没有默认桌面选项,要用 adb 冻结康佳桌面 |
 | | 小米 / Redmi 约 2020 年以前的固件 | HOME 键可以选第三方桌面 |
-| | 国外 Google TV / 带 Google 服务的 Android TV | 能装能用,但 HOME 键永远回 Google 桌面(原厂桌面优先级更高);想让 HOME 进 UnitedU 只能用 adb 停用 Google 桌面,风险自负 |
+| | 国外 Google TV / 带 Google 服务的 Android TV | 能装能用,但 HOME 键默认回 Google 桌面(原厂桌面优先级更高);想让 HOME 进 UnitedU:开「主页键接管」(见下,模拟器上验证过,真电视待实测),或用 adb 停用 Google 桌面,风险自负 |
 | | 荣耀智慧屏、乐视 | 可能可以,没有实测 |
 | ℹ️ 只能当普通应用 | 小米 / Redmi 2021 年起的固件、澎湃 OS | HOME 键强制回 PatchWall |
 | | 创维 / 酷开 | 默认主页写死在系统里 |
@@ -45,6 +45,7 @@
 - **输入源页**用的是 Android 标准的电视输入框架。多数国产电视切 HDMI 走厂商私有接口,这一页在那些电视上很可能是空的(只剩「返回」)。
 - **系统屏保**:电视的「屏幕保护程序」里能不能选 UnitedU 看厂商;Google TV 只提供「环境模式」,选不到第三方屏保。UnitedU 自己的闲置画面与屏保不受影响。
 - **更新后自动回到桌面**要在电视设置里给 UnitedU 打开「显示在其他应用上层」(在「关于」里检查更新时会引导);Android 9 不需要。
+- **主页键接管**(设置 → 通用 → 设置默认桌面,见下「设为默认桌面」)用无障碍服务把 HOME 键抢回来:能截键就直接截(不闪),电视的按键策略不把 HOME 交给无障碍服务时,退到「原厂桌面一出现就拉回 UnitedU」(会先闪一下)。小米 2021 年起固件、创维 / 酷开这类「只能当普通应用」的电视,开了之后 HOME 键也许能回 UnitedU,**待实测**;Fire OS 不支持。
 
 ## 安装
 
@@ -76,13 +77,23 @@ adb shell cmd package set-home-activity com.uniteduone.launcher/.MainActivity
 
 打开设置有两种方式:首页左上第一颗齿轮胶囊按确定,或者在首页按遥控器的菜单键(三条杠)。
 
+### 主页键接管(Google TV 和其他换不了默认桌面的电视)
+
+上面的办法做完,按 HOME 仍回原厂桌面时(Google TV / GMS 电视的原厂桌面优先级更高;小米新固件等直接锁住 HOME),可以改用**主页键接管**:一个只在 UnitedU 不是默认桌面时才起作用的无障碍服务。已在 Google TV / Android TV 14 模拟器上验证,**真电视待实测**。
+
+- **怎么开**:设置 → 通用 → 设置默认桌面 → 「主页键接管」(UnitedU 已经是默认桌面时这颗默认不出现;首次引导第 3 步里也有),按确定跳到原生电视设置的「无障碍」,打开「UnitedU 主页键接管」。
+- **效果**:按 HOME(长按同样)直接回到 UnitedU,原厂桌面不用卸载、一帧都不画;屏保播放时按 HOME 仍是系统原来的做法(只退出屏保)。服务只响应 HOME 键和前台应用的名字,不读屏幕内容;关掉开关即完全还原。
+- **局限**:开机时服务起来之前,原厂桌面会露面一两秒;屏幕关着(待机)时按 HOME 只会唤醒电视。
+- **Android 13 起**:用文件管理器 / 浏览器装的 UnitedU,电视会拦住这个服务的开关,而且设置里没有解锁入口;这时「主页键接管」旁边写「这台电视不允许」。用电脑执行 `adb shell appops set com.uniteduone.launcher ACCESS_RESTRICTED_SETTINGS allow` 再去打开,或者改用 adb 安装(`adb install` 不受限)。
+- **另一条路**(会用 adb 的话更彻底):直接停用原厂桌面,下次按 HOME 由系统弹出选择框,`adb shell pm disable-user --user 0 <原厂桌面包名>`。Android TV 模拟器上停用 `com.google.android.tvlauncher` 后 HOME 就解析到 UnitedU;Google TV 要停 `com.google.android.apps.tv.launcherx`,还要连带停 `com.google.android.tungsten.setupwraith`(它会把原厂桌面再启用),代价是 YouTube 键之类的原厂功能失效。这一条来自其他项目的说明,Google TV 上我们没有实测,自担风险。
+
 ## 首次引导
 
 第一次打开 UnitedU(全新安装,不是从旧版本升级)会自动出现三步引导,按返回键回到上一步:
 
 1. **选语言**:跟随系统 / 简体 / 繁體 / English,选中立即生效。
 2. **把已装应用铺上桌面**:这不是推荐算法,是一张固定的国行常见应用表,只挑电视上已经装了的列出来:影视(腾讯视频的云视听极光、银河奇异果、CIBN 酷喵、芒果TV、云视听小电视)、直播(央视频、咪视界)、音乐(网易云音乐、QQ 音乐)。「放到桌面」就照这份清单放上去;「跳过」的话三行先空着,桌面底部会提示去「编辑桌面」(按「立即前往」直接进),在每一行末尾的「＋」里添加;也可以在所有应用页长按应用 →「加到桌面」。
-3. **设默认桌面**:跟上面「设为默认桌面」是同一个操作入口,这里是提前引导一次;按「完成」直接进桌面,以后随时能在设置里再改。
+3. **设默认桌面**:跟上面「设为默认桌面」是同一个操作入口,这里是提前引导一次(UnitedU 还不是默认桌面的电视上会多一颗「主页键接管」);按「完成」直接进桌面,以后随时能在设置里再改。
 
 老用户从旧版本升级不会看到这个引导。
 
@@ -135,11 +146,11 @@ adb shell cmd package set-home-activity com.uniteduone.launcher/.MainActivity
 - 有更新 → 显示新版本号,按「下载并安装」;下载完先核对 SHA-256、包名、版本号和签名证书,全部通过才交给系统安装器;
 - 网络查不通、返回的数据解析不出来、或者下载下来的包校验不过,分别给出对应的失败提示。
 
-第一次在这里装更新时,同样要先在电视上给 UnitedU 打开「安装未知应用」(见上文「安装」),然后回来重试。
+第一次在这里装更新时,同样要先在电视上给 UnitedU 打开「安装未知应用」(见上文「安装」),然后回来重试。更新走系统安装器的会话接口,不会把已经打开的「主页键接管」关掉(更新后服务自动重连)。
 
 ## 回退到原桌面
 
-不想用了随时能换回去,不需要卸载 UnitedU:设置 → 通用 → 设置默认桌面 →「去原生电视设置更改」,在系统的「主屏幕应用」选择页选回原来的桌面即可。这一步完全由 Android 系统接管,原厂桌面和 UnitedU 都还装在电视上,想换回来再选一次 UnitedU 就行。
+不想用了随时能换回去,不需要卸载 UnitedU:设置 → 通用 → 设置默认桌面 →「去原生电视设置更改」,在系统的「主屏幕应用」选择页选回原来的桌面即可。这一步完全由 Android 系统接管,原厂桌面和 UnitedU 都还装在电视上,想换回来再选一次 UnitedU 就行。开过「主页键接管」的话,另外到原生电视设置的「无障碍」里关掉「UnitedU 主页键接管」,HOME 键才会完全还原。
 
 ## 从源码构建
 
@@ -183,4 +194,4 @@ Apache-2.0,见 `LICENSE`;第三方声明见 `NOTICE`。内置卡片图里有腾�
 
 ## In short (English)
 
-UnitedU is an open-source, ad-free Android TV launcher for GMS-less TVs running Android 9 or later whose maker lets you change the home app (built and tested against a Chinese-market Sony A95L; see the compatibility table above — many Chinese brands lock the HOME button to their own launcher, and on Google TV the stock launcher keeps the HOME button). It looks like Google TV but shows only the apps you put on it, and never phones home except when you manually press "Check for Updates" (or open the "Upload Files" page, which runs a local upload server while it is open). It isn't distributed through any app store and hasn't had a public release yet; once released, grab the APK from GitHub Releases and `adb install -r` it, or push a later APK from your phone via Settings → General → Upload Files once UnitedU is already running. Licensed under Apache-2.0 (`LICENSE`); third-party notices and trademark attributions for the built-in card art are in `NOTICE`.
+UnitedU is an open-source, ad-free Android TV launcher for GMS-less TVs running Android 9 or later whose maker lets you change the home app (built and tested against a Chinese-market Sony A95L; see the compatibility table above — many Chinese brands lock the HOME button to their own launcher, and on Google TV the stock launcher keeps the HOME button unless you turn on the optional accessibility-based Home Button Takeover in Settings, which is untested on real TVs). It looks like Google TV but shows only the apps you put on it, and never phones home except when you manually press "Check for Updates" (or open the "Upload Files" page, which runs a local upload server while it is open). It isn't distributed through any app store and hasn't had a public release yet; once released, grab the APK from GitHub Releases and `adb install -r` it, or push a later APK from your phone via Settings → General → Upload Files once UnitedU is already running. Licensed under Apache-2.0 (`LICENSE`); third-party notices and trademark attributions for the built-in card art are in `NOTICE`.

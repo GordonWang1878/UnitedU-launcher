@@ -69,7 +69,8 @@
 - **2.H3** 当前默认桌面那一行的小标签:「当前」 `home_settings_current_label`
 - **2.H4** 读不到当前默认桌面时:「未知」 `home_settings_unknown`
 - **2.H5** 下面的说明:「按主页(Home)键时打开的桌面。Android 只允许在原生电视设置里更改。」 `home_settings_note`
-- **2.H6** 右边唯一一颗胶囊:「去原生电视设置更改」 `home_settings_change_button`
+- **2.H6** 右边第一颗胶囊:「去原生电视设置更改」 `home_settings_change_button`
+- **2.H7** (R162 新增)第二颗条件胶囊「主页键接管」(UnitedU 不是默认桌面、或服务已开着时才出现)及它的四种状态小字、左侧说明、受限时的提示:`homekey_capsule` / `homekey_state_*` / `homekey_note_*` / `toast_homekey_restricted`,逐句见 `settings-inventory.md`「第三层 · 默认桌面页」
 
 ## 3 布局(第一层 → 布局)
 

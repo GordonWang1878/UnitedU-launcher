@@ -1,5 +1,10 @@
 # 主页键接管(无障碍服务)实施计划
 
+> **执行记录(2026-10-02,实现时相对本计划的改动;下面正文保持原样,以代码与 spec R162 为准)**
+> - **屏保改广播**:屏保窗口的无障碍事件类名是 `android.widget.FrameLayout`、不是 `DreamActivity`,按窗口类名认不出;`dreaming` 改由服务运行时注册接收 `ACTION_DREAMING_STARTED / STOPPED`——正文里的 `nextDreaming` / `DREAM_ACTIVITY_CLASS` / API ≥ 30 门槛都已不存在。
+> - **受限改安装来源 + 记号**:应用读不到自己的 `ACCESS_RESTRICTED_SETTINGS` appop,`isRestricted` 改按 `packageSource ∈ {3, 4}`(API ≥ 33)推断,并加「见过一次」的记号 `restrictedSeen`(会话更新会把来源改回 0);受限时按胶囊 = 系统 Toast + 照样打开无障碍页。
+> - **「在运行」= 心跳 + 已绑定**:心跳(本次开机连上过)**且**系统此刻真的绑定着(`HomeKeyState.isBound`);「开关开着」另按 `Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES` 判(`enabledServiceSetting`)。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 在 UnitedU 抢不到 HOME 键的电视(Google TV / GMS Android TV、锁 HOME 的国产品牌)上,用户在系统「无障碍」里打开一个服务后,按主页键直接回到 UnitedU,原厂桌面不用卸。

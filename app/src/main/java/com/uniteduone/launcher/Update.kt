@@ -40,7 +40,7 @@ object Update {
     /** latest.json 正文上限。正常文件几百字节;被劫持成门户页、或地址配错指向了大文件时不必读完。 */
     private const val MAX_JSON_BYTES = 64 * 1024
 
-    /** 更新包上限 100 MB。UnitedU 本体约 3 MB,这是防「地址指错」的护栏,不是容量规划。 */
+    /** 更新包上限 100 MB。UnitedU 本体约 16 MB,这是防「地址指错」的护栏,不是容量规划。 */
     private const val MAX_APK_BYTES = 100L * 1024 * 1024
 
     private const val PART_SUFFIX = ".part"
@@ -68,7 +68,7 @@ object Update {
     /** 与任何页面的生命周期无关的删文件协程:页面关掉 / Activity 销毁后,丢弃的文件照样删掉。 */
     private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    /** 丢弃一个不再交给安装器的文件(删除并注销),在后台线程做。 */
+    /** 丢弃一个不再需要的更新文件(没装的、或字节已拷进安装会话的;删除并注销),在后台线程做。 */
     fun discard(ctx: Context, file: File) {
         val files = files(ctx)
         cleanupScope.launch { files.release(file) }
@@ -83,10 +83,11 @@ object Update {
         resolveLatest(urls, log = { Log.w(TAG, it) }) { url -> fetchText(url) }
 
     /**
-     * 清掉上一条命留下的更新文件(进程在下载中途被杀留下的 `.part`、装成功后进程被替换没人删的 `.apk`、
+     * 清掉上一条命留下的更新文件(进程在下载中途被杀留下的 `.part`、校验通过后进程被杀没来得及删的 `.apk`、
      * 上一版固定文件名的 `update.apk`)。在 `MainActivity.onCreate` 调(与 UploadServer 的 sweepStale 同一思路)。
-     * **本进程登记在案的文件一律跳过**:另一个 MainActivity 实例可能正在下载、等着用户按「安装」、
-     * 或者刚把文件交给系统安装器(安装器经 FileProvider 异步读它)。
+     * **本进程登记在案的文件一律跳过**:另一个 MainActivity 实例可能正在下载、校验、或等着用户按「安装」
+     * (R162 ⑥ 起自我更新走会话 API,字节在 [SelfUpdate.install] 里就拷进会话,交出去之后没有安装器再读这个文件;
+     * 「交给安装器、安装器异步读」只剩传 APK 装别的应用那一路,它的登记簿是 [uploadApks])。
      */
     @WorkerThread
     fun sweepStale(ctx: Context) {
@@ -292,8 +293,9 @@ object Update {
  * 锁(本对象的监视器)只包住「登记 / 注销 / 改名 / 清扫」这几下瞬时操作,下载、算哈希、等用户
  * 这些长时间的事一律不持锁,所以两个 MainActivity 实例的更新流程互不阻塞。
  *
- * 交给安装器的文件**本进程内不再注销**:安装器经 FileProvider 异步读它,什么时候读完我们无从得知;
- * 它会在下一次冷启动(包括更新成功后新进程的那一次)被 [sweep] 清掉。
+ * 交给安装器的文件**本进程内不再注销**(只对传 APK 装别的应用那一路成立,`UploadServer` 的 [uploadApks]):
+ * 安装器经 FileProvider 异步读它,什么时候读完我们无从得知;它会在下一次冷启动被 [sweep] 清掉。
+ * 自我更新(R162 ⑥)走会话 API,字节在 [SelfUpdate.install] 里就拷进会话,文件由 [Update.discard] 当场删,没有这一条。
  */
 class UpdateFiles(
     private val dir: File,
