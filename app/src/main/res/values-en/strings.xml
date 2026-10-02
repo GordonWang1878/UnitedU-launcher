@@ -53,7 +53,6 @@
     <string name="import_step_wifi">Connect your phone to the same Wi-Fi as this TV</string>
     <string name="import_step_scan">Scan the QR code with your phone\'s camera</string>
     <string name="import_step_pick">Pick files on the page that opens. They\'re ready on the TV right away.</string>
-    <string name="import_size_hint">Photos: landscape 16:9, at least 1920×1080; 3840×2160 looks sharper on a 4K TV. Portrait photos are cropped to a middle strip.</string>
     <string name="import_url_hint">Can\'t scan? Type this into your phone\'s browser</string>
     <string name="import_waiting">Waiting for your phone…</string>
     <plurals name="import_received">
@@ -68,7 +67,7 @@
     <string name="import_apk_started">Confirm the install on your TV</string>
 
     <!-- web_* : phone upload page (injected by the server; %d replaced by the page's JS). R130: rebuilt as "Send to TV" -->
-    <string name="web_title">Send to TV</string>
+    <string name="web_title">Upload Files</string>
     <string name="web_connected">Connected to TV</string>
     <string name="web_offline">Disconnected from TV</string>
     <string name="web_offline_hint">Open Upload Files on the TV again, then reload this page</string>

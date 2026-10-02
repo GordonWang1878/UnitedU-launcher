@@ -45,8 +45,6 @@
     <string name="import_step_wifi">手机连上和电视相同的 Wi-Fi</string>
     <string name="import_step_scan">用手机相机扫描右边的二维码</string>
     <string name="import_step_pick">在打开的网页里选好文件，电视这边马上就能用</string>
-    <!-- 尺寸建议(2026-10-02 Gordon):怕用户随便什么照片都往上传、显示效果不好;壁纸 / 屏保 / 总入口页在三步下面写一句 -->
-    <string name="import_size_hint">照片建议横向 16:9、至少 1920×1080；4K 电视用 3840×2160 更清晰。竖着的照片会被裁掉上下，只留中间一段。</string>
     <string name="import_url_hint">扫不了？在手机浏览器里输入</string>
     <string name="import_waiting">等待手机发送…</string>
     <plurals name="import_received">
@@ -61,7 +59,7 @@
     <string name="import_apk_started">请在电视上确认安装</string>
 
     <!-- web_* : 手机上传网页文案(服务端注入;JS 里 %d 由网页自己替换)。R130 起页面按「传到电视」重做 -->
-    <string name="web_title">传到电视</string>
+    <string name="web_title">上传资料</string>
     <string name="web_connected">已连接电视</string>
     <string name="web_offline">和电视断开了</string>
     <string name="web_offline_hint">在电视上重新打开「上传资料」，再刷新这一页</string>

@@ -1909,3 +1909,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 
 - Gordon:怕用户随便什么照片都往上传、显示效果不好,上传壁纸 / 屏保时给个尺寸建议,只加一两句文案。壁纸 / 屏保都是 `ContentScale.Crop` 填满 16:9,竖图只剩中间一段,所以文案写「横向 16:9、至少 1920×1080;4K 电视用 3840×2160 更清晰;竖着的照片会被裁掉上下」。落点两处:电视端扫码页三步下面一句灰字(`import_size_hint`,卡片图页不写——网页说明已有 16:9),手机网页壁纸 / 屏保两栏的说明(`web_desc_wallpapers` / `web_desc_screensavers`)。三语,CopyTest 过;模拟器截图 `docs/screenshots/import-size-hint.jpg`;814 单测全过。
 - 装电视(20:03):`tv-install.sh` 等首页在前台后装 `e2191789…`,md5 一致,编译第 2 次 `speed-profile`,装完前台是首页。
+- Gordon 补充三点:①电视扫码页不要尺寸建议(扫进去的网页已经有)——撤掉那句灰字与 `import_size_hint`;②网页标题「传到电视」→「上传资料」(`web_title`,三语);③网页左上角的 logo 不是最新版——原来是 CSS 画的方块 + 字母 U,改成 R156 图标的内联 SVG(`docs/design/icon-masters/src` 的底色 + 碗 + 三个形状,取自适应图标可见的 72 dp 区域)。

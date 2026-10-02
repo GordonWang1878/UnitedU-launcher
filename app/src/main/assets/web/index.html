@@ -32,7 +32,7 @@ button{cursor:pointer}
 /* 顶部:品牌 + 连接状态 */
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
 .brand{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;letter-spacing:.2px}
-.mark{width:26px;height:26px;border-radius:8px;background:var(--acc);display:grid;place-items:center;color:var(--on-acc);font-size:15px;font-weight:700}
+.mark{width:26px;height:26px;border-radius:8px;display:block;flex:none}
 .conn{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--dim);background:var(--surface);border-radius:999px;padding:5px 11px 5px 9px;box-shadow:var(--shadow)}
 .conn .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 22%,transparent)}
 .conn.off .dot{background:var(--danger);box-shadow:0 0 0 3px color-mix(in srgb,var(--danger) 22%,transparent)}
@@ -115,7 +115,7 @@ input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand"><span class="mark" aria-hidden="true">U</span>UnitedU</div>
+    <div class="brand"><svg class="mark" aria-hidden="true" viewBox="18 18 72 72"><rect x="18" y="18" width="72" height="72" fill="#EFE8DA"/><circle cx="54" cy="59.621" r="13.403" fill="#E0402C"/><rect x="37.875" y="26.699" width="16.419" height="16.419" fill="#F2B705"/><path d="M54.944 43.118 L71.363 43.118 L63.154 26.699 Z" fill="#2156A8"/><path d="M30.788 42.188 V56.830 A23.212 23.212 0 0 0 77.212 56.830 V42.188" fill="none" stroke="#1B1B1B" stroke-width="12.916" stroke-linecap="round"/></svg>UnitedU</div>
     <div class="conn" id="conn"><span class="dot"></span><span id="connText"></span></div>
   </header>
   <h1 id="title"></h1>

@@ -45,7 +45,6 @@
     <string name="import_step_wifi">手機連上和電視相同的 Wi-Fi</string>
     <string name="import_step_scan">用手機相機掃描右邊的 QR 碼</string>
     <string name="import_step_pick">在開啟的網頁裡選好檔案，電視這邊馬上就能使用</string>
-    <string name="import_size_hint">相片建議橫向 16:9、至少 1920×1080；4K 電視用 3840×2160 更清晰。直向相片會被裁掉上下，只留中間一段。</string>
     <string name="import_url_hint">無法掃描？在手機瀏覽器輸入</string>
     <string name="import_waiting">等待手機傳送…</string>
     <plurals name="import_received">
@@ -60,7 +59,7 @@
     <string name="import_apk_started">請在電視上確認安裝</string>
 
     <!-- web_* : 手機上傳網頁文案(伺服端注入;JS 裡 %d 由網頁自行取代)。R130 起頁面按「傳到電視」重做 -->
-    <string name="web_title">傳到電視</string>
+    <string name="web_title">上傳資料</string>
     <string name="web_connected">已連線到電視</string>
     <string name="web_offline">和電視中斷連線</string>
     <string name="web_offline_hint">在電視上重新開啟「上傳資料」，再重新整理這一頁</string>
