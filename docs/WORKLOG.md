@@ -1934,3 +1934,7 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 装电视(23:3x):`aab5c257…`(添加至分栏间距 18 dp),md5 一致,编译 `speed-profile`,装完前台是首页。
 - Gordon 电视上看过全部改动:「没问题了,全推」→ 52 个提交分 6 批推到 origin/main(`b2449be`),含之前「先不推」的「腾讯」改名那批。
 - Gordon:「把所有文档包括 README 更新好,推送,仓库由私有改为公开」。文档收尾:README 功能一览(行无名字、加主页键接管一条)、测试用例表 T-34 标记取消、交接文档改写成当前快照。公开前扫过:没有密钥 / 密码 / 凭据文件入库,LICENSE(Apache-2.0)与 NOTICE 在;测试与文档里的局域网 IP、`docs/screenshots/gtv/01-home-default.jpg` 里 Google TV 账号头像是仅有的个人痕迹。
+
+## 2026-10-02 深夜 · 发版 1.0.0
+
+- Gordon:「发版 1.0」。版本号 1.0.0 / versionCode 3(内部版 1.0.0-beta / 2 从未对外发;已装 beta 的电视按「检查更新」会看到 1.0.0)。走 `scripts/release.sh 1.0.0`:release 密钥构建 + 证书核对 + `latest.json` + tag `v1.0.0` + GitHub Release(latest)。README、设计定稿的「尚未发布」改掉。

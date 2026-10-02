@@ -4,7 +4,7 @@
 
 面向**国行无 GMS、允许更换桌面的 Android TV**(Android 9 及以上;目前实机验证的是索尼国行,其他品牌能不能用见下面「适用范围」)的开源桌面替代品。外观照着 Google TV 做,内容只有你自己放上去的应用。全程不联网,唯一的例外是你自己按「检查更新」的那一刻(以及你打开「上传资料」页时,电视在局域网里临时开一个上传服务)。不上架 Play 商店或国内应用市场,只以 GitHub Release 的 APK 形式分发,需要自己下载安装。
 
-包名 `com.uniteduone.launcher`,最低支持 Android 9(API 28)。**尚未正式发布**,还没有 GitHub Release;对外发布的第一个版本将是 1.0(APK 上的版本号 `1.0.0-beta` 是内部版本号,与发布版本号分开)。许可证见文末。
+包名 `com.uniteduone.launcher`,最低支持 Android 9(API 28)。**1.0.0 已于 2026-10-02 发布**(GitHub Release `v1.0.0`;APK 版本号 1.0.0 / versionCode 3)。许可证见文末。
 
 ## 功能一览
 
