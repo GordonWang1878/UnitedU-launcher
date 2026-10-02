@@ -21,7 +21,7 @@
 ## 3. 运行时结构(先有个整体图)
 
 - **一个 Activity,一棵 Compose 树**。首页(`HomeScreen`)常驻;设置外壳、关于页、所有应用页、输入源页、选图页、扫码页、引导、各种菜单都是叠在它上面的**浮层**,开关状态全部住在 `MainActivity`(`shellStack`、`about`、`appsPage`、`inputsPage`、`pickerTarget`、`editing`、`onboarding`……),按键分发也在 `MainActivity.dispatchKeyEvent`(长按按「持续满 `LONG_PRESS_MS` = 600 ms」识别,不按 `repeatCount`)。
-- **数据都在外置应用目录** `/sdcard/Android/data/com.uniteduone.launcher/files/`(`Paths.kt`,刻意不回落 internal,理由见其 KDoc):`layout.json`(行与应用)、`settings.json`、`titles.json`(自定义标题 / 输入源改名)、`hidden-inputs.json`、`icons/<包名>.png`(换过的卡片图)、`library/{wallpapers,cards,screensavers}/`(用户上传)。壁纸处理缓存在外置 cache。内置图直接从 APK assets 读,不复制。
+- **数据都在外置应用目录** `/sdcard/Android/data/com.uniteduone.launcher/files/`(`Paths.kt`,刻意不回落 internal,理由见其 KDoc):`layout.json`(行与应用:每行只有图标 + 应用,R163 起行没有名字;老文件里的 `name` 读盘时只用来回落图标)、`settings.json`、`titles.json`(自定义标题 / 输入源改名)、`hidden-inputs.json`、`icons/<包名>.png`(换过的卡片图)、`library/{wallpapers,cards,screensavers}/`(用户上传)。壁纸处理缓存在外置 cache。内置图直接从 APK assets 读,不复制。
 - **进程模型**:除 `:homekey` 外所有组件(`MainActivity`、清单里的 `PackageRemovedReceiver` / `RelaunchAfterUpdate` / `SelfUpdateResult`、系统屏保 `UnitedUDream`、上传服务的请求线程)同一进程,所以文件锁用进程内锁就够(`LockedFile`)。**主页键接管的无障碍服务 `HomeKeyService` 跑在独立进程 `:homekey`**(R162:每一下按键都先经过它,不与首页抢主线程;桌面进程照常可回收),它**不碰任何状态文件**——`LockedFile` 的锁不跨进程——只写自己的心跳文件 `homekey.state`(单写者、原子写),主进程只读。
 - **纯函数 / Android 分文件**:凡是能在 JVM 上测的规则都拆成不碰 Android 的文件(`*Pure.kt`、`*Model.kt`、`*Math.kt`、`PickerCells.kt`、`StandbySchedule.kt`、`UpdateChecker.kt`……),Compose / IO 那一半只接线。评审「规则对不对」看纯函数和它的单测,评审「接线 / 生命周期对不对」看 Compose 文件。
 
@@ -51,7 +51,7 @@
 
 **设置外壳**
 - `SettingsModel.kt`(四组、每行、写入函数,纯数据)、`ShellModel.kt`(导航栈、页 id、每页缺省焦点、`MAX_CAPSULES_PER_PAGE`、预览状态机,纯模型)、`SettingsShell.kt`(`CapsuleColumn`:外壳每一层的焦点账本)、`ShellCapsule.kt`(`MenuPill` 胶囊渲染)、`SettingsFade.kt`(淡入淡出 `FadeSwitch`、残影 `LocalPageGhost`、`ShellMotion`;R136 起所有浮层经 `OverlayStack` 走同一套)。
-- `AboutScreen.kt` + `Update.kt` + `UpdateChecker.kt`:关于页与手动检查更新(判定全在 `UpdateChecker.kt`,纯函数;装更新交给 `SelfUpdate.kt`);`ApkInstaller.kt`:传 APK 装**别的**应用的 `ACTION_VIEW` 安装器(扫码页上传 + FileProvider;传的恰是 UnitedU 自己时 `UploadServer` 按包名分流、改走 `SelfUpdate`);`SelfUpdate` 复用它的权限引导(`requestInstallPermission`)与 `Result`;`HomeSettingsCard.kt`:当前默认桌面;`SystemStatus.kt` + `SystemStatusReader.kt`:只读系统屏保 / 动画缩放 / `sleep_timeout` 快照;`TitleDialog.kt`(改名页)/ `ConfirmDialog.kt`(R135 起只是 `GearMenu` 的薄封装:两颗胶囊「取消 / 确定」)。
+- `AboutScreen.kt` + `Update.kt` + `UpdateChecker.kt`:关于页与手动检查更新(判定全在 `UpdateChecker.kt`,纯函数;装更新交给 `SelfUpdate.kt`);`ApkInstaller.kt`:传 APK 装**别的**应用的 `ACTION_VIEW` 安装器(扫码页上传 + FileProvider;传的恰是 UnitedU 自己时 `UploadServer` 按包名分流、改走 `SelfUpdate`);`SelfUpdate` 复用它的权限引导(`requestInstallPermission`)与 `Result`;`HomeSettingsCard.kt`:当前默认桌面;`SystemStatus.kt` + `SystemStatusReader.kt`:只读系统屏保 / 动画缩放 / `sleep_timeout` 快照;`TitleDialog.kt`(改名页:卡片改名、输入源改名;R163 起行没有名字,没有行改名)/ `ConfirmDialog.kt`(R135 起只是 `GearMenu` 的薄封装:两颗胶囊「取消 / 确定」)。
 - `Onboarding.kt` + `OnboardingPure.kt`:首次引导三步(R135 起每步一份 `CapsuleColumn`,不再自带焦点账本)。
 
 **选图、导入、上传**
