@@ -1924,3 +1924,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 评审(R163,2026-10-02 晚):规格与焦点铁律都过,无需修项;记档的小项:①「选一行」药丸的应用名小字 11 sp,电视上看清不清由 Gordon 定(看不清就把摘要放进 15 sp 的标签);②降级到 R163 之前的版本读不了无 `name` 的 layout.json(会退到 `.prev` / 默认);③`AppsMenu.rows` 与 `rowApps` 是平行列表,`Apps.load` 失败时每行都显示「空」;④`GtvLayout.ROW_TITLE_LINE` 已无读者;⑤`ShellTitle(path)` 可给默认值;⑥CLAUDE.md 焦点表 83 / 88 行未提图标 + 小字药丸。参考截图:`docs/screenshots/home-rows-reference-r163.jpg`(首页)、`edit-rows-before-r163.jpg`(改前编辑页)、`upload-web-header.jpg`(网页页头)。
 - 装电视(20:5x):`tv-install.sh` 等首页在前台后装 `c4eacaa3…`(R163 + 上传页三处修正),md5 一致,编译第 2 次 `speed-profile`,装完前台是首页;电视上的 `layout.json` 仍是带 `name` 的老格式(三行都已有 icon),下次编辑才会改写成只剩 `icon` + `apps`。
 - Gordon:行菜单页头「管理这一行」→「分栏管理」(zh-TW 分欄管理,en Manage Row 不变);代码注释、spec R163、CLAUDE.md 焦点表同步。
+- 装电视(21:1x):`5c7eea16…`(分栏管理),md5 一致,编译 `speed-profile`,装完前台是首页。
