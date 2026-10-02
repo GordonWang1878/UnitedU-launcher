@@ -1867,3 +1867,17 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 产出:`docs/research/2026-10-02-tv-compatibility.md`(合并结论)+ 三份分报告;README 加「适用范围」一节、开头定位改窄、征集测试附检查清单,并顺手把 R148–R161 以来过时的名字与功能描述改掉(从手机添加 → 上传资料、默认桌面 → 设置默认桌面、只留时钟 → 壁纸+时钟、新应用提示已删、内置卡片 7 张且只给对应应用、引导第 2 步的表、空桌面「立即前往」、屏保图库 ✓)。
 - 待 Gordon 定(见合并报告 §4):清单加普通 `LAUNCHER` 分类;修 Android 9 上「设置默认桌面」打开空页;GMS 电视上的提示;「开机自启」与 TCL 无 HOME 构建不建议 1.0 做。
 - Gordon 定(卡片):①主 Activity 加普通 `LAUNCHER` 分类——已做(清单与 MAIN+LEANBACK_LAUNCHER 同一个 intent-filter;aapt2 读回 launchable + leanback-launchable 都在);②Android 9 上「设置默认桌面」打开空页——已做:`switchHome()` 能解析 `HOME_SETTINGS` 时改走 `openSystemPage`(弹回检测),弹回就提示「按主页键在选择框里选桌面、再选始终」(`toast_home_settings_bounced`,简繁英);解析不到时照旧打开原厂桌面。**两项都没有实机 / Android 9 模拟器验证**。③像 Projectivy 那样用无障碍服务接管 HOME 键:**1.0 就做**(Gordon 选推荐项),设计未写,交给下一个会话(见 `docs/handoff-2026-10-02.md`)。797 条单测全过。
+
+## 2026-10-02 · 无障碍接管 HOME 键:先例调研
+
+- 交接后出了一版设计(截键 + 盯窗口双路、单独进程、设置页一颗胶囊、引导第 3 步同款、R151 并入)。Gordon:别重新发明轮子,先看 Projectivy 这类有名的第三方桌面怎么做的。
+- 两路查:①从 A95L **只读**拉下 Projectivy 4.71 的 APK(`pm path` + `adb pull`,全程不按键),`aapt2 dump` + `dexdump -d` 反汇编它的 `ProjectivyAccessibilityService`;②后台代理查 Projectivy issue / 更新日志、LauncherHijack / FTVLaunchX / LtvLauncher / home-on-fire 源码、Launcher Manager、FLauncher、Button Mapper / Key Mapper、AOSP 行号。
+- 结论:业界三条路——A 截键(不闪,OEM 得把 HOME 送到过滤器)、B 盯窗口(哪都能跑,必闪 100–250 ms,原厂桌面已在前台时抓不到)、C adb 停用原厂桌面;成熟产品 A + B 都做。拉起自己要用 `MAIN + HOME` 意图成 `type=home` 任务,否则从应用按返回会先闪原厂桌面(Projectivy #605)。系统在松开 HOME 那一下才回桌面,A 要吃按下 + 松开。Android 13+ 受限设置:系统安装器装的侧载包打不开无障碍开关,`adb install` 不受限,电视设置常没有解锁入口。详见 `docs/research/2026-10-02-home-key-takeover-prior-art.md`(§3 是进设计的 7 条)。
+- 设计待 Gordon 确认后开工;先做探针(两台 Google 镜像模拟器:HOME 是否送到过滤器、后台拉起、点名 HOME intent 的任务类型、受限设置)。
+
+## 2026-10-02 · 无障碍接管 HOME 键:探针
+
+- Gordon「按这个做」。一次性探针 `test.homeprobe`(另一个包里的无障碍服务,拉起 UnitedU)在 `unitedu-gtv`(launcherx)和 `unitedu-tv`(tvlauncher)上跑了 12 项,逐项结果见 `docs/research/2026-10-02-home-key-takeover-prior-art.md` §2.2。
+- 通过:HOME 先到过滤器;吃掉后原厂桌面一次都不出现;后台拉起成功;`MAIN + HOME` + 显式组件 = `type=home`,从应用按返回不闪;开机服务连上(约 27–31 s)后拉一次即可。
+- 新发现三条,进设计:①**吃掉 HOME 时我们的屏保不退出、用户卡住**——屏保在前台时放行(= AOSP 原生「HOME 只退出屏保」);②**adb 装好后经系统安装器(`ACTION_VIEW`)更新,会被重新标成受限、正在跑的服务被当场停掉**——应用内自我更新必须改走 PackageInstaller 会话 API(实测会话更新后 appop 保持 allow、服务自动重连);③Android 13+ 侧载包打不开服务,电视设置里没有「允许受限设置」,只能 adb `appops set … ACCESS_RESTRICTED_SETTINGS allow`。
+- 测试方法的坑:`adb shell input keyevent` 是注入事件,不经过无障碍过滤器;`adb emu event send` / `sendevent` 在这两台 AVD 上到不了输入层。能用的是 `/system/bin/hid` + 一个 USB 消费类遥控描述符(uhid,AC Home)。模拟器上 `settings put` 后马上 `adb reboot`,值来不及落盘,要等几秒。
