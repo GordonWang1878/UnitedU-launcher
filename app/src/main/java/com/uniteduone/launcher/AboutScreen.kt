@@ -278,9 +278,10 @@ class AboutController(
     }
 
     /**
-     * 主线程。前台判断与 `startActivity` 在同一个主线程回合里,中间插不进生命周期变化:
+     * 主线程。前台判断与 `commit` 在同一个主线程回合里,中间插不进生命周期变化;
+     * 确认页由系统稍后经 `SelfUpdateResult` 要我们打开。
      * 不在前台 → 停在 [AboutState.ReadyToInstall](文件留着、仍登记);在前台 → 交给安装器。
-     * 字节已拷进会话,文件一律删掉(安装器读的是会话里的那份,不再读缓存文件);需要授权 / 失败的,重试时重新下载。
+     * STARTED 时字节已拷进会话;需要授权 / 失败时也没别的用——文件一律删掉,重试重新下载。
      */
     private fun handOver(info: LatestInfo, file: File) {
         if (!activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {

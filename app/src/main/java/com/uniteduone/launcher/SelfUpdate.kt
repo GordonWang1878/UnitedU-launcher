@@ -18,16 +18,22 @@ import java.io.File
 object SelfUpdate {
     private const val TAG = "UnitedU"
 
-    /** 主线程;文件已校验([Update.verify])。STARTED = 会话已提交(系统接着弹确认页);INVALID = 开会话 / 写入失败。 */
+    /**
+     * 主线程;文件已校验([Update.verify])。STARTED = 会话已提交(系统接着弹确认页);
+     * INVALID = 开会话 / 写入 / 提交失败(已开的会话当场放弃)。
+     */
     fun install(ctx: Context, file: File): ApkInstaller.Result {
         if (!ctx.packageManager.canRequestPackageInstalls()) {
             // 与 ApkInstaller.launch 同一套权限引导:跳不过去也返回 NEEDS_PERMISSION,提示足以让用户自己去开。
             ApkInstaller.requestInstallPermission(ctx)
             return ApkInstaller.Result.NEEDS_PERMISSION
         }
+        val installer = ctx.packageManager.packageInstaller
+        var id = -1
         return runCatching {
-            val installer = ctx.packageManager.packageInstaller
-            val id = installer.createSession(PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL))
+            // 上次确认页被 HOME 关掉会留下一个没人收尾的会话;新一轮开始前清掉
+            installer.mySessions.forEach { runCatching { installer.abandonSession(it.sessionId) } }
+            id = installer.createSession(PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL))
             installer.openSession(id).use { session ->
                 file.inputStream().use { input ->
                     session.openWrite("base.apk", 0, file.length()).use { out ->
@@ -43,6 +49,8 @@ object SelfUpdate {
             Log.i(TAG, "self-update session $id committed (${file.name})")
             ApkInstaller.Result.STARTED
         }.getOrElse { e ->
+            // 会话开了却没提交成功:Session.close() 只关句柄,不放弃的话它会一直留在系统里
+            if (id != -1) runCatching { installer.abandonSession(id) }
             Log.w(TAG, "self-update session failed", e)
             ApkInstaller.Result.INVALID
         }
@@ -51,17 +59,22 @@ object SelfUpdate {
 
 /**
  * 会话结果。要用户确认时系统给一个确认页的 intent,这里替它打开(用户刚按了「安装更新」,本应用在前台,启动不受后台限制);
- * 装成功后旧进程已被杀,成功状态由新进程里的这个接收器收到(模拟器实测),只记日志;失败(用户取消等)同样只记日志——
- * 关于页停在「安装中」,与改前 ACTION_VIEW 的行为一致。
+ * 装成功后旧进程已被杀,成功状态由新进程里的这个接收器收到(模拟器实测),只记日志。
+ * 用户取消(STATUS_FAILURE_ABORTED)时关于页停在「安装中」、按钮可重试,与改前一致;其它失败(存储不足、被策略拦下)
+ * 这里只记日志,关于页不会自己变成失败态——以后要做就经一个回调把状态送回去。
  */
 class SelfUpdateResult : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
-        Log.i("UnitedU", "self-update status=$status msg=${intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)}")
+        Log.i(TAG, "self-update status=$status msg=${intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)}")
         if (status != PackageInstaller.STATUS_PENDING_USER_ACTION) return
         @Suppress("DEPRECATION")
         val confirm = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT) ?: return
         runCatching { context.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-            .onFailure { Log.w("UnitedU", "self-update confirm page failed", it) }
+            .onFailure { Log.w(TAG, "self-update confirm page failed", it) }
+    }
+
+    private companion object {
+        const val TAG = "UnitedU"
     }
 }

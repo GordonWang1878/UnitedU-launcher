@@ -49,9 +49,9 @@ object ApkInstaller {
     }
 
     /**
-     * 只做「权限引导 + 交给系统安装器」,**不解析文件**:调用方([install])已确认它是个 APK。主线程调用。
+     * 仅供 [install] 调用:只做「权限引导 + 交给系统安装器」,**不解析文件**([install] 已确认它是个 APK)。主线程调用。
      */
-    fun launch(ctx: Context, file: File): Result {
+    private fun launch(ctx: Context, file: File): Result {
         if (!ctx.packageManager.canRequestPackageInstalls()) {
             requestInstallPermission(ctx)
             return Result.NEEDS_PERMISSION
