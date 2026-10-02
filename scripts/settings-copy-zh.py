@@ -126,7 +126,9 @@ for gid in order:
         line(f"{section}.H3", "当前默认桌面那一行的小标签", "home_settings_current_label")
         line(f"{section}.H4", "读不到当前默认桌面时", "home_settings_unknown")
         line(f"{section}.H5", "下面的说明", "home_settings_note")
-        line(f"{section}.H6", "右边唯一一颗胶囊", "home_settings_change_button")
+        line(f"{section}.H6", "右边第一颗胶囊", "home_settings_change_button")
+        out.append(f"- **{section}.H7** (R162 新增)第二颗条件胶囊「主页键接管」(UnitedU 不是默认桌面、或服务已开着时才出现)及它的四种状态小字、左侧说明、受限时的提示:"
+                   "`homekey_capsule` / `homekey_state_*` / `homekey_note_*` / `toast_homekey_restricted`,逐句见 `settings-inventory.md`「第三层 · 默认桌面页」")
     section += 1
 
 h(f"## {section} 电视设置")

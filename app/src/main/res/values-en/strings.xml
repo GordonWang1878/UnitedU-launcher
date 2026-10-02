@@ -155,7 +155,7 @@
     <string name="homekey_note_off">This TV gives the Home button to its stock home screen. With takeover on, Home goes straight to UnitedU; the stock home screen stays installed. Press OK to open “Accessibility” in Native TV Settings and turn on “UnitedU Home Button”.</string>
     <string name="homekey_note_on">Takeover is on: Home returns to UnitedU. To undo, turn it off under “Accessibility” in Native TV Settings.</string>
     <string name="homekey_note_not_running">The TV shows it as on, but the service is not running (common after an update or reboot). Turn it off and on again under “Accessibility” in Native TV Settings, or restart the TV.</string>
-    <string name="homekey_note_restricted">UnitedU was installed with a file manager or browser; since Android 13 this TV will not let its accessibility service be turned on. On a computer run: adb shell appops set com.uniteduone.launcher ACCESS_RESTRICTED_SETTINGS allow, then turn on “UnitedU Home Button” under “Accessibility” in Native TV Settings — or reinstall UnitedU with adb.</string>
+    <string name="homekey_note_restricted">UnitedU was installed with a file manager or browser; since Android 13 this TV will not let its accessibility service be turned on. On a computer run: adb shell appops set com.uniteduone.launcher ACCESS_RESTRICTED_SETTINGS allow, then turn on “UnitedU Home Button” under “Accessibility” in Native TV Settings — or uninstall UnitedU, then reinstall it with adb (clears your Home layout).</string>
     <string name="toast_homekey_restricted">Not allowed on this TV. Go back, unlock it from a computer as described on the left, then try again</string>
     <string name="toast_self_update_failed">Update was not installed (%1$d). You can retry under “About”</string>
 
