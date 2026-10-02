@@ -18,3 +18,6 @@ dist/
 # Python 缓存(scripts/e2e 等)
 __pycache__/
 *.pyc
+# coscli 在当前目录写的日志与输出(release.sh 调它时就在仓库根)
+coscli.log
+coscli_output/
