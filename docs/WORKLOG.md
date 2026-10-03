@@ -1946,3 +1946,13 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 
 - Gordon 建桶 `unitedu-1412760099`(ap-shanghai,公有读私有写,单 AZ,内容安全不开),自己 `coscli config init` 配密钥(`~/.cos.yaml`,我 `chmod 600`,不读内容);coscli v1.0.9 从腾讯官方 GitHub 发布页装到 `/opt/homebrew/bin`(sha256 核对)。探针上传 / 匿名读 / 删除都通。`gradle.properties` 的 `unitedu.updateUrls` = COS 在前、GitHub 在后。1.0.1 = versionCode 4,只是把通道编进包、其余与 1.0.0 相同;发布走 `COS_BUCKET=unitedu-1412760099 COS_REGION=ap-shanghai scripts/release.sh 1.0.1`。
 - `scripts/release.sh 1.0.1`(带 COS 环境变量)跑完:release 证书核对通过,tag `v1.0.1`,GitHub Release 带 `unitedu-1.0.1.apk` + `latest.json`;COS 上传 `unitedu/unitedu-1.0.1.apk`(15.3 MB,0.6 s)与 `unitedu/latest.json`(apkUrl 指向 COS)。待 Gordon 把电视切回有线直连实测「检查更新」。
+
+## 2026-10-03 · COS 发不了 APK → 改 Cloudflare R2 自有域名(1.0.2)
+
+- 核对 1.0.1 时发现:COS 清单正常,**APK 匿名 GET 403 `DownloadForbidden`**——腾讯禁止用 COS 默认域名分发 .apk/.ipa,「请改用自定义域名」;上海地域绑域名须 ICP 备案。拦截只看对象名后缀(同一文件传成 `.bin` / 无后缀都能下,206;探针已删)。App 侧对后缀无要求(`isAllowedUpdateUrl` 只看 https + 主机,下载后统一存 `update-*.apk`,不校验 Content-Type);通道走表只管取清单,清单取到、APK 下不下来**不回退**下一通道。
+- 给 Gordon 三条路(换后缀 / 绑备案域名 / 两边都放),他问「Cloudflare 不行吗」→ 查到 `uniteduone.com` 的 DNS 本来就在 Cloudflare(NS raina/giancarlo.ns.cloudflare.com),R2 绑自有域名不用备案;`*.r2.dev` 大陆被墙必须自定义域名;免费版大陆直连速度一般。**Gordon 裁定:只 R2,不要腾讯。**
+- 做了:`brew install cloudflare-wrangler`(4.146.0;本机早已 `wrangler login`,令牌在 wrangler 自己的配置里,不读);`release.sh` COS 段换成 R2 段(`R2_BUCKET` / `R2_BASE_URL`,`wrangler r2 object put --remote -y`,APK `max-age=3600`、latest.json `no-cache`);`gradle.properties` 通道 = `https://dl.uniteduone.com/unitedu/latest.json`,GitHub 在后;版本 1.0.2 / versionCode 5;README / DESIGN / m7 spec / handoff 同步;`dist/notes-1.0.2.txt`。dry-run 通过(证书核对、两份清单、sha256 `22a29a48…`)。
+- 卡在:Gordon 的 Cloudflare 账号**还没开通 R2**(API 10042「Please enable R2 through the Cloudflare Dashboard」),开通是账号级动作(接受条款 / 可能要绑卡)只能他做;`wrangler r2 bucket domain add` 必须给 `--zone-id`。等他开通 + 给 zone ID 后:建桶 `unitedu`(apac)→ 绑 `dl.uniteduone.com` → `R2_BUCKET=unitedu R2_BASE_URL=https://dl.uniteduone.com scripts/release.sh 1.0.2` → curl 核对清单与 APK sha256 → 删 COS 上的两个对象。
+- 电视:1.0.0 / 1.0.1 都只能经代理拿到 1.0.2(前者只认 GitHub,后者的 COS 清单会指向下不了的 APK);让 Gordon 等 1.0.2 发出再更新,一次代理即可。
+- Cloudflare 开通 R2 的现行流程(2026-10-03 查证):R2 页只有「Add R2 Subscription to My Account」,走结账流程、**必须绑信用卡 / PayPal 才能订阅**(免费额度 10 GB·月 / 100 万次 Class A / 1000 万次 Class B,出站免费;订阅 $0,超额按量;绑卡有 $5 临时预授权)。只能 Gordon 做;绑域名的 `wrangler r2 bucket domain add` 要 `--zone-id`,一并向他要 Zone ID。
+
