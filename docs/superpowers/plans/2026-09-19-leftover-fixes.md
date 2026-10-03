@@ -34,7 +34,7 @@
 
 - **不做 UI 美化**:颜色、尺寸、字体、间距、动效时长、布局一律不动,除非是下表某条 bug 本身要求的最小改动(Gordon 2026-09-19)。
 - `CLAUDE.md` 铁律 1–7 约束每一处 Compose 改动:不用任何可滚动容器(`LazyRow`/`LazyColumn`/`horizontalScroll`/`verticalScroll`);位移一律自己算(`Modifier.offset` + `animateDpAsState`),并配 `wrapContentWidth/Height(unbounded = true)`;焦点是否落下只信目标自报 `isFocused`;每个浮层自己负责焦点恢复;守卫与 key 成对;不用一次性布尔闩。
-- 模拟器命令一律 `adb -s emulator-5554`;**绝不向 A95L(192.168.1.22:38673)发按键 / 装包 / 改设置**。
+- 模拟器命令一律 `adb -s emulator-5554`;**绝不向 A95L(<电视IP>:<端口>)发按键 / 装包 / 改设置**。
 - 构建 + 单测:`source scripts/env.sh && gradle --no-daemon testReleaseUnitTest assembleRelease`;单跑某个测试类加 `--tests 'com.uniteduone.launcher.XxxTest'`。
 - 三套字符串同步:`values`(简体)、`values-zh-rTW`、`values-en`。
 - tv-material 保持 1.0.0;除 T4 的两条显式声明(版本 = 现在实际解析到的版本)外,不新增依赖。

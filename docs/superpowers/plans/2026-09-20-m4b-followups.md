@@ -14,7 +14,7 @@
 
 - 不做 UI 美化:编辑页搬运只复用首页已有的两样视觉——被搬卡片的 3dp accent 描边(`AppCard(moving = true)`)与底部提示 `home_move_hint`。
 - `CLAUDE.md` 铁律 1–7 约束每一处 Compose 改动;编辑页是全应用焦点最脆的界面(看门狗、显式重定位、`ON_PAUSE` 冻结、浮层让路),搬运模式**不是浮层**,焦点始终在被搬的卡上,只通过现有的 `retarget(ri, col)` 移动。
-- 模拟器命令一律 `adb -s emulator-5554`;**绝不向 A95L(192.168.1.22:38673)发任何东西**(装包由 controller 做)。
+- 模拟器命令一律 `adb -s emulator-5554`;**绝不向 A95L(<电视IP>:<端口>)发任何东西**(装包由 controller 做)。
 - 构建 + 单测:`source scripts/env.sh && gradle --no-daemon testReleaseUnitTest assembleRelease`;单跑某类加 `--tests 'com.uniteduone.launcher.XxxTest'`。
 - 三套字符串同步(values / values-zh-rTW / values-en,英文 Title Case);新字符串追加在各文件末尾的 `<!-- M4b -->` 块。
 - 提交信息结尾:`Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`。

@@ -567,7 +567,7 @@ CLAUDE.md 写的是:「`set-home-activity` 带 `--user 0` 会返回 Success 却�
 
 所有命令都是查询类,用 `scripts/env.sh` 的工具链执行。模拟器以 `emulator -avd <名> -read-only -no-window -port 5600/5602` 启动,跑完即 `adb emu kill`,不影响 AVD 的持久状态。
 
-**A95L(`192.168.1.22:46555`,国行,Android 14)**
+**A95L(`<电视IP>:<端口>`,国行,Android 14)**
 
 ```text
 getprop ro.build.version.sdk                → 34

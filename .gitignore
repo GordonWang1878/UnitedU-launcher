@@ -23,3 +23,6 @@ __pycache__/
 .wrangler/
 coscli.log
 coscli_output/
+
+# 本机开发环境(局域网地址、代理、家里设备),见 CLAUDE.md「真机」一段
+CLAUDE.local.md

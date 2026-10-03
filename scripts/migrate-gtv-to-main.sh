@@ -8,7 +8,7 @@
 # 全程不发按键(memory no-keys-to-tv-while-owner-uses)。
 #
 # 用法:scripts/migrate-gtv-to-main.sh <adb 序列号> <正式包 APK 路径>
-#   例:scripts/migrate-gtv-to-main.sh 192.168.1.22:37xxx app/build/outputs/apk/release/app-release.apk
+#   例:scripts/migrate-gtv-to-main.sh <电视IP>:<端口> app/build/outputs/apk/release/app-release.apk
 set -euo pipefail
 S="${1:?adb 序列号}"; APK="${2:?正式包 APK}"
 GTV=com.uniteduone.launcher.gtv; MAIN=com.uniteduone.launcher

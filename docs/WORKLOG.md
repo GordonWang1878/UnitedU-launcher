@@ -5,7 +5,7 @@
 - 装了 JDK 17.0.20.1+1(Temurin aarch64)→ `~/Library/Java/jdk-17`;Gradle 8.14.5 → `~/Library/Gradle/gradle-8.14.5`;Android SDK(platform-tools r37.0.1 / platforms android-35 / build-tools 35.0.0 / licenses 三 hash)→ `~/Library/Android/sdk`。版本、路径与 Hub 完全一致;五个包 SHA-256/SHA-1 与来源清单核对通过。
 - Core 上 `dl.google.com` 与 `dl-ssl.google.com` 都通(Hub 只有后者通),配置统一用 `dl-ssl`。
 - 端到端验证:scratchpad 里一个最小 Compose 工程(AGP 8.7.3 / Kotlin 2.0.21 / Compose BOM 2024.12.01 / `android.builder.sdkDownload=false` / maven 走 dl-ssl 镜像)`assembleDebug` 成功,产出 22 MB debug APK。Gradle 缓存 ~0.8 GB。
-- **未解决**:① TvHome 源码在 Hub 上 sshd 读不到(Desktop/Documents/Downloads 全部 `Operation not permitted`,TCC 限制;`~/Public/unitedu-handoff/` 可读,目前只有两份文档)。② 电视 192.168.1.50 可 ping、5555 端口关闭(重启后 adb tcpip 失效),M8 前需在电视上重开。
+- **未解决**:① TvHome 源码在 Hub 上 sshd 读不到(Desktop/Documents/Downloads 全部 `Operation not permitted`,TCC 限制;`~/Public/unitedu-handoff/` 可读,目前只有两份文档)。② 电视 <电视IP> 可 ping、5555 端口关闭(重启后 adb tcpip 失效),M8 前需在电视上重开。
 - 计划:`docs/superpowers/plans/2026-09-14-m1-bootstrap.md`(8 个任务,估 1.5–2 天)。代码一行未动,仓库尚未 `git init`。
 
 ## 2026-09-14 · M1 决策定案(未开工)
@@ -583,7 +583,7 @@ Gordon(spec §0):
 - 同步改动:M7 spec §7.4 补发布说明与签名核对两条、状态行改为「终审修复波已完成」;CLAUDE.md 焦点责任表的设置页 / 引导 / 编辑页三行更新,「模拟器验证的坑」补两条。
 
 **合并(2026-09-17 晚,Gordon 选「本地合并进 main」)**:合并前先修终审复审遗留的两处文字(README 更新说明一句、测试与 WORKLOG 里的原始控制字符,`6a8d081`),再在临时 worktree 里做 `--no-ff` 合并 → main `c551568`(树与测过的分支头一致,161/161 绿)。未推送。主目录 main 上当时留着 M8 美化轮会话的未提交文档(M8 spec、调研、6 张 m8 截图,CLAUDE.md 与本文件的追加段),按 Gordon 选择**保持未提交**:合并在临时 worktree 完成,main 指针前移后把那两处追加原样放回工作区。SDD 台账与证据目录已拷回主目录 `.superpowers/sdd/2026-09-16-m7-settings/`,`m7-settings` 分支与 worktree 已删。
-- 真机通道:`adb connect 192.168.1.22:38673` 报 `No route to host` 时电视其实在线(ping 通);`adb kill-server` 后同一端口直接连上,无需重配——是本机 adb 后台进程过期,不是电视端口或配对问题。
+- 真机通道:`adb connect <电视IP>:<端口>` 报 `No route to host` 时电视其实在线(ping 通);`adb kill-server` 后同一端口直接连上,无需重配——是本机 adb 后台进程过期,不是电视端口或配对问题。
 
 ## 2026-09-17 · M7 真机验收第一轮(A95L,1.0.0-beta)
 
@@ -773,7 +773,7 @@ HEAD `c0cf5a6`(接 `8d82355`),worktree 仍是 `m5-standby`。终审复查的完�
 
 - `m5-standby` 9 个提交(7 个任务 + 终审修复两笔)经子代理逐任务实施、逐任务审查、fable 整分支终审(0 Critical;2 Important 已修并复核),`merge --no-ff` 并入本地 main = `5ad9096`;并后 main 上单测 203/203、`assembleRelease` 绿。worktree 与分支已删;SDD 台账归档在 `.superpowers/sdd/2026-09-19-m5-standby-screensaver/`(gitignored)。
 - **待 Gordon**:① 电视 adb 连上后装包做真机验收(M5 一节的 A95L 清单 9 项;第 4 项要他先在系统设置里打开屏保并选 UnitedU);② 验完说「推」再推 GitHub(main 另有 3 个文档提交因网络未推上);③ Google TV 对比报告的两个决定(6 小时子集、M8 有意偏离是否改回原生)。
-- **更正(同日)**:上一条写「电视 adb 连上后」是我没按 CLAUDE.md / 记忆先自己连——实际 `adb connect 192.168.1.22:38673` 报 `No route to host`,`adb kill-server` 后同一端口一次连上(mDNS 也自动连上),配对仍有效,与 09-17 同一形态。M5 包已 `install -r` 到 A95L(08:12);电视上 UnitedU 设置:待机 1 分、待机显示时钟、屏保启动未写过(读默认 5 分)、轮播 30 秒,图库 4 张;系统屏保仍关(`screensaver_enabled=0`,Gordon 自己的系统设置),`UnitedUDream` 已出现在系统屏保服务列表;默认桌面仍是 tvhome(不改)。
+- **更正(同日)**:上一条写「电视 adb 连上后」是我没按 CLAUDE.md / 记忆先自己连——实际 `adb connect <电视IP>:<端口>` 报 `No route to host`,`adb kill-server` 后同一端口一次连上(mDNS 也自动连上),配对仍有效,与 09-17 同一形态。M5 包已 `install -r` 到 A95L(08:12);电视上 UnitedU 设置:待机 1 分、待机显示时钟、屏保启动未写过(读默认 5 分)、轮播 30 秒,图库 4 张;系统屏保仍关(`screensaver_enabled=0`,Gordon 自己的系统设置),`UnitedUDream` 已出现在系统屏保服务列表;默认桌面仍是 tvhome(不改)。
 
 ## 2026-09-19 · M5 A95L 真机验收通过
 
@@ -891,7 +891,7 @@ worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs
 
 **单测数演进**:Task1 后 213 → Task2 后 218 → Task3 后 220 → 与 leftover-fixes 合并(`24858e6`)后 228 → Task4 后 235 → Task5 后 245 → 与 main 合并(`f36f502`)后 247 → Task6 回归未发现问题,247 不变。
 
-**Task 6 构建**:`source scripts/env.sh && gradle --no-daemon testReleaseUnitTest assembleRelease`(worktree HEAD `f36f502`,测试结果目录先删干净再跑)→ `BUILD SUCCESSFUL`,30 suites / **247 个用例,0 失败、0 错误、0 跳过**;`app-release.apk` 2,972,024 字节,装到 `emulator-5554`(真机 `192.168.1.22:38673` 全程未碰)。
+**Task 6 构建**:`source scripts/env.sh && gradle --no-daemon testReleaseUnitTest assembleRelease`(worktree HEAD `f36f502`,测试结果目录先删干净再跑)→ `BUILD SUCCESSFUL`,30 suites / **247 个用例,0 失败、0 错误、0 跳过**;`app-release.apk` 2,972,024 字节,装到 `emulator-5554`(真机 `<电视IP>:<端口>` 全程未碰)。
 
 **Task 6 回归**(0.4 s 键间隔,截图 + uiautomator dump,证据在 session scratchpad `m4b-t6/`,未提交仓库):
 
@@ -936,7 +936,7 @@ worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs
 - `m4b` 6 个任务(每个单独审查;T3/T4/T5 各有修复或跟进轮)+ fable 整分支终审(「修完可并」)→ 一次修复波 `590dc6e`(移动态取消效果补上 `committing` 这个 key,铁律 6;编辑页卡片菜单标题改为卡片名,Ruling M4b-R13;`onMoveKeyUp` 只认移动态里按下的键;`renameRow` 把非法图标 id 也归一;`Settings.rowCount` 补 KDoc;裁定编号到 R17),复审全部通过。`merge --no-ff` 并入本地 main = `6bc92b7`;并后 main 单测 247/247、`assembleRelease` 绿(APK 2,972,024 字节,sha256 前缀 `d7aeb21333b9a7a8`)。worktree 与分支已删;SDD 台账与报告留在 `.superpowers/sdd/2026-09-19-m4b-rows-move-inputs/` 待 Gordon 看过再清。
 - **更正上一节「仍开着的缺口」**:其中「移动态取消效果的铁律 6 缺口(`committing` 不是 key)」与「编辑页卡片菜单显示「设置」标题」两项已由 `590dc6e` 修掉,不再开着。仍开着、留给后续的:移动中和弦按键漏出(只记一个 `downTime`)、`onlyOnDisk` 挪进 `Move.kt` 并补单测、抽 `MoveController`、输入源 / 应用启动分流去重、`HiddenInputs` 与 `Titles` 原子存储去重、输入源启动失败 toast 说「可能已被卸载」、`Layout` JSON 读写单测、`MissingCard` 的菜单标题只显示包名。
 - 未推 GitHub(等 Gordon 说「推」)。真机清单见上面「M4b」一节(13 项)与「遗留修复批」一节(4 项)。
-- **装到 A95L**(22:42):按记忆步骤直连 `192.168.1.22:38673`(一次连上),`adb install -r` 装 `6bc92b7` 的包,`Success`,`lastUpdateTime=2026-09-19 22:42:48`。只读查了一下:**电视的 HOME 角色现在是 `com.uniteduone.launcher`**(08:12 装 M5 时还是 tvhome);装包不改角色,我也没动过——多半是 Gordon 验收 M5 时自己选的。不改回,也不提议。
+- **装到 A95L**(22:42):按记忆步骤直连 `<电视IP>:<端口>`(一次连上),`adb install -r` 装 `6bc92b7` 的包,`Success`,`lastUpdateTime=2026-09-19 22:42:48`。只读查了一下:**电视的 HOME 角色现在是 `com.uniteduone.launcher`**(08:12 装 M5 时还是 tvhome);装包不改角色,我也没动过——多半是 Gordon 验收 M5 时自己选的。不改回,也不提议。
 
 ## 2026-09-20 · 真机验收反馈(修 bug 批 + M4b)
 
@@ -1265,7 +1265,7 @@ worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs
 - **终审抓到的四条 Important 全是「任务级评审结构上看不见」的跨任务漂移**,已一轮修完(commit 7c5a6cd)并复审通过:①待机「时钟」模式不显示时钟(B2 只移走了首页 hero 的时钟,没人负责「待机现在长什么样」)→ **R16 恢复 `HeroClock`**;②齿轮菜单丢了副标题,22 处调用点仍在构造没人渲染的字符串,「UnitedU 设置」与「系统设置」再也分不出来 → **R17 齿轮菜单恢复第二行、长按卡片菜单保持纯药丸**;③编辑页还整个留在旧几何线上,一行里同时存在三种焦点画法 → **R18 并入 gtv 线**(B1/B5 本来就是全局裁定);④字号表只落了 5 项里的 3 项、字面量在文件间蔓延 → **R19 行标题保持 16 sp 并改 spec**(不追 §2.3 的 14 sp:那是 Google 拉丁 cap height 反推的,而修好 CJK 裁切的 23 dp 行盒正是在 16 sp 下量的,降到 14 sp 是重犯 R15 刚纠正的错误)。
 - **两条比实例更值得记的机制**:①**凡是写成「归任务 N+k」的 deferred minor,必须同时改接收任务的 brief,否则它会蒸发** —— Task 6 把字号 token 推给 Task 8,Task 8 的 brief 从没提过,两轮评审都干净通过;②计划自己的覆盖自检声明可能是错的,§2 声称被 Task 2/3/8 覆盖,实际没有,所以没人发现字号表漏了两项。
 - **残余风险(真机验收前必须知道)**:本线全部真实风险都在 Compose 的焦点/渲染行为里,**540 个 JVM 单测一个都碰不到**(零测试引用 `gtvFocusStroke` / `showHints` / `HeroClock`),证据全靠真机截图。两处自曝的范围边缘:编辑页的非齿轮菜单没有副标题、`PendingCard` 仍用旧的换底色焦点样式。齿轮菜单副标题换行只在默认字体缩放下验过。
-- **gtv 构建已装上 A95L 并排(2026-09-20 晚)**。`adb connect 192.168.1.22:38673` 首次报 `No route to host`,`adb kill-server` 后重连即通(与 `tv-adb-wireless-debugging` 记忆一致,没要配对码)。`com.uniteduone.launcher` 与 `com.uniteduone.launcher.gtv` 两个包并存,**HOME 角色未动,仍是 `com.uniteduone.launcher`**(只读确认,按 `a95l-default-home-stays-tvhome` 的规矩不改不提议)。APK 5.19 MB(Google Sans Flex 变量字体占 4 MB)。
+- **gtv 构建已装上 A95L 并排(2026-09-20 晚)**。`adb connect <电视IP>:<端口>` 首次报 `No route to host`,`adb kill-server` 后重连即通(与 `tv-adb-wireless-debugging` 记忆一致,没要配对码)。`com.uniteduone.launcher` 与 `com.uniteduone.launcher.gtv` 两个包并存,**HOME 角色未动,仍是 `com.uniteduone.launcher`**(只读确认,按 `a95l-default-home-stays-tvhome` 的规矩不改不提议)。APK 5.19 MB(Google Sans Flex 变量字体占 4 MB)。
 - 真机首屏行为符合预期:因为数据目录随包名隔离,GTV 版是**全新安装**,进来就是首次引导 1/3;引导层后面首页已经在渲染他真实的应用(NewTV极光 / 奇异果TV / 酷喵 / 芒果tv / 云视听小电视),顶栏因焦点在引导浮层上而处于折叠态(向上箭头)。
 - **切换方式不需要 adb**:GTV 版声明了 `LEANBACK_LAUNCHER`,在电视的应用列表里就能打开;按 HOME 回到现有 UnitedU。
 - **Gordon 真机看完,提了五条,四条他是对的(2026-09-21 凌晨)。** 详细实现记录在 `gtv` 分支的 WORKLOG(commit e6a8eab),这里只记裁定与本质:
@@ -1312,7 +1312,7 @@ worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs
 - **Round 5 落地(gtv 2d72bfa,分支 22 个提交),但真机验证被电视 adb 端口变更挡住。** 代码层已确认:行标题 16 → **14 sp**(R25),CJK 行盒在 14 sp 下重量得 **20 dp**(`naturalHeightPx=40`,三个标题零方差,不是按比例缩的),`ROW_GAP` 随之 8 dp;顶栏时钟字标 20 → **16 sp**(此前那个 20 sp 是误取了 Google**快捷设置面板**里放大的时钟,不是顶栏那个常驻小钟);行图标 24 → **20 dp** 并改为直接读 `ROW_TITLE_LINE`(Google 没有行图标,判据是与它并排的标题行盒对齐);菜单 banner 应用名 16 → **12 sp**(清单外发现,已标注)。卡片标题 14 sp、顶栏图标 32 dp、药丸高 36 dp 本来就与 Google 一致,未动。测试 280×2 = 560 全过。
 - **设置页字号:报告未改、只上报。** 理由是 Google 没有干净的对应物——映射到它的 Apps 网格页或快捷面板说明文字都属于新的产品决策,不是尺寸校正。**这是对的做法**,留给 Gordon 定。
 - **`edgeColor` 已改为「取占比更高的颜色」**:边缘像素分桶、取最重的桶、返回**桶内像素均值**(不是桶心,这样近乎纯色的边缘原样返回);三条既有契约(alpha<128 不计、有效边缘不足四分之一返回 null、返回值带满 alpha)全部保留;`CardColorTest` 新增 6 个用例(纯色边、70/30 白对蓝紫、50/50 两色、以及三条契约回归)。**未能用真实的多色边缘图标验证**——这台 AVD 上没有这种图标,用自建的合成图标(白/蓝紫/红,复刻咪视界的形态)代替,已在报告里标明。
-- **真机连不上,需要 Gordon 读新端口**:`adb connect 192.168.1.22:38673` 报 `Connection refused`(不是 `No route to host`,`kill-server` 重连无效),ping 通说明电视在线;`ADB_MDNS_OPENSCREEN=1 adb mdns services` 列表为空。按 `tv-adb-wireless-debugging` 记忆,**这种情况就是端口变了,只能由他在电视「无线调试」页面读当前端口**。
+- **真机连不上,需要 Gordon 读新端口**:`adb connect <电视IP>:<端口>` 报 `Connection refused`(不是 `No route to host`,`kill-server` 重连无效),ping 通说明电视在线;`ADB_MDNS_OPENSCREEN=1 adb mdns services` 列表为空。按 `tv-adb-wireless-debugging` 记忆,**这种情况就是端口变了,只能由他在电视「无线调试」页面读当前端口**。
 - 另记:模拟器上的 GTV 版在 Round 5 还原设置时被清空(回到首次引导、无任何行),之后要在模拟器上做视觉核对需要先重建 `layout.json`。
 - **Round 5 已装上真机并由我逐项复核(端口变成 34949,Gordon 从电视页面读的)。** 行标题实测:大写字母 cap **20 px = 10.0 dp**,Google 同处是 19 px = 9.5 dp —— **差 1 px,是同一字号的渲染舍入,不是字号差**;改之前那一版我量成 36 px 其实是取样框套到了行图标上,不是文字(**教训:量字号前必须先看图确认取样框落在字上,别靠坐标猜**)。行图标实测 30 px = 15 dp,与 20 dp 的标题行盒配比合理。
 - **验证口径纠正**:此前我拿 Google 的「整行 ink 24 px」对我们的「整行 ink 33 px」得出「偏大 37%」——那是错的,Google 那行含 `p`/`y` 降部、我们的 VIDEO 全大写没有降部,**两者不可比**。正确口径是**大写字母的 cap height**,研究报告 §10 早就写过这条,我自己没照做。
@@ -1323,7 +1323,7 @@ worktree `.claude/worktrees/m4b`,分支 `m4b`,base `main` `710c714`。spec `docs
 
 ### ① Round 6 已装到真机,图标尺寸复核通过
 
-`192.168.1.22:34949` 装包后实测顶栏:齿轮字形 18.0×18.5 dp(Round 6 前是 25×26)、屏保 13.5×13.5 dp(改前 24×24),药丸轨道 88×36 dp、左起 58 dp 基准线,都对。
+`<电视IP>:<端口>` 装包后实测顶栏:齿轮字形 18.0×18.5 dp(Round 6 前是 25×26)、屏保 13.5×13.5 dp(改前 24×24),药丸轨道 88×36 dp、左起 58 dp 基准线,都对。
 
 **量测上的一个坑**:第一遍按固定包围盒去量,齿轮报成 34.5×34.5 dp —— 那是**聚焦时的浅色圆形填充**,不是字形。齿轮处于聚焦态时要先按圆心 + 半径把亮圆框出来,再在圆内(内缩 5 px)找暗色 ink 才是字形本身。
 
@@ -1708,7 +1708,7 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
   - **端到端脚本**:上传辅助原来固定用本机 18090 端口、先 `adb forward --remove-all`——它不保证只拆这一台的转发;两台模拟器并行跑上传类旅程时会抢同一个端口、互相拆掉。改成按设备分端口(`emulator-5560` → 18150)、只拆自己的。屏保视频全屏预览的名字只显示 3 s,视频在放时一次读屏要 2 s 多,先睡 0.8 s 再读偶尔读不到——改成 0.3 s。
   - **合并**(本地 main,未推):视觉分支快进;测试代理的两条分支(JVM 边界单测 + B-01 / B-02 / B-04;端到端脚本 + B-03 / B-05 / B-06)各合一次。两条分支各写了一份「按码点截到 255 字节」,合并后留一份(`e46d3bf`)。单测 780 个全过(1 个 `@Ignore`,见测试轮记录)。
   - **合并后整套端到端**(unitedu-tv / unitedu-tv-3 两台分四组并跑;装的包与最终 main 的 app 代码相同):15 段共 1153 条断言。失败 10 条,**全是脚本判据错,产品行为逐条核过**,脚本修完复跑全过:①屏保视频全屏预览的名字只显示 3 s,视频在放时 uiautomator 要等到超时才读,读到的已是名字消失之后(改成读屏晚于 3 s 记 SKIP;另外读屏前先删旧 dump——dump 失败时不覆盖旧文件,原来会把上一屏当成这一屏);②`j_overlays` 图库的「打开了 / 关了」用子串匹配,命中设置·屏保页上同名的胶囊(图库开着时它仍在树里),打开恒真、返回恒假;③引导:`restart()` 末尾的「下、上」唤醒键把第 1 步的焦点从 English(末项)挪到繁體,确定后整段换成繁体;④「显示应用名」「主题色跟随壁纸」在外壳里是关 / 开两项的选项层(settings-inventory 标「选项」),脚本按原地翻转写。B-01 / B-02 的端到端断言在合并后的 main 上通过(`j_upload_edge` 0 失败);三语溢出 52/52、monkey 8 个种子无崩溃。
-  - **装电视**:无线调试端口换成了 40609(本机 `adb mdns services` 列不出,macOS 自带的 `dns-sd -B _adb-tls-connect._tcp local.` + `dns-sd -L <名字> _adb-tls-connect._tcp local.` 找得到),端口开着,但 TLS 握手被电视拒(adb 日志 `$TMPDIR/adb.501.log`:`SSLV3_ALERT_CERTIFICATE_UNKNOWN`)——电视不再认本机的 adb 钥匙(本机 `~/.android/adbkey` 自 09-14 未变,今天下午还装过包),要重新配对;Hub 的钥匙同样被拒,5555 没开。Gordon 给了配对码后 `printf '<码>\n' | adb pair 192.168.1.22:42257` 配对成功,adb 经 mDNS 自动连上(旧的连接端口 40609 已拒——重开了无线调试,端口又换了);装包 Success,电视上 `base.apk` md5 与本地一致(`16645478…`,即跑完整套回归的那个包);`compile -m speed -f` 后读回 `speed-profile`(已编译,同当天下午)。全程未向电视发任何按键。
+  - **装电视**:无线调试端口换成了 40609(本机 `adb mdns services` 列不出,macOS 自带的 `dns-sd -B _adb-tls-connect._tcp local.` + `dns-sd -L <名字> _adb-tls-connect._tcp local.` 找得到),端口开着,但 TLS 握手被电视拒(adb 日志 `$TMPDIR/adb.501.log`:`SSLV3_ALERT_CERTIFICATE_UNKNOWN`)——电视不再认本机的 adb 钥匙(本机 `~/.android/adbkey` 自 09-14 未变,今天下午还装过包),要重新配对;Hub 的钥匙同样被拒,5555 没开。Gordon 给了配对码后 `printf '<码>\n' | adb pair <电视IP>:<端口>` 配对成功,adb 经 mDNS 自动连上(旧的连接端口 40609 已拒——重开了无线调试,端口又换了);装包 Success,电视上 `base.apk` md5 与本地一致(`16645478…`,即跑完整套回归的那个包);`compile -m speed -f` 后读回 `speed-profile`(已编译,同当天下午)。全程未向电视发任何按键。
   - 模拟器收尾:两台的测试包全部卸载后关机;测试代理那台(unitedu-tv-2)由它自己关。
   - **电视验收(Gordon,装包后)**:R142 氛围底「透出一点光晕,没以前那么单调」、没看到色带、亮壁纸下不发灰;R141 胶囊「有大一点点」、亮边在 HBO Max 那张深色横幅上看得出。R141–R144 电视上确认。
 

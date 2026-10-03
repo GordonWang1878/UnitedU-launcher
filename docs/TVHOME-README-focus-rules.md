@@ -13,7 +13,7 @@ export JAVA_HOME="$HOME/Library/Java/jdk-17/Contents/Home"
 export ANDROID_HOME="$HOME/Library/Android/sdk"
 export PATH="$HOME/Library/Gradle/gradle-8.14.5/bin:$JAVA_HOME/bin:$PATH"
 cd "Sony TV/launcher" && gradle --no-daemon assembleRelease
-adb -s 192.168.1.50:5555 install -r app/build/outputs/apk/release/app-release.apk
+adb -s <电视IP>:5555 install -r app/build/outputs/apk/release/app-release.apk
 ```
 
 ⚠️ **`install -r` 会连桌面任务一起清掉**,屏幕露出栈里下一个任务(2026-09-13 早上实测是 Projectivy),HOME 角色并没变。同日起由 `RelaunchAfterUpdate` 接收器兜底:收到 `MY_PACKAGE_REPLACED` 后,**若系统默认桌面仍是本应用**就发一个隐式 HOME 意图把自己作为桌面任务拉回来(隐式才建成 `type=home` 任务);默认桌面是别人则什么都不做。
@@ -21,7 +21,7 @@ adb -s 192.168.1.50:5555 install -r app/build/outputs/apk/release/app-release.ap
 **部署前提(一次性,重装保留、`pm clear`/卸载重装要重授)**:这台索尼固件**不豁免默认桌面的后台启动**(实测 `BAL_BLOCK`),接收器要能发 HOME 必须给它悬浮窗 appop:
 
 ```bash
-adb -s 192.168.1.50:5555 shell appops set com.gordonwang.tvhome SYSTEM_ALERT_WINDOW allow
+adb -s <电视IP>:5555 shell appops set com.gordonwang.tvhome SYSTEM_ALERT_WINDOW allow
 ```
 
 授权后重装,`logcat -s TvHome ActivityTaskManager` 应见 `BAL_ALLOW_… result code=0` 且栈顶变 `type=home` 的本应用任务(2026-09-13 10:55 休眠中实测通过)。没授权则日志是 `Background activity launch blocked`,此时退回「装完 `am start -a android.intent.action.MAIN -c android.intent.category.HOME`」(shell 身份 `BAL_ALLOW_PERMISSION`,同样实测可用)。装包前确认电视没人在用别的 App——自启会把画面拽回桌面。
@@ -162,9 +162,9 @@ APK 内置 `assets/wallpapers/*.jpg`;首次启动铺进 `library/wallpapers/`(�
 
 ```bash
 # 切到自建桌面
-adb -s 192.168.1.50:5555 shell cmd package set-home-activity --user 0 com.gordonwang.tvhome/.MainActivity
+adb -s <电视IP>:5555 shell cmd package set-home-activity --user 0 com.gordonwang.tvhome/.MainActivity
 # 切回原厂桌面(随时可用)
-adb -s 192.168.1.50:5555 shell cmd package set-home-activity --user 0 com.dangbei.TVHomeLauncher
+adb -s <电视IP>:5555 shell cmd package set-home-activity --user 0 com.dangbei.TVHomeLauncher
 ```
 
 崩溃时系统会落到 `com.android.tv.settings/.system.FallbackHome`,不会黑屏。但**电视重启会让 adb 失效**,两者叠在一起就只能用遥控器救——所以**齿轮菜单里已经有一项「设置默认桌面」**,它先弹一张引导卡(`HomeSettingsCard`),按卡上的按钮打开系统的主屏幕应用设置页(`android.settings.HOME_SETTINGS`,实测解析到 `com.android.permissioncontroller/.role.ui.DefaultAppActivity`),不依赖 adb 就能换回去。

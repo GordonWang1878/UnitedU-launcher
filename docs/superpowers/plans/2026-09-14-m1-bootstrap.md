@@ -33,7 +33,7 @@
 
 全部按 Hub 的版本与路径原样装,SHA 双验通过。Core 上 `dl.google.com` 与 `dl-ssl.google.com` 都通,配置仍统一用 `dl-ssl`(与 Hub 一致,少一个变量)。
 
-**已知阻塞(需 Gordon)**:① TvHome 源码在 Hub 的 Desktop/Documents/Downloads 之一,sshd 受 TCC 限制读不到,Task 2 需他先复制到 `~/Public/unitedu-handoff/launcher`;② 电视 `192.168.1.50` 可 ping 但 5555 关闭(重启后 adb tcpip 失效),M1 不需要真机,M8 前再开。
+**已知阻塞(需 Gordon)**:① TvHome 源码在 Hub 的 Desktop/Documents/Downloads 之一,sshd 受 TCC 限制读不到,Task 2 需他先复制到 `~/Public/unitedu-handoff/launcher`;② 电视 `<电视IP>` 可 ping 但 5555 关闭(重启后 adb tcpip 失效),M1 不需要真机,M8 前再开。
 
 ---
 
@@ -569,4 +569,4 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" && git push
 
 - **TvHome 源码**:Gordon 在 Hub 上 `cp -R "Sony TV/launcher" ~/Public/unitedu-handoff/launcher`,Core 才能 rsync(Task 2)。SSH 读不到 Hub 的 Desktop/Documents/Downloads(TCC)。
 - **签名密码**:Gordon 在 Core 写 `~/.unitedu/release.properties`(三行,密码自填),Task 4 才用。
-- **电视 adb**:192.168.1.50:5555 重启后关闭,Task 8 用模拟器不需要真机;M8 真机验收前 Gordon 在电视上重开网络调试。
+- **电视 adb**:<电视IP>:5555 重启后关闭,Task 8 用模拟器不需要真机;M8 真机验收前 Gordon 在电视上重开网络调试。

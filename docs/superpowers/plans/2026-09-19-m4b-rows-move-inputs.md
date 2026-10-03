@@ -17,7 +17,7 @@
 - 应用行 1–5 行(`MIN_ROWS = 1`、`MAX_ROWS = 5`);行名清空 = 不改,上限 `MAX_TITLE_CHARS` = 40;新建行默认图标 `apps`、默认名取字符串资源 `edit_new_row_name`(简体「新行」、繁體「新行」、English「New Row」)。
 - 行图标 id 恰好 12 个,顺序:`movie tv live music games kids tools education sports news photos apps`;没有 `icon` 字段的旧行按名字回落(VIDEO → movie、LIVE → tv、MUSIC → music,其余 tv),外观与今天逐像素一致。
 - 输入源名字存 `titles.json`(key = 输入 id);隐藏存 `hidden-inputs.json`(`{"<id>":"hidden"}`);「恢复默认」不碰这两个文件。
-- 模拟器命令一律 `adb -s emulator-5554`;**绝不向 A95L(192.168.1.22:38673)发按键 / 装包 / 改设置**。模拟器没有硬件输入,输入源相关只能单测 + 真机清单。
+- 模拟器命令一律 `adb -s emulator-5554`;**绝不向 A95L(<电视IP>:<端口>)发按键 / 装包 / 改设置**。模拟器没有硬件输入,输入源相关只能单测 + 真机清单。
 - 构建 + 单测:`source scripts/env.sh && gradle --no-daemon testReleaseUnitTest assembleRelease`;单跑某类加 `--tests 'com.uniteduone.launcher.XxxTest'`。
 - 三套字符串同步:`values`(简体)、`values-zh-rTW`、`values-en`(英文设置 / 菜单项用 Title Case)。
 - 提交信息结尾:`Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`。
