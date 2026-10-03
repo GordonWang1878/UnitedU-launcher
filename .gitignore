@@ -18,6 +18,8 @@ dist/
 # Python 缓存(scripts/e2e 等)
 __pycache__/
 *.pyc
-# coscli 在当前目录写的日志与输出(release.sh 调它时就在仓库根)
+# wrangler 可能在当前目录写的缓存(release.sh 调它上传 R2 时就在仓库根);
+# coscli 的 log / output 是 1.0.1 用过一次腾讯云留下的
+.wrangler/
 coscli.log
 coscli_output/

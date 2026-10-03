@@ -4,12 +4,12 @@ set -euo pipefail
 # scripts/release.sh <version> [--dry-run] [--notes "文本"]
 #
 # 构建 release APK、生成两份 latest.json(spec §7.2/§7.3)、发布到 GitHub Release,
-# 并在配置了腾讯云 COS 时把同一份 APK 与一份 apkUrl 指向 COS 的 latest.json 也发过去。
+# 并在配置了 Cloudflare R2 时把同一份 APK 与一份 apkUrl 指向 R2 的 latest.json 也发过去。
 # 由 Gordon 本机运行;发布是不可逆动作,脚本本身不做任何交互确认——运行前自己确认版本号对。
 #
 #   <version>   例如 1.0.0-beta;必须与本次构建出的 APK 里的 versionName 完全一致
 #   --dry-run   只构建 + 在 dist/ 下生成产物并打印将要做的事,不建 tag、不 push、
-#               不 gh release、不 coscli 上传——没有任何网络写入
+#               不 gh release、不 wrangler 上传——没有任何网络写入
 #   --notes     发布说明。来源只有两个:这个参数,或事先写好的 dist/notes-<version>.txt
 #               (**每个版本一份**,参数优先)。两者都没有时正式发布直接中止,不会拿默认文案发出去;
 #               --dry-run 才退回一句默认文案并警告。脚本从不把说明写回任何文件——旧版把解析结果
@@ -19,14 +19,14 @@ set -euo pipefail
 #
 # 构建带 -PrequireReleaseKey=true(没有 ~/.unitedu/release.jks 就构建失败,不回落 debug 签名),
 # 构建完再用 apksigner 核对 APK 的签名证书就是 release 证书(M7 终审 I4)。
-# 凭据只从 coscli 自己的 ~/.cos.yaml 读;本脚本、本仓库都不存任何密钥(release 证书的摘要是公开信息)。
+# 凭据只有 wrangler 自己存的 OAuth 令牌;本脚本、本仓库都不存任何密钥(release 证书的摘要是公开信息)。
 
 usage() {
   cat <<'EOF'
 用法: scripts/release.sh <version> [--dry-run] [--notes "发布说明"]
 
   <version>   如 1.0.0-beta —— 要与本次构建出的 APK versionName 一致,不一致就中止
-  --dry-run   只构建 + 生成 dist/ 下的产物,不发布(不建 tag、不 push、不 gh release、不 coscli)
+  --dry-run   只构建 + 生成 dist/ 下的产物,不发布(不建 tag、不 push、不 gh release、不 wrangler)
   --notes     发布说明文本;省略则读 dist/notes-<version>.txt。两者都没有:正式发布中止,
               --dry-run 用一句默认文案并警告
   -h, --help  显示本说明
@@ -408,25 +408,39 @@ else
   echo "==> GitHub Release ${TAG} 已发布"
 fi
 
-# ---- 腾讯云 COS(可选)----
+# ---- Cloudflare R2(可选;国内直连走的通道)----
 #
-# 只有 coscli 在 PATH 上、且 COS_BUCKET / COS_REGION 两个环境变量都给了才做;
-# 三者缺一律打印一句跳过、照常以 0 退出——本机没装 coscli 时这是预期路径,不是失败。
-# 凭据不经过这两个环境变量:coscli 自己认 ~/.cos.yaml,本脚本从不读取、不打印任何密钥。
-if command -v coscli >/dev/null 2>&1 && [[ -n "${COS_BUCKET:-}" ]] && [[ -n "${COS_REGION:-}" ]]; then
-  COS_APK_URL="https://${COS_BUCKET}.cos.${COS_REGION}.myqcloud.com/unitedu/${APK_NAME}"
-  gen_manifest "$COS_APK_URL" "dist/latest-cos.json"
-  echo "==> dist/latest-cos.json 已生成(apkUrl = ${COS_APK_URL})"
+# 只有 wrangler 在 PATH 上、且 R2_BUCKET / R2_BASE_URL 两个环境变量都给了才做;
+# 三者缺一律打印一句跳过、照常以 0 退出——本机没装 wrangler 时这是预期路径,不是失败。
+#   R2_BUCKET    桶名(现为 unitedu)
+#   R2_BASE_URL  桶绑定的自有域名,不带结尾斜杠(现为 https://dl.uniteduone.com)。**必须是自定义域名**:
+#                R2 自带的 *.r2.dev 子域在大陆被墙,写进 latest.json 的 apkUrl 国内没人下得了。
+# 凭据不经过这两个环境变量:wrangler 自己认 `wrangler login` 存下的 OAuth 令牌
+# (~/Library/Preferences/.wrangler/config/),本脚本从不读取、不打印任何密钥。
+# 为什么不是腾讯云 COS(1.0.1 用过一版):COS 默认域名禁止分发 .apk——匿名 GET 回 403
+# DownloadForbidden(2026-10-03 实测,按对象名后缀拦),绑自定义域名又要 ICP 备案;
+# Cloudflare 绑自有域名不用备案,uniteduone.com 的 DNS 本来就托管在 Cloudflare。
+if command -v wrangler >/dev/null 2>&1 && [[ -n "${R2_BUCKET:-}" ]] && [[ -n "${R2_BASE_URL:-}" ]]; then
+  R2_APK_URL="${R2_BASE_URL%/}/unitedu/${APK_NAME}"
+  gen_manifest "$R2_APK_URL" "dist/latest-r2.json"
+  echo "==> dist/latest-r2.json 已生成(apkUrl = ${R2_APK_URL})"
 
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    echo "==> dry-run:跳过 coscli 上传"
+    echo "==> dry-run:跳过 wrangler r2 object put"
   else
-    coscli cp "$APK_DIST" "cos://${COS_BUCKET}/unitedu/${APK_NAME}"
-    coscli cp "dist/latest-cos.json" "cos://${COS_BUCKET}/unitedu/latest.json"
-    echo "==> COS 上传完成:cos://${COS_BUCKET}/unitedu/"
+    # 自定义域名前面是 Cloudflare 的边缘缓存:APK 文件名带版本号,缓存一小时无妨;latest.json 每次
+    # 发版都换内容、文件名不变,必须 no-cache,否则电视查到的可能还是上一版的清单。
+    # -y:跳过 wrangler 新加的 Basin Catalog 交互确认,脚本里不能停下来等人。
+    wrangler r2 object put "${R2_BUCKET}/unitedu/${APK_NAME}" --remote -y --file "$APK_DIST" \
+      --content-type application/vnd.android.package-archive \
+      --cache-control "public, max-age=3600"
+    wrangler r2 object put "${R2_BUCKET}/unitedu/latest.json" --remote -y --file "dist/latest-r2.json" \
+      --content-type application/json \
+      --cache-control "no-cache"
+    echo "==> R2 上传完成:${R2_BASE_URL%/}/unitedu/"
   fi
 else
-  echo "COS 未配置,已跳过"
+  echo "R2 未配置,已跳过"
 fi
 
 echo "==> 完成。dist/ 下的产物:"

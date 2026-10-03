@@ -103,6 +103,8 @@
 ```
 
 ### 7.3 通道与流程
+> **2026-10-03 修订**:主通道改为 Cloudflare R2 自有域名 `https://dl.uniteduone.com/unitedu/latest.json`。腾讯云 COS 默认域名禁止分发 `.apk`(匿名 GET 403 `DownloadForbidden`),绑自定义域名又须 ICP 备案;R2 绑自有域名不用备案,但必须是自定义域名(`*.r2.dev` 在大陆被墙)。§7.4 的 `coscli cp` 相应换成 `wrangler r2 object put`(凭据是 wrangler 自己的 OAuth 令牌,仍不进仓库)。下文的 COS 字样是 M7 当时的设计,保留作记录。
+
 - 地址:主 `https://<bucket>.cos.<region>.myqcloud.com/unitedu/latest.json`(桶域名由 Gordon 提供,经 `BuildConfig.UPDATE_URLS` 注入,不硬编码在源码里);备 `https://github.com/GordonWang1878/UnitedU-launcher/releases/latest/download/latest.json`。每个 8 s 超时,顺序尝试。仅 https,`HttpURLConnection`,IO 线程。
 - 点击「检查更新」→「检查中…」→ 比较 `versionCode`:≤ 当前 →「已是最新」;更高 → 显示版本名 + notes + 「下载并安装」按钮 → 下载到 `cacheDir/apk/update.apk`(百分比进度)→ SHA-256 校验(不符 → 删文件、提示「校验失败」)→ `ApkInstaller.install`(复用 M6 的 NEEDS_PERMISSION 引导与 `RelaunchAfterUpdate`)。
 - 失败文案:网络失败 / 格式错误 / 校验失败 各一条短提示;**手动检查不静默**(修正 DESIGN §6「失败静默」——手动触发必须有结果)。

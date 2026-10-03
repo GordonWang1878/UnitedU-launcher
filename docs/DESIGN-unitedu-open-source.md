@@ -95,7 +95,7 @@ UnitedU 设置   ← 左栏四组(gtv spec R57,2026-09-23):
                  布局(编辑分栏/卡片大小/标题开关/卡片饱和度/卡片亮度/卡片透明度〔gtv spec R86:只压未聚焦的卡;R120 从外观挪来〕/~~输入源行~~〔R92 删〕)、外观(壁纸/模糊/亮度/主题色/跟随壁纸主色)、
                  屏保(立即开始屏保〔gtv spec R93,原顶栏屏保按钮〕/屏保启动/换图间隔/屏保图库/系统屏保)
 系统设置
-关于           ← 版本号 + 检查更新(手动;先查腾讯云 COS 镜像再查 GitHub,任何结果都会显示——
+关于           ← 版本号 + 检查更新(手动;先查 Cloudflare R2 自有域名再查 GitHub,任何结果都会显示——
                  已是最新/发现新版本/网络失败/格式错误/校验失败,不静默)+ 许可声明
 ```
 
@@ -113,12 +113,12 @@ UnitedU 设置   ← 左栏四组(gtv spec R57,2026-09-23):
 
 - **独立项目、独立机器**:在 Core 上新建仓库,远程 GitHub(公开;这是产品仓库,与「Smart Home 永不设远程」无关)。**不从 Smart Home 拆历史**,需要的代码(焦点处理、ImagePicker、Screensaver、HomeSettingsCard 等)与资源逐文件复制;`launcher/README.md` 的七条焦点铁律复制进新仓库的 CLAUDE.md。TvHome 在 Smart Home 里原样不动。
 - **Core 工具链**:JDK 17 / Gradle 8.14.5 / Android SDK 三样在 Core 手装一遍(Hub 的装法与 `dl-ssl.google.com` 绕法同样适用,Core 也在 VLAN 1 经 Surge)。~~Core 能直连电视 adb(`192.168.1.50:5555`,局域网口),但 Core 的 adb 密钥要在电视上再「一律允许」一次。~~ → 现在走电视的「无线调试」(不是 5555),连法见 CLAUDE.md。Hub→Core 无 SSH 通道,Core→Hub 有:设计文档等资料由 Core 侧 `scp hub:…` 拉取。
-- **更新通道(Q23)**:发布脚本把 `latest.json`(版本号、更新说明、APK 地址、SHA-256)与 APK **双发**到 GitHub Release 和**腾讯云 COS 公共读桶**(默认域名免备案)。**两份 `latest.json` 不是同一份文件的两次拷贝**:各自的 `apkUrl` 指回**自己那条通道**的 APK(COS 桶里的 `latest.json` 指 COS 的 APK,GitHub Release 里的 `latest.json` 指 GitHub 的 APK),这样走 COS 查到更新的用户下载也留在 COS、不会因为跨到 GitHub 的地址而被墙。应用内「检查更新」手动触发,先查 COS 再查 GitHub(**现状**:通道由 Gradle 属性 `unitedu.updateUrls` 在构建时写进包里;COS 地址在 `gradle.properties` 里仍是注释,缺省包只查 GitHub Release,而仓库还没有任何 Release,所以现在按下只会显示「检查失败」);下载后调系统安装器,需声明 `REQUEST_INSTALL_PACKAGES`,用户在系统设置给 UnitedU 一次「允许安装未知应用」。**兜底:上传页支持传 APK 安装**,手机从任何渠道拿到 APK 都能装。
+- **更新通道(Q23)**:发布脚本把 `latest.json`(版本号、更新说明、APK 地址、SHA-256)与 APK **双发**到 GitHub Release 和 **Cloudflare R2 桶**(绑自有域名 `dl.uniteduone.com`——域名 DNS 本就在 Cloudflare,不用备案;R2 自带的 `*.r2.dev` 子域在大陆被墙,不能用。~~腾讯云 COS 公共读桶(默认域名免备案)~~ → 1.0.1 用过一版,2026-10-03 实测 COS 默认域名禁止分发 `.apk`〔匿名 GET 403 `DownloadForbidden`,按后缀拦〕、绑自定义域名又须 ICP 备案,放弃)。**两份 `latest.json` 不是同一份文件的两次拷贝**:各自的 `apkUrl` 指回**自己那条通道**的 APK(R2 里的 `latest.json` 指 R2 的 APK,GitHub Release 里的 `latest.json` 指 GitHub 的 APK),这样走 R2 查到更新的用户下载也留在 R2、不会因为跨到 GitHub 的地址而被墙;通道只管取清单,清单取到了、APK 下不下来**不会**回退下一条通道,所以每份清单的 `apkUrl` 都必须真能下。应用内「检查更新」手动触发,先查 R2 再查 GitHub(通道由 Gradle 属性 `unitedu.updateUrls` 在构建时写进包里,`gradle.properties` 现为 R2 在前、GitHub 在后);下载后调系统安装器,需声明 `REQUEST_INSTALL_PACKAGES`,用户在系统设置给 UnitedU 一次「允许安装未知应用」。**兜底:上传页支持传 APK 安装**,手机从任何渠道拿到 APK 都能装。
 - **签名**:新 release keystore。密码 Gordon 写本地文件、我只读路径;不进仓库、不进聊天。
 - **去 adb 依赖**:`RelaunchAfterUpdate` 检测 `SYSTEM_ALERT_WINDOW` appop 未授权时静默跳过;权限声明保留。
 - **文案**:全部抽到 `strings.xml`,简 / 繁 / 英三份(现在中英混写在 Kotlin 里)。
 - **发布件**:`LICENSE`(Apache-2.0)、`NOTICE`(~~DM Sans OFL~~ Google Sans Flex OFL 1.1、Material Icons Apache、NanoHTTPD(BSD-3)、ZXing(Apache-2.0)、内置壁纸 / 屏保 / 卡片装饰图来源〔R115 起放 `assets/builtin/`;**现状**:壁纸 / 屏保为 AI 生成、随本项目许可发布,卡片装饰图含 WeTV / 优酷 / YouTube / 爱奇艺商标,NOTICE 单列商标归属与免责〕)、面向用户的 README(安装、设默认桌面、上传图片、回退)。
-- **~~首发 v1.0.0-beta~~ → 1.0.0 已于 2026-10-02 发布(GitHub Release `v1.0.0`,versionCode 3;此前内部版 1.0.0-beta / 2 从未对外发)**。此后每次对外发布 versionCode +1、versionName 按语义版本号走;1.0.1(2026-10-03,versionCode 4)起更新通道 = 腾讯云 COS 公共读桶 `unitedu-1412760099`(ap-shanghai)在前、GitHub Release 在后,`scripts/release.sh` 用 coscli 双发。
+- **~~首发 v1.0.0-beta~~ → 1.0.0 已于 2026-10-02 发布(GitHub Release `v1.0.0`,versionCode 3;此前内部版 1.0.0-beta / 2 从未对外发)**。此后每次对外发布 versionCode +1、versionName 按语义版本号走;1.0.1(2026-10-03,versionCode 4)曾把腾讯云 COS 公共读桶放在 GitHub 前面,同日发现 COS 默认域名禁发 APK;**1.0.2(2026-10-03,versionCode 5)起更新通道 = Cloudflare R2 自有域名 `https://dl.uniteduone.com/unitedu/latest.json` 在前、GitHub Release 在后**,`scripts/release.sh` 用 wrangler 双发(`R2_BUCKET=unitedu R2_BASE_URL=https://dl.uniteduone.com scripts/release.sh <version>`),腾讯云通道撤掉。
 - 无崩溃上报;README 教 `adb logcat`。
 
 ## 9. 不做(v1 明确排除)
