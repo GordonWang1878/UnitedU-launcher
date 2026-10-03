@@ -447,15 +447,26 @@ fun AboutScreen(
                         Spacer(Modifier.height(10.dp))
                         val info = state.info
                         val headline = headline(state)
-                        BasicText(
-                            text = headline?.first ?: "",
-                            style = Type.body.copy(
-                                fontWeight = FontWeight.Medium,
-                                color = headline?.second?.color(highlight) ?: Ink.Primary,
-                                textAlign = TextAlign.Center,
-                            ),
-                            modifier = Modifier.heightIn(min = 22.dp),
-                        )
+                        // 2026-10-03 Gordon:结果这一行不够醒目,但不许改字号——字号不动,改成一颗实心胶囊:
+                        // 底色 = 语气色(好消息主题色 / 失败错误色),字按底色亮度取对比色(同聚焦胶囊的做法)。
+                        // 外层 Box 按胶囊高度占位,空白态也留这一格,下面的许可声明不跳。
+                        Box(Modifier.heightIn(min = 30.dp), contentAlignment = Alignment.Center) {
+                            if (headline != null) {
+                                val fill = headline.second.color(highlight)
+                                BasicText(
+                                    text = headline.first,
+                                    style = Type.body.copy(
+                                        fontWeight = FontWeight.Medium,
+                                        color = contrastingTextColor(fill),
+                                        textAlign = TextAlign.Center,
+                                    ),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(50))
+                                        .background(fill)
+                                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                                )
+                            }
+                        }
                         val outcome = outcome(state)
                         if (outcome != null) {
                             Spacer(Modifier.height(4.dp))

@@ -1966,3 +1966,7 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 做了:`README.md` 改英文主版(含两类用户的定位、Google TV 走主页键接管、引导第 2 步只认国行应用的说明),中文挪到 `README.zh-CN.md`(互链,加海外用户一句);`NOTICE` 末尾加中文参考段(以英文为准);两份 Issue 表单改中英并列——**顺带修了 `compat.yml` 的 YAML 错误**(第 17 行值以反引号开头,YAML 不允许,GitHub 渲染不出这份表单;Ruby YAML 复现);三个 Release(v1.0.0–1.0.2)描述改双语(`gh release edit`,资产未动);`release.sh` 支持 `dist/notes-<版本>.app.txt` 作为 latest.json 的短说明(电视上只显示 200 字,双语长文会截半)。
 - `CLAUDE.md` 的真机连法(无线调试地址、配对、端口恢复)、装包副作用细节(tvlin / CEC / 家里设备)、推 GitHub 的代理设置挪到 `CLAUDE.local.md`(`.gitignore`,Claude Code 自动加载),`CLAUDE.md` 留一句指路 + `tv-install.sh` 的要点;`docs/` 里电视的局域网 adb 地址换成 `<电视IP>:<端口>`(git 历史里仍有,不改写历史)。`.gitignore` 照常入库。
 
+
+## 2026-10-03 · 关于页检查结果改成实心胶囊
+
+- Gordon:「检查更新」后那行结果不够醒目,但不许改字号,只能加底色 / 改字色 / 下划线。改为:结果那一行(已是最新 / 发现新版本 / 失败原因)画成一颗实心全圆角胶囊,底色 = 原来的语气色(好消息用主题色、失败用 `Theme.StatusErrorText`),字按底色亮度取黑 / 白(`contrastingTextColor`,同聚焦胶囊),字号字重不变;外层按胶囊高度(30 dp)占位,空白态不跳。下载 / 安装结局那一行与更新说明不动。模拟器截图 `docs/screenshots/about-result/latest-pill.jpg`;失败态(错误色底 + 白字)没截。
