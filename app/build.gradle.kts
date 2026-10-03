@@ -22,11 +22,11 @@ val updateUrls: String = providers.gradleProperty("unitedu.updateUrls").orNull?.
     ?: "https://github.com/GordonWang1878/UnitedU-launcher/releases/latest/download/latest.json"
 
 /**
- * 版本号。1.0.2 = 5(2026-10-03,更新通道改 Cloudflare R2 自有域名、撤腾讯云);1.0.1 = 4(2026-10-03,更新通道加腾讯云镜像);
+ * 版本号。1.0.3 = 6(2026-10-03,关于页检查结果改成实心胶囊);1.0.2 = 5(2026-10-03,更新通道改 Cloudflare R2 自有域名、撤腾讯云);1.0.1 = 4(2026-10-03,更新通道加腾讯云镜像);
  * 1.0.0 = 3(2026-10-02 首次公开发布);1.0.0-beta 内部版是 2(spec §9)。
  * `-PversionCodeOverride=N` 只给模拟器上验证「发现新版本 → 下载 → 安装」时出一个更高版本号的包用,不进任何配置文件。每次对外发布 +1。
  */
-val appVersionCode: Int = providers.gradleProperty("versionCodeOverride").orNull?.toInt() ?: 5
+val appVersionCode: Int = providers.gradleProperty("versionCodeOverride").orNull?.toInt() ?: 6
 
 /**
  * `-PrequireReleaseKey=true`(`scripts/release.sh` 总是带上):找不到 release 密钥时**构建直接失败**,
@@ -48,7 +48,7 @@ android {
         minSdk = 28
         targetSdk = 35
         versionCode = appVersionCode
-        versionName = "1.0.2"
+        versionName = "1.0.3"
         // 进 Java 字符串字面量:反斜杠与引号先转义(地址里本不该有,防手误把整个构建弄坏)。
         buildConfigField(
             "String",
