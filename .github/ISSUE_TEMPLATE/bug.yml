@@ -1,53 +1,56 @@
-name: 问题反馈
-description: UnitedU 在电视上行为不对(焦点、按键、更新、上传、屏保……)
-title: "[问题] "
+name: "问题反馈 / Bug report"
+description: "UnitedU 在电视上行为不对 / UnitedU misbehaves on your TV (focus, keys, updates, uploads, screensaver…)"
+title: "[Bug] "
 labels: ["bug"]
 body:
+  - type: markdown
+    attributes:
+      value: "中文或英文都可以。 / Chinese or English are both fine."
   - type: input
     id: tv
     attributes:
-      label: 电视品牌与型号
-      placeholder: 例:索尼 A95L(国行)
+      label: "电视品牌与型号 / TV brand and model"
+      placeholder: "例 e.g. Sony A95L (China) / Chromecast with Google TV (4K)"
     validations:
       required: true
   - type: input
     id: android
     attributes:
-      label: 系统版本
-      description: 设置 → 关于 里的 Android 版本;或 `adb shell getprop ro.build.version.sdk`
-      placeholder: 例:Android 14 / SDK 34
+      label: "系统版本 / Android version"
+      description: "设置 → 关于里的 Android 版本,或 adb shell getprop ro.build.version.sdk / Settings → About, or adb shell getprop ro.build.version.sdk"
+      placeholder: "例 e.g. Android 14 / SDK 34"
     validations:
       required: true
   - type: input
     id: version
     attributes:
-      label: UnitedU 版本
-      description: UnitedU 设置 → 关于 顶部显示的「版本名 (版本号)」
-      placeholder: 例:1.0.2 (5)
+      label: "UnitedU 版本 / UnitedU version"
+      description: "UnitedU 设置 → 关于 顶部 / Top of UnitedU Settings → About"
+      placeholder: "例 e.g. 1.0.2 (5)"
     validations:
       required: true
   - type: dropdown
     id: home
     attributes:
-      label: 默认桌面与主页键接管
+      label: "默认桌面与主页键接管 / Default home app and Home Button Takeover"
       options:
-        - UnitedU 是默认桌面,按 HOME 回 UnitedU
-        - 已设默认桌面,但按 HOME 仍回厂商桌面
-        - 开了「主页键接管」(无障碍)后 HOME 回 UnitedU
-        - 开了「主页键接管」仍不行 / 开不了
-        - 没设默认桌面,只是从应用列表打开
+        - "UnitedU 是默认桌面,按 HOME 回 UnitedU / UnitedU is the default home app; HOME opens it"
+        - "已设默认桌面,但按 HOME 仍回厂商桌面 / Set as default, but HOME still opens the stock home screen"
+        - "开了主页键接管后 HOME 回 UnitedU / With Home Button Takeover on, HOME opens UnitedU"
+        - "开了主页键接管仍不行 / 开不了 / Takeover on but not working, or can't be turned on"
+        - "没设默认桌面,只从应用列表打开 / Not the default; opened from the app list"
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: 怎么做的、看到了什么、本来期待什么
-      placeholder: 按了哪些键 / 进了哪一页 → 出现了什么 → 你以为会怎样
+      label: "怎么做的、看到了什么、本来期待什么 / What you did, what happened, what you expected"
+      placeholder: "按了哪些键、进了哪一页 → 出现了什么 → 你以为会怎样 / Keys pressed, page opened → what happened → what you expected"
     validations:
       required: true
   - type: textarea
     id: log
     attributes:
-      label: 日志(可选)
-      description: 复现问题时 `adb logcat -s UnitedU` 的输出;粘进来会自动用代码格式
+      label: "日志(可选)/ Log (optional)"
+      description: "复现问题时 adb logcat -s UnitedU 的输出 / Output of adb logcat -s UnitedU while reproducing"
       render: text

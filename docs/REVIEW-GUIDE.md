@@ -138,4 +138,5 @@
 - **各里程碑 spec / plan**:[`superpowers/specs/`](superpowers/specs/)、[`superpowers/plans/`](superpowers/plans/)(M1–M8、M4b、M5、设置外壳、顶栏、视频屏保)。
 - **设置页逐页清单**:[`design/settings-inventory.md`](design/settings-inventory.md)。**持久化排查表**:[`design/persistence-audit.md`](design/persistence-audit.md)。**性能报告**:[`design/perf-2026-09-28.md`](design/perf-2026-09-28.md)。**HDR 生图与转换**:[`design/hdr-image-spec.md`](design/hdr-image-spec.md)。**内置图放法**:[`design/builtin-assets.md`](design/builtin-assets.md)。**动效实测**:[`design/vertical-motion/`](design/vertical-motion/)。**体检报告**:[`design/health-check-2026-09-29.md`](design/health-check-2026-09-29.md)。
 - **工作日志** [`WORKLOG.md`](WORKLOG.md):按日期的排查过程、实测数字、未验证项与决策;真机上看到过什么、Gordon 原话是什么,都在这里。
-- **作者给 AI 助手的手册** [`../CLAUDE.md`](../CLAUDE.md):构建、模拟器与真机的坑、焦点七条与责任表、落盘铁律、内置图铁律。`TVHOME-README-focus-rules.md` 是前身项目 TvHome 的 README(焦点铁律的来源),铁律已搬进 CLAUDE.md,该文件留作历史。
+- **作者给 AI 助手的手册** [`../CLAUDE.md`](../CLAUDE.md):构建、模拟器与真机的坑、焦点七条与责任表、落盘铁律、内置图铁律。作者本机环境(参考真机的无线调试地址、装包注意事项、代理)在不入库的 `CLAUDE.local.md`,外部评审看不到也不需要。
+- **用户文档双语**:`README.md`(英文主版)与 `README.zh-CN.md`(中文)内容对齐,改一份要同步另一份;Release 说明、`NOTICE`、Issue 表单也是中英双语。`docs/` 下的开发记录只有中文。`TVHOME-README-focus-rules.md` 是前身项目 TvHome 的 README(焦点铁律的来源),铁律已搬进 CLAUDE.md,该文件留作历史。

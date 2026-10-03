@@ -16,6 +16,9 @@ set -euo pipefail
 #               回写进共用的 dist/notes.txt,下一次发布没给说明就会悄悄沿用上一版的(M7 终审 I3)。
 #               这份原文原样进 GitHub Release 描述;写进 latest.json 的 notes 字段时
 #               会截到 parseLatest()(UpdateChecker.kt)的 200 字上限,两处不是同一件事。
+#               **双语**(2026-10-03 Gordon:用户分国内与海外两拨):说明文件写中文一段、英文一段。
+#               电视上「检查更新」只显示 latest.json 里那 200 字,双语长文会被截在半截;所以可以另写
+#               dist/notes-<version>.app.txt(中英各一句短话),有它时 latest.json 用它,没有才退回完整说明。
 #
 # 构建带 -PrequireReleaseKey=true(没有 ~/.unitedu/release.jks 就构建失败,不回落 debug 签名),
 # 构建完再用 apksigner 核对 APK 的签名证书就是 release 证书(M7 终审 I4)。
@@ -262,6 +265,13 @@ if ! resolve_notes; then
   exit 1
 fi
 
+# 写进 latest.json 的短说明(见文件头「双语」一条):有 dist/notes-<version>.app.txt 就用它。
+NOTES_APP="$NOTES_RAW"
+if [[ -f "dist/notes-${VERSION}.app.txt" ]] && [[ -n "$(tr -d "[:space:]" < "dist/notes-${VERSION}.app.txt")" ]]; then
+  NOTES_APP="$(cat "dist/notes-${VERSION}.app.txt")"
+  echo "==> latest.json 的短说明:取自 dist/notes-${VERSION}.app.txt"
+fi
+
 # ---- 构建 ----
 # -PrequireReleaseKey=true:缺 release 密钥时构建直接失败,不回落 debug keystore(app/build.gradle.kts)。
 echo "==> source scripts/env.sh && gradle --no-daemon assembleRelease -PrequireReleaseKey=true"
@@ -340,7 +350,7 @@ SHA256="$(shasum -a 256 "$APK_DIST" | awk '{print $1}')"
 # 否则超出 BMP 的字符会让两边数出不同的长度。
 gen_manifest() {
   local apk_url="$1" out="$2"
-  python3 - "$APK_VERSION_CODE" "$APK_VERSION_NAME" "$NOTES_RAW" "$apk_url" "$SHA256" "$MIN_SDK" "$out" <<'PY'
+  python3 - "$APK_VERSION_CODE" "$APK_VERSION_NAME" "$NOTES_APP" "$apk_url" "$SHA256" "$MIN_SDK" "$out" <<'PY'
 import json
 import sys
 

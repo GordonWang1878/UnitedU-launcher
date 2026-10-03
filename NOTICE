@@ -41,3 +41,19 @@ Third-party trademarks:
   trademarks of their respective owners (Tencent, iQIYI, Inc., Alibaba/Youku, Bilibili Inc., MIGU Co., Ltd.,
   Hunan Happy Sunshine Interactive Entertainment Media Co., Ltd. / Mango TV, Google LLC). UnitedU is not affiliated
   with or endorsed by them, and no license to these trademarks is granted by this project's license.
+
+----------------------------------------------------------------------
+中文说明(仅供参考,以上方英文为准)
+
+UnitedU 以 Apache License 2.0 发布,见 LICENSE。
+
+随附的第三方材料:Google Sans Flex 字体(SIL Open Font License 1.1,全文见
+app/src/main/assets/licenses/OFL-GoogleSansFlex.txt)、AndroidX 与 Jetpack Compose(含 Material Icons,
+Apache 2.0)、NanoHTTPD 2.3.1(BSD 3-Clause)、ZXing core 3.5.3(Apache 2.0)。
+
+本项目自有素材:应用图标与 banner、内置壁纸与屏保图均为 AI 为本项目生成,按本项目许可发布。
+
+第三方商标:app/src/main/assets/builtin/cards/ 里含腾讯视频(WeTV)、爱奇艺、优酷、哔哩哔哩、咪视界(咪咕)、
+芒果TV、YouTube 的标志,只为让用户在自己的桌面上认出这些应用。这些名称与标志是各自权利人(腾讯、爱奇艺、
+阿里巴巴/优酷、哔哩哔哩、咪咕文化、湖南快乐阳光互动娱乐传媒 / 芒果TV、Google LLC)的商标;UnitedU 与它们
+没有关联、未获其认可,本项目的许可证不授予这些商标的任何使用权。

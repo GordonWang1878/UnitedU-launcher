@@ -1959,3 +1959,10 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - Gordon 电视实测(2026-10-03 中午):走代理「检查更新」装到 1.0.2 (5),切回有线直连再按「检查更新」正常(「OK了」)——R2 自有域名在国内直连可达,国内更新通道闭环。
 
 - Gordon:「这个不急,而且我没有别的电视可以测试了;发到 GitHub,等有人下载使用了之后再给我反馈吧」→ **项目进入等用户反馈阶段**,主页键接管的其他品牌实测靠社区报告。加了两份 Issue 表单(`.github/ISSUE_TEMPLATE/bug.yml` 问题反馈、`compat.yml` 电视兼容性报告,必填品牌型号 / 系统版本 / UnitedU 版本 / 主页键接管状态),与 README「反馈」「征集其他品牌电视测试」两节对应。
+
+## 2026-10-03 · 用户文档双语;CLAUDE.md 拆出本机环境
+
+- Gordon:受众是国内(国行无 GMS)与海外(嫌 Google TV 推荐广告多、定位类似 Projectivy)两拨,给人看的文档应双语;问 `.gitignore`、`CLAUDE.md` 该不该公开。裁定:按读者分层(用户文档双语、`docs/` 开发记录保持中文);`CLAUDE.md` 拆出私人部分后公开。
+- 做了:`README.md` 改英文主版(含两类用户的定位、Google TV 走主页键接管、引导第 2 步只认国行应用的说明),中文挪到 `README.zh-CN.md`(互链,加海外用户一句);`NOTICE` 末尾加中文参考段(以英文为准);两份 Issue 表单改中英并列——**顺带修了 `compat.yml` 的 YAML 错误**(第 17 行值以反引号开头,YAML 不允许,GitHub 渲染不出这份表单;Ruby YAML 复现);三个 Release(v1.0.0–1.0.2)描述改双语(`gh release edit`,资产未动);`release.sh` 支持 `dist/notes-<版本>.app.txt` 作为 latest.json 的短说明(电视上只显示 200 字,双语长文会截半)。
+- `CLAUDE.md` 的真机连法(无线调试地址、配对、端口恢复)、装包副作用细节(tvlin / CEC / 家里设备)、推 GitHub 的代理设置挪到 `CLAUDE.local.md`(`.gitignore`,Claude Code 自动加载),`CLAUDE.md` 留一句指路 + `tv-install.sh` 的要点;`docs/` 里电视的局域网 adb 地址换成 `<电视IP>:<端口>`(git 历史里仍有,不改写历史)。`.gitignore` 照常入库。
+

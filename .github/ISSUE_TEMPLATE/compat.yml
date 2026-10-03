@@ -1,55 +1,58 @@
-name: 电视兼容性报告
-description: 在索尼 A95L 之外的电视上装了 UnitedU,报告能不能用(README「征集其他品牌电视测试」)
-title: "[兼容性] "
+name: "电视兼容性报告 / TV compatibility report"
+description: "在索尼 A95L 以外的电视上试了 UnitedU / You tried UnitedU on a TV other than the Sony A95L"
+title: "[Compat] "
 labels: ["compat"]
 body:
+  - type: markdown
+    attributes:
+      value: "对应 README「征集其他品牌电视测试」/「Help test other TVs」。中文或英文都可以。 / Matches the README section; Chinese or English are both fine."
   - type: input
     id: tv
     attributes:
-      label: 电视品牌与型号(含国行 / 海外版)
-      placeholder: 例:小米电视 ES 2022 65 寸(国行)
+      label: "电视品牌与型号(国行 / 海外版)/ TV brand and model (and market)"
+      placeholder: "例 e.g. Xiaomi TV ES 2022 65\" (China) / Sony Bravia 7 (Google TV, EU)"
     validations:
       required: true
   - type: input
     id: android
     attributes:
-      label: 系统版本
-      description: `adb shell getprop ro.build.version.sdk`,以及厂商系统名(澎湃 OS / 酷开 / 鸿蒙 / Google TV……)
-      placeholder: 例:SDK 30,澎湃 OS 1.x
+      label: "系统版本 / System version"
+      description: "adb shell getprop ro.build.version.sdk,以及厂商系统名 / plus the maker's system name (HyperOS, Coocaa, HarmonyOS, Google TV…)"
+      placeholder: "例 e.g. SDK 34, Google TV"
     validations:
       required: true
   - type: dropdown
     id: install
     attributes:
-      label: adb install 能否成功
+      label: "adb install 能否成功 / Does adb install succeed?"
       options:
-        - 成功
-        - 失败(请在下面贴出报错)
+        - "成功 / Yes"
+        - "失败(请在下面贴报错)/ No (paste the error below)"
     validations:
       required: true
   - type: dropdown
     id: home
     attributes:
-      label: set-home-activity 之后按 HOME 进的是谁
-      description: README 第 3 项;断电重启后的情况写在下面
+      label: "set-home-activity 之后按 HOME 进的是谁 / After set-home-activity, where does HOME go?"
+      description: "README 第 3 项;断电重启后的情况写在下面 / Check 3 in the README; describe what happens after a power cut below"
       options:
-        - 进 UnitedU
-        - 仍进厂商桌面,开「主页键接管」后能进 UnitedU
-        - 仍进厂商桌面,「主页键接管」开不了或不管用
-        - 没测
+        - "进 UnitedU / UnitedU"
+        - "仍进厂商桌面,开主页键接管后能进 UnitedU / Stock home screen; UnitedU with Home Button Takeover on"
+        - "仍进厂商桌面,主页键接管开不了或不管用 / Stock home screen; takeover can't be turned on or doesn't help"
+        - "没测 / Not tested"
     validations:
       required: true
   - type: checkboxes
     id: features
     attributes:
-      label: 其余几项(能用的打勾)
+      label: "其余几项(能用的打勾)/ Other checks (tick what works)"
       options:
-        - label: 厂商自带桌面的应用列表里能找到 UnitedU
-        - label: 输入源页列出了输入,按确定能切过去
-        - label: 电视的屏保设置里能选到 UnitedU
-        - label: 遥控器方向键 / 长按 / 返回键都正常
-        - label: 「自动关屏」那一行写出的菜单路径对
+        - label: "厂商自带桌面的应用列表里能找到 UnitedU / UnitedU appears in the stock home screen's app list"
+        - label: "输入源页列出了输入,按确定能切过去 / The Inputs page lists inputs and OK switches to them"
+        - label: "电视的屏保设置里能选到 UnitedU / UnitedU can be picked as the TV's screensaver"
+        - label: "遥控器方向键 / 长按 / 返回键都正常 / D-pad, long press and Back all work"
+        - label: "「自动关屏」一行写出的菜单路径对 / The menu path on the Auto Screen Off row is correct"
   - type: textarea
     id: notes
     attributes:
-      label: 补充(断电重启进的是谁、报错、截图)
+      label: "补充(断电重启进的是谁、报错、截图)/ Notes (home screen after a power cut, errors, screenshots)"

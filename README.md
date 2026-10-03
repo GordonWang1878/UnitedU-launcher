@@ -1,198 +1,203 @@
 # UnitedU
 
-零广告、零推荐,只有你放上去的应用。
+**English** | [简体中文](README.zh-CN.md)
 
-面向**国行无 GMS、允许更换桌面的 Android TV**(Android 9 及以上;目前实机验证的是索尼国行,其他品牌能不能用见下面「适用范围」)的开源桌面替代品。外观照着 Google TV 做,内容只有你自己放上去的应用。全程不联网,唯一的例外是你自己按「检查更新」的那一刻(以及你打开「上传资料」页时,电视在局域网里临时开一个上传服务)。不上架 Play 商店或国内应用市场,只以 GitHub Release 的 APK 形式分发,需要自己下载安装。
+No ads, no recommendations — just the apps you put there.
 
-包名 `com.uniteduone.launcher`,最低支持 Android 9(API 28)。**最新版 1.0.2(2026-10-03)**,GitHub Release `v1.0.2`,同步发在国内直连可达的 `dl.uniteduone.com`(Cloudflare R2);APK 版本号 1.0.2 / versionCode 5。许可证见文末。
+UnitedU is an open-source home screen (launcher) for Android TV, Android 9 and later. It looks like Google TV, but the only content on it is the apps you choose. It is built for two kinds of TVs:
 
-## 功能一览
+- **Google TV / Android TV with Google services**, if you find the stock home screen too full of recommendations and ads and want a clean one — similar in spirit to Projectivy Launcher. On these TVs the HOME button goes to the Google home screen by default; turn on [Home Button Takeover](#home-button-takeover) to send it to UnitedU.
+- **Chinese-market TVs without Google services**, whose maker lets you change the home app. These factory home screens are usually heavy and ad-filled. UnitedU has only been tested on a real Chinese-market Sony A95L; see [Compatibility](#compatibility) for other brands.
 
-- **首页**:壁纸 + 应用卡片行(1–5 行,每行一个图标、可更换,没有行名);左上三颗胶囊「设置 / 应用 / 输入源」,右上时钟。卡片大小三档,一行正好完整显示 **5 / 6 / 8 张**(大 / 中 / 小),卡片标题可开关。新装的应用不会自己冒出来,要自己加到桌面。一个应用都没有时,底部一行提示带一颗「立即前往」,直接进「编辑桌面」。
-- **所有应用页**(顶栏「应用」):电视上所有可启动的应用(桌面上已有的也列出),确定打开;长按或菜单键:打开 / 卸载(能卸载的才有)/ 加到桌面…。
-- **输入源页**(顶栏「输入源」):切换 HDMI / 电视信号源,可改名、隐藏;HDMI-CEC 设备与它所在的端口只显示一个,多个调谐器合成一个「电视」。
-- **设置**:右侧一列胶囊逐层进入,每一页最多 6 项;改卡片、壁纸时左边有实时预览。
-- **内置图**:随安装包附送 4 张壁纸、4 张屏保图、7 张应用卡片图(腾讯视频、爱奇艺、优酷、哔哩哔哩、咪视界、芒果TV、YouTube,只给对应的应用用);三个选图页都分「内置 / 我的」两块。内置壁纸与屏保图是带增益图的 HDR 照片(Ultra HDR,Android 14 与 15+ 两种写法都有),在支持 HDR 界面的电视上高光更亮,其他电视上照常按普通照片显示。
-- **屏保**:照片缓慢推拉摇移、交叉淡化,也可以放短视频(静音,超过 60 秒只播前 60 秒);电视系统的「屏幕保护程序」里也能选 UnitedU,放的是同一个图库、接着同一张播。
-- **上传资料**:手机扫码,在浏览器里上传壁纸、卡片图、屏保照片与视频,或安装 APK,不用 U 盘、不用电脑。
-- **三种界面语言**:简体中文 / 繁體中文 / English,可跟随系统。
-- **主页键接管**:换不了默认桌面的电视(Google TV、小米新固件等)上,在系统「无障碍」里开一下,按 HOME 直接回 UnitedU,原厂桌面不用卸(见下「设为默认桌面」;真机待实测)。
+UnitedU never goes online, except at the moment you press "Check for Updates" (and while the "Upload Files" page is open, when the TV runs a temporary upload server on your local network). It is not on Google Play or any other app store; download the APK from [GitHub Releases](https://github.com/GordonWang1878/UnitedU-launcher/releases) and install it yourself.
 
-## 适用范围(兼容性)
+Package name `com.uniteduone.launcher`, minimum Android 9 (API 28). **Latest version: 1.0.2 (2026-10-03)**, GitHub Release `v1.0.2` (versionCode 5), also mirrored at `dl.uniteduone.com` (Cloudflare R2) so TVs in mainland China can update without a proxy. License at the end.
 
-**能不能用,主要看电视厂商放不放:能不能装第三方 APK、HOME 键能不能交给第三方桌面;Android 版本只划一条线——Android 9 以下装不上。**下表是 2026-10 的调研结论,除索尼 A95L 外都没有实机验证,完整依据与来源见 [`docs/research/2026-10-02-tv-compatibility.md`](docs/research/2026-10-02-tv-compatibility.md)。
+The app's interface is available in English, Simplified Chinese and Traditional Chinese. The development records under `docs/` (design specs, work log, research) are in Chinese.
 
-| 情况 | 品牌 / 系统 | 说明 |
+## Features
+
+- **Home screen**: wallpaper plus rows of app cards (1–5 rows; each row has an icon you can change, and no name). Three buttons at the top left — Settings / Apps / Inputs — and a clock at the top right. Three card sizes; a row shows exactly **5 / 6 / 8 cards** (large / medium / small). Card titles can be turned on or off. Newly installed apps don't appear on their own; you add them. With no apps on the home screen, a hint at the bottom has a "Go Now" button that opens Edit Home Screen.
+- **All Apps** (the "Apps" button): every launchable app on the TV, including those already on your home screen. OK opens one; hold OK or press Menu for Open / Uninstall (when possible) / Add to Home….
+- **Inputs** (the "Inputs" button): switch between HDMI and TV sources, rename or hide them. An HDMI-CEC device and the port it's on are shown once; multiple tuners are merged into one "TV".
+- **Settings**: a column of buttons on the right, one level at a time, at most 6 per page. Card and wallpaper settings show a live preview on the left.
+- **Built-in images**: 4 wallpapers, 4 screensaver photos and 7 app card images (Tencent Video, iQIYI, Youku, bilibili, MIGU, Mango TV, YouTube — each only usable for its own app). All three image pickers are split into "Built-in" and "Mine". The built-in wallpapers and screensaver photos are HDR photos with gain maps (Ultra HDR, in both the Android 14 and the Android 15+ formats): brighter highlights on TVs whose interface supports HDR, ordinary photos everywhere else.
+- **Screensaver**: photos with a slow pan-and-zoom and crossfades, or short videos (muted; only the first 60 seconds of longer ones). UnitedU can also be picked as the TV system's screensaver, showing the same gallery and continuing from the same item.
+- **Upload Files**: scan a QR code with your phone and upload wallpapers, card art, screensaver photos and videos, or install APKs from the phone's browser — no USB stick, no computer.
+- **Three interface languages**: English / 简体中文 / 繁體中文, or follow the system.
+- **Home Button Takeover**: on TVs where you can't change the default home app (Google TV, newer Xiaomi firmware, …), turn on one switch under the system's Accessibility settings and HOME goes straight to UnitedU, without uninstalling the stock home screen (see [Set as the default home screen](#set-as-the-default-home-screen); not yet tested on a real TV).
+
+## Compatibility
+
+**Whether UnitedU works mostly depends on what the TV maker allows: installing third-party APKs, and handing the HOME button to a third-party home screen. The only Android-version limit is that it won't install below Android 9.** The table below is the result of research in October 2026; except for the Sony A95L, nothing has been tested on a real TV. Full reasoning and sources (in Chinese): [`docs/research/2026-10-02-tv-compatibility.md`](docs/research/2026-10-02-tv-compatibility.md).
+
+| Status | Brand / system | Notes |
 |---|---|---|
-| ✅ 可以当桌面(已实机验证) | 索尼国行 A95L(Android 14) | 全部功能 |
-| ✅ 可以当桌面(未实机验证) | 索尼国行 2019 年起、Android 9 以上的机型 | 与 A95L 同一套系统 |
-| ⚠️ 能当桌面,但有条件 | 海信 / Vidda(国行安卓机型) | 按 HOME 键会弹出桌面选择框,选 UnitedU 即可;断电重启后会回到聚好看 |
-| | 康佳 | 系统里没有默认桌面选项,要用 adb 冻结康佳桌面 |
-| | 小米 / Redmi 约 2020 年以前的固件 | HOME 键可以选第三方桌面 |
-| | 国外 Google TV / 带 Google 服务的 Android TV | 能装能用,但 HOME 键默认回 Google 桌面(原厂桌面优先级更高);想让 HOME 进 UnitedU:开「主页键接管」(见下,模拟器上验证过,真电视待实测),或用 adb 停用 Google 桌面,风险自负 |
-| | 荣耀智慧屏、乐视 | 可能可以,没有实测 |
-| ℹ️ 只能当普通应用 | 小米 / Redmi 2021 年起的固件、澎湃 OS | HOME 键强制回 PatchWall |
-| | 创维 / 酷开 | 默认主页写死在系统里 |
-| | 华为智慧屏(HarmonyOS 1–4) | 能装,但换不了默认桌面 |
-| ❌ 装不上 / 不适用 | TCL / 雷鸟 | 系统会拦截「桌面类」APK |
-| | 长虹多数机型 | 系统拦截安装第三方 APK |
-| | 华为 MateTV(HarmonyOS 5 起) | 不再运行安卓应用 |
-| | 三星、LG | 不是安卓系统 |
-| | Android 8.1 及以下的电视 | 最低要求 Android 9 |
-| ❓ 没查到足够资料 | 夏普、飞利浦(国内)、海尔 / 统帅 | 能侧载,其余要实机验证 |
+| ✅ Works as the home screen (tested) | Sony A95L, Chinese market (Android 14) | All features |
+| ✅ Works as the home screen (untested) | Sony Chinese-market models from 2019 on, Android 9+ | Same system as the A95L |
+| ⚠️ Works, with conditions | Google TV / Android TV with Google services (worldwide) | Installs and runs, but HOME goes to the Google home screen by default (the stock launcher has higher priority). To make HOME open UnitedU, turn on Home Button Takeover (see below; tested on emulators, not yet on a real TV), or disable the Google home screen with adb at your own risk |
+| | Hisense / Vidda (Chinese-market Android models) | Pressing HOME shows a chooser; pick UnitedU. After a power cut it returns to the stock Juhaokan home screen |
+| | Konka | No default-home setting; the Konka home screen must be frozen with adb |
+| | Xiaomi / Redmi firmware before about 2020 | HOME can be given to a third-party home screen |
+| | Honor Vision, LeTV | Possibly; untested |
+| ℹ️ Only as a regular app | Xiaomi / Redmi firmware from 2021, HyperOS | HOME is forced to PatchWall |
+| | Skyworth / Coocaa | The default home screen is hard-wired into the system |
+| | Huawei Vision (HarmonyOS 1–4) | Installs, but the default home screen can't be changed |
+| ❌ Won't install / not applicable | TCL / FFALCON | The system blocks launcher-type APKs |
+| | Most Changhong models | The system blocks third-party APK installs |
+| | Huawei MateTV (HarmonyOS 5 and later) | No longer runs Android apps |
+| | Samsung, LG | Not Android |
+| | TVs on Android 8.1 or earlier | Android 9 is the minimum |
+| ❓ Not enough information | Sharp, Philips (China), Haier / Leader | Sideloading works; the rest needs a real TV |
 
-几项功能还要看厂商实现:
+Some features also depend on how the maker implemented things:
 
-- **输入源页**用的是 Android 标准的电视输入框架。多数国产电视切 HDMI 走厂商私有接口,这一页在那些电视上很可能是空的(只剩「返回」)。
-- **系统屏保**:电视的「屏幕保护程序」里能不能选 UnitedU 看厂商;Google TV 只提供「环境模式」,选不到第三方屏保。UnitedU 自己的闲置画面与屏保不受影响。
-- **更新后自动回到桌面**要在电视设置里给 UnitedU 打开「显示在其他应用上层」(在「关于」里检查更新时会引导);Android 9 不需要。
-- **主页键接管**(设置 → 通用 → 设置默认桌面,见下「设为默认桌面」)用无障碍服务把 HOME 键抢回来:能截键就直接截(不闪),电视的按键策略不把 HOME 交给无障碍服务时,退到「原厂桌面一出现就拉回 UnitedU」(会先闪一下)。小米 2021 年起固件、创维 / 酷开这类「只能当普通应用」的电视,开了之后 HOME 键也许能回 UnitedU,**待实测**;Fire OS 不支持。
+- **Inputs** uses Android's standard TV input framework. Most Chinese TVs switch HDMI through their own private interfaces, so on those TVs this page will probably be empty (only "Back").
+- **System screensaver**: whether UnitedU can be picked in the TV's screensaver setting is up to the maker; Google TV only offers "Ambient mode" and doesn't list third-party screensavers. UnitedU's own idle screen and screensaver work regardless.
+- **Returning to the home screen automatically after an update** requires "Display over other apps" for UnitedU in the TV settings (the About page walks you there when you check for updates); not needed on Android 9.
+- **Home Button Takeover** (Settings → General → Set Default Home App; see below) uses an accessibility service to take the HOME button back. Where it can intercept the key, it does so directly (no flash); where the TV's key policy doesn't give HOME to accessibility services, it falls back to "pull UnitedU back as soon as the stock home screen appears" (with a brief flash). On TVs in the "only as a regular app" group (Xiaomi 2021+ firmware, Skyworth / Coocaa), turning it on may make HOME return to UnitedU — **untested**. Fire OS is not supported.
 
-## 安装
+## Install
 
-UnitedU 不在任何应用商店,需要自己把 APK 装到电视上,两种办法:
+UnitedU isn't in any app store, so you put the APK on the TV yourself. Two ways:
 
-1. **电脑 + adb**:电视打开「开发者选项 → USB 调试」(或「无线调试」),电脑上执行
+1. **Computer + adb**: on the TV, turn on "Developer options → USB debugging" (or "Wireless debugging"), then on the computer run
 
    ```bash
-   adb install -r unitedu-<版本号>.apk
+   adb install -r unitedu-<version>.apk
    ```
 
-   `-r` 是为了覆盖安装同包名的旧版本,首次安装也可以照写不影响。adb 装包不经过「未知来源」这一关,电视上不会弹任何确认。
+   `-r` replaces an existing install of the same package and is harmless on a first install. Installing with adb bypasses the "unknown sources" check, so nothing pops up on the TV.
 
-2. **手机传 APK,不用电脑**:如果电视上已经在跑 UnitedU(哪怕是别人帮你装的旧版本),打开「设置 → 通用 → 上传资料」,手机连上电视所在的 Wi-Fi,浏览器扫码或输入屏幕上的地址,切到「装应用」页签选文件上传(不超过 100 MB),电视上会弹出系统安装器(传的恰是 UnitedU 自己的新版时,走和「关于 → 检查更新」同一条会话安装,不会把已经打开的「主页键接管」关掉,见下「检查更新」)。这条路更适合装其他应用或以后手动更新,**装第一份 UnitedU 本身还是得靠 adb**。
+2. **From your phone, no computer**: if UnitedU is already running on the TV (even an older version someone installed for you), open Settings → General → Upload Files, connect your phone to the TV's Wi-Fi, scan the QR code (or type the address shown on screen) in the phone's browser, switch to the "Apps" tab and upload the file (100 MB max). The TV shows the system installer. (When the APK is a newer UnitedU itself, it goes through the same session install as About → Check for Updates and doesn't turn off Home Button Takeover; see [Check for updates](#check-for-updates).) This route is for installing other apps or updating later; **the first UnitedU still needs adb**.
 
-「允许安装未知应用」只和第 2 种方式(以及以后在「关于」里装更新)有关:第一次由 UnitedU 把 APK 交给系统安装器时,电视会提示先去系统的「安装未知应用」设置里给 UnitedU 打开开关,打开后回来再在手机上重新上传一次即可。这个开关只需打开一次(每次安装时系统安装器自己的确认页照常会出现)。
+"Install unknown apps" only matters for the second route (and for updates from About): the first time UnitedU hands an APK to the system installer, the TV asks you to allow UnitedU under the system's "Install unknown apps" setting; turn it on, come back and upload again from the phone. You only do this once (the installer's own confirmation page still appears for every install).
 
-## 设为默认桌面
+## Set as the default home screen
 
-装好之后 UnitedU 不会自动接管 HOME 键,需要手动切换:设置 → 通用 → 设置默认桌面,先显示当前的默认桌面,按「去原生电视设置更改」跳到 Android 系统自带的「主屏幕应用」选择页,选 UnitedU 即可。这一步系统会记住,重启电视也不会变回去。
+After installing, UnitedU doesn't take over the HOME button by itself. Go to Settings → General → Set Default Home App: it shows the current default home app; press "Change in Native TV Settings" to open Android's own "Home app" chooser and pick UnitedU. The system remembers this across reboots.
 
-有些电视的设置里没有这一页,或者选了也不生效(厂商把 HOME 键锁在自家桌面上,见上面「适用范围」):能弹出桌面选择框的电视,按一下遥控器的 HOME 键,在选择框里选 UnitedU、再选「始终」;其余只能用 adb:
+Some TVs have no such page, or ignore the choice (the maker locks HOME to its own home screen; see [Compatibility](#compatibility)). If pressing HOME on the remote shows a chooser, pick UnitedU and then "Always". Otherwise only adb is left:
 
 ```bash
 adb shell cmd package set-home-activity com.uniteduone.launcher/.MainActivity
 ```
 
-执行后按 HOME 仍回原厂桌面,说明这台电视的原厂桌面优先级更高,UnitedU 在这台电视上只能当普通应用用(除非开下面的主页键接管)。
+If HOME still goes to the stock home screen afterwards, the stock home screen has higher priority on this TV, and UnitedU can only be used as a regular app there (unless you turn on Home Button Takeover below).
 
-打开设置有两种方式:首页左上第一颗齿轮胶囊按确定,或者在首页按遥控器的菜单键(三条杠)。
+There are two ways to open Settings: the first button (gear) at the top left of the home screen, or the Menu button (three lines) on the remote.
 
-### 主页键接管(Google TV 和其他换不了默认桌面的电视)
+### Home Button Takeover
 
-上面的办法做完,按 HOME 仍回原厂桌面时(Google TV / GMS 电视的原厂桌面优先级更高;小米新固件等直接锁住 HOME),可以改用**主页键接管**:一个只在 UnitedU 不是默认桌面时才起作用的无障碍服务。已在 Google TV / Android TV 14 模拟器上验证,**真电视待实测**。
+If HOME still goes to the stock home screen after the steps above (on Google TV / TVs with Google services the stock launcher has higher priority; newer Xiaomi firmware locks HOME outright), use **Home Button Takeover**: an accessibility service that only acts while UnitedU is *not* the default home app. Tested on Google TV / Android TV 14 emulators; **not yet tested on a real TV** — reports are welcome.
 
-- **怎么开**:设置 → 通用 → 设置默认桌面 → 「主页键接管」(UnitedU 已经是默认桌面时这颗默认不出现;首次引导第 3 步里也有),按确定跳到原生电视设置的「无障碍」,打开「UnitedU 主页键接管」。
-- **效果**:按 HOME(长按同样)直接回到 UnitedU,原厂桌面不用卸载、一帧都不画(截得到主页键时;截不到的机型会先闪一下原厂桌面再拉回);屏保播放时按 HOME 仍是系统原来的做法(只退出屏保)。开着接管时,长按 HOME 也只是回到 UnitedU,Google TV 原来长按 HOME 弹出的面板不会再出现。服务只响应 HOME 键和前台应用的名字,不读屏幕内容;关掉开关即完全还原。
-- **局限**:开机时服务起来之前,原厂桌面会露面一两秒;开机后约 30–60 秒服务连上时,会把 UnitedU 拉到前面一次——电视若设成「开机进上次信号源」(比如直接进 HDMI),这一下会盖住 HDMI 画面;屏幕关着(待机)时按 HOME 只会唤醒电视。
-- **Android 13 起**:用文件管理器 / 浏览器装的 UnitedU,电视会拦住这个服务的开关,而且设置里没有解锁入口;这时「主页键接管」旁边写「这台电视不允许」。用电脑执行 `adb shell appops set com.uniteduone.launcher ACCESS_RESTRICTED_SETTINGS allow` 再去打开,或者先卸载、再用 adb 重新安装(会清掉桌面布局)。全新的 `adb install` 不受限,但 `adb install -r` 覆盖装**不会**清掉已有的锁(模拟器上验证过),所以要先卸载。
-- **另一条路**(会用 adb 的话更彻底):直接停用原厂桌面:`adb shell pm disable-user --user 0 <原厂桌面包名>`。停用之后,电视上还剩不止一个桌面时,下次按 HOME 由系统弹出选择框;UnitedU 是仅剩的桌面时,HOME 直接解析到 UnitedU(Android TV 模拟器上停用 `com.google.android.tvlauncher` 后就是这样)。Google TV 要停 `com.google.android.apps.tv.launcherx`,还要连带停 `com.google.android.tungsten.setupwraith`(它会把原厂桌面再启用),代价是 YouTube 键之类的原厂功能失效。这一条来自其他项目的说明,Google TV 上我们没有实测,自担风险。
+- **Turn it on**: Settings → General → Set Default Home App → "Home Button Takeover" (hidden by default when UnitedU already is the default home app; also offered in step 3 of the first-run guide). OK takes you to "Accessibility" in Native TV Settings; turn on "UnitedU Home Button".
+- **What it does**: HOME (and long-press HOME) goes straight back to UnitedU, without uninstalling the stock home screen and without it drawing a single frame (where the key can be intercepted; on TVs where it can't, the stock home screen flashes briefly before UnitedU is pulled back). While a screensaver is playing, HOME keeps the system's behavior (it only exits the screensaver). With takeover on, long-press HOME also just returns to UnitedU, so the panel Google TV used to show on long-press no longer appears. The service only looks at the HOME key and the name of the app in front; it never reads screen content. Turning the switch off restores everything.
+- **Limitations**: at boot, the stock home screen shows for a second or two before the service starts; when the service connects about 30–60 seconds after boot, it brings UnitedU to the front once — if the TV is set to start on the last input (e.g. straight into HDMI), this covers the HDMI picture. With the screen off (standby), HOME only wakes the TV.
+- **Android 13 and later**: if UnitedU was installed with a file manager or browser, the TV blocks this service's switch and offers no way to unlock it in Settings; "Home Button Takeover" then shows "Not allowed on this TV". From a computer run `adb shell appops set com.uniteduone.launcher ACCESS_RESTRICTED_SETTINGS allow` and turn it on again, or uninstall and reinstall with adb (this clears your home screen layout). A fresh `adb install` isn't restricted, but `adb install -r` over an already-restricted install does **not** clear the lock (verified on an emulator), so uninstall first.
+- **Another way** (more thorough, if you're comfortable with adb): disable the stock home screen with `adb shell pm disable-user --user 0 <stock launcher package>`. If more than one home app remains, the system shows a chooser on the next HOME press; if UnitedU is the only one left, HOME resolves straight to it (that's what happens on the Android TV emulator after disabling `com.google.android.tvlauncher`). On Google TV, disable `com.google.android.apps.tv.launcherx` and also `com.google.android.tungsten.setupwraith` (it re-enables the stock home screen); the cost is that stock features such as the YouTube button stop working. This comes from other projects' instructions; we haven't tested it on Google TV — at your own risk.
 
-## 首次引导
+## First-run guide
 
-第一次打开 UnitedU(全新安装,不是从旧版本升级)会自动出现三步引导,按返回键回到上一步:
+The first time UnitedU opens (a fresh install, not an upgrade) a three-step guide appears; Back returns to the previous step:
 
-1. **选语言**:跟随系统 / 简体 / 繁體 / English,选中立即生效。
-2. **把已装应用铺上桌面**:这不是推荐算法,是一张固定的国行常见应用表,只挑电视上已经装了的列出来:影视(腾讯视频的云视听极光、银河奇异果、CIBN 酷喵、芒果TV、云视听小电视)、直播(央视频、咪视界)、音乐(网易云音乐、QQ 音乐)。「放到桌面」就照这份清单放上去;「跳过」的话三行先空着,桌面底部会提示去「编辑桌面」(按「立即前往」直接进),在每一行末尾的「＋」里添加;也可以在所有应用页长按应用 →「加到桌面」。
-3. **设默认桌面**:跟上面「设为默认桌面」是同一个操作入口,这里是提前引导一次(UnitedU 还不是默认桌面的电视上会多一颗「主页键接管」);按「完成」直接进桌面,以后随时能在设置里再改。
+1. **Choose a language**: System Default / 简体中文 / 繁體中文 / English, applied immediately.
+2. **Put your installed apps on the home screen**: this is not a recommendation algorithm, just a fixed list of common Chinese-market apps, filtered to those installed on the TV: video (Tencent Video's TV app Yunshiting Jiguang, iQIYI's TV app Yinhe Qiyiguo, CIBN Kumiao, Mango TV, bilibili's TV app Yunshiting Xiaodianshi), live TV (CCTV Video, MIGU), music (NetEase Cloud Music, QQ Music). "Continue" places them; "Skip" leaves three empty rows and the home screen hints at Edit Home Screen ("Go Now" opens it), where you add apps with the "＋" at the end of each row. You can also hold OK on an app in All Apps → "Add to Home…". On TVs outside China this list usually finds nothing; add your apps from All Apps.
+3. **Make UnitedU your default home screen**: the same as [Set as the default home screen](#set-as-the-default-home-screen), offered once up front (TVs where UnitedU isn't the default home app also get a "Home Button Takeover" button here). "Done" goes to the home screen; you can change this in Settings any time.
 
-老用户从旧版本升级不会看到这个引导。
+Users upgrading from an older version don't see the guide.
 
-## 长按卡片菜单
+## Card menu
 
-首页长按一张应用卡片(按住确定键约 0.6 秒)弹出菜单:
+Hold OK on an app card (about 0.6 seconds) for a menu:
 
-- **打开应用**
-- **卸载应用**——走系统卸载确认页,卸载完成后卡片自动消失
-- **修改标题**——只改卡片上显示的名字,不影响应用本身
-- **换卡片图**——从「内置」卡片图或你自己上传的图里选一张换掉卡片图,也可以在同一处恢复原图;内置卡片图只给对应的应用(给腾讯视频换图时只有腾讯那张),没有对应卡片图的应用这一块不出现
-- **移动位置**——就在首页上原地搬:左右键和邻卡换位,上下键换到相邻一行,确定放下,返回取消
-- **从这一行移出**——只是从这一行拿掉,应用本身不会被卸载
+- **Open App**
+- **Uninstall** — goes through the system's uninstall confirmation; the card disappears once the app is gone
+- **Rename Card** — changes only the name shown on the card, not the app
+- **Change Card Art** — pick a built-in card image or one you uploaded, or restore the original, in the same place. Built-in card images only apply to their own app (changing Tencent Video's art only offers the Tencent image); apps without a matching built-in image don't get the "Built-in" section
+- **Move** — right on the home screen: left/right swap with the neighboring card, up/down move to the adjacent row, OK drops it, Back cancels
+- **Remove from Row** — only takes it off this row; the app itself is not uninstalled
 
-增删行、给行换图标(行没有名字,只认图标)、在行与行之间整理,在「设置 → 布局 → 编辑桌面」里做。
+Adding and deleting rows, changing a row's icon (rows have no names, only icons) and reorganizing across rows happen in Settings → Layout → Edit Home Screen.
 
-## 设置
+## Settings
 
-设置页是右侧一列胶囊:**上下键**移动,**确定**进下一层,**返回**回上一层,**菜单键**整个关掉;滑块胶囊用**左右键**直接调。光标停在哪一行,左边就用一两句话说明这一行是做什么的。带实时预览的页(布局、外观)左边是缩小的首页,选项一改就能看到效果,按确定保存、按返回不改。
+Settings is a column of buttons on the right: **Up/Down** to move, **OK** to go one level deeper, **Back** to go up, **Menu** to close it all; slider buttons are adjusted directly with **Left/Right**. Whichever row the cursor is on, the left side explains in a sentence or two what it does. Pages with a live preview (Layout, Appearance) show a shrunken home screen on the left that changes as you change the option; OK saves, Back leaves it unchanged.
 
-| 第一层 | 内容 |
+| Top level | Contents |
 |---|---|
-| 通用 | 语言、设置默认桌面(右端显示现在的默认桌面是谁)、上传资料、闲置画面(子页:闲置启动时间 从不/1/3/5/10 分钟后、闲置时显示 壁纸+时钟/全黑/不变)、时钟显示(仅时间 / 时间与日期 / 时间、日期与星期;12/24 小时制跟随系统)。系统动画速度不是 1× 时会多一行提示,按确定跳到开发者选项 |
-| 布局 | 编辑桌面、卡片大小(小/中/大 = 一行 8/6/5 张)、显示应用名、卡片饱和度、卡片亮度、卡片透明度(只作用于没被选中的卡) |
-| 外观偏好 | 切换壁纸(自己上传的长按可删)、壁纸模糊、壁纸亮度(可调暗或调亮)、主题色(5 种浅色)、主题色跟随壁纸 |
-| 屏保 | 立即启动屏保、屏保启动时间(闲置画面出现后再过多久)、屏保图库、自动切换间隔(换图间隔)、系统屏保(显示电视系统屏保的开关 / 来源 / 启动时间,确定跳系统设置)、自动关屏(只读显示电视「无操作多久后关屏」,光标停在这一行时左边写出在电视设置里哪一项修改;确定打开系统设置首页) |
-| 原生电视设置 | 打开电视自己的 Android 设置(网络、画面、声音等) |
-| 关于 | 版本号、检查更新、恢复默认 |
+| General | Language; Set Default Home App (the current default is shown on the right); Upload Files; Idle Screen (sub-page: Idle Start Time Never/1/3/5/10 min; Show When Idle Wallpaper + Clock / Black / No Change); Clock Display (Time Only / Time & Date / Time, Date & Weekday; 12/24-hour follows the system). When the system animation speed isn't 1×, an extra row points it out and OK jumps to Developer options |
+| Layout | Edit Home Screen; Card Size (Small/Medium/Large = 8/6/5 per row); Show App Names; Card Saturation; Card Brightness; Card Transparency (only affects cards that aren't selected) |
+| Appearance | Switch Wallpaper (hold OK to delete your own uploads); Wallpaper Blur; Wallpaper Brightness (darker or brighter); Theme Color (5 light colors); Match Wallpaper Color |
+| Screensaver | Start screensaver now; Screensaver Start Time (how long after the idle screen appears); Screensaver Gallery; Switch Interval; System Screensaver (shows the TV system screensaver's switch / source / start time, OK jumps to system settings); Auto Screen Off (read-only display of the TV's "turn off screen after inactivity" setting; with the cursor on this row the left side says where to change it in the TV settings; OK opens the system settings home) |
+| Native TV Settings | Opens the TV's own Android settings (network, picture, sound, …) |
+| About | Version, Check for Updates, Restore Defaults |
 
-「恢复默认」会先弹确认,焦点默认停在「取消」;它只重置上面这些设置项,**不会**删除你放的应用分栏、改过的标题、卡片图或上传过的图片。UnitedU 只读取系统设置,不改任何系统设置。
+"Restore Defaults" asks for confirmation first, with the cursor on "Cancel". It only resets the settings above; it does **not** delete your rows, renamed titles, card art or uploaded images. UnitedU only reads system settings and never changes any.
 
-## 闲置画面与屏保
+## Idle screen and screensaver
 
-首页无人操作达「闲置启动时间」后显示**闲置画面**:卡片行淡出,留下壁纸和时钟(或全黑,或不变)。之后仍无人操作、再过「屏保启动时间」,进入**自定义屏保**:全屏轮播屏保图库里的照片和视频。任意键回到首页,那一下按键只负责唤醒。
+When nobody touches the home screen for the "Idle Start Time", the **idle screen** appears: the card rows fade out, leaving the wallpaper and clock (or black, or no change). If still untouched after the "Screensaver Start Time", UnitedU's **own screensaver** starts: a full-screen slideshow of the photos and videos in the Screensaver Gallery. Any key returns to the home screen; that key press only wakes it.
 
-屏保图库里**带 ✓ 的会在屏保里轮播**:内置图默认都带 ✓,长按(或按菜单键)某一张可以「不参与轮播」/「加入轮播」;你自己上传的照片和视频都参与轮播,长按可以删除。电视系统的「屏幕保护程序」里选 UnitedU 时,放的是同一个图库。
+Items **with a ✓ in the Screensaver Gallery are in the slideshow**: built-in images have one by default; hold OK (or press Menu) on one to "Remove from Slideshow" / "Add to Slideshow". Photos and videos you upload are always in the slideshow; hold OK to delete them. When UnitedU is chosen as the TV's system screensaver, it shows the same gallery.
 
-## 上传资料(从手机传图片、视频、APK)
+## Upload Files (photos, videos and APKs from your phone)
 
-设置 → 通用 → 上传资料(三个选图页「我的」一块第一格的「＋ 上传资料」也会打开它),电视上左边写三步说明、右边是二维码和手输地址;手机和电视连同一个 Wi-Fi,相机扫码(或浏览器输入地址)打开「传到电视」网页,按「壁纸 / 卡片图 / 屏保 / 装应用」四个分页上传、查看、删除,网页跟随手机的深浅色、按钮用电视当前的主题色,传完电视上立刻能选到。照片支持 jpg / png / webp(单张不超过 30 MB);屏保一类还收 mp4 / mov / webm 短视频(单个不超过 500 MB)。
+Settings → General → Upload Files (the "＋ Upload Files" tile, first in the "Mine" section of each image picker, opens it too). The TV shows three steps on the left and a QR code plus an address on the right. With phone and TV on the same Wi-Fi, scan the code with the camera (or type the address into a browser) to open the "Upload Files" web page. Its four tabs — Wallpaper / Card Art / Screensaver / Apps — upload, list and delete files; the page follows the phone's light/dark mode and uses the TV's current theme color, and whatever you send can be picked on the TV right away. Photos: JPG / PNG / WebP (30 MB max each); the Screensaver tab also takes MP4 / MOV / WebM videos (500 MB max each).
 
-这个服务**只在这一页开着的时候运行,不设密码**,按返回键关闭页面就会一并停掉,离开这一页局域网里其他设备就再连不上了。
+The upload server **only runs while this page is open, and has no password**. Press Back to close the page and the server stops with it; other devices on the network can no longer reach it.
 
-## 检查更新
+## Check for updates
 
-设置 → 关于,顶部显示当前版本号(`versionName (versionCode)`)。UnitedU **不会自动联网检查更新**,只有按下「检查更新」才会查一次,查完**一定会有结果显示**:
+Settings → About shows the current version (`versionName (versionCode)`). UnitedU **never checks for updates on its own**; it checks once when you press "Check for Updates", and **always shows a result**:
 
-- 查询地址在构建时写进安装包,按顺序逐个尝试,前一个超时(8 秒)或失败就查下一个。**本仓库默认构建先查 `dl.uniteduone.com`(Cloudflare R2,国内直连可达),再查 GitHub Release**(1.0.2 起。1.0.0 只有 GitHub 一条,国内直连会报「连接不上服务器」;1.0.1 用的腾讯云 COS 镜像能查到更新但下载会被拒——COS 默认域名禁止分发 APK——所以这两版都要走一次代理更新到 1.0.2,之后就不再依赖代理);
-- 已是最新版本 → 提示「已是最新」;
-- 有更新 → 显示新版本号,按「下载并安装」;下载完先核对 SHA-256、包名、版本号和签名证书,全部通过才交给系统安装器;
-- 网络查不通、返回的数据解析不出来、或者下载下来的包校验不过,分别给出对应的失败提示。
+- The addresses to check are built into the APK and tried in order; if one times out (8 seconds) or fails, the next is tried. **Official builds check `dl.uniteduone.com` (Cloudflare R2, reachable from mainland China without a proxy) first, then GitHub Releases** (from 1.0.2 on; 1.0.0 only checks GitHub, which is often unreachable in mainland China, and 1.0.1's Tencent Cloud COS mirror finds updates but can't download them — COS refuses to serve APKs from its default domain — so both need one update through a proxy to reach 1.0.2);
+- Already on the latest → "You're up to date";
+- Update available → shows the new version; press "Download and Install". The download is checked for SHA-256, package name, version and signing certificate before it is handed to the system installer;
+- Network unreachable, unreadable response or a download that fails verification each get their own message.
 
-第一次在这里装更新时,同样要先在电视上给 UnitedU 打开「安装未知应用」(见上文「安装」),然后回来重试。更新走系统安装器的会话接口,不会把已经打开的「主页键接管」关掉(更新后服务自动重连;模拟器上验证过)。手机传 APK 时传来的恰是 UnitedU 自己,走的也是这条会话安装,效果一样。装更新失败(不是你按了取消)时,电视上会弹一条提示「更新没有装上(状态码)。可以在「关于」里重试」。
+The first time you install an update here, allow UnitedU under "Install unknown apps" on the TV (see [Install](#install)) and try again. Updates go through the system installer's session API and don't turn off Home Button Takeover (the service reconnects after the update; verified on an emulator). An APK of UnitedU itself sent from your phone takes the same session install. If an update fails (other than you pressing Cancel), the TV shows a message: "Update was not installed (status code). You can retry under "About"".
 
-## 回退到原桌面
+## Going back to the old home screen
 
-不想用了随时能换回去,不需要卸载 UnitedU:设置 → 通用 → 设置默认桌面 →「去原生电视设置更改」,在系统的「主屏幕应用」选择页选回原来的桌面即可。这一步完全由 Android 系统接管,原厂桌面和 UnitedU 都还装在电视上,想换回来再选一次 UnitedU 就行。开过「主页键接管」的话,另外到原生电视设置的「无障碍」里关掉「UnitedU 主页键接管」,HOME 键才会完全还原。
+You can switch back at any time without uninstalling UnitedU: Settings → General → Set Default Home App → "Change in Native TV Settings", and pick the previous home screen in the system's "Home app" chooser. This is handled entirely by Android; both the stock home screen and UnitedU stay installed, and you can pick UnitedU again later. If you turned on Home Button Takeover, also turn off "UnitedU Home Button" under "Accessibility" in Native TV Settings for HOME to be fully restored.
 
-## 从源码构建
+## Build from source
 
-需要 JDK 17、Android SDK(compileSdk / targetSdk 35,build-tools 35.0.0)和 Gradle。仓库里**还没有 Gradle Wrapper**(没有 `gradlew`),请自己装 Gradle,开发时用的是 8.14.5(Android Gradle Plugin 8.7):
+You need JDK 17, the Android SDK (compileSdk / targetSdk 35, build-tools 35.0.0) and Gradle. The repository **has no Gradle Wrapper yet** (no `gradlew`); install Gradle yourself. Development uses 8.14.5 (Android Gradle Plugin 8.7):
 
 ```bash
-gradle --no-daemon assembleRelease          # 产物 app/build/outputs/apk/release/app-release.apk
-gradle --no-daemon testReleaseUnitTest      # JVM 单元测试
+gradle --no-daemon assembleRelease          # output: app/build/outputs/apk/release/app-release.apk
+gradle --no-daemon testReleaseUnitTest      # JVM unit tests
 ```
 
-没有发布签名密钥时,release 包会自动用本机的 debug keystore 签名(可以自己装,但不能覆盖安装官方发布的包)。
+Without the release signing key, the release APK is signed with your local debug keystore (you can install it yourself, but it can't replace an official release).
 
-## 反馈
+Contributors using an AI coding assistant: [`CLAUDE.md`](CLAUDE.md) holds the project's engineering rules, notably the seven focus-handling rules learned on real TVs — read them before changing the UI.
 
-电视上跑起来行为不对,用 adb 连上电视后看日志:
+## Feedback
+
+If something behaves wrongly on your TV, connect with adb and capture the log:
 
 ```bash
 adb logcat -s UnitedU
 ```
 
-欢迎在 GitHub Issues 里反馈,附上这份日志、电视品牌型号和系统版本,问题会更容易定位。
+Please report it in [GitHub Issues](https://github.com/GordonWang1878/UnitedU-launcher/issues) (English or Chinese) with the log, your TV's brand and model, and the Android version — that makes problems much easier to pin down.
 
-## 征集其他品牌电视测试
+## Help test other TVs
 
-目前只在一台国行索尼 A95L(Android 14)和 Android TV 模拟器上验证过,上面「适用范围」里其余结论都来自调研。手上有其他品牌电视的话,欢迎装上试试,在 Issues 里留下品牌型号、系统版本和下面几项的结果(第 3 项会改默认桌面,其余只是读取):
+So far UnitedU has only been tested on one Chinese-market Sony A95L (Android 14) and on Android TV emulators; everything else under [Compatibility](#compatibility) comes from research. If you have another TV — especially a **Google TV or Android TV with Google services** — please install it and open a "TV compatibility report" in Issues with the brand and model, the Android version and the results of these checks (step 3 changes the default home app; the others only read):
 
-1. `adb shell getprop ro.build.version.sdk`(28 及以上才装得上)
-2. `adb install` 能否成功
-3. 执行 `adb shell cmd package set-home-activity com.uniteduone.launcher/.MainActivity` 后,按 HOME 是否进 UnitedU;断电重启后进的是谁
-4. 厂商自带桌面的应用列表里能不能找到 UnitedU
-5. 输入源页列出了几路输入,按确定能否切过去
-6. 电视的屏保设置里能不能选到 UnitedU
+1. `adb shell getprop ro.build.version.sdk` (28 or higher is required)
+2. Whether `adb install` succeeds
+3. After `adb shell cmd package set-home-activity com.uniteduone.launcher/.MainActivity`, does HOME open UnitedU? Which home screen appears after a power cut? If HOME still goes to the stock home screen, does Home Button Takeover fix it?
+4. Can UnitedU be found in the stock home screen's app list?
+5. How many inputs does the Inputs page list, and does OK switch to them?
+6. Can UnitedU be picked in the TV's screensaver setting?
 
-遥控器方向键、长按、返回键这类焦点问题,以及「自动关屏」那一行写出的菜单路径对不对,也请一并告诉我们——这些在不同厂商的实现上差异最大。
+Problems with the D-pad, long press or Back, and whether the menu path shown on the "Auto Screen Off" row is right, are welcome too — these differ the most between makers.
 
-## 许可证
+## License
 
-Apache-2.0,见 `LICENSE`;第三方声明见 `NOTICE`。内置卡片图里有腾讯视频、爱奇艺、优酷、哔哩哔哩、咪视界、芒果TV、YouTube 的标志,只为让你在自己的桌面上认出这些应用;这些名称与标志是各自权利人的商标,UnitedU 与它们没有关联,归属与说明见 `NOTICE`。
-
----
-
-## In short (English)
-
-UnitedU is an open-source, ad-free Android TV launcher for GMS-less TVs running Android 9 or later whose maker lets you change the home app (built and tested against a Chinese-market Sony A95L; see the compatibility table above — many Chinese brands lock the HOME button to their own launcher, and on Google TV the stock launcher keeps the HOME button unless you turn on the optional accessibility-based Home Button Takeover in Settings, which is untested on real TVs). It looks like Google TV but shows only the apps you put on it, and never phones home except when you manually press "Check for Updates" (or open the "Upload Files" page, which runs a local upload server while it is open). It isn't distributed through any app store and hasn't had a public release yet; once released, grab the APK from GitHub Releases and `adb install -r` it, or push a later APK from your phone via Settings → General → Upload Files once UnitedU is already running. Licensed under Apache-2.0 (`LICENSE`); third-party notices and trademark attributions for the built-in card art are in `NOTICE`.
+Apache-2.0, see `LICENSE`; third-party notices are in `NOTICE`. The built-in card images include the logos of Tencent Video, iQIYI, Youku, bilibili, MIGU, Mango TV and YouTube, only so you can recognize these apps on your own home screen. These names and logos are trademarks of their respective owners; UnitedU is not affiliated with them. See `NOTICE` for attributions.

@@ -74,6 +74,7 @@ adb emu kill                                     # 关闭
 - `docs/superpowers/specs/2026-09-20-gtv-line-design.md`:gtv 线(现行界面)的设计与 §12 裁定索引,新裁定按 R 号续写
 - `docs/ui-pending.md`:1.0 之前的 UI 待决清单;`docs/design/settings-inventory.md`:设置页逐页清单(改设置页同步它)
 - `docs/REVIEW-GUIDE.md`:外部代码评审入口(文件地图、不能当 bug 报的约束、已知问题),模块或约束变了同步它
+- `README.md`(英文主版)/ `README.zh-CN.md`(中文):给用户看的文档,**两份必须同步改**;Release 说明(`dist/notes-<版本>.txt` 中文一段 + 英文一段,另可写 `dist/notes-<版本>.app.txt` 给电视上 200 字的短说明)、`NOTICE`、`.github/ISSUE_TEMPLATE/` 也是双语。`docs/` 开发记录只写中文(2026-10-03 Gordon 定:用户分国内与海外两拨)
 
 ## 改这份界面前必须知道的七条(都是真机代价换来的)
 
