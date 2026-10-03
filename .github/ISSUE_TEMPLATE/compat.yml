@@ -1,0 +1,55 @@
+name: 电视兼容性报告
+description: 在索尼 A95L 之外的电视上装了 UnitedU,报告能不能用(README「征集其他品牌电视测试」)
+title: "[兼容性] "
+labels: ["compat"]
+body:
+  - type: input
+    id: tv
+    attributes:
+      label: 电视品牌与型号(含国行 / 海外版)
+      placeholder: 例:小米电视 ES 2022 65 寸(国行)
+    validations:
+      required: true
+  - type: input
+    id: android
+    attributes:
+      label: 系统版本
+      description: `adb shell getprop ro.build.version.sdk`,以及厂商系统名(澎湃 OS / 酷开 / 鸿蒙 / Google TV……)
+      placeholder: 例:SDK 30,澎湃 OS 1.x
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: adb install 能否成功
+      options:
+        - 成功
+        - 失败(请在下面贴出报错)
+    validations:
+      required: true
+  - type: dropdown
+    id: home
+    attributes:
+      label: set-home-activity 之后按 HOME 进的是谁
+      description: README 第 3 项;断电重启后的情况写在下面
+      options:
+        - 进 UnitedU
+        - 仍进厂商桌面,开「主页键接管」后能进 UnitedU
+        - 仍进厂商桌面,「主页键接管」开不了或不管用
+        - 没测
+    validations:
+      required: true
+  - type: checkboxes
+    id: features
+    attributes:
+      label: 其余几项(能用的打勾)
+      options:
+        - label: 厂商自带桌面的应用列表里能找到 UnitedU
+        - label: 输入源页列出了输入,按确定能切过去
+        - label: 电视的屏保设置里能选到 UnitedU
+        - label: 遥控器方向键 / 长按 / 返回键都正常
+        - label: 「自动关屏」那一行写出的菜单路径对
+  - type: textarea
+    id: notes
+    attributes:
+      label: 补充(断电重启进的是谁、报错、截图)

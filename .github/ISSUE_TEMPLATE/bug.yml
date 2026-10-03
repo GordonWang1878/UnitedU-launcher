@@ -1,0 +1,53 @@
+name: 问题反馈
+description: UnitedU 在电视上行为不对(焦点、按键、更新、上传、屏保……)
+title: "[问题] "
+labels: ["bug"]
+body:
+  - type: input
+    id: tv
+    attributes:
+      label: 电视品牌与型号
+      placeholder: 例:索尼 A95L(国行)
+    validations:
+      required: true
+  - type: input
+    id: android
+    attributes:
+      label: 系统版本
+      description: 设置 → 关于 里的 Android 版本;或 `adb shell getprop ro.build.version.sdk`
+      placeholder: 例:Android 14 / SDK 34
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: UnitedU 版本
+      description: UnitedU 设置 → 关于 顶部显示的「版本名 (版本号)」
+      placeholder: 例:1.0.2 (5)
+    validations:
+      required: true
+  - type: dropdown
+    id: home
+    attributes:
+      label: 默认桌面与主页键接管
+      options:
+        - UnitedU 是默认桌面,按 HOME 回 UnitedU
+        - 已设默认桌面,但按 HOME 仍回厂商桌面
+        - 开了「主页键接管」(无障碍)后 HOME 回 UnitedU
+        - 开了「主页键接管」仍不行 / 开不了
+        - 没设默认桌面,只是从应用列表打开
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 怎么做的、看到了什么、本来期待什么
+      placeholder: 按了哪些键 / 进了哪一页 → 出现了什么 → 你以为会怎样
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: 日志(可选)
+      description: 复现问题时 `adb logcat -s UnitedU` 的输出;粘进来会自动用代码格式
+      render: text
