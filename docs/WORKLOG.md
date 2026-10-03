@@ -1970,3 +1970,5 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 ## 2026-10-03 · 关于页检查结果改成实心胶囊
 
 - Gordon:「检查更新」后那行结果不够醒目,但不许改字号,只能加底色 / 改字色 / 下划线。改为:结果那一行(已是最新 / 发现新版本 / 失败原因)画成一颗实心全圆角胶囊,底色 = 原来的语气色(好消息用主题色、失败用 `Theme.StatusErrorText`),字按底色亮度取黑 / 白(`contrastingTextColor`,同聚焦胶囊),字号字重不变;外层按胶囊高度(30 dp)占位,空白态不跳。下载 / 安装结局那一行与更新说明不动。模拟器截图 `docs/screenshots/about-result/latest-pill.jpg`;失败态(错误色底 + 白字)没截。
+- **工作方式变更(Gordon)**:1.0 后都是正式版,电视上的验证不再走内网 adb 装包,改为发新版、他在电视上检查更新下载。据此把关于页胶囊发成 **1.0.3(versionCode 6)**:GitHub Release v1.0.3 + R2,R2 清单 versionCode 6、短说明双语、整包 sha256 `e08f799a…` 一致;GitHub `releases/latest` 也是 6。CLAUDE.md「真机」一段已改。
+
