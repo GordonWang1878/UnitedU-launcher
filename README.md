@@ -2,7 +2,11 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-No ads, no recommendations — just the apps you put there.
+[![Latest release](https://img.shields.io/github/v/release/GordonWang1878/UnitedU-launcher?label=release)](https://github.com/GordonWang1878/UnitedU-launcher/releases/latest) ![Android 9+](https://img.shields.io/badge/Android%20TV-9%2B-3ddc84) [![License](https://img.shields.io/github/license/GordonWang1878/UnitedU-launcher)](LICENSE)
+
+**An ad-free Android TV / Google TV launcher.** No ads, no recommendations — just the apps you put there.
+
+![UnitedU home screen: a row of app cards over a wallpaper, settings / apps / inputs buttons top left, clock top right](docs/screenshots/readme/home-en.jpg)
 
 UnitedU is an open-source home screen (launcher) for Android TV, Android 9 and later. It looks like Google TV, but the only content on it is the apps you choose. It is built for two kinds of TVs:
 

@@ -1973,3 +1973,9 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - **工作方式变更(Gordon)**:1.0 后都是正式版,电视上的验证不再走内网 adb 装包,改为发新版、他在电视上检查更新下载。据此把关于页胶囊发成 **1.0.3(versionCode 6)**:GitHub Release v1.0.3 + R2,R2 清单 versionCode 6、短说明双语、整包 sha256 `e08f799a…` 一致;GitHub `releases/latest` 也是 6。CLAUDE.md「真机」一段已改。
 
 - Gordon 电视上经检查更新装到 1.0.3,胶囊样式「可以了」。**Gordon 宣布短期内封版**:1.0.3 为当前对外版本,不再主动改功能;等 GitHub Issues 的用户反馈。
+
+## 2026-10-06 · 仓库曝光优化(GitHub 搜索)
+
+- Gordon:发版两天 0 Star,想让仓库更容易被搜到。查流量:14 天 7 个独立访客、全部来自 github.com 站内,每版 2–3 次下载——瓶颈是没人来,不是 README。Gordon 选「只做仓库优化」(不写发帖草稿)。
+- 做了:仓库描述改中英各一句(含 Google TV / launcher / 国行无 GMS 关键词)、主页链接指向 releases/latest、加 20 个 Topics(android-tv、google-tv、android-tv-launcher、projectivy-alternative、gms-free 等);两份 README 开头加徽章(版本 / Android 9+ / 许可证)、带关键词的一句定位、首屏截图 `docs/screenshots/readme/home-en.jpg`;做了 1280×640 社交预览图 `docs/social-preview.png`(GitHub 只能在网页 Settings 上传,API 不支持)。
+- 截图是在 unitedu-gtv 模拟器上用 6 个无代码占位应用(包名同腾讯视频 / 爱奇艺 / 优酷 / 哔哩哔哩 / 咪视界 / 芒果TV 的电视版,横幅 = 随包附带的内置卡片图)+ YouTube 拍的,英文界面;拍完已卸载占位应用。

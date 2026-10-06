@@ -2,7 +2,11 @@
 
 [English](README.md) | **简体中文**
 
-零广告、零推荐,只有你放上去的应用。
+[![Latest release](https://img.shields.io/github/v/release/GordonWang1878/UnitedU-launcher?label=release)](https://github.com/GordonWang1878/UnitedU-launcher/releases/latest) ![Android 9+](https://img.shields.io/badge/Android%20TV-9%2B-3ddc84) [![License](https://img.shields.io/github/license/GordonWang1878/UnitedU-launcher)](LICENSE)
+
+**开源的 Android TV / Google TV 桌面(启动器)。**零广告、零推荐,只有你放上去的应用。
+
+![UnitedU 首页:壁纸上一行应用卡片,左上设置 / 应用 / 输入源,右上时钟](docs/screenshots/readme/home-en.jpg)
 
 面向**国行无 GMS、允许更换桌面的 Android TV**(Android 9 及以上;目前实机验证的是索尼国行,其他品牌能不能用见下面「适用范围」)的开源桌面替代品。外观照着 Google TV 做,内容只有你自己放上去的应用。全程不联网,唯一的例外是你自己按「检查更新」的那一刻(以及你打开「上传资料」页时,电视在局域网里临时开一个上传服务)。不上架 Play 商店或国内应用市场,只以 GitHub Release 的 APK 形式分发,需要自己下载安装。
 
