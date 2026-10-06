@@ -1979,3 +1979,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - Gordon:发版两天 0 Star,想让仓库更容易被搜到。查流量:14 天 7 个独立访客、全部来自 github.com 站内,每版 2–3 次下载——瓶颈是没人来,不是 README。Gordon 选「只做仓库优化」(不写发帖草稿)。
 - 做了:仓库描述改中英各一句(含 Google TV / launcher / 国行无 GMS 关键词)、主页链接指向 releases/latest、加 20 个 Topics(android-tv、google-tv、android-tv-launcher、projectivy-alternative、gms-free 等);两份 README 开头加徽章(版本 / Android 9+ / 许可证)、带关键词的一句定位、首屏截图 `docs/screenshots/readme/home-en.jpg`;做了 1280×640 社交预览图 `docs/social-preview.png`(GitHub 只能在网页 Settings 上传,API 不支持)。
 - 截图是在 unitedu-gtv 模拟器上用 6 个无代码占位应用(包名同腾讯视频 / 爱奇艺 / 优酷 / 哔哩哔哩 / 咪视界 / 芒果TV 的电视版,横幅 = 随包附带的内置卡片图)+ YouTube 拍的,英文界面;拍完已卸载占位应用。
+- Gordon 传好社交预览图后,要再加一张「风暴舰队」壁纸的预览(担心用户不喜欢卡通风)。GitHub 社交预览只有一个位置,所以:两份 README 首屏改成两张截图并排(`home-en.jpg` 夏日数码门 + `home-storm-en.jpg` 风暴舰队);另做一张同版式的 `docs/social-preview-storm.png`,要不要换掉现在的社交预览由 Gordon 定。设内置壁纸写 `settings.json` 的 `wallpaperFile = "builtin:<ID>"`(ID = 去扩展名的文件名),只写文件名不认。
