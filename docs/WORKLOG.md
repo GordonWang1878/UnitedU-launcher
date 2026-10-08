@@ -2012,3 +2012,19 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 读回:R2 `latest.json` = 7 / 1.1.0,APK 200(16065698 字节);GitHub `releases/latest/download/latest.json` = 7 / 1.1.0。说明 `dist/notes-1.1.0.txt` + `.app.txt`(双语)。
 - 这是发 Beta 的前提:此后 `release.sh x.y.z-beta.N` 的「最新稳定 tag 必须带 unitedu.rollbackUrls」检查可通过。下一步:`频道推荐` 分支 rebase 到 main 后以 Beta 发出(见记忆 channels-branch-awaits-beta-track)。
 - 电视实测(Gordon 2026-10-10):A95L 经「检查更新」装上 1.1.0,「更新通道」切换正常。Gordon 选「推」:main 17 个提交已推到 origin/main(`3895102`)。
+## 2026-10-07 · 调研:频道 / 内容推荐(未决定做)
+- Gordon 在考虑下个大版本加首页「频道推荐」,先问机制、能不能做、代价。报告 `docs/research/2026-10-07-tv-channels-recommendations.md`(纯文献 + AOSP 14 源码,未实测)。
+- 结论:机制是 TvProvider 的 channel / preview_program / watch_next_program 三张表;侧载桌面申请 `READ_TV_LISTINGS`(dangerous,弹窗或 `pm grant`)就能读所有 `searchable = 1` 的行,Projectivy 走的同一条路。做不了的:批准频道上首页(`ACCESS_ALL_EPG_DATA`,signature|privileged)——不批准时 Kodi 这类应用不填节目。定位:Gordon 裁定不冲突——「零推荐」是默认不推、能关,不是想开也开不了;做成默认关闭的可选项(§9 的「不做」是 1.0 范围)。
+- 待实测:国内 TV 应用写不写频道、A95L 上 Projectivy 频道行有没有内容(命令在报告第 5 节)。
+- 同日按 Gordon 要求改为「先 desk、再模拟器、电视最后」,补两路:
+  - 模拟器探针(unitedu-tv / unitedu-gtv,报告 §6):授权弹窗正常、可在设置里撤销;未审批(browsable=0)的频道照样读得到;Google TV 的 launcherx 对侧载应用不审批(对话框直接 CANCELED,原因未查明);searchable 过滤逐行不级联;卸载即清空。截图 `docs/screenshots/channels/`。
+  - APK 静态分析 20 个(报告 §7):国内写频道的是云视听极光(受云端开关)、CIBN 酷喵、云视听小电视;奇异果 / 芒果 / 咪视界未发现;继续观看国内基本空;海外主流都写。当贝桌面不读 TvProvider。Projectivy APK 没拿到。
+
+## 2026-10-08 · 频道推荐:进入设计(brainstorming,架构级)
+- Gordon 选定第一版范围:「继续观看」行 + 各应用的频道行;**不做**焦点停留自动播预告片(A95L 32 位解码压力、与安静桌面调性冲突,可后加)。
+- 摸底发现:设置第一层、「布局」组、「通用」组都已是 6 / 6 颗胶囊(R128 上限),放总开关得先合并别的行;`INITIALIZE_PROGRAMS` 按文档由「桌面」发、不是 protected broadcast——我们当桌面时要自己发,否则酷喵 / Netflix / YouTube 这类靠它建频道的应用在没有原厂桌面的机器上可能永远不建。
+- Gordon 选定做法 A:频道 / 继续观看是用户在「编辑桌面」里亲手加的一行(与应用行一样可上下移、删除),默认一行都没有;不做设置总开关(B)。
+- 原厂参照截图 20 张 + 尺寸表:`docs/screenshots/channels/ref/`(tvlauncher:行头「应用名: 频道名」12sp、卡高 115dp 按比例变宽、焦点放大 1.2 倍且信息写在行下方、Play Next 进度条 4dp;Google TV 不显示侧载应用的继续观看)。
+- 第 1 段「怎么用」Gordon 批准;随后 Gordon 决定**第一版去掉「继续观看」**:首页一行叫「继续观看」会被当成全系统的观看记录,实际只收录主动写表的应用(YouTube 走 Engage 读不到、国内基本只有极光写),承诺大于能给。第一版只做各应用的频道行(最多 5 行、每行 12 张)。
+- 模拟器坑(Mac 侧):代理用 `adb emu kill` 关掉模拟器后,Dock 上会留下 `qemu-system-aarch64` 空壳图标(LaunchServices 标 `exited-with-subordinates`,进程已不在,`adb kill-server` 也清不掉);Gordon 右键「Stop Running in Background」清掉。查法:`lsappinfo list | grep -c "\"qemu-system-aarch64\" ASN"`。
+- 第 2 段视觉 Gordon 定:频道卡固定 110dp 高、宽按海报比例;焦点行里每张卡正下方写标题 + 第二行(照 Google TV,不写简介);行头在卡片上方写「应用名 · 频道名」、左边距不画图标;长按频道卡第一版不做菜单。下一步写 spec。
