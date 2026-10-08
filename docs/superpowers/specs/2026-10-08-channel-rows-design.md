@@ -1,6 +1,6 @@
 # 频道行(Ruling R164)设计
 
-日期:2026-10-08 · 状态:待 Gordon 审 · 调研:`docs/research/2026-10-07-tv-channels-recommendations.md` · 原厂参照:`docs/screenshots/channels/ref/INDEX.md`
+日期:2026-10-08 · 状态:**入口与编辑页部分已被 `2026-10-08-edit-shelves-and-channels-design.md`(R165 货架)取代**,其余仍有效、冲突以新稿为准 · 调研:`docs/research/2026-10-07-tv-channels-recommendations.md` · 原厂参照:`docs/screenshots/channels/ref/INDEX.md`
 
 ## 0. 一句话
 
