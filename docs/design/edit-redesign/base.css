@@ -1,0 +1,15 @@
+@font-face{font-family:GSF;src:url(assets/google_sans_flex.ttf)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:960px;height:540px;overflow:hidden;background:#0E0E0F;font-family:GSF,"PingFang SC",sans-serif;color:#F5F5F5;-webkit-font-smoothing:antialiased}
+.ms{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;letter-spacing:normal;text-transform:none;display:inline-block;white-space:nowrap;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24}
+.abs{position:absolute}
+.card{position:absolute;width:122px;height:68.6px;border-radius:8px;background-size:cover;background-position:center;box-shadow:0 0 0 1px rgba(255,255,255,.16) inset}
+.focus{transform:scale(1.1);box-shadow:0 0 0 1.5px #0E0E0F,0 0 0 3px #E0ECDD,0 0 60px 6px rgba(187,213,179,.28);z-index:5}
+.poster{position:absolute;height:68.6px;border-radius:8px;background-size:cover;background-position:center}
+.label{font-size:15px;color:#B0B0B0}
+.body{font-size:14px;color:#9A9A9A;line-height:21px}
+.caption{font-size:12px;color:#7d7d7d;line-height:16px}
+.eyebrow{font-size:12px;color:#9A9A9A}
+.headline{font-size:22px;font-weight:500}
+.title{font-size:31px;font-weight:500}
+.kbd{display:inline-block;padding:1px 6px;border-radius:5px;background:rgba(255,255,255,.12);color:#E8E8E8;font-size:11px;margin-right:4px}

@@ -1,0 +1,14 @@
+.bg{position:absolute;inset:-40px;background:url(assets/wall2.jpg) center/cover;filter:blur(36px) saturate(1.2)}
+.dim{position:absolute;inset:0;background:rgba(10,10,12,.72)}
+.top{position:absolute;left:58px;top:34px;right:58px;display:flex;align-items:baseline;gap:14px}
+.hint{margin-left:auto;font-size:12px;color:#9A9A9A}
+.shelf{position:absolute;left:40px;right:40px;border-radius:20px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.07);backdrop-filter:blur(8px)}
+.shelf.on{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.14);box-shadow:0 20px 60px rgba(0,0,0,.45)}
+.shelf.off{opacity:.62}
+.hd{position:absolute;left:18px;right:16px;top:12px;height:28px;display:flex;align-items:center;gap:8px;font-size:13px;color:#CFCFCF}
+.hd .ms{font-size:18px;color:#959BA3}
+.chips{margin-left:auto;display:flex;gap:8px}
+.c{height:28px;padding:0 12px;border-radius:14px;background:rgba(255,255,255,.08);display:flex;align-items:center;gap:5px;font-size:12px;color:#CFCFCF}
+.c .ms{font-size:15px;color:inherit}
+.c.f{background:#BBD5B3;color:#1A1F19;transform:scale(1.08);box-shadow:0 6px 18px rgba(0,0,0,.4)}
+.cards{position:absolute;left:18px;top:50px}

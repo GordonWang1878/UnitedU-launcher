@@ -2028,3 +2028,6 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 第 1 段「怎么用」Gordon 批准;随后 Gordon 决定**第一版去掉「继续观看」**:首页一行叫「继续观看」会被当成全系统的观看记录,实际只收录主动写表的应用(YouTube 走 Engage 读不到、国内基本只有极光写),承诺大于能给。第一版只做各应用的频道行(最多 5 行、每行 12 张)。
 - 模拟器坑(Mac 侧):代理用 `adb emu kill` 关掉模拟器后,Dock 上会留下 `qemu-system-aarch64` 空壳图标(LaunchServices 标 `exited-with-subordinates`,进程已不在,`adb kill-server` 也清不掉);Gordon 右键「Stop Running in Background」清掉。查法:`lsappinfo list | grep -c "\"qemu-system-aarch64\" ASN"`。
 - 第 2 段视觉 Gordon 定:频道卡固定 110dp 高、宽按海报比例;焦点行里每张卡正下方写标题 + 第二行(照 Google TV,不写简介);行头在卡片上方写「应用名 · 频道名」、左边距不画图标;长按频道卡第一版不做菜单。下一步写 spec。
+
+## 2026-10-08 · 编辑桌面重做(由频道行引出)
+- Gordon 看设计稿后:「在下方添加频道」藏在行尾「+」的菜单里,层级太深、用户想不到;他本来就不喜欢行尾「+」。要求把编辑桌面整页重做:有高级感、与全 App 风格一致。频道行设计稿(R164)入口部分挂起,等编辑桌面新方案定了再改。
