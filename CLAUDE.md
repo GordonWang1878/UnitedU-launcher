@@ -41,6 +41,7 @@ adb emu kill                                     # 关闭
 - **要按真实帧率录动效,模拟器用 `-gpu host` 起**(2026-09-29 R129 实证):`swiftshader_indirect` 在宿主负载 10–20 时录屏只有 2–7 fps,换 `-gpu host` 后 `screenrecord --size 960x540` ≈ 52–60 fps,1× 就量得出百毫秒级的延迟 / 淡入(上面两条的慢放法只在拿不到 host GPU 时用)。**A95L 自己的 `screenrecord` 也有 ≈ 60 fps**,可用来量我们的界面动效(HDMI / 视频层画面录不进去);只做被动录屏,按键由 Gordon 自己按。
 - **`graphicsLayer` alpha < 1 会把内容画进以图层尺寸为界的离屏层,越界的部分被裁**(2026-09-29 R129f):焦点卡的放大 + 描边 + 60 dp 柔光本来就画出行框之外,平时不裁、淡入那几百毫秒被裁,到 alpha = 1 又冒出来。R129 起首页行图层四边各撑大 `APP_FOCUS_GLOW_DP`、外层 `layout` 按原尺寸上报(`HomeScreen.kt` 的 `CategoryRow`);此前只撑了上下,行尾那张焦点卡在淡入期间右边被截(Gordon 电视上看到)。给任何带焦点溢出的容器加 alpha 动画都要先想这一条。
 - 只想慢放**我们自己**的 Compose 动画看顺序(不量时长):`settings put global animator_duration_scale 60`(10 倍对 150 ms 的淡入不够,screencap 单次 0.5–3 s),测完 `settings delete global animator_duration_scale`。
+- **`-no-window -gpu host` 起的模拟器,`screencap` 可能返回旧画面**(2026-10-08 编辑参照截图实证):要当前画面就 `screenrecord` 几秒取最后一帧。另:**同一时刻只能有一个代理操作同一台模拟器**——会话重启后续派代理前,先看目标目录最近写入时间,确认原代理真的停了(那晚两个代理抢同一对模拟器,截图里全是对方按出来的界面)。
 - 注入按键之间留 ~0.4 s:零间隔连发会跑在 Compose 异步焦点效果前面。
 - uiautomator 不报全透明节点(真待机时 `focused="true"` 为 0,焦点其实还在);TV 设置应用卡片的 content-desc 也是「Settings」,与齿轮同名 —— 脚本按 bounds 区分,且确定键之前先断言焦点文案,否则会启动卡片对应的应用。
 - 设置外壳(R69)的胶囊在 uiautomator 里 `focused="true"` 的那个节点 `text` / `content-desc` 都是空的(文字在子节点上),脚本判「焦点在哪颗」按 bounds:1080p 上胶囊列 x = 1172–1708,单行胶囊高 110 px(2026-09-23 实测)。
