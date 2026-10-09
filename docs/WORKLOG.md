@@ -1981,3 +1981,10 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 截图是在 unitedu-gtv 模拟器上用 6 个无代码占位应用(包名同腾讯视频 / 爱奇艺 / 优酷 / 哔哩哔哩 / 咪视界 / 芒果TV 的电视版,横幅 = 随包附带的内置卡片图)+ YouTube 拍的,英文界面;拍完已卸载占位应用。
 - Gordon 传好社交预览图后,要再加一张「风暴舰队」壁纸的预览(担心用户不喜欢卡通风)。GitHub 社交预览只有一个位置,所以:两份 README 首屏改成两张截图并排(`home-en.jpg` 夏日数码门 + `home-storm-en.jpg` 风暴舰队);另做一张同版式的 `docs/social-preview-storm.png`,要不要换掉现在的社交预览由 Gordon 定。设内置壁纸写 `settings.json` 的 `wallpaperFile = "builtin:<ID>"`(ID = 去扩展名的文件名),只写文件名不认。
 - Gordon 已把 GitHub 社交预览换成风暴舰队版(`docs/social-preview-storm.png`);`docs/social-preview.png` 留作备用。仓库曝光优化这条线结束。
+
+## 2026-10-09 · 稳定版 / Beta 双通道:方案定案(未开工)
+
+- Gordon 定(grilling):同一应用 + 关于页「更新通道」开关;Beta 切回稳定用**回退包**(每发一个 Beta,用上一个稳定 tag 的源码构建一个 versionCode = Beta + 1 的包,挂 `rollback.json`,当场回退、不丢数据);main = Beta,稳定版由同一提交去后缀重构建晋级。
+- 否掉的:独立 Beta 包名(数据不共享、要切默认桌面)、等稳定版追上(切回要等数周)、卸载重装(布局全丢)、长期双分支、功能开关。
+- 回退包带来硬约束:**Beta 只能新增数据字段**,旧代码要能读新数据;写进 CLAUDE.md + 读盘单测。
+- 设计稿:`docs/superpowers/specs/2026-10-09-release-channels-design.md`(R164)。代码一行未动。
