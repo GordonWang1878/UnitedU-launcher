@@ -163,7 +163,7 @@ def run():
     key("menu"); time.sleep(1.0)
     s = screen()
     check("焦点在胶囊上时菜单键什么都不做(不退出)",
-          s.label() == chip and s.has(S("edit_title")) and not s.has(S("edit_remove")), (s.label(), chip))
+          chip != "" and s.label() == chip and s.has(S("edit_title")) and not s.has(S("edit_remove")), (s.label(), chip))
     key("down"); time.sleep(0.4)
     n = len(rows()[1]["apps"])
     long_ok(); move_to(S("edit_remove")); key("ok"); time.sleep(1.5)

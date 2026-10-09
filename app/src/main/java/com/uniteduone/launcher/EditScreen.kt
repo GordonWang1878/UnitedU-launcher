@@ -4,6 +4,7 @@ import android.view.KeyEvent as AKey
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -91,13 +92,14 @@ private fun isOkKey(code: Int): Boolean =
     code == AKey.KEYCODE_DPAD_CENTER || code == AKey.KEYCODE_ENTER || code == AKey.KEYCODE_NUMPAD_ENTER
 
 /**
- * 卡片条的横向裁切(owner 裁定,R165 计划复审):**只裁越过架子右端的非焦点卡**——行多于一屏时右边露出的那一截不画到架子外。
- * 焦点卡(放大 + 描边 + 60 dp 柔光)一律不裁,柔光可以画出架子;**左边一律不裁**(第 1 张卡的柔光画到架子外,默认焦点就落在那里),
+ * 卡片条的横向裁切(owner 裁定,R165 计划复审):**只裁越过架子右端的卡**——行多于一屏时右边露出的那一截不画到架子外。
+ * 焦点卡(放大 + 描边 + 60 dp 柔光)整张进了架子就不裁,柔光可以画出架子(还在滑入时照样裁,见 [shelfCardClipRight]);**左边一律不裁**(第 1 张卡的柔光画到架子外,默认焦点就落在那里),
  * 滑出左边的卡只由屏幕边缘裁(同首页)。上下不裁。[rightDp] 在绘制阶段读:这张卡左缘到架子右边缘的距离(dp,随横向位移每帧变),
- * ≤ 0 时整张不画。只是绘制:不改布局、不影响可聚焦性。
+ * ≤ 0 时整张不画,null 时不裁。只是绘制:不改布局、不影响可聚焦性。
  */
-private fun Modifier.clipPastShelfEnd(rightDp: () -> Float): Modifier = drawWithContent {
-    val r = rightDp().dp.toPx()
+private fun Modifier.clipPastShelfEnd(rightDp: () -> Float?): Modifier = drawWithContent {
+    val rd = rightDp() ?: return@drawWithContent drawContent()
+    val r = rd.dp.toPx()
     if (r <= 0f) return@drawWithContent
     clipRect(left = -size.width * 4f, top = -size.height * 4f, right = r, bottom = size.height * 5f) { this@drawWithContent.drawContent() }
 }
@@ -179,8 +181,8 @@ fun EditScreen(
     val shelves = shelvesOf(viewRows)
 
     // ---------------- 焦点账本 ----------------
-    /** 目标:回来落哪一格。三个分量在一个不可变值里一起写,与 [holder] 永远是两个量(铁律 5)。 */
-    var target by remember { mutableStateOf(ShelfSpot(0, ShelfZone.CARDS, 0)) }
+    /** 目标:回来落哪一格。三个分量在一个不可变值里一起写,与 [holder] 永远是两个量(铁律 5)。带种子进页时第一帧就在种子那一层。 */
+    var target by remember { mutableStateOf(initialEditSpot(rows, initialTarget)) }
     /** 此刻持有焦点的那一格,只信控件自报(铁律 2 / 4);null = 本页没有焦点。 */
     var holder by remember { mutableStateOf<ShelfSpot?>(null) }
     // 「安排了几次 / 完成了几次」的比对(铁律 7)。tick 从 1 起:一进页就处在一次待办的重定位里,目标 = 初始格,从第一帧起冻结
@@ -515,10 +517,17 @@ fun EditScreen(
             bottomPad = ShelfLayout.BOTTOM_PAD.dp.roundToPx(),
         )
     }
+    // 各层高度第一次量齐之前位移直接跳到位(snap):带种子进页时首帧按 0 高度算出的位移不能再「滑」到真实位置(Task 10);
+    // 量齐之后的下一帧起才走动画。只是动画规格,不进任何焦点效果的 key / 守卫
+    val measured = viewportPx > 0 && shelves.indices.all { heights[it] != null }
+    var shiftSettled by remember { mutableStateOf(false) }
+    LaunchedEffect(measured, shiftSettled) {
+        if (measured && !shiftSettled) { withFrameNanos { }; shiftSettled = true }
+    }
     // spec §2.5:换层时整页位移与架子亮度同走 200 ms FastOutSlowIn(R29 的弹簧只留给行内横向位移)
     val shift = animateDpAsState(
         targetValue = with(density) { shiftPx.toDp() },
-        animationSpec = tween(ShelfLayout.SHIFT_MS, easing = FastOutSlowInEasing),
+        animationSpec = if (shiftSettled) tween(ShelfLayout.SHIFT_MS, easing = FastOutSlowInEasing) else snap(),
         label = "shelfShift",
     )
     val arrows = carry?.let { carryArrows(viewRows, it.pos) } ?: emptySet()
@@ -784,11 +793,11 @@ private fun AppShelfView(
                     Box(
                         Modifier
                             .zIndex(if (ci == cur) 1f else 0f)
-                            // rowShiftX 保证当前那张(焦点卡 / 被拿起的卡)完整落在架子里:它不裁,柔光照常画出架子(owner 裁定)
-                            .then(
-                                if (ci == cur) Modifier
-                                else Modifier.clipPastShelfEnd { shelfW - (ShelfLayout.PAD_START + ci * pitch + dx.value.value) },
-                            )
+                            // rowShiftX 保证当前那张(焦点卡 / 被拿起的卡)停下时完整落在架子里:那时不裁,柔光照常画出架子(owner 裁定);
+                            // 横向位移还在动、它还没整张进架子时照样裁在架子右端(Task 10:否则新焦点卡会整张画进架子外的留白)
+                            .clipPastShelfEnd {
+                                shelfCardClipRight(shelfW - (ShelfLayout.PAD_START + ci * pitch + dx.value.value), metrics.cardWidth.value, ci == cur)
+                            }
                             .graphicsLayer {
                                 shadowElevation = lift.value * ShelfLayout.CARRY_SHADOW.dp.toPx()
                                 shape = RoundedCornerShape(metrics.cardCorner)

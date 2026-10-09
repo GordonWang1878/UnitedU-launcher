@@ -250,6 +250,25 @@ internal fun landingAfterSwap(shelves: List<Shelf>, newShelf: Int, pressed: Shel
 internal fun landingAfterDelete(shelves: List<Shelf>, deleted: Int): ShelfSpot =
     clampSpot(shelves, ShelfSpot((deleted - 1).coerceAtLeast(0), ShelfZone.CHIPS, 0))
 
+/**
+ * 进页时的初始目标(铁律 5 的目标,数据到之前就要有):没有种子 → 第 1 层第 1 张;带着「换卡片图」回来的
+ * (layout 行号, 包名)→ 那一层、按 layout 下标估的那一列(看得见的列号要等数据,由种子效果再精确定位一次)。
+ * 层号第一帧就对,整页不会先画在第 1 层再滑到种子那层(Task 10 模拟器实测)。
+ */
+internal fun initialEditSpot(rows: List<LayoutRow>, seed: Pair<Int, String>?): ShelfSpot {
+    if (seed == null || rows.isEmpty()) return ShelfSpot(0, ShelfZone.CARDS, 0)
+    val r = seed.first.coerceIn(0, rows.lastIndex)
+    return ShelfSpot(r, ShelfZone.CARDS, rows[r].apps.indexOf(seed.second).coerceAtLeast(0))
+}
+
+/**
+ * 卡片条横向裁切的右边界(dp,相对这张卡的左缘;null = 不裁)。[distToShelfEnd] = 这张卡左缘到架子右边缘的距离。
+ * 非焦点卡一律裁在架子右端;焦点卡([current])整张落进架子之后不裁(owner 裁定:柔光可以画出架子),
+ * **还在滑入时照样裁**——否则横向换焦点的那 ~170 ms 里新焦点卡会整张画进架子外的 40 dp 留白、只被屏幕边缘截(Task 10 1× 录像)。
+ */
+internal fun shelfCardClipRight(distToShelfEnd: Float, cardW: Float, current: Boolean): Float? =
+    if (current && distToShelfEnd >= cardW) null else distToShelfEnd
+
 /** 新建应用行之后:落最后一个应用架子(就是新的那层)的「添加应用」方块。 */
 internal fun landingAfterAppend(shelves: List<Shelf>): ShelfSpot =
     clampSpot(shelves, ShelfSpot(shelves.indexOfLast { it is Shelf.AppShelf }.coerceAtLeast(0), ShelfZone.CARDS, 0))

@@ -7,7 +7,7 @@ HOME 一律期望:回到首页(看不到设置 / 编辑页 / 浮层的字),焦�
 import sys, time, json, os
 sys.path.insert(0, os.path.dirname(__file__))
 from lib import *
-from j_edit import open_settings, open_edit, row_end, PILL_SETTINGS
+from j_edit import open_settings, open_edit, PILL_SETTINGS
 from j_apps_inputs import to_pill, PILLS
 
 BASE = {"language": "en", "onboardingDone": True, "showTitles": False}
