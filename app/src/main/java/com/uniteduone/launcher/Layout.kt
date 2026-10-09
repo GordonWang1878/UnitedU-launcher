@@ -230,10 +230,13 @@ object Layout {
     /**
      * 纯函数:把一个包从所有行里去掉。一行都没命中时返回**同一个** list(调用方用 `!==` 判断要不要写盘)。
      * 行序、行图标、其余包的顺序都不动;整行空了也保留(空行只是没有卡片,不是损坏——`read` 只把「零行」当损坏)。
+     * R164:`channel.pkg` 是它的频道行整行删掉;频道行不计入应用行,删掉它不会让应用行少于 1。
      */
     fun withoutPackage(rows: List<LayoutRow>, pkg: String): List<LayoutRow> {
-        if (rows.none { pkg in it.apps }) return rows
-        return rows.map { r -> if (pkg in r.apps) r.copy(apps = r.apps.filter { it != pkg }) else r }
+        if (rows.none { pkg in it.apps || it.channel?.pkg == pkg }) return rows
+        // R164:发布方没了,它的频道行一起删(spec §3.3);应用行里的卡照旧移出、空行保留
+        return rows.filter { it.channel?.pkg != pkg }
+            .map { r -> if (pkg in r.apps) r.copy(apps = r.apps.filter { it != pkg }) else r }
     }
 
     /**

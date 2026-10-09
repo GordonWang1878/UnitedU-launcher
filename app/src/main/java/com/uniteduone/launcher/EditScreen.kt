@@ -215,7 +215,7 @@ fun EditScreen(
 
     // ---------------- 写盘 ----------------
     val scope = rememberCoroutineScope()
-    val knownOnDisk = remember { java.util.concurrent.atomic.AtomicReference(rows.flatMapTo(HashSet()) { it.apps }.toSet()) }
+    val knownOnDisk = remember { java.util.concurrent.atomic.AtomicReference(layoutPackages(rows).toSet()) }
     fun persist() {
         val snapshot = rows
         scope.launch {

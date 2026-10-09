@@ -34,7 +34,7 @@ fun pruneUninstalled(ctx: Context, pkg: String): Boolean {
  *
  * 口径是「装没装」(`getPackageInfo`),不是首页的「能不能启动」:装着但被停用、或没有启动入口的包
  * 首页与编辑页都不画([editCardShown]),但它还在机器上,重新启用后应当原位回来,所以不清。
- * layout.json 只有应用行;输入源行由 [Inputs] 枚举、不在文件里,不受影响。
+ * R164 起频道行的发布方也算(没装了整行删);输入源行由 [Inputs] 枚举、不在文件里,不受影响。
  * titles.json 只清**这一次从布局里去掉的**包:输入源的标题、已经不在布局里的应用标题都不动(键是任意字符串,
  * 不能按「像不像包名」去猜)。
  */
@@ -57,7 +57,7 @@ fun pruneMissingPackages(ctx: Context, now: Long = SystemClock.elapsedRealtime()
     val changed = try {
         Layout.updateSaved(ctx) { rows ->
             val plan = planPrune(
-                pkgs = rows.flatMap { it.apps },
+                pkgs = layoutPackages(rows),
                 presence = ::presence,
                 recentlyReplaced = { recentReplacements.isRecent(it, now) },
                 canary = presence(ctx.packageName),

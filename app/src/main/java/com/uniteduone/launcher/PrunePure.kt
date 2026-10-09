@@ -23,7 +23,7 @@ internal sealed interface PrunePlan {
 internal fun pruneRatioTooHigh(missing: Int, total: Int): Boolean = missing > 1 && missing * 2 > total
 
 /**
- * @param pkgs layout.json 里的全部包(去重;layout.json 只有应用行,输入源行不在里面,天然不受影响)。
+ * @param pkgs layout.json 的应用包与频道发布方包([layoutPackages];去重;输入源行不在里面,天然不受影响)。
  * @param presence 逐包查询。
  * @param recentlyReplaced 最近 [REPLACING_WINDOW_MS] 内收到过「正在更新」(`EXTRA_REPLACING`)的包:
  *   更新过程中包会短暂查不到,这种一律不算没装。
@@ -52,10 +52,15 @@ internal fun planPrune(
     return PrunePlan.Remove(missing)
 }
 
-/** 纯函数:把 [gone] 从每一行去掉;一个都没命中时返回**同一个** list。行图标、行序、空行都保留。 */
+/** 布局里出现的全部包:应用行里的包 + 频道行的发布方(R164;启动清理按它查装没装)。 */
+internal fun layoutPackages(rows: List<LayoutRow>): List<String> =
+    rows.flatMap { it.apps } + rows.mapNotNull { it.channel?.pkg }
+
+/** 纯函数:把 [gone] 从每一行去掉,发布方在 [gone] 里的频道行整行删(R164);一个都没命中时返回**同一个** list。 */
 internal fun withoutPackages(rows: List<LayoutRow>, gone: Set<String>): List<LayoutRow> {
-    if (gone.isEmpty() || rows.none { r -> r.apps.any { it in gone } }) return rows
-    return rows.map { r -> if (r.apps.any { it in gone }) r.copy(apps = r.apps.filter { it !in gone }) else r }
+    if (gone.isEmpty() || rows.none { r -> r.apps.any { it in gone } || r.channel?.pkg in gone }) return rows
+    return rows.filter { it.channel?.pkg !in gone }
+        .map { r -> if (r.apps.any { it in gone }) r.copy(apps = r.apps.filter { it !in gone }) else r }
 }
 
 /** 「正在更新」窗口:收到 `EXTRA_REPLACING` 的包在这么久之内不清。 */

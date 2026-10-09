@@ -85,11 +85,11 @@ internal fun dropRemovedElsewhere(
     knownOnDisk: Set<String>,
     installed: (String) -> Boolean,
 ): List<LayoutRow> {
-    val onDisk = disk.flatMapTo(HashSet()) { it.apps }
-    val gone = snapshot.flatMapTo(HashSet()) { it.apps }
-        .filterTo(HashSet()) { it in knownOnDisk && it !in onDisk && !installed(it) }
+    val onDisk = layoutPackages(disk).toHashSet()
+    val gone = layoutPackages(snapshot).filterTo(HashSet()) { it in knownOnDisk && it !in onDisk && !installed(it) }
     if (gone.isEmpty()) return snapshot
-    return snapshot.map { r -> if (r.apps.any { it in gone }) r.copy(apps = r.apps.filter { it !in gone }) else r }
+    // R164:频道行的发布方同样按「曾在盘上、此刻不在、没装」认,删整行
+    return snapshot.filter { it.channel?.pkg !in gone }.map { r -> if (r.apps.any { it in gone }) r.copy(apps = r.apps.filter { it !in gone }) else r }
 }
 
 /**
@@ -99,7 +99,7 @@ internal fun dropRemovedElsewhere(
  * 又写回了布局——以后重装会意外回到旧位置。只增不减之后,它每次都满足「曾在盘上、此刻不在、没装」,每次都被滤掉。
  */
 internal fun knownAfterWrite(known: Set<String>, written: List<LayoutRow>): Set<String> =
-    written.flatMapTo(HashSet(known)) { it.apps }
+    HashSet(known).apply { addAll(layoutPackages(written)) }
 
 /**
  * 编辑页的一格要不要画(Ruling R67,2026-09-23:已卸载的应用不占位、不画「未安装」)。与首页 `buildRows` 同一口径:
