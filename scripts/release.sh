@@ -402,7 +402,11 @@ if [[ "$CHANNEL" == beta ]]; then
   STABLE_TAG="$(git tag --list 'v[0-9]*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)"
   [[ -n "$STABLE_TAG" ]] || { echo "找不到稳定版 tag" >&2; exit 1; }
   RB_CODE=$((APK_VERSION_CODE + 1))
-  RB_DIR="$(mktemp -d)/rollback"
+  RB_TMP="$(mktemp -d)"
+  RB_DIR="${RB_TMP}/rollback"
+  # 中途被打断(Ctrl-C、kill)也要清掉临时 worktree 与目录,不在 git 里留残骸。
+  rb_cleanup() { git worktree remove --force "$RB_DIR" 2>/dev/null || true; rm -rf "$RB_TMP"; }
+  trap rb_cleanup EXIT INT TERM
   echo "==> 构建回退包:${STABLE_TAG} 源码,versionCode ${RB_CODE}"
   git worktree add --detach "$RB_DIR" "$STABLE_TAG"
   RB_OK=1
@@ -411,7 +415,8 @@ if [[ "$CHANNEL" == beta ]]; then
   if [[ "$RB_OK" -eq 1 ]]; then
     cp "$RB_DIR/app/build/outputs/apk/release/app-release.apk" "dist/$RB_NAME" || RB_OK=0
   fi
-  git worktree remove --force "$RB_DIR"
+  rb_cleanup
+  trap - EXIT INT TERM
   [[ "$RB_OK" -eq 1 ]] || { echo "回退包构建失败" >&2; exit 1; }
   check_signer "dist/$RB_NAME" || exit 1
   RB_SHA="$(shasum -a 256 "dist/$RB_NAME" | awk '{print $1}')"
@@ -494,7 +499,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   if [[ "$CHANNEL" == stable ]]; then
     echo "==> dry-run:将执行 gh release create ${TAG} --latest(附 latest.json);跳过 git tag / git push / gh release create"
   else
-    echo "==> dry-run:将执行 gh release create ${TAG} --prerelease,并 gh release upload channel-beta beta.json rollback.json ${RB_NAME} --clobber(不碰 releases/latest);跳过 git tag / git push / gh release create"
+    echo "==> dry-run:将执行 gh release create ${TAG} --prerelease,并 gh release upload channel-beta ${RB_NAME} → rollback.json → beta.json 三次分开上传、--clobber(不碰 releases/latest);跳过 git tag / git push / gh release create"
   fi
 else
   git tag "$TAG"
@@ -525,10 +530,28 @@ else
   echo "==> GitHub Release ${TAG} 已发布(${CHANNEL})"
   if [[ "$CHANNEL" == beta ]]; then
     # 固定 tag channel-beta:放 beta.json / rollback.json / 回退包,每次覆盖。第一次不存在就建。
-    gh release view channel-beta >/dev/null 2>&1 \
-      || gh release create channel-beta --prerelease --title "Beta channel" \
-        --notes "Beta 通道清单(自动维护)/ Beta channel manifests (auto-maintained)"
-    gh release upload channel-beta "dist/beta.json" "dist/rollback.json" "dist/$RB_NAME" --clobber
+    # 此时 tag 已推、Beta release 已建:下面任何一步失败都要说清楚留下了什么状态、怎么手工补完。
+    channel_beta_fail() {
+      cat >&2 <<HINT
+channel-beta 更新失败:${TAG} 的 Beta release 已发出,但 channel-beta 上的清单可能不完整,R2 也还没写。
+手工补完(顺序不能换:回退包 → rollback.json → beta.json):
+  gh release view channel-beta >/dev/null 2>&1 || gh release create channel-beta --prerelease --title "Beta channel" --notes "Beta channel manifests"
+  gh release upload channel-beta "dist/${RB_NAME}" --clobber
+  gh release upload channel-beta "dist/rollback.json" --clobber
+  gh release upload channel-beta "dist/beta.json" --clobber
+然后按下面 R2 一段的 wrangler r2 object put 手工补传(同样先 APK、回退包、rollback.json,最后 beta.json)。
+不要重跑 scripts/release.sh ${VERSION}:tag ${TAG} 已存在会被拦下。
+HINT
+      exit 1
+    }
+    if ! gh release view channel-beta >/dev/null 2>&1; then
+      gh release create channel-beta --prerelease --title "Beta channel" \
+        --notes "Beta 通道清单(自动维护)/ Beta channel manifests (auto-maintained)" || channel_beta_fail
+    fi
+    # 分三次、按序传:一次传三个文件不保证顺序,beta.json 可能先于回退包露出(与 R2 同序)。
+    gh release upload channel-beta "dist/$RB_NAME" --clobber || channel_beta_fail
+    gh release upload channel-beta "dist/rollback.json" --clobber || channel_beta_fail
+    gh release upload channel-beta "dist/beta.json" --clobber || channel_beta_fail
     echo "==> channel-beta 已更新(beta.json / rollback.json / ${RB_NAME})"
   fi
 fi
