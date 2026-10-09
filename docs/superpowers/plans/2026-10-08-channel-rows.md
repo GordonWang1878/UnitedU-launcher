@@ -78,7 +78,7 @@ cd /Users/gordonwang/orca/workspaces/UnitedU-launcher/频道推荐 && source scr
 | `app/src/main/java/com/uniteduone/launcher/GtvLayout.kt` | 改 | `rowShiftX(focusedIndex, widths, screenWidthDp)` 变宽版 |
 | `app/src/main/java/com/uniteduone/launcher/HomeChannels.kt` | 新 | 首页纯逻辑:`withChannelContent`、`homeFocusCol`、`loadsPosters` |
 | `app/src/main/java/com/uniteduone/launcher/HomeChannelRow.kt` | 新 | 首页频道行 `ChannelRow` + 海报卡 `PosterCard` |
-| `app/src/main/java/com/uniteduone/launcher/HomeScreen.kt` | 改 | 读频道内容、`stale` 含频道版本、`HomeVertical`、按行种类画 `CategoryRow` / `ChannelRow`、格数改 `cellCount` |
+| `app/src/main/java/com/uniteduone/launcher/HomeScreen.kt` | 改 | 读频道内容(collect `ChannelCache.data`;**不**进 `stale`,内容真的变了才冻结一次,见 Task 12 Step 6(c))、`HomeVertical`、按行种类画 `CategoryRow` / `ChannelRow`、格数改 `cellCount` |
 | `app/src/main/java/com/uniteduone/launcher/Apps.kt` | 改 | `Apps.labelOf(ctx, pkg)` |
 | `app/src/main/java/com/uniteduone/launcher/GtvTokens.kt` | 改 | `PosterFallback` 底色 |
 | `app/src/main/java/com/uniteduone/launcher/EditShelves.kt` | 改(edit-shelves 产出) | `Shelf.ChannelShelf`、`ChannelShelfState`、`shelfChips` / `shelfLanes` / `clampSpot` 的频道分支、`NewRowChoice.CHANNEL` / `choiceMax`、`EditCounts.channels` |
@@ -4799,8 +4799,14 @@ def fatal():
 def header():
     return S("channel_row_title").replace("%1$s", "E2E Channels").replace("%2$s", "E2E Picks")
 
+def revoke():
+    """撤销授权(会杀掉本进程),并清掉「用户拒绝过 / 不再询问」两个标记:`pm revoke` 不清它们,重跑本旅程时
+    上一轮「Don't allow」留下的标记会让下一次申请不弹窗、直接回 false(Android 11+ 两次拒绝 = 不再询问)。"""
+    sh(f"pm revoke {PKG} {PERM}")
+    sh(f"pm clear-permission-flags {PKG} {PERM} user-set user-fixed")
+
 def answer_permission(allow=True):
-    """系统授权窗(permissioncontroller 的 GrantPermissionsActivity)里把焦点挪到 Allow / Don't allow 再按确定。"""
+    """系统授权窗(permissioncontroller 的 GrantPermissionsActivity)里把焦点挪到 Allow / Don't allow(旧版 Deny)再按确定。"""
     for _ in range(12):
         if "permissioncontroller" in foreground():
             break
@@ -4809,7 +4815,7 @@ def answer_permission(allow=True):
         return False
     for direction in ["down"] * 4 + ["up"] * 8:
         lab = screen().label().strip()
-        hit = (lab == "Allow") if allow else lab.lower().startswith("don")
+        hit = (lab == "Allow") if allow else lab.lower().startswith(("don", "deny"))
         if hit:
             key("ok"); time.sleep(2)
             return True
@@ -4839,7 +4845,7 @@ def run():
     journey("频道行:准备")
     adb("install", "-r", "--user", "0", f"{APKS}/{PUB}.apk")
     cmd("DROP", 2)
-    sh(f"pm revoke {PKG} {PERM}")          # 撤销运行时权限会杀掉本进程(Android 行为),下面 restart 重新拉起
+    revoke()                               # 撤销运行时权限会杀掉本进程(Android 行为),下面 restart 重新拉起
     sh(f"rm -f {FILES}/channel-init.json")
     restart(BASE, layout=LAYOUT)
     sh("logcat -c")
@@ -4944,20 +4950,22 @@ def run():
     check("焦点恰好 1 个", s.count_focused() == 1)
     check("layout.json 里频道行还在", len(channel_rows()) == 1)
     open_edit()
+    # 频道架子是第 5 层,进页时在屏幕外(uiautomator 不报屏外节点):先走到它的胶囊上,让它进焦点线再读字
+    to_last_shelf_first_chip()
     check("编辑页频道架子写「暂无内容」", screen().has(S("shelf_channel_empty")))
     key("back"); time.sleep(1.5)
 
     journey("频道行:撤销授权")      # Review Focus 2
     cmd("PUBLISH", 2)
-    sh(f"pm revoke {PKG} {PERM}")      # 杀进程
+    revoke()                           # 杀进程
     restart(BASE)
     s = screen()
     check("冷启动后首页不画频道行", not s.has(header()))
     check("焦点恰好 1 个、没崩", s.count_focused() == 1 and not fatal())
     open_edit()
-    check("编辑页频道架子写「需要重新授权」", screen().has(S("shelf_channel_needs_permission")))
+    s = to_last_shelf_first_chip()     # 同上:先把屏幕外的频道架子带进焦点线
+    check("编辑页频道架子写「需要重新授权」", s.has(S("shelf_channel_needs_permission")))
     shot("ch-05-needs-permission")
-    s = to_last_shelf_first_chip()
     check("「重新授权」是频道架子的第一颗胶囊", S("shelf_chip_reauthorize") in s.label(), s.label())
     key("ok"); time.sleep(1.5)
     check("再次弹授权窗并允许", answer_permission(True))
@@ -4968,7 +4976,7 @@ def run():
     key("back"); time.sleep(1.5)
 
     journey("频道行:选频道页拒绝授权")
-    sh(f"pm revoke {PKG} {PERM}")
+    revoke()
     restart(BASE)
     open_edit()
     to_new_channel_card(); key("ok"); time.sleep(1.5)
@@ -5160,7 +5168,7 @@ EOF
 「模拟器验证的坑」末尾加一条:
 
 ```
-- **测频道行(R164,2026-10-08 起)**:用 e2e 夹具 `test.channels`(带代码,`scripts/e2e/fixtures/channels/`,`fixtures.py` 的 `channels()` 构建、`--user 0` 装),`am broadcast -f 32 -n test.channels/.Cmd -a test.channels.<PUBLISH|SHRINK|CLEAR|REPUBLISH|DROP|MANY>` 改内容。**没授权时 TvProvider 不抛异常、只返回 0 行**(研究 §6.2),「需要重新授权」以 `checkSelfPermission` 为准;`pm revoke … READ_TV_LISTINGS` 会**杀掉本进程**(授权不会),`pm grant` 可跳过授权窗;卸载发布方后 TvProvider 自动清掉它的频道;`unitedu-tv*` 上还有系统的「Apps Spotlight」频道(`com.google.android.tvrecommendations`),要造「一个频道都没有」得 `pm disable-user --user 0 com.google.android.tvrecommendations`,测完立刻 `pm enable`;`INITIALIZE_PROGRAMS` 每个包 + versionCode 只发一次(`channel-init.json`),重测前删掉它。
+- **测频道行(R164,2026-10-08 起)**:用 e2e 夹具 `test.channels`(带代码,`scripts/e2e/fixtures/channels/`,`fixtures.py` 的 `channels()` 构建、`--user 0` 装),`am broadcast -f 32 -n test.channels/.Cmd -a test.channels.<PUBLISH|SHRINK|CLEAR|REPUBLISH|DROP|MANY>` 改内容。**没授权时 TvProvider 不抛异常、只返回 0 行**(研究 §6.2),「需要重新授权」以 `checkSelfPermission` 为准;`pm revoke … READ_TV_LISTINGS` 会**杀掉本进程**(授权不会),且不清「拒绝过 / 不再询问」标记——要下一次申请必弹窗,接着 `pm clear-permission-flags com.uniteduone.launcher android.permission.READ_TV_LISTINGS user-set user-fixed`;`pm grant` 可跳过授权窗;编辑页第 4 层起的架子进页时在屏幕外,uiautomator 读不到它的字,先把焦点走过去;卸载发布方后 TvProvider 自动清掉它的频道;`unitedu-tv*` 上还有系统的「Apps Spotlight」频道(`com.google.android.tvrecommendations`),要造「一个频道都没有」得 `pm disable-user --user 0 com.google.android.tvrecommendations`,测完立刻 `pm enable`;`INITIALIZE_PROGRAMS` 每个包 + versionCode 只发一次(`channel-init.json`),重测前删掉它。
 ```
 
 - [ ] **Step 2: REVIEW-GUIDE.md**
