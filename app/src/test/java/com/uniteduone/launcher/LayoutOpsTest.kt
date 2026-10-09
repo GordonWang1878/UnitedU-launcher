@@ -28,6 +28,22 @@ class LayoutOpsTest {
         assertSame(three, addRowBelow(three, -1))
     }
 
+    /** R165:新行一律追加在最后(「新的一行 → 应用行」),不再有「在下方新建一行」。 */
+    @Test fun appendAddsAnEmptyAppRowAtTheEnd() {
+        val next = appendAppRow(three)
+        assertEquals(listOf("movie", "tv", "music", NEW_ROW_ICON), next.map { it.icon })
+        assertEquals(LayoutRow(icon = NEW_ROW_ICON), next.last())
+        assertEquals(three, next.take(3))
+        assertEquals(3, appRowCount(three))
+    }
+
+    @Test fun appendStopsAtFiveAppRows() {
+        val five = three + LayoutRow("games") + LayoutRow("kids")
+        assertSame(five, appendAppRow(five))
+        val six = five + LayoutRow("tools")
+        assertSame("手改坏的超量文件不再加", six, appendAppRow(six))
+    }
+
     @Test fun deleteRemovesButNeverTheLastRow() {
         assertEquals(listOf("movie", "music"), deleteRow(three, 1).map { it.icon })
         val one = listOf(LayoutRow("games", apps = listOf("a")))

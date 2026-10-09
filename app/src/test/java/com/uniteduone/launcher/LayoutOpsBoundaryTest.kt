@@ -66,6 +66,15 @@ class LayoutOpsBoundaryTest {
         assertEquals(listOf(A, B, C, D, E), deleteRow(six, 5).map { it.icon })
     }
 
+    @Test fun appendToAnEmptyOrSingleLayout() {
+        assertEquals(listOf(LayoutRow(icon = NEW_ROW_ICON)), appendAppRow(empty))
+        assertEquals(listOf(ONLY, NEW_ROW_ICON), appendAppRow(one).map { it.icon })
+        val five = appendAppRow(four)
+        assertEquals(listOf(A, B, C, D, NEW_ROW_ICON), five.map { it.icon })
+        assertEquals(four, five.take(4))
+        assertSame("第 5 行是最后一行", five, appendAppRow(five))
+    }
+
     // ---- 删行 ----
 
     @Test fun deleteTheFirstAndTheLastRow() {

@@ -4,6 +4,19 @@ package com.uniteduone.launcher
 internal const val MIN_ROWS = 1
 internal const val MAX_ROWS = 5
 
+/**
+ * 应用行有几行(R165)。现在每一行都是应用行;计划 2 加频道行后改成只数 `channel == null` 的行——
+ * 「新的一行 → 应用行」与删除胶囊的判据都经这里,改一处即可。
+ */
+internal fun appRowCount(rows: List<LayoutRow>): Int = rows.size
+
+/**
+ * 在最后追加一个空应用行(默认图标 [NEW_ROW_ICON];R165「新的一行 → 应用行」,新行一律插在最后,换位置用上移 / 下移)。
+ * 应用行已满 [MAX_ROWS](或手改坏的文件超量)→ 原样返回**同一个** list,调用方据此不写盘、不挪焦点。
+ */
+internal fun appendAppRow(rows: List<LayoutRow>): List<LayoutRow> =
+    if (appRowCount(rows) >= MAX_ROWS) rows else rows + LayoutRow(icon = NEW_ROW_ICON)
+
 /** 在第 [index] 行下方插一个空行(默认图标 [NEW_ROW_ICON],R163 起行没有名字);已满 [MAX_ROWS] 行或越界 → 原样返回同一个 list。 */
 internal fun addRowBelow(rows: List<LayoutRow>, index: Int): List<LayoutRow> {
     if (rows.size >= MAX_ROWS || index !in rows.indices) return rows
