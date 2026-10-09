@@ -159,3 +159,42 @@ internal fun programSubtitle(p: Program, f: MetaFormats): String? = when {
     }
     else -> null
 }
+
+/**
+ * 组装每个频道行的内容(spec §3.2)。[channelsOf] 按包取频道(`?package=`),返回 null = 没有权限;
+ * [programsOf] 按频道 id 取预览节目,null = 没有权限。同一个包只查一次。
+ */
+internal fun channelContents(
+    refs: List<ChannelRef>,
+    channelsOf: (pkg: String) -> List<TvChannel>?,
+    programsOf: (channelId: Long) -> List<Program>?,
+): Map<ChannelRef, ChannelContent> {
+    // 不用 getOrPut:值为 null(没权限)时它会把键当缺失、再查一次
+    val byPkg = HashMap<String, List<TvChannel>?>()
+    return refs.distinct().associateWith { ref ->
+        val chans = if (byPkg.containsKey(ref.pkg)) byPkg[ref.pkg] else channelsOf(ref.pkg).also { byPkg[ref.pkg] = it }
+        if (chans == null) return@associateWith ChannelContent.NeedsPermission
+        val ch = matchChannel(ref, chans) ?: return@associateWith ChannelContent.Missing
+        val progs = programsOf(ch.id) ?: return@associateWith ChannelContent.NeedsPermission
+        val top = topPrograms(progs)
+        if (top.isEmpty()) ChannelContent.Missing else ChannelContent.Ready(top)
+    }
+}
+
+/**
+ * 进程级频道缓存([ChannelCache])里的一份快照:读的那一刻有没有授权、全部频道、每个预览频道的节目(已排序截断)、
+ * 发布方应用名。data class:内容相同即相等,`StateFlow` 据此不通知。
+ */
+internal data class ChannelSnapshot(
+    val permitted: Boolean,
+    val channels: List<TvChannel> = emptyList(),
+    val programs: Map<Long, List<Program>> = emptyMap(),
+    val labels: Map<String, String> = emptyMap(),
+)
+
+/** 从共享快照派生每个频道行的内容(首页 / 编辑页同一个口径)。[snap] = null(还没读过)→ 空表(首页不画、编辑页按「暂无内容」)。 */
+internal fun channelContentsFrom(snap: ChannelSnapshot?, refs: List<ChannelRef>): Map<ChannelRef, ChannelContent> {
+    if (snap == null || refs.isEmpty()) return emptyMap()
+    if (!snap.permitted) return refs.distinct().associateWith { ChannelContent.NeedsPermission }
+    return channelContents(refs, { pkg -> snap.channels.filter { it.pkg == pkg } }, { id -> snap.programs[id].orEmpty() })
+}

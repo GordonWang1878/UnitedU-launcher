@@ -319,6 +319,12 @@ object Apps {
     fun isInstalled(ctx: Context, pkg: String): Boolean =
         runCatching { ctx.packageManager.getPackageInfo(pkg, 0) }.isSuccess
 
+    /** 包的应用名(频道行行头、选频道页「应用名 · 频道名」用;发布方不一定有启动入口,所以不走 [load])。读不到 → 包名。IO 线程。 */
+    fun labelOf(ctx: Context, pkg: String): String = runCatching {
+        val pm = ctx.packageManager
+        pm.getApplicationInfo(pkg, 0).loadLabel(pm).toString().trim()
+    }.getOrNull()?.takeIf { it.isNotEmpty() } ?: pkg
+
     /** 只读尺寸判断是不是能解的图片,不真的解码——用于校验用户选的文件。 */
     fun isDecodableImage(path: String): Boolean = imageSize(path) != null
 

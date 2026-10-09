@@ -20,6 +20,13 @@
          (加之前「导入图片」页固定显示「电视没有连接网络」,即使 eth0 明明有地址)。
          M6 设计文档 5 份任务简报都没提这条,是全计划遗漏,这里补上。 -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- R164 频道行:读其它应用发布的 TvProvider 预览频道与节目。dangerous,运行时在选频道页 / 「重新授权」申请
+         (MainActivity.onCreate 注册的 RequestPermission)。查 INITIALIZE_PROGRAMS 接收器靠上面的 QUERY_ALL_PACKAGES。 -->
+    <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
+    <!-- normal,装上即有。研究 §6 的探针读取方声明了它 + READ_TV_LISTINGS,「只声明 READ_TV_LISTINGS」从没测过;而 TvProvider
+         在权限层按清单的 read/writePermission 拦人(§6.5:写操作缺 WRITE_EPG_DATA 当场被拒)。读侧若同样要它,缺了 query /
+         registerContentObserver 就抛 SecurityException → 授权了也永远「需要重新授权」、收不到变化通知。声明它零代价,照探针原样。 -->
+    <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
 
     <application
         android:label="@string/app_name"
