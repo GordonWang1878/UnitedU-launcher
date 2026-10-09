@@ -1,6 +1,7 @@
 package com.uniteduone.launcher
 
 import android.content.Context
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,6 +44,6 @@ internal object ChannelCache {
 
     suspend fun refresh(ctx: Context) {
         val app = ctx.applicationContext
-        store.refresh { withContext(Dispatchers.IO) { runCatching { ChannelSource.snapshot(app) }.getOrNull() } }
+        store.refresh { withContext(Dispatchers.IO) { try { ChannelSource.snapshot(app) } catch (e: CancellationException) { throw e } catch (e: Exception) { null } } }
     }
 }

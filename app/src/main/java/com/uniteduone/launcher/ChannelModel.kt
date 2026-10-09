@@ -198,3 +198,37 @@ internal fun channelContentsFrom(snap: ChannelSnapshot?, refs: List<ChannelRef>)
     if (!snap.permitted) return refs.distinct().associateWith { ChannelContent.NeedsPermission }
     return channelContents(refs, { pkg -> snap.channels.filter { it.pkg == pkg } }, { id -> snap.programs[id].orEmpty() })
 }
+
+/** 一次 TvProvider 读取的结果:成功(可为空表)/ 没权限 / 读失败(空游标、DeadObject 等,与「真的没有」区分开)。 */
+internal sealed class ReadResult<out T> {
+    data class Ok<T>(val rows: T) : ReadResult<T>()
+    object Denied : ReadResult<Nothing>()
+    object Error : ReadResult<Nothing>()
+}
+
+/**
+ * 快照的纯决策:没权限 → `permitted = false`;任何一步读失败 → null(缓存留着上一份,spec「读失败留着上一份」);
+ * 否则组装。[programsOf] 只对别人发的预览频道调用。
+ */
+internal fun snapshotFrom(
+    channels: ReadResult<List<TvChannel>>,
+    ownPkg: String,
+    programsOf: (Long) -> ReadResult<List<Program>>,
+    labelOf: (String) -> String,
+): ChannelSnapshot? {
+    val all = when (channels) {
+        is ReadResult.Denied -> return ChannelSnapshot(permitted = false)
+        is ReadResult.Error -> return null
+        is ReadResult.Ok -> channels.rows
+    }
+    val progs = HashMap<Long, List<Program>>()
+    for (c in all) {
+        if (c.type != CHANNEL_TYPE_PREVIEW || c.pkg == ownPkg) continue
+        progs[c.id] = when (val r = programsOf(c.id)) {
+            is ReadResult.Denied -> return ChannelSnapshot(permitted = false)
+            is ReadResult.Error -> return null
+            is ReadResult.Ok -> topPrograms(r.rows)
+        }
+    }
+    return ChannelSnapshot(true, all, progs, all.map { it.pkg }.distinct().associateWith(labelOf))
+}

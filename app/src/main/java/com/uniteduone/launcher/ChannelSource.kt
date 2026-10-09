@@ -31,52 +31,63 @@ object ChannelSource {
         ctx.checkSelfPermission(PERMISSION) == PackageManager.PERMISSION_GRANTED
 
     /** [pkg] = null:全部频道(选频道页);否则只要这个包的。null = 没有权限;其它读取错误 → 空表(只 Log)。 */
-    fun channels(ctx: Context, pkg: String? = null): List<TvChannel>? {
-        if (!hasPermission(ctx)) return null
-        val uri = if (pkg == null) TvContract.Channels.CONTENT_URI
-        else TvContract.Channels.CONTENT_URI.buildUpon().appendQueryParameter("package", pkg).build()
-        return try {
-            query(ctx, uri, TvCols.CHANNEL_PROJECTION).mapNotNull(::channelFromRow)
-        } catch (e: SecurityException) {
-            Log.w(TAG, "读频道被拒: ${e.message}")
-            null
-        } catch (e: Exception) {
-            Log.w(TAG, "读频道失败: ${e.javaClass.simpleName} ${e.message}")
-            emptyList()
-        }
+    fun channels(ctx: Context, pkg: String? = null): List<TvChannel>? = when (val r = readChannels(ctx, pkg)) {
+        is ReadResult.Ok -> r.rows
+        is ReadResult.Denied -> null
+        is ReadResult.Error -> emptyList()
     }
 
     /** 一个频道的全部预览节目(未排序)。null = 没有权限;其它错误 → 空表。 */
-    fun programs(ctx: Context, channelId: Long): List<Program>? = try {
-        query(ctx, TvContract.buildPreviewProgramsUriForChannel(channelId), TvCols.PROGRAM_PROJECTION).mapNotNull(::programFromRow)
+    fun programs(ctx: Context, channelId: Long): List<Program>? = when (val r = readPrograms(ctx, channelId)) {
+        is ReadResult.Ok -> r.rows
+        is ReadResult.Denied -> null
+        is ReadResult.Error -> emptyList()
+    }
+
+    private fun readChannels(ctx: Context, pkg: String?): ReadResult<List<TvChannel>> {
+        if (!hasPermission(ctx)) return ReadResult.Denied
+        val uri = if (pkg == null) TvContract.Channels.CONTENT_URI
+        else TvContract.Channels.CONTENT_URI.buildUpon().appendQueryParameter("package", pkg).build()
+        return guarded("读频道") { query(ctx, uri, TvCols.CHANNEL_PROJECTION)?.let { rows -> rows.mapNotNull(::channelFromRow) } }
+    }
+
+    private fun readPrograms(ctx: Context, channelId: Long): ReadResult<List<Program>> =
+        guarded("读节目") {
+            query(ctx, TvContract.buildPreviewProgramsUriForChannel(channelId), TvCols.PROGRAM_PROJECTION)
+                ?.let { rows -> rows.mapNotNull(::programFromRow) }
+        }
+
+    /** 空游标(provider 重启 / DeadObject)与任何非 Security 异常 = [ReadResult.Error];SecurityException = [ReadResult.Denied]。 */
+    private fun <T> guarded(what: String, block: () -> List<T>?): ReadResult<List<T>> = try {
+        block()?.let { ReadResult.Ok(it) } ?: ReadResult.Error.also { Log.w(TAG, "$what: 空游标") }
     } catch (e: SecurityException) {
-        Log.w(TAG, "读节目被拒: ${e.message}")
-        null
+        Log.w(TAG, "$what 被拒: ${e.message}")
+        ReadResult.Denied
     } catch (e: Exception) {
-        Log.w(TAG, "读节目失败: ${e.javaClass.simpleName} ${e.message}")
-        emptyList()
+        Log.w(TAG, "$what 失败: ${e.javaClass.simpleName} ${e.message}")
+        ReadResult.Error
+    }
+
+    /** provider 不在这台设备上(没有 TvProvider 的固件)。 */
+    private fun providerAbsent(ctx: Context): Boolean {
+        val client = ctx.contentResolver.acquireContentProviderClient(TvContract.AUTHORITY) ?: return true
+        client.close()
+        return false
     }
 
     /**
-     * [ChannelCache] 的一次完整读取:全部频道(一次查询)+ 每个**别人发的**预览频道的节目(每个频道一次查询,排序截断)+
-     * 发布方应用名。没授权 / 中途 `SecurityException` → `permitted = false`、其余为空。首页、编辑页、选频道页都从这一份派生。
+     * [ChannelCache] 的一次完整读取:全部频道 + 每个别人发的预览频道的节目(排序截断)+ 发布方应用名。
+     * 没授权 → `permitted = false`;**读失败 → null(缓存留着上一份)**;设备上没有 TvProvider → 已授权的空快照。
      */
-    internal fun snapshot(ctx: Context): ChannelSnapshot {
-        val denied = ChannelSnapshot(permitted = false)
-        val all = channels(ctx) ?: return denied
-        val progs = HashMap<Long, List<Program>>()
-        for (c in all) {
-            if (c.type != CHANNEL_TYPE_PREVIEW || c.pkg == ctx.packageName) continue
-            progs[c.id] = topPrograms(programs(ctx, c.id) ?: return denied)
-        }
-        val labels = all.map { it.pkg }.distinct().associateWith { Apps.labelOf(ctx, it) }
-        return ChannelSnapshot(permitted = true, channels = all, programs = progs, labels = labels)
+    internal fun snapshot(ctx: Context): ChannelSnapshot? {
+        if (hasPermission(ctx) && providerAbsent(ctx)) return ChannelSnapshot(permitted = true)
+        return snapshotFrom(readChannels(ctx, null), ctx.packageName, { readPrograms(ctx, it) }, { Apps.labelOf(ctx, it) })
     }
 
-    private fun query(ctx: Context, uri: Uri, projection: Array<String>): List<Map<String, Any?>> =
+    private fun query(ctx: Context, uri: Uri, projection: Array<String>): List<Map<String, Any?>>? =
         ctx.contentResolver.query(uri, projection, null, null, null)?.use { c ->
             buildList { while (c.moveToNext()) add(c.rowMap(projection)) }
-        } ?: emptyList()
+        }
 
     private fun Cursor.rowMap(cols: Array<String>): Map<String, Any?> = cols.associateWith { name ->
         val i = getColumnIndex(name)

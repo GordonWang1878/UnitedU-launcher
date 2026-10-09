@@ -60,4 +60,29 @@ class ChannelCacheTest {
         assertEquals(mapOf(ref to ChannelContent.Missing), channelContentsFrom(snap(), listOf(ref)))
         assertEquals(emptyMap<ChannelRef, ChannelContent>(), channelContentsFrom(snap(1), emptyList()))
     }
+
+    private val prev = TvChannel(2, "q", CHANNEL_TYPE_PREVIEW, "d", "k2")
+    private val ok = ReadResult.Ok(listOf(prev))
+
+    @Test fun snapshotDecision() {
+        val none: (Long) -> ReadResult<List<Program>> = { error("不该查") }
+        assertEquals(ChannelSnapshot(permitted = false), snapshotFrom(ReadResult.Denied, "me", none) { it })
+        assertNull("频道读失败 → 留着上一份", snapshotFrom(ReadResult.Error, "me", none) { it })
+        assertNull("节目读失败 → 留着上一份", snapshotFrom(ok, "me", { ReadResult.Error }) { it })
+        assertEquals("节目中途没权限", ChannelSnapshot(permitted = false), snapshotFrom(ok, "me", { ReadResult.Denied }) { it })
+        assertEquals(ChannelSnapshot(true, listOf(prev), mapOf(2L to listOf(prog(1))), mapOf("q" to "Q")),
+            snapshotFrom(ok, "me", { ReadResult.Ok(listOf(prog(1))) }) { it.uppercase() })
+        assertEquals("自己发的频道不查节目", ChannelSnapshot(true, listOf(prev), emptyMap(), mapOf("q" to "q")),
+            snapshotFrom(ok, "q", none) { it })
+        assertEquals("真的没有频道 = 已授权的空快照", ChannelSnapshot(true), snapshotFrom(ReadResult.Ok(emptyList()), "me", none) { it })
+    }
+
+    @Test fun loadErrorKeepsPreviousViaDecision() {
+        runBlocking {
+            val s = ChannelStore()
+            s.refresh { snap(1) }
+            s.refresh { snapshotFrom(ReadResult.Error, "me", { error("x") }) { it } }
+            assertEquals(snap(1), s.data.value)
+        }
+    }
 }
