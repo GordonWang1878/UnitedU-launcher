@@ -26,7 +26,15 @@ object GalleryAndroid {
                 .also { storage = it }
         }
     }
-    suspend fun store(ctx: Context): GalleryStore = storage(ctx).await()
+    suspend fun store(ctx: Context): GalleryStore {
+        val pending = storage(ctx)
+        try { return pending.await() }
+        catch (failure: Exception) {
+            // A failed singleton Deferred must not permanently poison manual retry.
+            if (pending.isCancelled) synchronized(this) { if (storage === pending) storage = null }
+            throw failure
+        }
+    }
     /** Blocking accessor for existing IO-only wallpaper and playlist pipelines. Never call on main. */
     fun storeOnIo(ctx: Context): GalleryStore {
         check(android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) { "Gallery disk access on main" }
@@ -34,7 +42,7 @@ object GalleryAndroid {
     }
     fun repository(ctx: Context): GalleryRepository = synchronized(this) {
         val app = ctx.applicationContext
-        instance ?: SharedGalleryRepository({ storage(app).await() },
+        instance ?: SharedGalleryRepository({ store(app) },
             GalleryHttp(BuildConfig.GALLERY_BASE_URL, allowLoopbackHttp = BuildConfig.DEBUG), scope,
             ::inspect, ::thumbnail).also { instance = it }
     }

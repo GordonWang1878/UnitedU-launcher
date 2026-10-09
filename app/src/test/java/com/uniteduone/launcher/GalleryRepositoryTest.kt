@@ -225,4 +225,55 @@ class GalleryRepositoryTest {
             assertEquals(adopted, settings.galleryWallpaper)
         } finally { scope.cancel() }
     }
+    @Test fun failedInitializationPublishesErrorAndManualRefreshRetriesWithoutPoisoningRepository() = runBlocking {
+        val storage = store()
+        val catalog = GalleryCatalog(7, listOf(item()))
+        storage.writeCatalog(catalog, serializeGalleryCatalog(catalog), "cached")
+        val attempts = AtomicInteger()
+        val failed = CompletableDeferred<Unit>()
+        val transport = FakeTransport(bytes).apply { catalogGate = CompletableDeferred() }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val repository = SharedGalleryRepository({
+                if (attempts.incrementAndGet() == 1) { failed.complete(Unit); throw java.io.IOException("No space left on device") }
+                storage
+            }, transport, scope, { GalleryImageInfo(2, 2, "image/jpeg") }, { _, target -> target.writeBytes(bytes) })
+            failed.await()
+            repository.refresh()
+            assertNotNull(repository.state.value.error)
+            assertFalse(repository.state.value.refreshing)
+            assertEquals(0, transport.catalogCalls.get())
+            val retry = async { repository.refresh() }
+            transport.catalogEntered.await()
+            assertEquals(catalog, repository.state.value.catalog)
+            assertTrue(repository.state.value.refreshing)
+            assertNull(repository.state.value.error)
+            transport.catalogGate!!.complete(Unit); retry.await()
+            assertEquals(2, attempts.get())
+            assertEquals(catalog, repository.state.value.catalog)
+            assertFalse(repository.state.value.refreshing)
+        } finally { scope.cancel() }
+    }
+
+    @Test fun cancellingInitializationWaiterDoesNotPoisonSharedStorage() = runBlocking {
+        val storage = store()
+        val attempts = AtomicInteger()
+        val entered = CompletableDeferred<Unit>()
+        val gate = CompletableDeferred<Unit>()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val repository = SharedGalleryRepository({ attempts.incrementAndGet(); entered.complete(Unit); gate.await(); storage },
+                FakeTransport(bytes), scope, { GalleryImageInfo(2, 2, "image/jpeg") }, { _, target -> target.writeBytes(bytes) })
+            entered.await()
+            val waiter = launch { repository.refresh() }
+            eventually { repository.state.value.refreshing }
+            waiter.cancelAndJoin()
+            eventually { !repository.state.value.refreshing }
+            assertNull(repository.state.value.error)
+            gate.complete(Unit); repository.refresh()
+            assertEquals(1, attempts.get())
+            assertNull(repository.state.value.error)
+        } finally { scope.cancel() }
+    }
+
 }

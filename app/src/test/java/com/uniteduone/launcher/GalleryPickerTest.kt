@@ -127,4 +127,40 @@ class GalleryPickerTest {
         assertEquals(GalleryFailure.INVALID, galleryFailure(IllegalArgumentException("Gallery resource hash mismatch")))
     }
 
+    @Test fun refreshSafetyBoundaryKeepsRowsAndManualRetryClearsStorageFailure() = kotlinx.coroutines.runBlocking {
+        val cached = GallerySnapshot(GalleryCatalog(1, listOf(item("cached"))), emptyList(), false, null)
+        var fail = true
+        val repository = object : GalleryRepository {
+            override val state = kotlinx.coroutines.flow.MutableStateFlow(cached)
+            override suspend fun refresh() { if (fail) throw java.io.IOException("No space left on device") }
+            override suspend fun original(item: GalleryItem, onProgress: (Long) -> Unit): GalleryLocal = error("unused")
+            override suspend fun thumbnail(item: GalleryItem): File = error("unused")
+            override suspend fun removeDownloaded(sha256: String, protected: Set<String>) = false
+            override suspend fun orphanedDownloads() = emptySet<String>()
+            override suspend fun cleanupOrphans(protected: Set<String>) = emptySet<String>()
+        }
+        val state = GalleryPickerState(repository, GalleryPickerActions({ _, _, _ -> {} }, {}, { _, _ -> }), this)
+        state.refresh()
+        assertEquals(R.string.gallery_storage_failed, state.notice)
+        assertEquals(listOf("cached"), galleryRows(repository.state.value, BuiltinKind.WALLPAPERS, null).map { it.item.id })
+        fail = false; state.refresh()
+        assertNull(state.notice)
+        assertEquals(cached, repository.state.value)
+    }
+    @Test fun refreshSafetyBoundaryPropagatesCancellation() = kotlinx.coroutines.runBlocking {
+        val cancelled = kotlinx.coroutines.CancellationException("cancelled")
+        val repository = object : GalleryRepository {
+            override val state = kotlinx.coroutines.flow.MutableStateFlow(GallerySnapshot(null, emptyList(), false, null))
+            override suspend fun refresh(): Unit = throw cancelled
+            override suspend fun original(item: GalleryItem, onProgress: (Long) -> Unit): GalleryLocal = error("unused")
+            override suspend fun thumbnail(item: GalleryItem): File = error("unused")
+            override suspend fun removeDownloaded(sha256: String, protected: Set<String>) = false
+            override suspend fun orphanedDownloads() = emptySet<String>()
+            override suspend fun cleanupOrphans(protected: Set<String>) = emptySet<String>()
+        }
+        val state = GalleryPickerState(repository, GalleryPickerActions({ _, _, _ -> {} }, {}, { _, _ -> }), this)
+        val failure = runCatching { state.refresh() }.exceptionOrNull()
+        assertSame(cancelled, failure); assertNull(state.notice)
+    }
+
 }

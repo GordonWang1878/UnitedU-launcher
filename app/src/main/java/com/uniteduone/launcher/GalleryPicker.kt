@@ -18,7 +18,7 @@ internal fun galleryFailure(error: Throwable): GalleryFailure {
     val causes = generateSequence(error) { it.cause }.take(8).toList()
     val detail = causes.joinToString(" ") { it.message.orEmpty() }.lowercase()
     return when {
-        "no space" in detail || "enospc" in detail || listOf("save", "stage", "replace", "registry", "write").any { it in detail } -> GalleryFailure.STORAGE
+        "no space" in detail || "enospc" in detail || listOf("save", "stage", "replace", "registry", "write", "storage", "directory").any { it in detail } -> GalleryFailure.STORAGE
         causes.any { it is java.net.SocketTimeoutException || it is java.net.UnknownHostException || it is java.net.ConnectException } -> GalleryFailure.NETWORK
         causes.any { it is IllegalArgumentException } || listOf("decode", "corrupt", "hash", "mismatch", "dimensions", "media type").any { it in detail } -> GalleryFailure.INVALID
         causes.any { it is java.io.IOException } -> GalleryFailure.NETWORK
@@ -56,6 +56,22 @@ internal class GalleryPickerState(val repository: GalleryRepository, val actions
     private var generation = 0L
     private var cancelUse: (() -> Unit)? = null
     var joined by mutableStateOf<Map<String, GalleryAdoption>>(emptyMap())
+    suspend fun refresh() {
+        notice = null
+        try {
+            repository.refresh()
+            repository.state.value.error?.let { message -> showRefreshFailure(java.io.IOException(message)) }
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Exception) { showRefreshFailure(failure) }
+    }
+    private fun showRefreshFailure(error: Exception) {
+        notice = when (galleryFailure(error)) {
+            GalleryFailure.STORAGE -> R.string.gallery_storage_failed
+            GalleryFailure.NETWORK -> R.string.gallery_network_failed
+            GalleryFailure.INVALID -> R.string.gallery_invalid_failed
+            GalleryFailure.UNKNOWN -> R.string.gallery_refresh_failed
+        }
+    }
     fun cancel() { generation++; previewJob?.cancel(); previewJob = null; cancelUse?.invoke(); cancelUse = null; active = null; failed = false }
     fun pick(row: GalleryRow) {
         cancel(); previewIntent = false; active = row; progress = 0; menu = null
@@ -88,7 +104,7 @@ internal fun rememberGalleryPicker(kind: BuiltinKind, packageName: String?, acti
     val ghost = LocalPageGhost.current
     LaunchedEffect(ghost) { if (ghost) state.cancel() }
     val snapshot by repository.state.collectAsState()
-    LaunchedEffect(repository) { repository.refresh() }
+    LaunchedEffect(repository) { state.refresh() }
     LaunchedEffect(snapshot, state.menu, state.active) {
         state.joined = withContext(Dispatchers.IO) { SettingsStore.read(ctx).galleryScreensavers }
     }
@@ -112,7 +128,7 @@ internal fun GalleryPickerOverlay(state: GalleryPickerState, screensaver: Boolea
         items = listOf(MenuItem(cancel, "") { state.notice = null }), onDismiss = { state.notice = null })
     else if (state.refreshMenu) GearMenu(title = stringResource(R.string.gallery_refresh), nonce = nonce,
         items = listOf(
-            MenuItem(stringResource(R.string.gallery_refresh), "") { state.refreshMenu = false; state.scope.launch { state.repository.refresh() } },
+            MenuItem(stringResource(R.string.gallery_refresh), "") { state.refreshMenu = false; state.scope.launch { state.refresh() } },
             MenuItem(stringResource(R.string.gallery_cleanup), "") {
                 state.scope.launch {
                     try {

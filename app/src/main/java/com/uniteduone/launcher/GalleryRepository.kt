@@ -48,7 +48,8 @@ class SharedGalleryRepository(
     private var cache: GalleryCatalogCache? = null
     private var refreshOwner: Any? = null
     private companion object { val activeParts = ConcurrentHashMap.newKeySet<File>() }
-    private val initialized = scope.async(Dispatchers.IO) {
+    private val initializationLock = Mutex()
+    private fun initialize() = scope.async(Dispatchers.IO) {
         val store = storeFactory()
         stateLock.withLock {
             cache = store.readCatalogCache()
@@ -57,6 +58,18 @@ class SharedGalleryRepository(
         store.sweepParts(activeParts.toSet())
         store.thumbs.listFiles().orEmpty().filter { it.isFile && it.name.endsWith(".part") && it.canonicalFile !in activeParts }.forEach { it.delete() }
         store
+    }
+    private var initialized: Deferred<GalleryStore>? = initialize()
+    /** Only a failed shared initialization is evicted; cancellation of one waiter keeps its peers alive. */
+    private suspend fun initializedStore(): GalleryStore {
+        val pending = initializationLock.withLock { initialized ?: initialize().also { initialized = it } }
+        try { return pending.await() }
+        catch (failure: Exception) {
+            if (pending.isCancelled) withContext(NonCancellable) { initializationLock.withLock {
+                if (initialized === pending) initialized = null
+            } }
+            throw failure
+        }
     }
     /** Registration and cancellation use one mutex; stale completions cannot remove a successor task. */
     @Suppress("UNCHECKED_CAST")
@@ -92,11 +105,12 @@ class SharedGalleryRepository(
         }
     }
     override suspend fun refresh() {
-        initialized.await()
         shared<Unit>("catalog") {
             val owner = Any()
             stateLock.withLock { refreshOwner = owner; mutableState.value = mutableState.value.copy(refreshing = true, error = null) }
             try {
+                try { initializedStore() } catch (cancelled: CancellationException) { throw cancelled }
+                catch (failure: Exception) { throw java.io.IOException("Gallery storage initialization failed", failure) }
                 val result = transport.catalog(cache?.etag)
                 when (result) {
                     GalleryFetch.NotModified -> Unit
@@ -105,7 +119,7 @@ class SharedGalleryRepository(
                         stateLock.withLock {
                             currentCoroutineContext().ensureActive()
                             if (refreshOwner === owner && catalog.revision >= (cache?.catalog?.revision ?: -1)) {
-                                initialized.await().writeCatalog(catalog, result.json, result.etag)
+                                initializedStore().writeCatalog(catalog, result.json, result.etag)
                                 cache = GalleryCatalogCache(catalog, result.json, result.etag)
                                 mutableState.value = mutableState.value.copy(catalog = catalog)
                             }
@@ -158,7 +172,7 @@ class SharedGalleryRepository(
     }
     override suspend fun original(item: GalleryItem, onProgress: (Long) -> Unit): GalleryLocal {
         validateItem(item)
-        val store = initialized.await()
+        val store = initializedStore()
         return withContext(Dispatchers.IO) {
             val cached = stateLock.withLock { store.downloaded().firstOrNull { it.item.original.blob.sha256 == item.original.blob.sha256 } }
             val source = cached?.file ?: shared<File>("original:${item.original.blob.sha256}", onProgress) { notify ->
@@ -175,7 +189,7 @@ class SharedGalleryRepository(
     }
     override suspend fun thumbnail(item: GalleryItem): File {
         validateItem(item)
-        val store = initialized.await()
+        val store = initializedStore()
         return shared("thumbnail:${item.thumbnail.sha256}") {
             val target = File(store.thumbs, "${item.thumbnail.sha256}.thumbnail")
             if (target.isFile && runCatching { verifyBlob(target, item.thumbnail, GALLERY_MAX_THUMBNAIL_BYTES); image(target) }.isSuccess) return@shared target
@@ -199,16 +213,16 @@ class SharedGalleryRepository(
         }
     }
     override suspend fun removeDownloaded(sha256: String, protected: Set<String>): Boolean {
-        val store = initialized.await()
+        val store = initializedStore()
         return withContext(Dispatchers.IO) { stateLock.withLock {
             try { store.removeOriginal(sha256, protected) }
             finally { mutableState.value = mutableState.value.copy(downloaded = store.downloaded()) }
         } }
     }
     override suspend fun orphanedDownloads(): Set<String> = withContext(Dispatchers.IO) {
-        val store = initialized.await(); stateLock.withLock { store.orphanedOriginals() }
+        val store = initializedStore(); stateLock.withLock { store.orphanedOriginals() }
     }
     override suspend fun cleanupOrphans(protected: Set<String>): Set<String> = withContext(Dispatchers.IO) {
-        val store = initialized.await(); stateLock.withLock { store.cleanupOrphans(protected) }
+        val store = initializedStore(); stateLock.withLock { store.cleanupOrphans(protected) }
     }
 }
