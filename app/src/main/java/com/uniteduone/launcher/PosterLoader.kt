@@ -158,10 +158,20 @@ private val resolverScope = CoroutineScope(SupervisorJob() + resolverPool)
 /**
  * resolver 读取放在有界 IO 池**之外**的守护线程上,协程只等 [timeoutMs]:卡在 openInputStream()(binder 调用不返回)
  * 的 provider 不占 IO 槽位;迟到的工作线程在 open 返回后由 [readWithWatchdog] 的过期标记自己关流。
+ *
+ * 在途计数在 job 的 `invokeOnCompletion` 里减(恰好一次):job 若在开跑前就被取消(调用方刚 async 完即被取消),
+ * 体内的 finally 根本不会执行,写在 finally 里会永久漏掉一个名额。
+ *
+ * 取舍(有界线程 vs 可用性):open() 永远不返回的 provider 会一直占着它的名额,直到 open() 返回为止——线程拿不回来,
+ * 名额也就不还。同时有 [RESOLVER_MAX_WORKERS](16)个这样卡死的 provider,resolver 来源的海报就整体失效(一律当没图),
+ * 直到它们返回或进程重启;https 海报不受影响。宁可失效也不让卡死的 binder 调用把线程无限堆下去。
  */
-internal suspend fun readResolverBounded(timeoutMs: Int, open: () -> InputStream?, maxBytes: Int): ByteArray? {
+internal suspend fun readResolverBounded(
+    timeoutMs: Int, open: () -> InputStream?, maxBytes: Int, scope: CoroutineScope = resolverScope,
+): ByteArray? {
     if (resolverWorkers.incrementAndGet() > RESOLVER_MAX_WORKERS) { resolverWorkers.decrementAndGet(); return null }
-    val job = resolverScope.async { try { readWithWatchdog(timeoutMs, open, maxBytes) } finally { resolverWorkers.decrementAndGet() } }
+    val job = scope.async { readWithWatchdog(timeoutMs, open, maxBytes) }
+    job.invokeOnCompletion { resolverWorkers.decrementAndGet() }
     try {
         return withTimeoutOrNull(timeoutMs.toLong() + 200) { job.await() }
     } finally {
@@ -172,6 +182,9 @@ internal suspend fun readResolverBounded(timeoutMs: Int, open: () -> InputStream
 /** 同时在途的 resolver 工作线程上限(卡死的 provider 不能让线程无限增长);满了直接当没图,不派发。 */
 internal const val RESOLVER_MAX_WORKERS = 16
 private val resolverWorkers = java.util.concurrent.atomic.AtomicInteger()
+
+/** 测试用:当前在途的 resolver 工作数。 */
+internal fun resolverWorkersInFlight(): Int = resolverWorkers.get()
 
 /**
  * 取一张海报并记账:[produce] 返回 null → 记入 [failed] 并回调 [onFail];非 null → 清除失败记录。

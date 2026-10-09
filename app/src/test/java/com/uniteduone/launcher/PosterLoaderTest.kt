@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import org.junit.Test
@@ -151,9 +152,10 @@ class PosterLoaderTest {
     @Test fun cancelledLoadIsNotRecordedAsFailed() = kotlinx.coroutines.runBlocking {
         val failed = java.util.concurrent.ConcurrentHashMap<String, Long>()
         var logged = false
+        val gate = java.util.concurrent.CountDownLatch(1)
         val job = launch(kotlinx.coroutines.Dispatchers.Default) {
             loadTracked<ByteArray>(failed, "u", { 1L }, { logged = true }) {
-                readResolverBounded(5_000, { java.util.concurrent.CountDownLatch(1).await(); null }, 1024)
+                readResolverBounded(5_000, { gate.await(); null }, 1024)
             }
         }
         kotlinx.coroutines.delay(200)
@@ -164,6 +166,29 @@ class PosterLoaderTest {
         // 真失败照记
         assertNull(loadTracked<ByteArray>(failed, "v", { 7L }, { logged = true }) { null })
         assertEquals(7L, failed["v"]); assertTrue(logged)
+        gate.countDown()   // 放掉卡住的工作线程,名额归还(测试不依赖执行顺序)
+        val t0 = System.nanoTime()
+        while (resolverWorkersInFlight() != 0 && (System.nanoTime() - t0) / 1_000_000 < 2_000) kotlinx.coroutines.delay(10)
+        assertEquals(0, resolverWorkersInFlight())
+    }
+
+    /** 工作 job 在开跑前就被取消(调用方 async 完立刻被取消):名额照样归还,不漏。 */
+    @Test fun cancelBeforeWorkerStartsReleasesSlot() = kotlinx.coroutines.runBlocking {
+        val queued = java.util.concurrent.LinkedBlockingQueue<Runnable>()
+        val held = kotlinx.coroutines.CoroutineScope(
+            kotlinx.coroutines.SupervisorJob() + java.util.concurrent.Executor { queued.add(it) }.asCoroutineDispatcher(),
+        )
+        val before = resolverWorkersInFlight()
+        var opened = false
+        val job = launch(kotlinx.coroutines.Dispatchers.Default) {
+            readResolverBounded(5_000, { opened = true; null }, 16, held)
+        }
+        while (queued.isEmpty()) kotlinx.coroutines.delay(5)   // 工作 job 已派发、还没跑
+        assertEquals(before + 1, resolverWorkersInFlight())
+        job.cancelAndJoin()
+        while (true) queued.poll()?.run() ?: break   // 现在才让执行器跑:job 已取消,体不执行
+        assertFalse(opened)
+        assertEquals(before, resolverWorkersInFlight())
     }
 
     @Test fun resolverWorkersAreCapped() = kotlinx.coroutines.runBlocking {
