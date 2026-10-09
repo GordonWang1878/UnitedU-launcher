@@ -28,6 +28,25 @@ def wait_for(fn, timeout=8.0, step=0.5):
         v = fn()
     return v
 
+class Bail(Exception):
+    """后面的旅程依赖的一步没成:不再往下走(免得在错的界面上乱按、把布局改坏),直接收尾。"""
+
+def need(name, cond, detail=""):
+    if not check(name, cond, detail):
+        raise Bail(name)
+    return cond
+
+def stays(fn, dur=2.0, step=0.5):
+    """fn() 在 dur 秒里每次读都为真(至少读两次,首末相隔 ≥ dur):给「没有 X」这类否定断言配一个稳定窗口,
+    免得在数据还没到 / 500 ms 去抖还没触发时就读到旧画面而误过。"""
+    end = time.time() + dur
+    while True:
+        if not fn():
+            return False
+        if time.time() >= end:
+            return True
+        time.sleep(step)
+
 def cmd(action, timeout=15.0):
     """给夹具发一条命令,等它打出 `CHFIX cmd test.channels.<action>`(命令做完才打)。先清日志,免得认到上一条。"""
     sh("logcat -c")
@@ -115,6 +134,19 @@ def to_last_shelf_first_chip():
     return screen()
 
 def run():
+    was_granted = "granted=true" in perm_flags()
+    try:
+        _journeys()
+    except Bail as e:
+        print(f"  中止:{e}(后面的旅程依赖这一步)", flush=True)
+    finally:           # 中途出错 / 中止也不留状态:卸夹具、恢复授权与标记、推回测试布局
+        sh(f"pm uninstall {PUB}")
+        revoke()
+        if was_granted:
+            sh(f"pm grant {PKG} {PERM}")
+        restart(BASE, layout=LAYOUT)
+
+def _journeys():
     journey("频道行:准备")
     adb("install", "-r", "--user", "0", f"{APKS}/{PUB}.apk")
     cmd("DROP")
@@ -125,14 +157,14 @@ def run():
 
     journey("频道行:编辑页加频道 → 授权 → 选频道")
     open_edit()
-    check("走到「新的一行 → 频道」", to_new_channel_card(), screen().label())
+    need("走到「新的一行 → 频道」", to_new_channel_card(), screen().label())
     key("ok")
-    check("没授权时弹系统授权窗", wait_permission_dialog(), foreground())
+    need("没授权时弹系统授权窗", wait_permission_dialog(), foreground())
     shot("ch-01-permission-dialog")
-    check("按 Allow", answer_permission("allow"))
+    need("按 Allow", answer_permission("allow"))
     check("授权到手", "granted=true" in sh(f"dumpsys package {PKG} | grep {PERM}"))
     check("INITIALIZE_PROGRAMS 之后列表里冒出夹具频道", wait_for(lambda: screen().has(header()), 15))
-    check("夹具收到 INITIALIZE_PROGRAMS", "init" in sh("logcat -d -s CHFIX"))
+    check("夹具收到 INITIALIZE_PROGRAMS", "init android.media.tv.action.INITIALIZE_PROGRAMS" in sh("logcat -d -s CHFIX"))
     init = wait_for(lambda: (pull_json("channel-init.json") or {}).get("notified", {}).get(PUB) == 1 and pull_json("channel-init.json"), 5) \
         or pull_json("channel-init.json") or {}
     check("channel-init.json 记下 test.channels = 1", init.get("notified", {}).get(PUB) == 1, init)
@@ -173,7 +205,7 @@ def run():
     long_ok()
     check("长按后前台仍是 UnitedU", foreground() == PKG, foreground())
     check("长按没弹菜单", not screen().has(S("card_menu_open")))
-    check("长按松手也没启动节目", "play" not in sh("logcat -d -s CHFIX"))
+    check("长按松手也没启动节目", "play p=" not in sh("logcat -d -s CHFIX"))
     key("ok")
     check("确定 = intent_uri 启动节目",
           wait_for(lambda: foreground() == PUB and "play p=0" in sh("logcat -d -s CHFIX"), 8), foreground())
@@ -195,8 +227,11 @@ def run():
     published = re.findall(r"published ch=(\d+)", log)
     dropped = re.findall(r"dropped e2e-picks ch=(\d+)", log)
     check("夹具确实换了 _id", bool(published and dropped) and published[-1] != dropped[-1], (dropped, published))
-    s = wait_for(lambda: (lambda s: s if s.has(header()) and s.count_focused() == 1 else None)(screen()), 8) or screen()
-    check("行还在(按 internal_provider_id 找回)、焦点恰好 1 个", s.has(header()) and s.count_focused() == 1, s.label())
+    # 刷新前屏上是 SHRINK 后的 3 张;Night Train 是第 4 张,只有重建后的 8 张里才有——认它才算读到了刷新后的画面
+    s = wait_for(lambda: (lambda s: s if s.has("Night Train") else None)(screen()), 10) or screen()
+    check("重建后的节目画出来了(Night Train 回来)", s.has("Night Train"), s.texts()[-12:])
+    check("行还在(按 internal_provider_id 找回)、焦点恰好 1 个,且稳定 2 s",
+          stays(lambda: (lambda s: s.has(header()) and s.has("Night Train") and s.count_focused() == 1)(screen()), 2.0), screen().label())
 
     journey("频道行:上面的频道行消失 / 出现,下面应用行的焦点不动")   # owner 裁定:目标按 layoutRow 认行
     lay = json.loads(json.dumps(LAYOUT))
@@ -231,9 +266,11 @@ def run():
     cmd("PUBLISH")
     revoke()                           # 杀进程
     restart(BASE)
-    s = screen()
-    check("冷启动后首页不画频道行", not s.has(header()))
-    check("焦点恰好 1 个、没崩", s.count_focused() == 1 and not fatal())
+    # 先等首页真的画好(第一行应用卡在、焦点恰好 1 个),再要求「没有频道行」在 2 s 里一直成立(跨过 500 ms 去抖)
+    s = wait_for(lambda: (lambda s: s if s.has("爱奇艺") and s.count_focused() == 1 else None)(screen()), 10) or screen()
+    check("冷启动后首页画好了(应用行在、焦点恰好 1 个)", s.has("爱奇艺") and s.count_focused() == 1, s.texts()[:8])
+    check("冷启动后首页不画频道行(稳定 2 s)", stays(lambda: (lambda s: s.has("爱奇艺") and not s.has(header()))(screen()), 2.0))
+    check("焦点恰好 1 个、没崩", screen().count_focused() == 1 and not fatal())
     open_edit()
     s = to_last_shelf_first_chip()     # 同上:先把屏幕外的频道架子带进焦点线
     check("编辑页频道架子写「需要重新授权」", s.has(S("shelf_channel_needs_permission")), s.texts()[-12:])
@@ -242,7 +279,7 @@ def run():
     s = move_to(S("shelf_chip_reauthorize"), "right", max_steps=5, exact=True)
     check("频道架子上有「重新授权」胶囊(排在最后)", s is not None, screen().label())
     key("ok")
-    check("再次弹授权窗并允许", answer_permission("allow"))
+    need("再次弹授权窗并允许(下面的拒绝旅程靠这次 Allow 清掉 UnitedU 的 deniedBefore)", answer_permission("allow"))
     s = wait_for(lambda: (lambda s: s if not s.has(S("shelf_channel_needs_permission")) and s.count_focused() == 1 else None)(screen()), 8) or screen()
     check("授权回来后架子不再写「需要重新授权」", not s.has(S("shelf_channel_needs_permission")))
     check("焦点恰好 1 个,落这一层第一颗胶囊「上移」(「重新授权」那颗没了,不夹到「删除」)",
@@ -266,8 +303,9 @@ def run():
         check("返回落回「频道」卡", wait_for(lambda: S("shelf_new_channel_desc") in screen().label(), 5), screen().label())
         key("ok")
 
-    to_new_channel_card(); key("ok")
-    check("授权窗弹出", wait_permission_dialog(), foreground())
+    need("走到「新的一行 → 频道」", to_new_channel_card(), screen().label())
+    key("ok")
+    need("授权窗弹出", wait_permission_dialog(), foreground())
     key("back")             # 从没拒绝过时按返回关窗:前后 rationale 都是 false,但不算永久拒绝
     denied_here("返回关窗")
     reopen_picker()
@@ -294,17 +332,20 @@ def run():
     lay["rows"] += [{"icon": "tv", "apps": [], "channel": {"pkg": PUB, "key": f"e2e-many-{k}", "name": f"Many {k}"}} for k in range(5)]
     restart(BASE, layout=lay)
     open_edit()
-    to_new_channel_card()
+    need("走到「新的一行 → 频道」", to_new_channel_card(), screen().label())
     full = S("edit_choice_full").replace("%1$d", "5")
-    check("「频道」卡写「已满 5 行」", full in screen().label() and S("edit_choice_app_row") not in screen().label(), screen().label())
+    full_focused = lambda s: full in s.label() and S("edit_choice_app_row") not in s.label()
+    need("「频道」卡写「已满 5 行」", full_focused(screen()), screen().label())
     shot("ch-07-new-row-full")
-    key("ok"); time.sleep(1.5)
-    check("确定不响应(没开选频道页)", not screen().has(S("channel_picker_title")))
+    key("ok")
+    check("确定不响应:2.5 s 里焦点一直在「已满」卡上、选频道页没出现",
+          stays(lambda: (lambda s: full_focused(s) and not s.has(S("channel_picker_title")))(screen()), 2.5), screen().label())
 
     journey("频道行:删频道架子(不弹确认)")
     key("up")                                   # 「频道」卡 → 最后一层(频道架子 Many 4)的胶囊
     go_chip("edit_chip_delete"); key("ok")
-    check("频道架子直接删", wait_for(lambda: len(channel_rows()) == 4, 6), channel_rows())
+    check("频道架子直接删(删的是最后一层 Many 4)", wait_for(lambda: [r["channel"]["key"] for r in channel_rows()] == [f"e2e-many-{k}" for k in range(4)], 6),
+          [r["channel"]["key"] for r in channel_rows()])
     s = wait_for(lambda: (lambda s: s if s.count_focused() == 1 else None)(screen()), 5) or screen()
     check("不弹确认", not s.has(S("edit_row_delete_confirm_title")))
     check("删后焦点落上一层(Many 3)第一颗胶囊「上移」、恰好 1 个",
@@ -316,8 +357,6 @@ def run():
     check("layout.json 里没有频道行了", wait_for(lambda: channel_rows() == [], 10), channel_rows())
     s = wait_for(lambda: (lambda s: s if s.count_focused() == 1 else None)(screen()), 5) or screen()
     check("焦点恰好 1 个、前台是 UnitedU", s.count_focused() == 1 and foreground() == PKG)
-
-    restart(BASE, layout=LAYOUT)
 
 if __name__ == "__main__":
     run()
