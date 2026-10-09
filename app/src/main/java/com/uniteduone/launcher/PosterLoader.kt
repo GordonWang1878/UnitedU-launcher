@@ -7,7 +7,12 @@ import android.net.Uri
 import android.os.SystemClock
 import android.util.Log
 import android.util.LruCache
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -31,8 +36,7 @@ internal fun posterSourceOf(uri: String): PosterSource = when (uri.substringBefo
     else -> PosterSource.NONE
 }
 
-/** 海报目标:高 220 px(卡高),宽最多 440 px。 */
-internal const val POSTER_MAX_W = 440
+/** 海报目标:高 = 卡高(220 px),宽最多 2 × 高。 */
 internal const val POSTER_MAX_PIXELS = 4096L * 4096
 
 /** 宽高比在 [0.5, 2.5] 内、总像素不超过 4096×4096 才接受;否则当作没图(防 120000×220 这类解出巨大位图)。 */
@@ -43,7 +47,7 @@ internal fun posterAcceptable(srcW: Int, srcH: Int): Boolean {
 }
 
 /** 粗缩的 `inSampleSize`:取 2 的幂,同时约束高与宽——再翻倍时只要高仍 ≥ [targetH] 或宽仍 ≥ [maxW] 就翻。 */
-internal fun posterSampleSize(srcW: Int, srcH: Int, targetH: Int, maxW: Int = POSTER_MAX_W): Int {
+internal fun posterSampleSize(srcW: Int, srcH: Int, targetH: Int, maxW: Int = 2 * targetH): Int {
     if (srcW <= 0 || srcH <= 0 || targetH <= 0 || maxW <= 0) return 1
     var s = 1
     while (srcH / (s * 2) >= targetH || srcW / (s * 2) >= maxW) {
@@ -54,7 +58,7 @@ internal fun posterSampleSize(srcW: Int, srcH: Int, targetH: Int, maxW: Int = PO
 }
 
 /** 采样后的位图再精确缩到的尺寸:高 ≤ [targetH]、宽 ≤ [maxW],保持比例,只缩不放。 */
-internal fun posterScaledSize(w: Int, h: Int, targetH: Int, maxW: Int = POSTER_MAX_W): Pair<Int, Int> {
+internal fun posterScaledSize(w: Int, h: Int, targetH: Int, maxW: Int = 2 * targetH): Pair<Int, Int> {
     if (w <= 0 || h <= 0) return 1 to 1
     val f = minOf(1.0, targetH.toDouble() / h, maxW.toDouble() / w)
     if (f >= 1.0) return w to h
@@ -105,6 +109,8 @@ internal fun readCapped(input: InputStream, maxBytes: Int, sizeHint: Long = -1, 
 internal fun fetchBytes(url: URL, timeoutMs: Int, maxBytes: Int): ByteArray? {
     val conn = (runCatching { url.openConnection() }.getOrNull() as? HttpURLConnection) ?: return null
     val deadline = System.nanoTime() + timeoutMs * 1_000_000L
+    // 硬性总期限:到点从看门狗线程断开,卡在 connect / 读响应头 / 读正文的调用随之抛异常返回(DNS 仍是尽力而为)
+    val kill = watchdog.schedule({ runCatching { conn.disconnect() } }, timeoutMs.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
     return try {
         conn.connectTimeout = timeoutMs
         conn.readTimeout = timeoutMs
@@ -115,6 +121,7 @@ internal fun fetchBytes(url: URL, timeoutMs: Int, maxBytes: Int): ByteArray? {
     } catch (e: Exception) {
         null
     } finally {
+        kill.cancel(false)
         conn.disconnect()
     }
 }
@@ -141,6 +148,20 @@ internal fun readWithWatchdog(timeoutMs: Int, open: () -> InputStream?, maxBytes
     } finally {
         task.cancel(false)
     }
+}
+
+private val resolverPool = java.util.concurrent.Executors.newCachedThreadPool { r ->
+    Thread(r, "poster-resolver").apply { isDaemon = true }
+}.asCoroutineDispatcher()
+private val resolverScope = CoroutineScope(SupervisorJob() + resolverPool)
+
+/**
+ * resolver 读取放在有界 IO 池**之外**的守护线程上,协程只等 [timeoutMs]:卡在 openInputStream()(binder 调用不返回)
+ * 的 provider 不占 IO 槽位;迟到的工作线程在 open 返回后由 [readWithWatchdog] 的过期标记自己关流。
+ */
+internal suspend fun readResolverBounded(timeoutMs: Int, open: () -> InputStream?, maxBytes: Int): ByteArray? {
+    val job = resolverScope.async { readWithWatchdog(timeoutMs, open, maxBytes) }
+    return withTimeoutOrNull(timeoutMs.toLong() + 200) { job.await() }.also { if (it == null) job.cancel() }
 }
 
 /**
@@ -171,7 +192,12 @@ object PosterCache {
         val now = SystemClock.elapsedRealtime()
         if (!posterRetryDue(failed[uri], now)) return null
         pruneFailed(now)
-        val bmp = withContext(io) { runCatching { decode(bytesOf(ctx, uri), heightPx) }.getOrNull() }
+        val bytes = runCatching {
+            if (posterSourceOf(uri) == PosterSource.RESOLVER)
+                readResolverBounded(POSTER_TIMEOUT_MS, { ctx.contentResolver.openInputStream(Uri.parse(uri)) }, POSTER_MAX_BYTES)
+            else withContext(io) { bytesOf(ctx, uri) }
+        }.getOrNull()
+        val bmp = if (bytes == null) null else withContext(io) { runCatching { decode(bytes, heightPx) }.getOrNull() }
         if (bmp != null) {
             mem.put(uri, bmp)
             failed.remove(uri)
@@ -183,7 +209,7 @@ object PosterCache {
     }
 
     private fun bytesOf(ctx: Context, uri: String): ByteArray? = when (posterSourceOf(uri)) {
-        PosterSource.RESOLVER -> readWithWatchdog(POSTER_TIMEOUT_MS, { ctx.contentResolver.openInputStream(Uri.parse(uri)) }, POSTER_MAX_BYTES)
+        PosterSource.RESOLVER -> null   // 走 readResolverBounded
         PosterSource.HTTPS -> fetchBytes(URL(uri), POSTER_TIMEOUT_MS, POSTER_MAX_BYTES)
         PosterSource.NONE -> null
     }

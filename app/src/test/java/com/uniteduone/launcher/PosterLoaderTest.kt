@@ -114,4 +114,34 @@ class PosterLoaderTest {
         assertNull(readWithWatchdog(300, { inp }, 1024))
         assertTrue((System.nanoTime() - t0) / 1_000_000 < 2_000)
     }
+
+    /** open() 本身卡死:load 在期限内返回 null,且之后的读取仍拿得到线程。 */
+    @Test fun blockedOpenReturnsNullAndDoesNotStarveLaterReads() = kotlinx.coroutines.runBlocking {
+        val gate = java.util.concurrent.CountDownLatch(1)
+        repeat(6) {   // 比 4 个槽位多
+            val t0 = System.nanoTime()
+            assertNull(readResolverBounded(200, { gate.await(); null }, 1024))
+            assertTrue((System.nanoTime() - t0) / 1_000_000 < 1_500)
+        }
+        assertArrayEquals(ByteArray(3), readResolverBounded(200, { ByteArrayInputStream(ByteArray(3)) }, 1024))
+        gate.countDown()
+    }
+
+    /** 服务器逐字节滴水:总期限(watchdog 断开)到点放手。 */
+    @Test fun fetchHasAHardTotalDeadline() {
+        val server = ServerSocket(0, 1, InetAddress.getLoopbackAddress())
+        thread(isDaemon = true) {
+            runCatching {
+                server.accept().use { c ->
+                    c.getInputStream().read(ByteArray(4096))
+                    c.getOutputStream().write("HTTP/1.1 200 OK\r\nContent-Length: 1000\r\n\r\n".toByteArray())
+                    repeat(1000) { c.getOutputStream().write(1); c.getOutputStream().flush(); Thread.sleep(100) }
+                }
+            }
+        }
+        val t0 = System.nanoTime()
+        assertNull(fetchBytes(URL("http://127.0.0.1:${server.localPort}/p"), 500, 4096))
+        assertTrue((System.nanoTime() - t0) / 1_000_000 < 2_000)
+        server.close()
+    }
 }
