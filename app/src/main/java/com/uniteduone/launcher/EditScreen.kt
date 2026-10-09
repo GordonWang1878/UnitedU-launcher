@@ -385,8 +385,9 @@ fun EditScreen(
             runCatching { req(want).requestFocus() }
             frames++
         }
-        // 到 60 帧上限还没落下:账本改成焦点此刻真正所在的那一格,下次 ON_RESUME 不再按过期的目标重定位
-        if (holder != want) holder?.let { target = it }
+        // 到 60 帧上限还没落下:账本改成焦点此刻真正所在的那一格,下次 ON_RESUME 不再按过期的目标重定位。
+        // 守卫同 report():暂停中 / 拿起中焦点停在 Compose 随手派的地方(多半是第一张卡),不能写进目标(铁律 5)
+        if (holder != want && !paused && carry == null) holder?.let { target = it }
         retargetDone = retargetTick
     }
 
