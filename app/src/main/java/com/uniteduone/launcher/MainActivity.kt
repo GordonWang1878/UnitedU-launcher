@@ -780,7 +780,7 @@ class MainActivity : ComponentActivity() {
                 )
             }
             // **分层叠加**(M7 T4,plan §Architecture)。选择器 / 导入页 / 设置外壳不「替换」
-            // 首页,而是**叠在常驻的首页之上**:首页留在组合里 = `tgtRow`/`tgtIdx` 那份焦点记忆
+            // 首页,而是**叠在常驻的首页之上**:首页留在组合里 = `tgtLayoutRow`/`tgtCol` 那份焦点记忆
             // 天然保留;R73 起外壳的实时预览也正是这一份首页。
             // 代价:底下那棵树继续被组合,所以它必须彻底让路 —— `previewing = overlayOpen`
             // 让首页不可聚焦、不收按键、冻结焦点记忆(见 HomeScreen.previewing 的 KDoc)。
@@ -1295,7 +1295,7 @@ class MainActivity : ComponentActivity() {
             // 而 cardMenu 永远不会被清 —— 看上去是「菜单花屏且怎么按都出不去」。
             // 放在音效之后、toggle 之前:按键照样有声音反馈,只是改成「关掉当前这层」。
             if (cardMenu != null) { closeCardMenu(); return true }
-            // 首页光着:三条杠键打开设置外壳第一层(R69,取代原来的齿轮菜单)。焦点记忆由首页的 tgtGear / tgtRow
+            // 首页光着:三条杠键打开设置外壳第一层(R69,取代原来的齿轮菜单)。焦点记忆由首页的 tgtGear / tgtLayoutRow
             // 在 previewing 期间冻着,关掉后回到按 MENU 时站着的那张卡。
             openSettings()
             return true
@@ -1866,7 +1866,7 @@ class MainActivity : ComponentActivity() {
             CardAction.CHANGE_ICON -> MenuItem(getString(R.string.card_menu_icon), getString(R.string.card_menu_icon_desc)) {
                 closeCardMenu()
                 // 不再记落点(M7 T4):选择器改成叠在常驻首页之上,首页那棵树不会被移除,
-                // `tgtRow`/`tgtIdx` 在 `previewing` 期间冻着,关掉选择器就原样还原到这张卡。
+                // `tgtLayoutRow`/`tgtCol` 在 `previewing` 期间冻着,关掉选择器就原样还原到这张卡。
                 pickIcon(ref.pkg)
             }
             // M4b spec §0-9:首页原地移动,取代原来的「跳编辑页定位」兜底。关菜单的 focusNonce++ 与移动态的目标

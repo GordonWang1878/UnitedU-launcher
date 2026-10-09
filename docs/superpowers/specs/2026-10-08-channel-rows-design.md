@@ -88,7 +88,7 @@
 
 ## 5. 焦点账本(七条铁律)
 
-- 首页:频道行是 `rows` 里的普通一行(`Row` 加 `programs` 与频道标题),`tgtRow/tgtIdx`、还原效果、看门狗不新增状态;所有 `.apps.lastIndex` 夹取改成「这一行的格数」。节目数变化(应用后台刷新,一行少了几张)→ 焦点卡被拆走的情形走现有看门狗(铁律 3)。
+- 首页:频道行是 `rows` 里的普通一行(`Row` 加 `programs` 与频道标题),`tgtRow/tgtIdx`(实现时改为按 layout.json 行号认行的 `tgtLayoutRow/tgtCol`,见 CLAUDE.md 焦点表)、还原效果、看门狗不新增状态;所有 `.apps.lastIndex` 夹取改成「这一行的格数」。节目数变化(应用后台刷新,一行少了几张)→ 焦点卡被拆走的情形走现有看门狗(铁律 3)。
 - 编辑页:频道行只有一个可聚焦节点(把手卡,列 0,挂 `rowFocus[ri]`,左右 `Cancel`),等同空应用行的「+」,`toRowEnd` 现成可用。
 - 选频道页是编辑页 `OverlayStack` 里的新一层 `EditOverlay.ChannelPick`:逐项 requester、`(nonce, candidates, ghost)` 初始循环、`holder == null` 看门狗、残影让路(`LocalPageGhost`),照 `AppPicker`;**它的状态必须并进 `EditScreen.overlayOpen`**(守卫与 key 同一个量,铁律 6)。列表随 ContentObserver 变化时按 id 重定位(同应用页 `appsPageRetarget` 的规则)。
 - 授权窗:系统弹窗期间 Activity `ON_PAUSE`,各页按现有规则冻结;回来 `focusNonce++` 接回。
