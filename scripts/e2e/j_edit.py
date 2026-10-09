@@ -184,7 +184,12 @@ def run():
     check("取消后焦点回「删除」胶囊", s.label() == S("edit_chip_delete"), s.label())
 
     journey("edit-new-row")
-    s = move_to(S("edit_choice_app_row"), "down", max_steps=14)
+    s = None
+    for _ in range(15):   # R164 起「新的一行」有两张卡:按最近可能落到「频道」卡,向左回「应用行」
+        lab = screen().label()
+        if S("edit_choice_app_row") in lab:
+            s = screen(); break
+        key("left" if S("shelf_new_channel_desc") in lab else "down")
     check("一路按下到「新的一行」→「应用行」", s is not None, screen().label())
     s = screen()   # 「Add」是「Add App」的子串,单判它恒真:改判这一组独有的「Choose」,且「Pick up」已不在
     check("页头提示换成「选择 / 添加」", s.has(S("edit_hint_choose")) and not s.has(S("edit_hint_pick")), s.texts()[:12])

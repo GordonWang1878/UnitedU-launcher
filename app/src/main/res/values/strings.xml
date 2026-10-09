@@ -348,7 +348,10 @@
     <string name="edit_choice_app_row">应用行</string>
     <string name="edit_choice_app_row_desc">放你自己挑的应用，可以排顺序、换图标</string>
     <string name="edit_choice_full">已满 %1$d 行</string>
-    <string name="edit_new_row_caption">应用行最多 %1$d 行</string>
+    <string name="edit_new_row_caption">应用行、频道各最多 %1$d 行</string>
+    <!-- R164 新的一行:频道选择卡 -->
+    <string name="shelf_new_channel">频道</string>
+    <string name="shelf_new_channel_desc">其他应用推送的节目</string>
     <string name="row_icon_movie">影片</string>
     <string name="row_icon_tv">电视</string>
     <string name="row_icon_live">直播</string>

@@ -108,7 +108,7 @@ class EditShelvesTest {
         assertEquals("多了一行:新的一行往后挪一格", ShelfSpot(4, NEW, 0), clampSpot(four, ShelfSpot(3, NEW, 0)))
         val two = shelvesOf(view3.take(2))
         assertEquals("少了一行:新的一行往前挪一格", ShelfSpot(2, NEW, 0), clampSpot(two, ShelfSpot(3, NEW, 0)))
-        assertEquals(ShelfSpot(3, NEW, 0), clampSpot(three, ShelfSpot(3, NEW, 5)))
+        assertEquals(ShelfSpot(3, NEW, NewRowChoice.entries.lastIndex), clampSpot(three, ShelfSpot(3, NEW, 5)))
     }
 
     @Test fun clampPullsStaleSpotsBackInsideTheShelves() {

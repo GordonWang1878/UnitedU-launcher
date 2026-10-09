@@ -389,6 +389,7 @@ fun EditScreen(
                 persist()
                 retarget(landingAfterAppend(shelvesNow()))
             }
+            NewRowChoice.CHANNEL -> Unit   // Task 15:打开选频道页(EditOverlay.ChannelPick)
         }
     }
 

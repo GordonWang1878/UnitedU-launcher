@@ -25,8 +25,8 @@ internal sealed interface Shelf {
 /** 架子顶部的操作胶囊。左右顺序由 [shelfChips] 的 `buildList` 决定,不看枚举顺序([REAUTHORIZE] 只在频道架子上,R164)。 */
 internal enum class ShelfChip { ADD_APP, ICON, UP, DOWN, DELETE, REAUTHORIZE }
 
-/** 「新的一行」里的选择卡(计划 2 加 CHANNEL)。 */
-internal enum class NewRowChoice { APP_ROW }
+/** 「新的一行」里的选择卡:应用行 / 频道(R164)。 */
+internal enum class NewRowChoice { APP_ROW, CHANNEL }
 
 /** 一层里的哪一条:顶部胶囊、卡片(空架子 = 「添加应用」方块)、新的一行的选择卡。 */
 internal enum class ShelfZone { CHIPS, CARDS, NEW }
@@ -212,6 +212,13 @@ internal fun resolveEditTarget(shelves: List<Shelf>, spot: ShelfSpot, chip: Shel
 /** 这张选择卡是不是已满(spec §2.4:变暗、写「已满 5 行」、确定不响应,仍可聚焦)。 */
 internal fun choiceFull(shelves: List<Shelf>, choice: NewRowChoice): Boolean = when (choice) {
     NewRowChoice.APP_ROW -> appShelfCount(shelves) >= MAX_ROWS
+    NewRowChoice.CHANNEL -> shelves.count { it is Shelf.ChannelShelf } >= MAX_CHANNEL_ROWS
+}
+
+/** 「已满 N 行」的 N(两类各自的上限,spec §4)。 */
+internal fun choiceMax(choice: NewRowChoice): Int = when (choice) {
+    NewRowChoice.APP_ROW -> MAX_ROWS
+    NewRowChoice.CHANNEL -> MAX_CHANNEL_ROWS
 }
 
 /** 顶部概况「N 行 · N 个应用 · N 个频道」(spec §2.1):行数(含频道行)+ 看得见的应用数 + 频道行数。 */

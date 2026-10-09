@@ -37,6 +37,7 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Category
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.LiveTv
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.ArrowDownward
@@ -233,9 +234,18 @@ internal fun ShelfChipPill(
     }
 }
 
-private fun choiceTitle(c: NewRowChoice): Int = when (c) { NewRowChoice.APP_ROW -> R.string.edit_choice_app_row }
-private fun choiceDesc(c: NewRowChoice): Int = when (c) { NewRowChoice.APP_ROW -> R.string.edit_choice_app_row_desc }
-private fun choiceIcon(c: NewRowChoice): ImageVector = when (c) { NewRowChoice.APP_ROW -> Icons.Rounded.Apps }
+private fun choiceTitle(c: NewRowChoice): Int = when (c) {
+    NewRowChoice.APP_ROW -> R.string.edit_choice_app_row
+    NewRowChoice.CHANNEL -> R.string.shelf_new_channel
+}
+private fun choiceDesc(c: NewRowChoice): Int = when (c) {
+    NewRowChoice.APP_ROW -> R.string.edit_choice_app_row_desc
+    NewRowChoice.CHANNEL -> R.string.shelf_new_channel_desc
+}
+private fun choiceIcon(c: NewRowChoice): ImageVector = when (c) {
+    NewRowChoice.APP_ROW -> Icons.Rounded.Apps
+    NewRowChoice.CHANNEL -> Icons.Outlined.LiveTv
+}
 
 /**
  * 「新的一行」里的一张选择卡(c2):300 × 110、圆角 16、白 7% 底;图标(主题色)+ 名字(17 sp)+ 一句说明(12 sp);
@@ -289,7 +299,7 @@ internal fun ChoiceCard(
         ShelfIcon(choiceIcon(choice), if (focused) ink else accent, ShelfLayout.CHOICE_ICON.dp)
         BasicText(stringResource(choiceTitle(choice)), maxLines = 1, style = Type.section.copy(color = ink, fontWeight = FontWeight.Normal))
         BasicText(
-            text = if (full) stringResource(R.string.edit_choice_full, MAX_ROWS) else stringResource(choiceDesc(choice)),
+            text = if (full) stringResource(R.string.edit_choice_full, choiceMax(choice)) else stringResource(choiceDesc(choice)),
             maxLines = 2,
             style = Type.caption.copy(color = sub),
         )
