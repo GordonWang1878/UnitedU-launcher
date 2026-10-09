@@ -7,7 +7,7 @@ set -euo pipefail
 # 并在配置了 Cloudflare R2 时把同一份 APK 与一份 apkUrl 指向 R2 的 latest.json 也发过去。
 # 由 Gordon 本机运行;发布是不可逆动作,脚本本身不做任何交互确认——运行前自己确认版本号对。
 #
-#   <version>   例如 1.0.0-beta;必须与本次构建出的 APK 里的 versionName 完全一致
+#   <version>   稳定版 1.2.3,或 Beta 版 1.2.3-beta.4(其余格式中止);必须与本次构建出的 APK 里的 versionName 完全一致
 #   --dry-run   只构建 + 在 dist/ 下生成产物并打印将要做的事,不建 tag、不 push、
 #               不 gh release、不 wrangler 上传——没有任何网络写入
 #   --notes     发布说明。来源只有两个:这个参数,或事先写好的 dist/notes-<version>.txt
@@ -20,6 +20,16 @@ set -euo pipefail
 #               电视上「检查更新」只显示 latest.json 里那 200 字,双语长文会被截在半截;所以可以另写
 #               dist/notes-<version>.app.txt(中英各一句短话),有它时 latest.json 用它,没有才退回完整说明。
 #
+# **两种发布模式按版本号判定**(release channels):
+#   稳定版  X.Y.Z          GitHub `--latest`,R2 写 latest.json——与此前完全一样。
+#   Beta 版 X.Y.Z-beta.N   GitHub `--prerelease`(不碰 releases/latest,稳定通道看不到它),R2 写 beta.json;
+#                          同时把「最新稳定 tag 的源码 + versionCode = beta + 1」再构建一个**回退包**,
+#                          写进 rollback.json:Beta 用户选「回到稳定版」时,系统只肯装 versionCode 更高的包,
+#                          所以回退包必须比 Beta 的号大;versionName 仍是稳定版号(用户看到的是稳定版)。
+#                          beta.json / rollback.json 与回退包挂在固定 tag channel-beta 上,每次覆盖。
+# 每次发布前还做 versionCode 单调检查:新包的号必须大于 R2 上 latest/beta/rollback 三份清单里已发布的最大值,
+# 否则没有任何通道的用户收得到它。
+#
 # 构建带 -PrequireReleaseKey=true(没有 ~/.unitedu/release.jks 就构建失败,不回落 debug 签名),
 # 构建完再用 apksigner 核对 APK 的签名证书就是 release 证书(M7 终审 I4)。
 # 凭据只有 wrangler 自己存的 OAuth 令牌;本脚本、本仓库都不存任何密钥(release 证书的摘要是公开信息)。
@@ -28,7 +38,8 @@ usage() {
   cat <<'EOF'
 用法: scripts/release.sh <version> [--dry-run] [--notes "发布说明"]
 
-  <version>   如 1.0.0-beta —— 要与本次构建出的 APK versionName 一致,不一致就中止
+  <version>   稳定版 1.2.3 或 Beta 版 1.2.3-beta.4 —— 要与本次构建出的 APK versionName 一致,不一致就中止
+              (Beta 模式额外构建「回退包」并发 beta.json / rollback.json,不动 latest.json)
   --dry-run   只构建 + 生成 dist/ 下的产物,不发布(不建 tag、不 push、不 gh release、不 wrangler)
   --notes     发布说明文本;省略则读 dist/notes-<version>.txt。两者都没有:正式发布中止,
               --dry-run 用一句默认文案并警告
@@ -129,6 +140,29 @@ check_signer() {
   fi
   echo "==> 签名证书 = release 证书(SHA-256 ${digests})"
 }
+
+# 已发布的三份清单里最大的 versionCode(取不到的当 0)。新包必须比它大,否则谁都收不到。
+# 只读网络(GET),dry-run 也照常查。
+MANIFEST_BASE="${R2_BASE_URL:-https://dl.uniteduone.com}"
+published_max_code() {
+  local max=0 c name
+  for name in latest beta rollback; do
+    c="$(curl -fsSL --max-time 10 "${MANIFEST_BASE%/}/unitedu/${name}.json" 2>/dev/null \
+      | python3 -c 'import json,sys; print(json.load(sys.stdin)["versionCode"])' 2>/dev/null || echo 0)"
+    [[ "$c" =~ ^[0-9]+$ ]] || c=0
+    (( c > max )) && max=$c
+  done
+  echo "$max"
+}
+check_code_monotonic() {
+  local code="$1" max
+  max="$(published_max_code)"
+  if (( code <= max )); then
+    echo "versionCode ${code} 不比已发布的最大值 ${max} 大——用户收不到它。先在 app/build.gradle.kts 把 versionCode 改成 $((max + 1)) 或更大" >&2
+    return 1
+  fi
+  echo "==> versionCode ${code} > 已发布最大值 ${max}"
+}
 # <<< release-checks
 
 DRY_RUN=0
@@ -183,6 +217,16 @@ fi
 # 版本号要能安全地拼进 git tag 与文件名:只认数字、字母、点、连字符。
 if ! [[ "$VERSION" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]]; then
   echo "版本号里有不安全的字符:$VERSION(只能用字母数字、点、连字符)" >&2
+  exit 1
+fi
+
+# 模式按版本号判定(见文件头)。上面的字符集检查已放过 Beta 形态,这里收紧到两种合法格式。
+if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  CHANNEL=stable
+elif [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]]; then
+  CHANNEL=beta
+else
+  echo "版本号格式不认识:${VERSION}(稳定 1.2.3,Beta 1.2.3-beta.4)" >&2
   exit 1
 fi
 
@@ -327,6 +371,16 @@ if [[ -z "$MIN_SDK" ]]; then
   exit 1
 fi
 
+# ---- versionCode 单调检查:必须大于已发布的最大值 ----
+# dry-run 只警告(它常用来在改号之前试跑);正式发布直接中止。
+if ! check_code_monotonic "$APK_VERSION_CODE"; then
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    echo "警告:dry-run 继续" >&2
+  else
+    exit 1
+  fi
+fi
+
 # ---- 签名证书:必须是 release 证书(M7 终审 I4)----
 # Gradle 在缺密钥时会回落 debug 签名(给没有密钥的贡献者用);上面的构建已带 -PrequireReleaseKey=true,
 # 这里再从 APK 本身核一遍——与版本号同一个原则:不信构建配置,信 APK 实际带的是什么。
@@ -336,6 +390,40 @@ fi
 
 # ---- sha256(与 UpdateChecker.kt 的 sha256Hex 同算法,64 位小写 hex)----
 SHA256="$(shasum -a 256 "$APK_DIST" | awk '{print $1}')"
+
+# ---- 回退包(只在 Beta 模式)----
+#
+# 用户在 Beta 通道想回稳定版:系统不允许降级安装(versionCode 必须更高),所以发一个
+# 「最新稳定 tag 的源码 + versionCode = beta + 1」的包。versionName 沿用稳定版号。
+# 在临时 git worktree 里构建,不动当前工作区;tag 里的 build.gradle.kts 须支持 -PversionCodeOverride
+# (v1.0.3 起有)。无论构建成败都清掉 worktree,不留残骸。
+if [[ "$CHANNEL" == beta ]]; then
+  # 只认 vX.Y.Z(不带 -beta),按版本排序取最大。
+  STABLE_TAG="$(git tag --list 'v[0-9]*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)"
+  [[ -n "$STABLE_TAG" ]] || { echo "找不到稳定版 tag" >&2; exit 1; }
+  RB_CODE=$((APK_VERSION_CODE + 1))
+  RB_DIR="$(mktemp -d)/rollback"
+  echo "==> 构建回退包:${STABLE_TAG} 源码,versionCode ${RB_CODE}"
+  git worktree add --detach "$RB_DIR" "$STABLE_TAG"
+  RB_OK=1
+  ( cd "$RB_DIR" && source scripts/env.sh && gradle --no-daemon assembleRelease -PrequireReleaseKey=true -PversionCodeOverride="$RB_CODE" ) || RB_OK=0
+  RB_NAME="unitedu-${STABLE_TAG#v}-rollback-${RB_CODE}.apk"
+  if [[ "$RB_OK" -eq 1 ]]; then
+    cp "$RB_DIR/app/build/outputs/apk/release/app-release.apk" "dist/$RB_NAME" || RB_OK=0
+  fi
+  git worktree remove --force "$RB_DIR"
+  [[ "$RB_OK" -eq 1 ]] || { echo "回退包构建失败" >&2; exit 1; }
+  check_signer "dist/$RB_NAME" || exit 1
+  RB_SHA="$(shasum -a 256 "dist/$RB_NAME" | awk '{print $1}')"
+  RB_BADGING="$("$AAPT2" dump badging "dist/$RB_NAME")"
+  RB_VNAME="$(printf '%s\n' "$RB_BADGING" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p" | head -1)"
+  RB_VCODE="$(printf '%s\n' "$RB_BADGING" | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p" | head -1)"
+  if [[ "$RB_VCODE" != "$RB_CODE" || "$RB_VNAME" != "${STABLE_TAG#v}" ]]; then
+    echo "回退包身份不对:APK 里是 ${RB_VNAME}/${RB_VCODE},期望 ${STABLE_TAG#v}/${RB_CODE}" >&2
+    exit 1
+  fi
+  RB_NOTES="回到稳定版 / Back to stable"
+fi
 
 # ---- 生成 latest.json(spec §7.2)----
 #
@@ -349,8 +437,10 @@ SHA256="$(shasum -a 256 "$APK_DIST" | awk '{print $1}')"
 # 与 Kotlin 那边的 capNotes 逐字节同构,不能只按 Python 的字符数(codepoint)截,
 # 否则超出 BMP 的字符会让两边数出不同的长度。
 gen_manifest() {
+  # 第 3~6 个参数可选:版本号 / 版本名 / sha256 / 说明,缺省用主包的(回退包清单会全部传入)。
   local apk_url="$1" out="$2"
-  python3 - "$APK_VERSION_CODE" "$APK_VERSION_NAME" "$NOTES_APP" "$apk_url" "$SHA256" "$MIN_SDK" "$out" <<'PY'
+  local code="${3:-$APK_VERSION_CODE}" name="${4:-$APK_VERSION_NAME}" sha="${5:-$SHA256}" notes="${6:-$NOTES_APP}"
+  python3 - "$code" "$name" "$notes" "$apk_url" "$sha" "$MIN_SDK" "$out" <<'PY'
 import json
 import sys
 
@@ -383,19 +473,29 @@ PY
 }
 
 GITHUB_APK_URL="https://github.com/GordonWang1878/UnitedU-launcher/releases/download/${TAG}/${APK_NAME}"
-gen_manifest "$GITHUB_APK_URL" "dist/latest.json"
-echo "==> dist/latest.json 已生成(apkUrl = ${GITHUB_APK_URL})"
+if [[ "$CHANNEL" == stable ]]; then
+  MANIFEST_NAME="latest"
+else
+  MANIFEST_NAME="beta"
+  GITHUB_RB_URL="https://github.com/GordonWang1878/UnitedU-launcher/releases/download/channel-beta/${RB_NAME}"
+  gen_manifest "$GITHUB_RB_URL" "dist/rollback.json" "$RB_CODE" "$RB_VNAME" "$RB_SHA" "$RB_NOTES"
+  echo "==> dist/rollback.json 已生成(versionCode ${RB_CODE},apkUrl = ${GITHUB_RB_URL})"
+fi
+gen_manifest "$GITHUB_APK_URL" "dist/${MANIFEST_NAME}.json"
+echo "==> dist/${MANIFEST_NAME}.json 已生成(apkUrl = ${GITHUB_APK_URL})"
 
 # ---- GitHub Release ----
 #
-# **必须发成普通(latest)release,不能带 --prerelease——哪怕 versionName 里有 "-beta"。**
-# App 内检查更新的 GitHub 兜底通道固定读 releases/latest/download/latest.json
-# (BuildConfig.UPDATE_URLS 的默认值,见 app/build.gradle.kts);GitHub 的 "latest" 释义
-# 是「最新一个不是 prerelease 也不是 draft 的 release」,一旦带上 --prerelease,
-# 这个 URL 永远看不到它,等于发了等于没发。versionName 里的 "-beta" 只是给人看的版本号,
-# 不是 GitHub 的 prerelease 标记,两件事故意分开。
+# 稳定版发成普通(latest)release(--latest):App 内检查更新的 GitHub 兜底通道读
+# releases/latest/download/latest.json,GitHub 的 "latest" 是「最新一个不是 prerelease 也不是 draft 的 release」。
+# Beta 版反过来必须带 --prerelease,不碰 releases/latest——否则稳定通道的用户会被推 Beta。
+# Beta 通道的兜底读固定 tag channel-beta 下的 beta.json / rollback.json(每次覆盖)。
 if [[ "$DRY_RUN" -eq 1 ]]; then
-  echo "==> dry-run:跳过 git tag / git push / gh release create"
+  if [[ "$CHANNEL" == stable ]]; then
+    echo "==> dry-run:将执行 gh release create ${TAG} --latest(附 latest.json);跳过 git tag / git push / gh release create"
+  else
+    echo "==> dry-run:将执行 gh release create ${TAG} --prerelease,并 gh release upload channel-beta beta.json rollback.json ${RB_NAME} --clobber(不碰 releases/latest);跳过 git tag / git push / gh release create"
+  fi
 else
   git tag "$TAG"
   # push 与 release create 各自用 if 包一层(set -e 下,作为 if 的条件失败不会直接退出脚本):
@@ -407,15 +507,30 @@ else
     exit 1
   fi
   # 说明直接走 --notes(resolve_notes 已保证非空),不经任何中间文件。
-  if ! gh release create "$TAG" "$APK_DIST" "dist/latest.json" \
+  if [[ "$CHANNEL" == stable ]]; then
+    RELEASE_FLAG=(--latest)
+    RELEASE_FILES=("$APK_DIST" "dist/latest.json")
+  else
+    RELEASE_FLAG=(--prerelease)
+    RELEASE_FILES=("$APK_DIST")
+  fi
+  if ! gh release create "$TAG" "${RELEASE_FILES[@]}" \
     --title "UnitedU ${VERSION}" \
     --notes "$NOTES_RAW" \
-    --latest; then
+    "${RELEASE_FLAG[@]}"; then
     echo "gh release create 失败,但 tag 已经推到 origin 了——不是发布成功。" >&2
     print_tag_recovery_hint
     exit 1
   fi
-  echo "==> GitHub Release ${TAG} 已发布"
+  echo "==> GitHub Release ${TAG} 已发布(${CHANNEL})"
+  if [[ "$CHANNEL" == beta ]]; then
+    # 固定 tag channel-beta:放 beta.json / rollback.json / 回退包,每次覆盖。第一次不存在就建。
+    gh release view channel-beta >/dev/null 2>&1 \
+      || gh release create channel-beta --prerelease --title "Beta channel" \
+        --notes "Beta 通道清单(自动维护)/ Beta channel manifests (auto-maintained)"
+    gh release upload channel-beta "dist/beta.json" "dist/rollback.json" "dist/$RB_NAME" --clobber
+    echo "==> channel-beta 已更新(beta.json / rollback.json / ${RB_NAME})"
+  fi
 fi
 
 # ---- Cloudflare R2(可选;国内直连走的通道)----
@@ -432,11 +547,20 @@ fi
 # Cloudflare 绑自有域名不用备案,uniteduone.com 的 DNS 本来就托管在 Cloudflare。
 if command -v wrangler >/dev/null 2>&1 && [[ -n "${R2_BUCKET:-}" ]] && [[ -n "${R2_BASE_URL:-}" ]]; then
   R2_APK_URL="${R2_BASE_URL%/}/unitedu/${APK_NAME}"
-  gen_manifest "$R2_APK_URL" "dist/latest-r2.json"
-  echo "==> dist/latest-r2.json 已生成(apkUrl = ${R2_APK_URL})"
+  gen_manifest "$R2_APK_URL" "dist/${MANIFEST_NAME}-r2.json"
+  echo "==> dist/${MANIFEST_NAME}-r2.json 已生成(apkUrl = ${R2_APK_URL})"
+  if [[ "$CHANNEL" == beta ]]; then
+    R2_RB_URL="${R2_BASE_URL%/}/unitedu/${RB_NAME}"
+    gen_manifest "$R2_RB_URL" "dist/rollback-r2.json" "$RB_CODE" "$RB_VNAME" "$RB_SHA" "$RB_NOTES"
+    echo "==> dist/rollback-r2.json 已生成(apkUrl = ${R2_RB_URL})"
+  fi
 
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    echo "==> dry-run:跳过 wrangler r2 object put"
+    if [[ "$CHANNEL" == stable ]]; then
+      echo "==> dry-run:跳过 wrangler r2 object put(将写 ${APK_NAME} 与 latest.json)"
+    else
+      echo "==> dry-run:跳过 wrangler r2 object put(将写 ${APK_NAME}、${RB_NAME}、beta.json、rollback.json;不写 latest.json)"
+    fi
   else
     # 自定义域名前面是 Cloudflare 的边缘缓存:APK 文件名带版本号,缓存一小时无妨;latest.json 每次
     # 发版都换内容、文件名不变,必须 no-cache,否则电视查到的可能还是上一版的清单。
@@ -444,7 +568,16 @@ if command -v wrangler >/dev/null 2>&1 && [[ -n "${R2_BUCKET:-}" ]] && [[ -n "${
     wrangler r2 object put "${R2_BUCKET}/unitedu/${APK_NAME}" --remote -y --file "$APK_DIST" \
       --content-type application/vnd.android.package-archive \
       --cache-control "public, max-age=3600"
-    wrangler r2 object put "${R2_BUCKET}/unitedu/latest.json" --remote -y --file "dist/latest-r2.json" \
+    if [[ "$CHANNEL" == beta ]]; then
+      wrangler r2 object put "${R2_BUCKET}/unitedu/${RB_NAME}" --remote -y --file "dist/${RB_NAME}" \
+        --content-type application/vnd.android.package-archive \
+        --cache-control "public, max-age=3600"
+      # 先传 rollback 再传 beta:beta.json 一出现,用户就可能点「回到稳定版」,回退清单要已就位。
+      wrangler r2 object put "${R2_BUCKET}/unitedu/rollback.json" --remote -y --file "dist/rollback-r2.json" \
+        --content-type application/json \
+        --cache-control "no-cache"
+    fi
+    wrangler r2 object put "${R2_BUCKET}/unitedu/${MANIFEST_NAME}.json" --remote -y --file "dist/${MANIFEST_NAME}-r2.json" \
       --content-type application/json \
       --cache-control "no-cache"
     echo "==> R2 上传完成:${R2_BASE_URL%/}/unitedu/"
