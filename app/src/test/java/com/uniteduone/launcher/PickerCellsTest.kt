@@ -114,4 +114,10 @@ class PickerCellsTest {
     @Test fun onlyThePlusCellStillHasARow() {
         assertEquals(listOf(PickerLine.Cells(PickerSection.MINE, 0, 1)), pickerLines(0, 1, 4))
     }
+    @Test fun uploadLandingAccountsForOnlineRefreshAndImages() {
+        assertEquals(8, landingCell(listOf("new.jpg"), listOf("new.jpg"), 3, 4))
+        assertEquals(7, landingCell(listOf("old.jpg"), listOf("missing.jpg"), 3, 4))
+        assertNull(imageOfCell(6, 3, 4))
+    }
+
 }

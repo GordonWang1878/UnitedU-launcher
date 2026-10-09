@@ -44,6 +44,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
@@ -67,6 +69,8 @@ private sealed class PickerItem {
      * 首格「＋ 从手机添加」(Ruling R63;R115 起是「我的」块的首格)。**不是图片**:不预览、不删
      * (长按那一支只认图片,见 PickerGrid 的 onFocusedItem 上报)、不选定,确定键只打开扫码页。
      */
+    data class Gallery(val row: GalleryRow) : PickerItem()
+    object GalleryRefresh : PickerItem()
     object AddFromPhone : PickerItem()
 }
 
@@ -149,6 +153,7 @@ fun WallpaperPicker(
     isCurrent: (File) -> Boolean = { false },
     onConfirmDelete: (File) -> Unit = {},
     onCancelDelete: () -> Unit = {},
+    galleryActions: GalleryPickerActions? = null,
 ) {
     // 从扫码页回来时本组合是新挂上的(扫码页替换了它),这里自然按盘上实况重读;删图后按 refresh 重读(R153)。
     val files = remember(directory, refresh) { listImages(directory) }
@@ -157,6 +162,9 @@ fun WallpaperPicker(
     androidx.activity.compose.BackHandler(enabled = !ghost) { onDismiss() }
     PickerPage {
         if (builtins != null) PickerGrid(
+                galleryActions = galleryActions,
+                galleryKind = BuiltinKind.WALLPAPERS,
+                galleryPackage = null,
             builtins = builtins.map { PickerItem.Builtin(it) },
             items = files.map { PickerItem.Library(it) },
             title = title,
@@ -215,6 +223,7 @@ fun IconPicker(
     onDismiss: () -> Unit,
     onAddFromPhone: () -> Unit,
     landing: List<String>? = null,
+    galleryActions: GalleryPickerActions? = null,
 ) {
     val ctx = LocalContext.current
     val files = remember(directory) { listImages(directory) }
@@ -234,6 +243,9 @@ fun IconPicker(
     androidx.activity.compose.BackHandler(enabled = !ghost) { onDismiss() }
     PickerPage {
         if (builtins != null) PickerGrid(
+                galleryActions = galleryActions,
+                galleryKind = BuiltinKind.CARDS,
+                galleryPackage = packageName,
             builtins = builtins.map { PickerItem.Builtin(it) },
             items = items,
             title = stringResource(R.string.picker_card_image_title),
@@ -276,6 +288,9 @@ private fun lineKey(line: PickerLine): String = when (line) {
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 private fun PickerGrid(
+    galleryActions: GalleryPickerActions? = null,
+    galleryKind: BuiltinKind = BuiltinKind.WALLPAPERS,
+    galleryPackage: String? = null,
     /** 上块「内置」(R115);空 = 上块整块不画,「我的」也不画标题(版式与 R63 相同)。 */
     builtins: List<PickerItem.Builtin>,
     /** 下块「我的」里「＋」之后的格子:图库图片(换卡片图时第一项是「恢复原图」)。 */
@@ -330,17 +345,22 @@ private fun PickerGrid(
     // 淡出中的残影(R108 的约定,R136 起选图页也淡入淡出):当作被盖住——定位效果与看门狗让路(守卫与 key 读的是
     // 同一个合并后的 covered,铁律 6);下面每一格再 canFocus = false、点击与焦点上报一律不接。
     val ghost = LocalPageGhost.current
+    val (galleryState, galleryRows) = rememberGalleryPicker(galleryKind, galleryPackage, galleryActions)
     @Suppress("NAME_SHADOWING")
-    val covered = covered || ghost
+    val covered = covered || ghost || galleryState?.let { it.menu != null || it.active != null || it.preview != null || it.notice != null || it.refreshMenu } == true
     // 格子 = 内置 + 「＋」+ 我的(换算见 PickerCells.kt)。下面 focusedIdx / holderIdx / focusRequesters / interactionSources
     // 全用格子下标,只有 onFocusedItem 上报、落点种子这两处要认「是哪一类」。
     val builtinCount = builtins.size
-    val cells = remember(builtins, items) { pickerCells(builtins, PickerItem.AddFromPhone, items) }
-    val lines = remember(builtinCount, cells.size, columns) { pickerLines(builtinCount, cells.size - builtinCount, columns) }
+    val online = if (galleryState == null) emptyList() else listOf(PickerItem.GalleryRefresh) + galleryRows.map { PickerItem.Gallery(it) }
+    val cells = remember(builtins, items, online) { pickerCells<PickerItem>(builtins, PickerItem.AddFromPhone, items, online) }
+    val cellKeys = cells.map { when (it) { is PickerItem.Gallery -> it.row.key; PickerItem.GalleryRefresh -> "gallery:refresh"; is PickerItem.Builtin -> "builtin:${it.image.id}"; is PickerItem.Library -> "mine:${it.file.absolutePath}"; is PickerItem.Original -> "original"; PickerItem.AddFromPhone -> "add" } }
+    val lines = remember(builtinCount, cells.size, columns) { pickerLines(builtinCount, items.size + 1, columns, online.size) }
     val firstCellsLine = lines.indexOfFirst { it is PickerLine.Cells }
     val lastCellsLine = lines.indexOfLast { it is PickerLine.Cells }
-    val focusRequesters = remember(cells.size) {
-        List(cells.size.coerceAtLeast(1)) { FocusRequester() }
+    val requesterByKey = remember { mutableMapOf<String, FocusRequester>() }
+    val focusRequesters = remember(cellKeys) {
+        requesterByKey.keys.retainAll(cellKeys.toSet())
+        cellKeys.map { requesterByKey.getOrPut(it) { FocusRequester() } }
     }
     // 效果里读的必须是**当前**这一份 requester(同 GearMenu 的写法):items.size 一变 remember 就换新表;
     // 定位效果的 key 里带着 focusRequesters,换表会重跑没问题,但看门狗的 key 里没有它——如果直接捕获
@@ -349,7 +369,7 @@ private fun PickerGrid(
     // R63 落点种子:挂载时算一次(items 此刻已是重扫过的列表——屏保图库等 produceState 扫完才挂网格;
     // 内置清单也是到了才挂,见 rememberBuiltins)。
     val seedCell = remember {
-        landing?.let { landingCell(items.map { (it as? PickerItem.Library)?.file?.name }, it, builtinCount) }
+        landing?.let { landingCell(items.map { (it as? PickerItem.Library)?.file?.name }, it, builtinCount, online.size) }
     }
     var focusedIdx by remember { mutableStateOf(seedCell ?: 0) }
     /**
@@ -368,6 +388,18 @@ private fun PickerGrid(
     // fix round 1:删图后 focusedIdx 可能落在新列表的界外(删的正是末张)——统一在这里夹一次,
     // 定位效果、看门狗、渲染时的 focused 判据都读这一个,不再各处各夹各的。删空时夹到「＋」(R63;「我的」在最后,
     // 删图只让尾巴变短,内置格与「＋」的下标不变)。
+    var holderIdx by remember { mutableStateOf<Int?>(null) }
+    var previousKeys by remember { mutableStateOf(cellKeys) }
+    if (previousKeys != cellKeys) {
+        val target = previousKeys.getOrNull(frozenTarget ?: focusedIdx)
+        val sameGroup = previousKeys.filter { target != null && pickerFocusGroup(it) == pickerFocusGroup(target) }
+        val nextGroup = cellKeys.filter { target != null && pickerFocusGroup(it) == pickerFocusGroup(target) }
+        val resolved = target?.let { resolveGalleryFocus(it, sameGroup, nextGroup) }
+        focusedIdx = cellKeys.indexOf(resolved).takeIf { it >= 0 } ?: clampCell(focusedIdx, cellKeys.size)
+        frozenTarget = focusedIdx
+        holderIdx = null
+        previousKeys = cellKeys
+    }
     val clampedFocusedIdx = clampCell(focusedIdx, focusRequesters.size)
     /**
      * **现在**持有焦点的那一格(只信控件自报,铁律 4);null = 网格里没有。与 [focusedIdx] 分开(铁律 5):
@@ -375,7 +407,7 @@ private fun PickerGrid(
      * 看门狗都只认它(fix round 1:换掉了原来只增不减的 landed——旧格被销毁时没人把它拨回
      * false,循环会在假的「已经落地」上直接跳过)。
      */
-    var holderIdx by remember { mutableStateOf<Int?>(null) }
+
 
     // 遗留 #8(实测复现,2026-09-19 模拟器):长按识别在 MainActivity.dispatchKeyEvent(组合树外),
     // 它把长按之后那次 DPAD_CENTER 的 key-up 吞掉——clickable 默认内建的 MutableInteractionSource
@@ -585,8 +617,7 @@ private fun PickerGrid(
                     // 分组标题(R115):不可聚焦,上下方向键从上一块的最后一行直接走到下一块的第一行
                     is PickerLine.Title -> SectionTitle(
                         text = stringResource(
-                            if (line.section == PickerSection.BUILTIN) R.string.picker_section_builtin
-                            else R.string.picker_section_mine,
+                            when (line.section) { PickerSection.BUILTIN -> R.string.picker_section_builtin; PickerSection.GALLERY -> R.string.picker_section_gallery; PickerSection.MINE -> R.string.picker_section_mine },
                         ),
                         modifier = Modifier.onSizeChanged { lineHeights[k] = it.height },
                     )
@@ -599,7 +630,9 @@ private fun PickerGrid(
                             val idx = line.first + colIdx
                             val item = cells[idx]
                             val focused = clampedFocusedIdx == idx
-                            ThumbCard(
+                            key(cellKeys[idx]) { ThumbCard(
+                                visible = !ghost && measuredNow && topsNow[lineIdx] + heightsNow[lineIdx] > shownScroll && topsNow[lineIdx] < shownScroll + viewportPx,
+                                galleryState = galleryState,
                                 item = item,
                                 focused = focused,
                                 thumbWidth = thumbWidth,
@@ -607,7 +640,8 @@ private fun PickerGrid(
                                 asCard = asCard,
                                 dimmed = item is PickerItem.Builtin && item.image.id in excludedBuiltins,
                                 inRotation = rotationBadges && (item is PickerItem.Library ||
-                                    (item is PickerItem.Builtin && item.image.id !in excludedBuiltins)),
+                                    (item is PickerItem.Builtin && item.image.id !in excludedBuiltins) ||
+                                    (item is PickerItem.Gallery && galleryState?.joined?.get(item.row.item.id)?.sha256 == item.row.item.original.blob.sha256)),
                                 cellModifier = Modifier
                                     .focusRequester(focusRequesters[idx])
                                     .focusProperties {
@@ -643,10 +677,12 @@ private fun PickerGrid(
                                             is PickerItem.Original -> onRestoreOriginal?.invoke()
                                             is PickerItem.Library -> onSelectFile(item.file)
                                             is PickerItem.Builtin -> onSelectFile(item.image.file)
+                                            is PickerItem.Gallery -> galleryState?.menu = item.row
+                                            PickerItem.GalleryRefresh -> galleryState?.refreshMenu = true
                                             PickerItem.AddFromPhone -> onAddFromPhone()
                                         }
                                     },
-                            )
+                            ) }
                         }
                     }
                 }
@@ -655,6 +691,7 @@ private fun PickerGrid(
         }
         }
     }
+    if (galleryState != null && !ghost) GalleryPickerOverlay(galleryState, galleryKind == BuiltinKind.SCREENSAVERS, nonce)
 }
 
 /** 选图页的底:与所有整屏页同一个 [GtvTokens.MenuBg](R135;原来是 85% 黑的蒙版,后面透出压暗的首页)。 */
@@ -732,7 +769,8 @@ private fun RotationBadge(modifier: Modifier = Modifier) {
 
 @Composable
 private fun ThumbCard(
-    item: PickerItem,
+    visible: Boolean = true,
+    galleryState: GalleryPickerState? = null,    item: PickerItem,
     focused: Boolean,
     thumbWidth: Dp,
     thumbHeight: Dp,
@@ -743,6 +781,13 @@ private fun ThumbCard(
     inRotation: Boolean = false,
     cellModifier: Modifier = Modifier,
 ) {
+    if (item is PickerItem.GalleryRefresh) {
+        Column(modifier = thumbCellModifier(cellModifier, focused, thumbWidth), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(Modifier.fillMaxWidth().height(thumbHeight).gtvAppFocusFrame(focused, LocalThemeColors.current.accent, THUMB_CORNER).background(GtvTokens.SurfacePlaceholder), contentAlignment = Alignment.Center) { BasicText(stringResource(R.string.gallery_refresh), style = Type.caption) }
+            val snapshot = galleryState?.repository?.state?.collectAsState()?.value
+            ThumbLabel(stringResource(if (snapshot?.refreshing == true) R.string.gallery_refreshing else if (snapshot?.error != null) R.string.gallery_refresh_failed else R.string.gallery_refresh), focused)
+        }; return
+    }
     if (item is PickerItem.AddFromPhone) {
         AddFromPhoneCard(focused, thumbWidth, thumbHeight, cellModifier)
         return
@@ -761,11 +806,12 @@ private fun ThumbCard(
     // 不需要手动清零——效果与「换 key 就重置」等价,但不用在协程开头多写一次 value = null。
     // 第三项 = 卡面底色(R88,只在 asCard 时算):null = 当横幅裁满,非 null = 当图标居中、铺这个底色。
     val isVideo = item is PickerItem.Library && ScreensaverMedia.isVideo(item.file.name)
-    val thumb by produceState<ThumbData?>(null, item, asCard) {
+    val thumb by produceState<ThumbData?>(null, item, asCard, visible) {
         value = withContext(Dispatchers.IO) {
             var srcW = 0; var srcH = 0
             var videoMs: Long? = null
             val bmp = when {
+                item is PickerItem.Gallery -> if (visible) try { val thumb = galleryState!!.repository.thumbnail(item.row.item); BitmapFactory.decodeFile(thumb.absolutePath) } catch (e: CancellationException) { throw e } catch (_: Exception) { null } else null
                 item is PickerItem.Original -> item.bitmap.also { srcW = it.width; srcH = it.height }
                 file == null -> null
                 // 视频(R104):首帧缩略图 + 时长,MediaMetadataRetriever,带缓存
@@ -793,6 +839,8 @@ private fun ThumbCard(
         is PickerItem.Original -> stringResource(R.string.picker_restore_original)
         is PickerItem.Library -> item.file.nameWithoutExtension
         is PickerItem.Builtin -> builtinName(item.image)
+        is PickerItem.Gallery -> (item.row.item.names[stringResource(R.string.builtin_names_lang)] ?: item.row.item.id) + if (item.row.retained) " · " + stringResource(R.string.gallery_retained) else if (item.row.update) " · " + stringResource(R.string.gallery_update) else if (item.row.downloaded) " · " + stringResource(R.string.gallery_downloaded) else ""
+        PickerItem.GalleryRefresh -> ""
     }
     val highlight = LocalThemeColors.current.highlight
     val accent = LocalThemeColors.current.accent
@@ -943,6 +991,7 @@ fun ScreensaverPoolViewer(
     onDismiss: () -> Unit,
     onAddFromPhone: () -> Unit,
     landing: List<String>? = null,
+    galleryActions: GalleryPickerActions? = null,
 ) {
     val ctx = LocalContext.current
     // IO 线程扫,走 safeScan(与播放器同一条「失败记日志、退回 null」的规则,内部调的还是
@@ -964,7 +1013,8 @@ fun ScreensaverPoolViewer(
     // 全屏预览翻的是「内置 + 我的」连成的一串(不含「＋」);内置那几张是伪路径文件,ScreensaverSlot 经 decodeImagePath 读 assets
     val previewFiles = remember(builtins, files) { builtins.map { it.file } + files }
     var previewIndex by remember { mutableStateOf(-1) }
-    val total = builtins.size + files.size
+    val onlineSnapshot = if (galleryActions != null) GalleryAndroid.repository(ctx).state.collectAsState().value else null
+    val total = builtins.size + files.size + (onlineSnapshot?.let { galleryRows(it, BuiltinKind.SCREENSAVERS, null).size } ?: 0)
 
     val ghost = LocalPageGhost.current
     androidx.activity.compose.BackHandler(enabled = !ghost) { onDismiss() }
@@ -974,6 +1024,9 @@ fun ScreensaverPoolViewer(
             // 挂早了拿到的是空列表,新传的图永远找不到。
             scanned == null -> Unit
             else -> PickerGrid(
+                galleryActions = galleryActions,
+                galleryKind = BuiltinKind.SCREENSAVERS,
+                galleryPackage = null,
                 builtins = builtins.map { PickerItem.Builtin(it) },
                 items = files.map { PickerItem.Library(it) },
                 title = if (total == 0) stringResource(R.string.picker_screensaver_title)
@@ -1066,10 +1119,11 @@ private sealed interface PoolOverlay {
 
 /** @param nonce 外层焦点 nonce(MainActivity.focusNonce):回到前台等时刻 +1,预览据此重新落焦点。 */
 @Composable
-private fun ScreensaverPreview(
+internal fun ScreensaverPreview(
     files: List<File>,
     startIndex: Int,
     nonce: Int,
+    displayNames: Map<String, String> = emptyMap(),
     onDismiss: () -> Unit,
 ) {
     var index by remember { mutableStateOf(startIndex) }
@@ -1119,7 +1173,7 @@ private fun ScreensaverPreview(
             val file = files[index]
             // 内置图(R115)显示与网格里同一个名字(R137 起按界面语言取),用户的图显示文件名
             val builtin = builtinImageOf(file)
-            val name = if (builtin != null) builtinName(builtin) else file.nameWithoutExtension
+            val name = displayNames[file.absolutePath] ?: if (builtin != null) builtinName(builtin) else file.nameWithoutExtension
             Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.BottomStart) {
                 BasicText(
                     text = "$name  (${index + 1}/${files.size})",

@@ -13,19 +13,23 @@ import kotlin.math.min
  */
 
 /** 「＋ 从手机添加」所在的格子 = 内置图之后的第一格。 */
-internal fun addCell(builtinCount: Int = 0): Int = builtinCount
+internal fun addCell(builtinCount: Int = 0, galleryCount: Int = 0): Int = builtinCount + galleryCount
 
 /** 「我的」第 [image] 张图片的格子。 */
-internal fun cellOfImage(image: Int, builtinCount: Int = 0): Int = builtinCount + 1 + image
+internal fun cellOfImage(image: Int, builtinCount: Int = 0, galleryCount: Int = 0): Int = builtinCount + galleryCount + 1 + image
 
 /** 格子 → 「我的」图片下标;内置格与「＋」不是「我的」图片 → null。 */
-internal fun imageOfCell(cell: Int, builtinCount: Int = 0): Int? = (cell - builtinCount - 1).takeIf { it >= 0 }
+internal fun imageOfCell(cell: Int, builtinCount: Int = 0, galleryCount: Int = 0): Int? = (cell - builtinCount - galleryCount - 1).takeIf { it >= 0 }
 
 /** 格子 → 内置图下标;不是内置格 → null。 */
 internal fun builtinOfCell(cell: Int, builtinCount: Int): Int? = cell.takeIf { it in 0 until builtinCount }
 
-/** 整个网格的格子:内置 + 「＋」+ 我的。 */
-internal fun <T> pickerCells(builtins: List<T>, add: T, images: List<T>): List<T> = builtins + add + images
+/** 在线格子 → 在线块下标(含刷新入口);其他块 → null。 */
+internal fun galleryOfCell(cell: Int, builtinCount: Int, galleryCount: Int): Int? =
+    (cell - builtinCount).takeIf { it in 0 until galleryCount }
+
+/** 整个网格的格子:内置 + 在线 + 「＋」+ 我的。 */
+internal fun <T> pickerCells(builtins: List<T>, add: T, images: List<T>, gallery: List<T> = emptyList()): List<T> = builtins + gallery + add + images
 
 /** 焦点目标夹回合法格子(删图后末格消失、删空只剩「＋」都靠它;「我的」在最后,删图只会让尾巴变短)。 */
 internal fun clampCell(cell: Int, cellCount: Int): Int = cell.coerceIn(0, (cellCount - 1).coerceAtLeast(0))
@@ -36,16 +40,16 @@ internal fun clampCell(cell: Int, cellCount: Int): Int = cell.coerceIn(0, (cellC
  * [imageNames] 与「我的」图片下标一一对应,不是文件的项(换卡片图的「恢复原图」)给 null。
  * 上传只进「我的」,内置图不参与匹配(内置与我的同名也不会落到内置那格上)。
  */
-internal fun landingCell(imageNames: List<String?>, uploaded: List<String>, builtinCount: Int = 0): Int {
+internal fun landingCell(imageNames: List<String?>, uploaded: List<String>, builtinCount: Int = 0, galleryCount: Int = 0): Int {
     for (name in uploaded) {
         val i = imageNames.indexOf(name)
-        if (i >= 0) return cellOfImage(i, builtinCount)
+        if (i >= 0) return cellOfImage(i, builtinCount, galleryCount)
     }
-    return addCell(builtinCount)
+    return addCell(builtinCount, galleryCount)
 }
 
-/** 网格的两块。 */
-internal enum class PickerSection { BUILTIN, MINE }
+/** 网格的三块。 */
+internal enum class PickerSection { BUILTIN, GALLERY, MINE }
 
 /** 网格里的一行:分组标题(不可聚焦),或一行格子([first] 起连续 [count] 格)。 */
 internal sealed class PickerLine {
@@ -58,7 +62,7 @@ internal sealed class PickerLine {
  * **内置清单为空时上块整块不显示,「我的」标题也不画**——只有一块时标题是多余的,版式与 R63 逐像素相同。
  * [mineCells] 含「＋」,至少 1。两块各自从行首排起(内置最后一行没排满,「我的」也另起一行)。
  */
-internal fun pickerLines(builtinCount: Int, mineCells: Int, columns: Int): List<PickerLine> {
+internal fun pickerLines(builtinCount: Int, mineCells: Int, columns: Int, galleryCount: Int = 0): List<PickerLine> {
     val cols = columns.coerceAtLeast(1)
     val out = ArrayList<PickerLine>()
     if (builtinCount > 0) {
@@ -66,10 +70,14 @@ internal fun pickerLines(builtinCount: Int, mineCells: Int, columns: Int): List<
         for (start in 0 until builtinCount step cols) {
             out += PickerLine.Cells(PickerSection.BUILTIN, start, min(cols, builtinCount - start))
         }
-        out += PickerLine.Title(PickerSection.MINE)
     }
+    if (galleryCount > 0) {
+        out += PickerLine.Title(PickerSection.GALLERY)
+        for (start in 0 until galleryCount step cols) out += PickerLine.Cells(PickerSection.GALLERY, builtinCount + start, min(cols, galleryCount - start))
+    }
+    if (builtinCount > 0 || galleryCount > 0) out += PickerLine.Title(PickerSection.MINE)
     for (start in 0 until mineCells step cols) {
-        out += PickerLine.Cells(PickerSection.MINE, builtinCount + start, min(cols, mineCells - start))
+        out += PickerLine.Cells(PickerSection.MINE, builtinCount + galleryCount + start, min(cols, mineCells - start))
     }
     return out
 }

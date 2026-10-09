@@ -419,4 +419,26 @@
     <string name="onb_step2_body_empty">没有找到常见的影视、直播或音乐应用。以后可以在「所有应用」里把任何应用加到桌面。</string>
     <string name="onb_add_to_home">放到桌面</string>
     <string name="onb_done">完成</string>
+    <string name="picker_section_gallery">在线图库</string>
+    <string name="gallery_refresh">刷新图库</string>
+    <string name="gallery_refreshing">正在刷新…</string>
+    <string name="gallery_refresh_failed">更新失败，按确定重试</string>
+    <string name="gallery_use">选用</string>
+    <string name="gallery_join">加入轮播</string>
+    <string name="gallery_preview">预览</string>
+    <string name="gallery_remove_rotation">不参与轮播</string>
+    <string name="gallery_delete">删除下载</string>
+    <string name="gallery_retry">重试</string>
+    <string name="gallery_failed">下载失败，请检查网络后重试；正在使用的图片请先取消使用。</string>
+    <string name="gallery_progress">下载中 %1$d%%</string>
+    <string name="gallery_retained">保留版本</string>
+    <string name="gallery_downloaded">已下载</string>
+    <string name="gallery_available">按选用下载原图</string>
+    <string name="gallery_protected">正在使用的图片不能删除，请先更换壁纸或取消轮播。</string>
+    <string name="gallery_delete_failed">删除失败，请稍后重试。</string>
+    <string name="gallery_update">有新版本</string>
+    <string name="gallery_cleanup">清理未使用的残留下载</string>
+    <string name="gallery_network_failed">网络连接失败，请检查网络后重试。</string>
+    <string name="gallery_storage_failed">存储空间不足或写入失败，请清理空间后重试。</string>
+    <string name="gallery_invalid_failed">图片校验失败，请刷新图库后重试。</string>
 </resources>

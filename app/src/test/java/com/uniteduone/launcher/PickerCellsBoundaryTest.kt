@@ -170,4 +170,25 @@ class PickerCellsBoundaryTest {
         assertEquals(-1, lineOfCell(lines, 4))
         assertEquals(-1, lineOfCell(emptyList(), 0))
     }
+    @Test fun onlineSectionEndsBeforePhoneAndMineForBothPhotoAndCardColumns() {
+        for (columns in listOf(4, 5)) for (builtins in listOf(0, 1, 4)) for (online in listOf(1, 4, 6)) {
+            val lines = pickerLines(builtins, 3, columns, online)
+            val grid = pickerCells((0 until builtins).map { "B$it" }, "+", listOf("M0", "M1"), (0 until online).map { "G$it" })
+            assertEquals("+", grid[addCell(builtins, online)])
+            for (cell in builtins until builtins + online) assertEquals("G${galleryOfCell(cell, builtins, online)}", grid[cell])
+            assertNull(galleryOfCell(addCell(builtins, online), builtins, online))
+            for (cell in 0 until builtins + online + 3) {
+                val line = lines[lineOfCell(lines, cell)] as PickerLine.Cells
+                val expected = when {
+                    cell < builtins -> PickerSection.BUILTIN
+                    cell < builtins + online -> PickerSection.GALLERY
+                    else -> PickerSection.MINE
+                }
+                assertEquals(expected, line.section)
+            }
+            val firstMine = lineOfCell(lines, addCell(builtins, online))
+            assertEquals(PickerLine.Title(PickerSection.MINE), lines[firstMine - 1])
+        }
+    }
+
 }

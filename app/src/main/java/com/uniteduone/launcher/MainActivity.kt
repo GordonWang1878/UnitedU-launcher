@@ -1071,6 +1071,7 @@ class MainActivity : ComponentActivity() {
                     directory = Paths.wallpaperLibrary(this),
                     title = stringResource(R.string.picker_wallpaper_title),
                     nonce = focusNonce,
+                    galleryActions = GalleryPickerActions(::handleGalleryPick, ::cancelGallerySelection, ::removeGalleryScreensaver),
                     onSelect = { file -> handlePick(file) },
                     onDismiss = { pickerTarget = null; focusNonce++ },
                     onAddFromPhone = { openImportFrom(PICK_WALLPAPER) },
@@ -1091,6 +1092,7 @@ class MainActivity : ComponentActivity() {
             // 排除集合在主线程读盘(同 homeSaved 的读法),settingsRevision 一变就重读——切换写完会 ++。
             VIEW_SCREENSAVER_POOL -> ScreensaverPoolViewer(
                 nonce = focusNonce,
+                    galleryActions = GalleryPickerActions(::handleGalleryPick, ::cancelGallerySelection, ::removeGalleryScreensaver),
                 refresh = galleryVersion,
                 onFocusedItem = { poolFocused = it },
                 deleteTarget = poolDeleteTarget,
@@ -1120,6 +1122,7 @@ class MainActivity : ComponentActivity() {
                 directory = Paths.cardLibrary(this),
                 originalIcon = remember(target) { Apps.originalIcon(this, target) },
                 nonce = focusNonce,
+                    galleryActions = GalleryPickerActions(::handleGalleryPick, ::cancelGallerySelection, ::removeGalleryScreensaver),
                 onSelect = { file -> handlePick(file) },
                 onRestoreOriginal = { restoreOriginalIcon(target) },
                 onDismiss = { pickerTarget = null; focusNonce++ },
@@ -2019,19 +2022,19 @@ class MainActivity : ComponentActivity() {
 
 
     /** Task 6 callback. Only original download + validated bytes can adopt; preview uses repository.original directly. */
-    internal fun handleGalleryPick(item: GalleryItem, onProgress: (Long) -> Unit = {}, onResult: (Result<Unit>) -> Unit) {
-        val target = pickerTarget ?: return
+    internal fun handleGalleryPick(item: GalleryItem, onProgress: (Long) -> Unit = {}, onResult: (Result<Unit>) -> Unit): () -> Unit {
+        val target = pickerTarget ?: return {}
         val expected = when (target) {
             PICK_WALLPAPER -> BuiltinKind.WALLPAPERS
             VIEW_SCREENSAVER_POOL -> BuiltinKind.SCREENSAVERS
             else -> BuiltinKind.CARDS
         }
         if (item.kind != expected || (expected == BuiltinKind.CARDS && target !in item.packages)) {
-            onResult(Result.failure(IllegalArgumentException("Gallery resource does not match picker"))); return
+            onResult(Result.failure(IllegalArgumentException("Gallery resource does not match picker"))); return {}
         }
         invalidateGallerySelection()
         val token = gallerySelection.begin()
-        gallerySelectionJob = lifecycleScope.launch {
+        val ownedJob = lifecycleScope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
             val result = runCatching {
                 GalleryAndroid.repository(this@MainActivity).original(item) { bytes ->
                     if (gallerySelection.isCurrent(token)) lifecycleScope.launch {
@@ -2040,7 +2043,8 @@ class MainActivity : ComponentActivity() {
                 }
                 withContext(Dispatchers.IO) {
                     val adoption = GalleryAdoption(item.id, item.original.blob.sha256)
-                    val verified = GalleryAndroid.store(this@MainActivity).resolve(adoption)
+                    val galleryStore = GalleryAndroid.store(this@MainActivity)
+                    val verified = galleryStore.resolve(adoption)
                         ?: error("Gallery original is unavailable or corrupt")
                     require(Apps.isDecodableImage(verified.file.absolutePath))
                     var staged: java.io.File? = null
@@ -2053,6 +2057,8 @@ class MainActivity : ComponentActivity() {
                             }) { "Cannot stage card image" }
                         }
                         val committed = gallerySelection.commit(token) {
+                            // Revalidate while holding the process-wide adoption/delete gate.
+                            check(galleryStore.resolve(adoption) != null) { "Gallery download was removed before adoption" }
                             when (expected) {
                                 BuiltinKind.WALLPAPERS -> check(SettingsStore.update(this@MainActivity) {
                                     it.copy(wallpaperFile = "gallery:${item.id}", galleryWallpaper = adoption)
@@ -2079,6 +2085,13 @@ class MainActivity : ComponentActivity() {
                 }
             }
             onResult(result)
+        }
+        gallerySelectionJob = ownedJob
+        ownedJob.start()
+        return {
+            if (gallerySelection.isCurrent(token)) gallerySelection.invalidate()
+            ownedJob.cancel()
+            if (gallerySelectionJob === ownedJob) gallerySelectionJob = null
         }
     }
 

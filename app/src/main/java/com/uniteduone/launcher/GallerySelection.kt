@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicLong
  */
 class GallerySelection {
     private val generation = AtomicLong()
-    private val commits = Mutex()
+    private val commits = GalleryMutationGate.mutex
     fun begin(): Long = generation.incrementAndGet()
     fun invalidate() { generation.incrementAndGet() }
     fun isCurrent(token: Long): Boolean = token == generation.get()
@@ -41,3 +41,9 @@ internal fun parseGallerySettings(text: String): Pair<GalleryAdoption?, Map<Stri
 /** Resolve only adopted hashes, independent of the current online catalog. Blocking I/O caller. */
 internal fun adoptedGalleryPlaylist(joined: Map<String, GalleryAdoption>, resolve: (GalleryAdoption) -> File?): List<File> =
     joined.toSortedMap().values.mapNotNull { runCatching { resolve(it) }.getOrNull() }
+
+/** Process-wide adoption/delete gate; callers enter on IO and read fresh protection inside it. */
+internal object GalleryMutationGate {
+    val mutex = Mutex()
+    suspend fun <T> locked(action: suspend () -> T): T = mutex.withLock { action() }
+}
