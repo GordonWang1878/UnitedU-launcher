@@ -1895,16 +1895,17 @@ EOF
 - Create: `app/src/main/java/com/uniteduone/launcher/ChannelEnv.kt`
 - Create: `app/src/main/java/com/uniteduone/launcher/ChannelLaunch.kt`
 - Modify: `app/src/main/java/com/uniteduone/launcher/MainActivity.kt`(字段区约 118 行 `revision` 旁;`onCreate` 约 363;`setContent` 的 `CompositionLocalProvider` 约 630;`onResume` 约 1683;`onDestroy` 约 2268——行号以 HEAD b3d9a15 + Task 6 为准,按锚点文字找)
-- Test: `app/src/test/java/com/uniteduone/launcher/ChannelLaunchTest.kt`
+- Test: `app/src/test/java/com/uniteduone/launcher/ChannelLaunchTest.kt`、`app/src/test/java/com/uniteduone/launcher/ChannelPermissionTest.kt`
 
 **Interfaces:**
 - Consumes: Task 7 `ChannelSource.PERMISSION`、`Apps.launch`。
 - Produces:
-  - `data class ChannelEnv(val revision: Int = 0, val requestPermission: ((Boolean) -> Unit) -> Unit = { it(false) }, val openPermissionSettings: () -> Unit = {})`、`val LocalChannelEnv: ProvidableCompositionLocal<ChannelEnv>`
+  - `enum class PermissionResult { GRANTED, DENIED, DENIED_PERMANENTLY }`、`internal fun permissionResult(granted: Boolean, rationaleBefore: Boolean, rationaleAfter: Boolean, deniedBefore: Boolean): PermissionResult`
+  - `data class ChannelEnv(val revision: Int = 0, val requestPermission: ((PermissionResult) -> Unit) -> Unit = { it(PermissionResult.DENIED) }, val openPermissionSettings: () -> Unit = {})`、`val LocalChannelEnv: ProvidableCompositionLocal<ChannelEnv>`
   - `object ChannelLaunch { fun open(ctx: Context, pkg: String, intentUri: String?): Boolean }`
   - `internal fun launchFlags(flags: Int): Int`、`internal fun launchTargetAllowed(target: String?, publisher: String, self: String): Boolean`
   - `internal const val CHANNELS_DEBOUNCE_MS = 500L`
-  - MainActivity:`private var channelsRevision by mutableStateOf(0)`(驱动 `ChannelCache.refresh`,也经 `LocalChannelEnv.revision` 给选频道页重查授权)、`private fun requestTvListings(onResult: (Boolean) -> Unit)`、`private fun openTvListingsSettings()`。
+  - MainActivity:`private var channelsRevision by mutableStateOf(0)`(驱动 `ChannelCache.refresh`,也经 `LocalChannelEnv.revision` 给选频道页重查授权)、`private fun requestTvListings(onResult: (PermissionResult) -> Unit)`、`private fun openTvListingsSettings()`。
 
 - [ ] **Step 1: 写失败的测试**
 
@@ -1940,10 +1941,49 @@ class ChannelLaunchTest {
 }
 ```
 
+`app/src/test/java/com/uniteduone/launcher/ChannelPermissionTest.kt`:
+
+```kotlin
+package com.uniteduone.launcher
+
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+/**
+ * owner 裁定(2026-10-09):授权申请回来是拒绝时,只有「永久拒绝」(系统这次没弹窗)才自动跳系统设置;
+ * 用户在窗里点了拒绝、或按返回 / 主页键关掉窗,都留在原地。判据 = 申请前后两次 shouldShowRequestPermissionRationale。
+ */
+class ChannelPermissionTest {
+    private val G = PermissionResult.GRANTED
+    private val D = PermissionResult.DENIED
+    private val P = PermissionResult.DENIED_PERMANENTLY
+
+    @Test fun grantedWinsWhateverTheRationale() {
+        assertEquals(G, permissionResult(granted = true, rationaleBefore = false, rationaleAfter = false, deniedBefore = true))
+        assertEquals(G, permissionResult(true, true, false, false))
+    }
+
+    @Test fun theDialogWasShownSoStay() {
+        assertEquals("第一次点拒绝:申请后 rationale 变真", D, permissionResult(false, false, true, false))
+        assertEquals("拒绝过一次、这次按返回关窗:前后都真", D, permissionResult(false, true, true, true))
+        assertEquals("第二次点拒绝(弹了窗,Android 11+ 此后不再询问):前真后假", D, permissionResult(false, true, false, true))
+    }
+
+    @Test fun neverDeniedAndDismissedIsNotPermanent() {
+        // 从没拒绝过时按返回 / 主页键关掉窗,前后都是 false,与「系统没弹窗」长得一样——靠 deniedBefore 分开
+        assertEquals(D, permissionResult(false, false, false, deniedBefore = false))
+    }
+
+    @Test fun deniedBeforeAndNoDialogIsPermanent() {
+        assertEquals(P, permissionResult(false, false, false, deniedBefore = true))
+    }
+}
+```
+
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd /Users/gordonwang/orca/workspaces/UnitedU-launcher/频道推荐 && source scripts/env.sh && gradle --no-daemon testReleaseUnitTest --tests '*ChannelLaunchTest*'`
-Expected: 编译失败,`Unresolved reference: launchFlags`。
+Run: `cd /Users/gordonwang/orca/workspaces/UnitedU-launcher/频道推荐 && source scripts/env.sh && gradle --no-daemon testReleaseUnitTest --tests '*ChannelLaunchTest*' --tests '*ChannelPermissionTest*'`
+Expected: 编译失败,`Unresolved reference: launchFlags` / `permissionResult`。
 
 - [ ] **Step 3: 实现 `ChannelLaunch.kt` 与 `ChannelEnv.kt`**
 
@@ -1995,25 +2035,46 @@ import androidx.compose.runtime.compositionLocalOf
 /** ContentObserver 去抖时长(spec §3.3:500 ms 后 `channelsRevision++`)。 */
 internal const val CHANNELS_DEBOUNCE_MS = 500L
 
+/** MainActivity 记「用户点过拒绝」的 SharedPreferences 文件名与键([permissionResult] 的 deniedBefore)。 */
+internal const val TV_LISTINGS_MARKS = "channel-permission"
+internal const val TV_LISTINGS_DENIED = "deniedBefore"
+
 /**
  * R164:频道相关的运行时环境,MainActivity 在 setContent 顶层提供(编辑页的频道架子、选频道页读它;首页直接收参数)。
  * - [revision]:MainActivity 的 `channelsRevision`(TvProvider 变化去抖、授权结果、onResume 都 ++),读频道数据的效果拿它当 key。
- * - [requestPermission]:弹系统授权窗,结果回调到主线程。
+ * - [requestPermission]:弹系统授权窗,结果([PermissionResult])回调到主线程。
  * - [openPermissionSettings]:跳本应用的系统详情页(拒绝过 / 「不再询问」后只能从那里开)。
  */
 data class ChannelEnv(
     val revision: Int = 0,
-    val requestPermission: (onResult: (Boolean) -> Unit) -> Unit = { it(false) },
+    val requestPermission: (onResult: (PermissionResult) -> Unit) -> Unit = { it(PermissionResult.DENIED) },
     val openPermissionSettings: () -> Unit = {},
 )
+
+/** 一次授权申请的结果。只有 [DENIED_PERMANENTLY] 时调用方才自动跳系统设置(owner 裁定 2026-10-09)。 */
+enum class PermissionResult { GRANTED, DENIED, DENIED_PERMANENTLY }
+
+/**
+ * owner 裁定(2026-10-09):拒绝后只有「永久拒绝」——系统这次**没弹窗**、直接回拒——才算 [PermissionResult.DENIED_PERMANENTLY];
+ * 用户在窗里点了拒绝(哪怕是第二次、此后不再询问)或按返回 / 主页键关掉窗,都是 [PermissionResult.DENIED](留在原地)。
+ * 标准的前后对照:申请前后 `shouldShowRequestPermissionRationale` 都是 false 且结果是拒绝 = 没弹窗。
+ * 但「从没拒绝过、这次按返回关窗」前后也都是 false(返回不算拒绝),所以另要 [deniedBefore]:以前见过 rationale 为真
+ * (= 用户点过拒绝;MainActivity 存在一份小 SharedPreferences 里,授权到手时清掉)。拿不准时一律算 DENIED——
+ * 留在原地、页上有「去系统设置开启」,比误跳系统设置安全。
+ */
+internal fun permissionResult(granted: Boolean, rationaleBefore: Boolean, rationaleAfter: Boolean, deniedBefore: Boolean): PermissionResult = when {
+    granted -> PermissionResult.GRANTED
+    !rationaleBefore && !rationaleAfter && deniedBefore -> PermissionResult.DENIED_PERMANENTLY
+    else -> PermissionResult.DENIED
+}
 
 val LocalChannelEnv = compositionLocalOf { ChannelEnv() }
 ```
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `cd /Users/gordonwang/orca/workspaces/UnitedU-launcher/频道推荐 && source scripts/env.sh && gradle --no-daemon testReleaseUnitTest --tests '*ChannelLaunchTest*'`
-Expected: PASS。
+Run: `cd /Users/gordonwang/orca/workspaces/UnitedU-launcher/频道推荐 && source scripts/env.sh && gradle --no-daemon testReleaseUnitTest --tests '*ChannelLaunchTest*' --tests '*ChannelPermissionTest*'`
+Expected: 两个测试类 PASS。
 
 - [ ] **Step 5: MainActivity 接线**
 
@@ -2025,7 +2086,9 @@ Expected: PASS。
      * 只重读频道内容,不重读 layout.json 与应用横幅(那是 [revision] 的事,spec §3.3)。
      */
     private var channelsRevision by mutableStateOf(0)
-    private var tvListingsCallback: ((Boolean) -> Unit)? = null
+    private var tvListingsCallback: ((PermissionResult) -> Unit)? = null
+    /** 这次申请前的 shouldShowRequestPermissionRationale(前后对照判「系统有没有弹窗」,见 [permissionResult])。 */
+    private var tvListingsRationaleBefore = false
     private lateinit var tvListingsRequest: androidx.activity.result.ActivityResultLauncher<String>
     private var channelsBump: kotlinx.coroutines.Job? = null
     private var tvObserverOn = false
@@ -2042,7 +2105,16 @@ Expected: PASS。
         tvListingsRequest = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
             channelsRevision++
             focusNonce++
-            tvListingsCallback?.invoke(granted)
+            val after = shouldShowRequestPermissionRationale(ChannelSource.PERMISSION)
+            val marks = getSharedPreferences(TV_LISTINGS_MARKS, MODE_PRIVATE)
+            val result = permissionResult(granted, tvListingsRationaleBefore, after, marks.getBoolean(TV_LISTINGS_DENIED, false))
+            // 「点过拒绝」的记号:见过 rationale 为真就记下,授权到手就清(之后被自动收回 / 清标记时不会把一次返回关窗误判成永久拒绝)。
+            // 单写者(主线程)的小 SharedPreferences,同 RelaunchMarks,不是落盘铁律管的多写者状态文件。
+            when {
+                granted -> marks.edit().remove(TV_LISTINGS_DENIED).commit()
+                tvListingsRationaleBefore || after -> marks.edit().putBoolean(TV_LISTINGS_DENIED, true).commit()
+            }
+            tvListingsCallback?.invoke(result)
             tvListingsCallback = null
         }
         ensureTvObserver()
@@ -2074,13 +2146,14 @@ Expected: PASS。
         }.isSuccess
     }
 
-    /** 弹系统授权窗;已经有权限时直接回调 true。结果经 [tvListingsRequest] 回到主线程。 */
-    private fun requestTvListings(onResult: (Boolean) -> Unit) {
-        if (ChannelSource.hasPermission(this)) { onResult(true); return }
+    /** 弹系统授权窗;已经有权限时直接回调 GRANTED。结果经 [tvListingsRequest] 回到主线程;起不来按 DENIED(留在原地)。 */
+    private fun requestTvListings(onResult: (PermissionResult) -> Unit) {
+        if (ChannelSource.hasPermission(this)) { onResult(PermissionResult.GRANTED); return }
         tvListingsCallback = onResult
+        tvListingsRationaleBefore = shouldShowRequestPermissionRationale(ChannelSource.PERMISSION)
         runCatching { tvListingsRequest.launch(ChannelSource.PERMISSION) }.onFailure {
             tvListingsCallback = null
-            onResult(false)
+            onResult(PermissionResult.DENIED)
         }
     }
 
@@ -2135,7 +2208,7 @@ Expected: `android.permission.READ_TV_LISTINGS: granted=false`(装上默认没�
 - [ ] **Step 7: 提交**
 
 ```bash
-cd /Users/gordonwang/orca/workspaces/UnitedU-launcher/频道推荐 && git add app/src/main/java/com/uniteduone/launcher/ChannelEnv.kt app/src/main/java/com/uniteduone/launcher/ChannelLaunch.kt app/src/main/java/com/uniteduone/launcher/MainActivity.kt app/src/test/java/com/uniteduone/launcher/ChannelLaunchTest.kt && git commit -F - <<'EOF'
+cd /Users/gordonwang/orca/workspaces/UnitedU-launcher/频道推荐 && git add app/src/main/java/com/uniteduone/launcher/ChannelEnv.kt app/src/main/java/com/uniteduone/launcher/ChannelLaunch.kt app/src/main/java/com/uniteduone/launcher/MainActivity.kt app/src/test/java/com/uniteduone/launcher/ChannelLaunchTest.kt app/src/test/java/com/uniteduone/launcher/ChannelPermissionTest.kt && git commit -F - <<'EOF'
 feat(channels): 授权请求、TvProvider 变化去抖、LocalChannelEnv、节目启动的两条防线(R164 §3.3)
 
 Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
@@ -3887,10 +3960,11 @@ Step 3 新加的 `Shelf.ChannelShelf` 与 `ShelfChip.REAUTHORIZE` 让 `EditScree
 (b) `onChip(si, chip)` 的 `when (chip)` 加一支(穷举 `when` 不加编不过;上移 / 下移 / 删除三支对频道架子原样适用:`swapRows` 不看行的种类,删除时 `view()` 里这一行的 `apps` 恒空 → 直接 `deleteRowAt`、不弹确认,落点 `landingAfterDelete`):
 
 ```kotlin
-            ShelfChip.REAUTHORIZE -> channelEnv.requestPermission { granted ->
+            ShelfChip.REAUTHORIZE -> channelEnv.requestPermission { result ->
                 // 授权窗盖上来时本页 ON_PAUSE 冻结焦点、ON_RESUME 按目标重定位;授权回来 channelsRevision++ → ChannelCache 重读 →
-                // 「重新授权」那颗消失,目标 (层, CHIPS, i) 由 clampSpot 夹到同一位置。拒绝(或「不再询问」时系统直接回 false)→ 去系统设置。
-                if (!granted) channelEnv.openPermissionSettings()
+                // 「重新授权」那颗消失,目标 (层, CHIPS, i) 由 clampSpot 夹到同一位置。owner 裁定(2026-10-09):只有永久拒绝
+                // (系统没弹窗,见 permissionResult)才自动去系统设置;点了拒绝 / 返回关窗 → 留在这颗胶囊上,再按一次再问。
+                if (result == PermissionResult.DENIED_PERMANENTLY) channelEnv.openPermissionSettings()
             }
 ```
 
@@ -4559,7 +4633,8 @@ private const val PILL_ID = -1L
  * nonce 驱动的初始循环、只信自报(铁律 2 / 4)、目标([focusedIdx],位置)与持有者([holder],频道 id)分开(铁律 5)、
  * 残影让路([LocalPageGhost]:不请求、不可聚焦、不回调)。
  *
- * 授权:进页没有 `READ_TV_LISTINGS` → 先弹系统授权窗(一次);拒绝 → 说明 +「去系统设置开启」(回来由 onResume 的
+ * 授权:进页没有 `READ_TV_LISTINGS` → 先弹系统授权窗(一次);拒绝 → 说明 +「去系统设置开启」,永久拒绝(系统没弹窗)
+ * 另外自动跳一次系统设置(owner 裁定 2026-10-09,[permissionResult])(回来由 onResume 的
  * `channelsRevision++` 重读授权)。已授权 → 给还没通知过的包发 `INITIALIZE_PROGRAMS`([ChannelInit]);列表读进程级
  * [ChannelCache](owner 裁定:与首页 / 编辑页同一份),TvProvider 一变(ContentObserver → channelsRevision → 缓存刷新)
  * 自动补上,焦点按频道 id 重定位([retargetById])。
@@ -4581,7 +4656,14 @@ internal fun ChannelPicker(
     LaunchedEffect(granted, asked, ghost) {
         if (!granted && !asked && !ghost) {
             asked = true
-            env.requestPermission { ok -> if (ok) granted = true }
+            env.requestPermission { r ->
+                when (r) {
+                    PermissionResult.GRANTED -> granted = true
+                    // owner 裁定(2026-10-09):只有永久拒绝(系统没弹窗)才自动跳系统设置;回来仍是 Denied(说明 +「去系统设置开启」)
+                    PermissionResult.DENIED_PERMANENTLY -> env.openPermissionSettings()
+                    PermissionResult.DENIED -> Unit   // 点了拒绝 / 返回关窗:留在本页,Denied 阶段
+                }
+            }
         }
     }
     LaunchedEffect(granted) {
@@ -5009,19 +5091,42 @@ def run():
     check("焦点恰好 1 个(「重新授权」那颗没了,夹到同一位置)", s.count_focused() == 1)
     key("back"); time.sleep(1.5)
 
-    journey("频道行:选频道页拒绝授权")
+    journey("频道行:选频道页拒绝授权(只有永久拒绝才自动跳系统设置)")   # owner 裁定 2026-10-09
     revoke()
     restart(BASE)
     open_edit()
+
+    def denied_here(what):
+        s = screen()
+        check(f"{what}:留在选频道页(前台是 UnitedU)、有说明、焦点在「去系统设置开启」",
+              foreground() == PKG and s.has(S("channel_picker_denied")) and S("channel_picker_open_settings") in s.label(),
+              (foreground(), s.label()))
+
+    def reopen_picker():
+        key("back"); time.sleep(1.2)        # 关选页 → 落回「频道」卡
+        check("返回落回「频道」卡", S("shelf_new_channel_desc") in screen().label(), screen().label())
+        key("ok"); time.sleep(1.5)
+
     to_new_channel_card(); key("ok"); time.sleep(1.5)
-    check("按 Don't allow", answer_permission(False))
-    s = screen()
-    check("拒绝后有说明、焦点在「去系统设置开启」",
-          s.has(S("channel_picker_denied")) and S("channel_picker_open_settings") in s.label(), s.label())
+    check("授权窗弹出", wait_permission_dialog(), foreground())
+    key("back"); time.sleep(2)             # 从没拒绝过时按返回关窗:前后 rationale 都是 false,但不算永久拒绝
+    denied_here("返回关窗")
+    reopen_picker()
+    check("第一次按 Don't allow", answer_permission(False))
+    denied_here("第一次拒绝")
     shot("ch-06-picker-denied")
-    key("back"); time.sleep(1.2)
-    check("返回落回「频道」卡", S("shelf_new_channel_desc") in screen().label(), screen().label())
-    key("back"); time.sleep(1.5)
+    reopen_picker()
+    check("第二次按 Don't allow(弹了窗;此后系统不再询问)", answer_permission(False))
+    denied_here("第二次拒绝")
+    reopen_picker()
+    time.sleep(1.5)
+    fg = foreground()
+    check("永久拒绝(系统没弹窗)→ 自动跳本应用的系统设置页(com.android.tv.settings)", "settings" in fg, fg)
+    key("back"); time.sleep(2)
+    denied_here("从系统设置返回")
+    key("back"); time.sleep(1.2)           # → 「频道」卡
+    key("back"); time.sleep(1.5)           # 退出编辑页
+    revoke()                               # 清掉「不再询问」标记(会杀进程,下一步 restart 拉起)
     sh(f"pm grant {PKG} {PERM}")
 
     journey("频道行:满 5 行")
@@ -5067,7 +5172,7 @@ if __name__ == "__main__":
 `scripts/e2e/README.md` 覆盖表在 `j_edit.py` 那一行后加:
 
 ```
-| `j_channels.py` | 频道行(R164):编辑页「新的一行 → 频道」→ 系统授权窗 → `INITIALIZE_PROGRAMS` 后列表冒出夹具频道 → 写盘格式;首页行头 / 季集 / 8 张按 weight / 行尾停住;https 海报超时;长按不做事、确定启动节目;焦点在末张时节目 8 → 3;频道重建 `_id` 变;清空不画、布局保留;撤销授权(杀进程)→「需要重新授权」→ 重新授权;拒绝授权的说明页;满 5 行变暗;删频道架子不弹确认;卸载发布方删行。夹具 `test.channels` 由本脚本 `--user 0` 装 |
+| `j_channels.py` | 频道行(R164):编辑页「新的一行 → 频道」→ 系统授权窗 → `INITIALIZE_PROGRAMS` 后列表冒出夹具频道 → 写盘格式;首页行头 / 季集 / 8 张按 weight / 行尾停住;https 海报超时;长按不做事、确定启动节目;焦点在末张时节目 8 → 3;频道重建 `_id` 变;清空不画、布局保留;撤销授权(杀进程)→「需要重新授权」→ 重新授权;选频道页返回关窗 / 拒绝两次都留在原地、第三次(系统不再弹窗)才自动跳系统设置;满 5 行变暗;删频道架子不弹确认;卸载发布方删行。夹具 `test.channels` 由本脚本 `--user 0` 装 |
 ```
 
 并在「跑法」代码块下补一句:「频道夹具 `test.channels` 不在 `fixtures.py` 的默认安装里,`j_channels.py` 自己装。」
@@ -5306,10 +5411,10 @@ EOF
 - 行头「约 19 sp」与 CLAUDE.md「字号走 Type 七档」冲突——取 `Type.section`(17 sp)(Global Constraints)。
 - 「长按不做事」——不只是不弹菜单,松手也不能被 Card 当点击启动节目,所以整下吞掉(Task 12)。
 - 频道刷新时冻结焦点目标:整段冻结会吞方向键,不冻结会在焦点卡被拆时跳行首——只在内容真的变了时、同一次恢复里冻结一次(Task 12)。
-- 「重新授权」胶囊排最前(spec 只说「多一颗」)、拒绝后跳系统详情页(Task 13)。
+- 「重新授权」胶囊排最前(spec 只说「多一颗」);拒绝后只有永久拒绝(系统没弹窗)才自动跳系统详情页,点拒绝 / 返回关窗留在原地(owner 裁定 2026-10-09,Task 9 `permissionResult`,Task 13 / 15 调用)。
 - `intent_uri` 来自第三方:加了去授权位 + 只许发布方包两条防线(Task 9,spec 没写,安全上必须)。
 - 海报是这个应用第一个「用户加了才发生」的联网点,README 的「全程不联网」一句同步改(Task 18)。
 
-**3. 类型一致性**:`ChannelRef(pkg, key, name)`、`LayoutRow.channel`、`Row.channel / programs / channelAppLabel / cellCount`、`Program`、`PosterAspect.widthDp`、`ChannelContent.{NeedsPermission, Missing, Ready}`、`HomeVertical.{rowsTop, focusLine, restBlockTop, restCardTop, shiftY}`、`GtvLayout.rowShiftX(Int, List<Float>, Float)`、`PosterCache.{peek, load}`、`ChannelLaunch.open`、`LocalChannelEnv.{revision, requestPermission, openPermissionSettings}`、`Shelf.ChannelShelf / ChannelShelfState / ShelfChip.REAUTHORIZE`、`NewRowChoice.CHANNEL` / `choiceMax`、`ChannelSnapshot` / `ChannelCache` / `channelContentsFrom`、`homeTargetRow` / `homeTargetCell`、`ChannelPicker(nonce, onLayout, onPick, onBack)` 在定义任务与使用任务里逐字一致。
+**3. 类型一致性**:`ChannelRef(pkg, key, name)`、`LayoutRow.channel`、`Row.channel / programs / channelAppLabel / cellCount`、`Program`、`PosterAspect.widthDp`、`ChannelContent.{NeedsPermission, Missing, Ready}`、`HomeVertical.{rowsTop, focusLine, restBlockTop, restCardTop, shiftY}`、`GtvLayout.rowShiftX(Int, List<Float>, Float)`、`PosterCache.{peek, load}`、`ChannelLaunch.open`、`LocalChannelEnv.{revision, requestPermission, openPermissionSettings}`、`PermissionResult` / `permissionResult`、`Shelf.ChannelShelf / ChannelShelfState / ShelfChip.REAUTHORIZE`、`NewRowChoice.CHANNEL` / `choiceMax`、`ChannelSnapshot` / `ChannelCache` / `channelContentsFrom`、`homeTargetRow` / `homeTargetCell`、`ChannelPicker(nonce, onLayout, onPick, onBack)` 在定义任务与使用任务里逐字一致。
 
 **4. Review Focus**:七条各有钉住它的测试——6 → Task 12 `channelRowAboveDisappearingKeepsTheSameCard` / `channelRowAppearingAboveKeepsTheSameCard` + Task 16「上面的频道行消失 / 出现」;7 → Task 7 `ChannelCacheTest`;1 → Task 3 `reinstalledChannelWithNewIdStillMatchesByKey` + Task 16 REPUBLISH;2 → Task 7 `deniedMeansEveryRowNeedsPermission` + Task 12 `permissionlessAndEmptyChannelRowsAreDropped` + Task 16 撤销授权;3 → Task 8 `fetchGivesUpAfterTheTimeoutWhenTheServerNeverAnswers` / `failedPosterIsNotRetriedWithinAMinute` + Task 16 海报超时;4 → Task 12 `shrinkingRowClampsTheFocusColumnToItsLastCard` + Task 16 SHRINK;5 → Task 1 `oldVersionRewriteBecomesPlainEmptyAppRows` + Task 2 `legacySevenAppRowsAreReadableButFull`。
