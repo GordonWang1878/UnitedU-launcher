@@ -877,6 +877,20 @@ object GtvLayout {
         return if (overRight > 0f) -overRight else 0f
     }
 
+    /**
+     * R164:同一条规则(焦点卡完全可见就不动,右缘含聚焦溢出超出右侧可视区才左移刚好这么多),卡宽逐张给(频道行按海报比例)。
+     * 等宽时与上面那个版本逐值相同(HomeVerticalTest)。[focusedIndex] 夹到 [widths] 范围内;空表 = 0。
+     */
+    fun rowShiftX(focusedIndex: Int, widths: List<Float>, screenWidthDp: Float): Float {
+        if (widths.isEmpty()) return 0f
+        val f = focusedIndex.coerceIn(0, widths.lastIndex)
+        var right = CONTENT_KEYLINE
+        for (i in 0..f) right += widths[i]
+        right += CARD_GAP * f + appFocusOverflow(widths[f])
+        val overRight = right + CONTENT_KEYLINE - screenWidthDp
+        return if (overRight > 0f) -overRight else 0f
+    }
+
     /** 开卡片标题时每行多出的高度(dp)= [cardTitleGap](size) + [CARD_TITLE_LINE];关掉时 0。 */
     fun titleHeight(size: GtvCardSize, showTitles: Boolean): Float =
         if (showTitles) cardTitleGap(size) + CARD_TITLE_LINE else 0f
