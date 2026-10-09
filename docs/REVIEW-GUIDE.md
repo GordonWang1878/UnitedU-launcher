@@ -13,7 +13,7 @@
 ## 2. 怎么构建、测试
 
 - 需要 JDK 17、Android SDK(compileSdk 35、build-tools **35.0.0**,`app/build.gradle.kts` 里显式钉了)、Gradle 8.14.x。**仓库里没有 Gradle Wrapper**。作者机器上工具链刻意不进 PATH,用 `source scripts/env.sh` 注入(路径是作者本机的,仅供参考)。
-- 构建:`gradle --no-daemon assembleRelease`;单测:`gradle --no-daemon testReleaseUnitTest`(`app/src/test/`,74 个文件、约 810 个 JVM 单测;**没有仪器测试**,界面行为靠模拟器端到端脚本 `scripts/e2e/`(15 段旅程,跑法见那里的 README)+ 真机验收,记录在 `WORKLOG.md`)。
+- 构建:`gradle --no-daemon assembleRelease`;单测:`gradle --no-daemon testReleaseUnitTest`(`app/src/test/`,96 个文件;**没有仪器测试**,界面行为靠模拟器端到端脚本 `scripts/e2e/`(16 段旅程,跑法见那里的 README)+ 真机验收,记录在 `WORKLOG.md`)。
 - 没有 `~/.unitedu/release.jks` 时 release 自动用 debug keystore 签名(`-PrequireReleaseKey=true` 时改为构建失败,`scripts/release.sh` 总带这个参数)。R8 开着(`proguard-rules.pro`),资源裁剪关着(理由见 `build.gradle.kts` 注释)。
 - lint:`lintVitalRelease` 通过;完整 `lintRelease` 报 22 个 error,其中 21 个是误报(`ProduceStateDoesNotAssignValue` ×16、`dispatchKeyEvent` 上的 `RestrictedApi` ×5),1 个是刻意的(`QUERY_ALL_PACKAGES`,桌面必须列出全部应用)。详见同日体检报告 [`design/health-check-2026-09-29.md`](design/health-check-2026-09-29.md)。
 - 内置壁纸 / 屏保图有一道构建前置:`app/src/main/assets/builtin/{wallpapers,screensavers}/` 里的图必须先经 `scripts/hdr-assets.py --in-place` 转成双写法 HDR JPEG,否则单测 `BuiltinHdrAssetsTest` 失败(见 §5)。
@@ -25,7 +25,7 @@
 - **进程模型**:除 `:homekey` 外所有组件(`MainActivity`、清单里的 `PackageRemovedReceiver` / `RelaunchAfterUpdate` / `SelfUpdateResult`、系统屏保 `UnitedUDream`、上传服务的请求线程)同一进程,所以文件锁用进程内锁就够(`LockedFile`)。**主页键接管的无障碍服务 `HomeKeyService` 跑在独立进程 `:homekey`**(R162:每一下按键都先经过它,不与首页抢主线程;桌面进程照常可回收),它**不碰任何状态文件**——`LockedFile` 的锁不跨进程——只写自己的心跳文件 `homekey.state`(单写者、原子写),主进程只读。
 - **纯函数 / Android 分文件**:凡是能在 JVM 上测的规则都拆成不碰 Android 的文件(`*Pure.kt`、`*Model.kt`、`*Math.kt`、`PickerCells.kt`、`StandbySchedule.kt`、`UpdateChecker.kt`……),Compose / IO 那一半只接线。评审「规则对不对」看纯函数和它的单测,评审「接线 / 生命周期对不对」看 Compose 文件。
 
-## 4. 文件地图(`app/src/main/java/com/uniteduone/launcher/`,84 个文件)
+## 4. 文件地图(`app/src/main/java/com/uniteduone/launcher/`,100 个文件)
 
 **入口与全局状态**
 - `MainActivity.kt`(2100+ 行):浮层状态机、按键分发、待机计时、Bundle 保存 / 还原、包变动广播、语言切换 `recreate()`。评审重点文件。
@@ -42,6 +42,7 @@
 - `HomeBackdrop.kt` + `Wallpapers.kt` + `WallpaperMath.kt`:壁纸解码 / 模糊亮度处理 / 缓存 / 两张缓存图层。
 - `Move.kt`:首页原地移动态;`CardMenu.kt`:长按菜单项;`GearMenu.kt`:菜单浮层(名字是历史遗留,现在给长按卡片菜单、编辑页菜单等用)。
 - `Apps.kt`(枚举可启动应用、选卡片图)、`Model.kt`、`PickerGroups.kt`(「应用 / 系统工具」分组、「新」应用计数)。
+- 频道行(R164):`ChannelModel.kt`(纯模型:TvProvider 列名、解析、按 key / 名字匹配、排序截断、元数据、选频道页的列表与重定位)、`ChannelSource.kt`(读 TvProvider:显式投影、`?package=`、按频道取节目)、`ChannelCache.kt`(进程级频道缓存:首页 / 编辑页 / 选频道页共用一份,`channelsRevision` 驱动刷新、内容相同不通知)、`PosterLoader.kt`(海报:ContentResolver / https 5 s 总期限、宽高比 0.5–2.5、输出宽 ≤ 440 px、16 MB LRU、失败一分钟内不重试)、`ChannelLaunch.kt`(启动节目:去掉 URI 授权位、只许发布方自己的包)、`ChannelEnv.kt`(`LocalChannelEnv`)、`ChannelInit.kt`(`INITIALIZE_PROGRAMS` + `channel-init.json`)、`HomeVertical.kt`(首页纵向几何逐行累计)、`HomeChannels.kt` + `HomeChannelRow.kt`(首页频道行)、`ChannelPicker.kt`(选频道页)。
 - `AppsPage.kt`:所有应用页;`Inputs.kt` + `InputPrefs.kt` + `InputsPage.kt`:输入源枚举、CEC 去重、调谐器合并、改名 / 隐藏、输入源页。
 
 **编辑与数据**
@@ -81,7 +82,7 @@
 2. **焦点是否落下只信目标自报的 `isFocused`**:`requestFocus()` 返回 Unit,`runCatching { … }.isSuccess` 恒真。所以到处都是「等首帧 → 请求 → 看自报 → 重试」的循环。
 3. **丢焦点靠看门狗**(`holder == null` 时 3 帧宽限后重请求,最多 60 帧),每个浮层自己负责自己的恢复,外层看门狗会为浮层让路(`covered`)。
 4. **「有没有焦点」只信控件自报**,不信根节点的 `onFocusChanged`(退到后台再回来时它不重发)。
-5. **目标与当前位置分开,每个坐标分量都拆,且从 `ON_PAUSE` 起冻结**:Compose 会抢先把焦点给第一张卡,共用一个量会把记忆改写成 0。所以有 `tgtRow` / `tgtIdx` / `tgtPill`、`frozenTarget`、`restoring` 这些看似重复的量。
+5. **目标与当前位置分开,每个坐标分量都拆,且从 `ON_PAUSE` 起冻结**:Compose 会抢先把焦点给第一张卡,共用一个量会把记忆改写成 0。所以有 `tgtLayoutRow` / `tgtCol` / `tgtPill`(首页按 layout.json 行号认行,画出来的行号会因频道行出现 / 消失而挪动)、`frozenTarget`、`restoring` 这些看似重复的量。
 6. **`LaunchedEffect` 的守卫与 key 成对出现**:写了 `if (X) return@LaunchedEffect`,X 就在 key 里。评审时反过来检查这一条很有价值。
 7. **不用一次性布尔闩**,用 nonce 比对(`focusNonce`)这类可自愈的判据。
 
@@ -98,6 +99,9 @@
 - **只读系统设置,从不写**:系统屏保、动画缩放、`sleep_timeout` 都只显示并跳系统页;需要 `WRITE_SECURE_SETTINGS` 的做法被刻意否掉。
 - **HDR**:内置图是 Ultra HDR(XMP `hdrgm` + ISO 21496-1 双写法),解码保留增益图、处理链单独处理增益图(R122–R125)。模拟器与 A95L 的显示器都不报 HDR/SDR 比例,Android 14 会把 HDR 窗口静默降成 sRGB——**在这两处看不到 HDR 是预期**,验证只能靠 `Bitmap.hasGainmap()` 日志。
 - **性能**:A95L 上 `adb install` 的包是未编译的(`status=verify`),按键帧 UI 线程约 15 ms,`cmd package compile -m speed-profile` 后约 5 ms;评估卡顿前先确认编译状态(`design/perf-2026-09-28.md`)。
+- **TvProvider 没授权时返回 0 行、不抛异常**:「需要重新授权」以 `checkSelfPermission(READ_TV_LISTINGS)` 判,`SecurityException` 只是兜底。查询一律显式投影、不带 selection(带了 TvProvider 抛 `SecurityException`)。不看 `browsable`(国行与 Google TV 上没人审批,永远是 0)。读失败(异常 / 游标为 null)时快照整体返回 null、缓存留上一份;设备根本没有 TvProvider 才算「空」。
+- **节目的 `intent_uri` 是别的应用写的**:`ChannelLaunch` 去掉一切 URI 授权位、只启动解析到发布方自己包的 Activity(并把 `intent.component` 钉到审过的组件),不合规就退回打开那个应用。海报同样来自第三方,解码按宽高双向约束、像素数先查再解。不要「简化」掉这些。
+- 频道行在 layout.json 里是带 `channel` 字段的空应用行;**旧版本**读到它是空应用行,第一次写盘就把它变成真的空应用行(版本只升不降,接受),新版本读回时应用行可能多于 5 行——这是合法状态(不能再加应用行),不是损坏。
 
 ## 6. 已知问题与接受的限制(不必再报)
 
@@ -116,6 +120,12 @@
 - **「这台电视不允许」是推断,不是读锁**:应用读不到那个 appop(要 `MANAGE_APPOPS`),按安装来源(`packageSource` 为本地 / 下载文件)加「见过一次」记号推断;会话更新会把来源归 0 而锁还在(靠记号);已用 adb 解锁但还没开过服务时仍报「不允许」(按钮照样带去无障碍页);安装来源仍是文件(3 / 4)时,关掉开关后记号会被重新点亮、小字回到「不允许」;`pm clear` 清记号而 appop 不清、Auto Backup 可能把记号带到别的机器——都只影响小字。**自我更新的 16 MB 拷贝 + fsync 在主线程**(`SelfUpdate.install`,确认前台与 `commit` 要在同一个主线程回合;电视上若有卡顿再挪到 IO;手机传来的恰是 UnitedU 自己时走同一处,上限是传 APK 的 100 MB,实际约 16 MB)。复审时登记、没修的两处:`HomeKeyService.launch()` 失败(厂商拦后台启动)时 HOME 照吃,成了死键;自我更新的非取消类失败(存储不足、签名不符、被策略拦下)只弹一条系统 Toast(带状态码),关于页仍停在「安装中」。
 - **数据格式向下兼容(R166,约束不是 bug)**:从 Beta 切回稳定版装的是旧代码(回退包),它要读 Beta 写下的 layout / titles / hidden-inputs / settings,所以 Beta 只能**新增**字段、不改既有字段的含义与类型(CLAUDE.md「数据格式向下兼容铁律」,`ForwardCompatTest` 逐个读盘函数钉住)。评审时看到“只加不改”的落盘改动别当过度设计。
 - **更新通道顺序(Gordon 2026-10-09 定)**:R2 优先、GitHub 兜底、先到先得;清单读到后下载失败不换通道重试,不改。
+
+- 频道海报是 https 时会联网下载(除「检查更新」「上传资料」外唯一的联网点,只在用户自己加了频道行时);`http://` 明文海报按网络安全配置画成无图卡。
+- 频道数据一变(TvProvider 去抖 500 ms)首页就重读频道内容;只有内容真的变了才冻结焦点目标重定位一次。
+- 冷启动时第一行是频道行而缓存尚未就绪:焦点落第一个应用行,频道行出现后不跳回(铁律 5 优先于「首屏落最上面」)。
+- 选频道页在授权窗开着时 Activity 重建会丢回调(页面停在「询问中」,按返回即可);没有横幅的应用在选频道页卡片上回落成整句「应用 · 频道」文字,略挤。
+- 国行 A95L 上有没有频道数据、Kodi 型「不 browsable 就不写节目」的应用会怎样,只能随正式版在电视上看。
 
 ## 7. 最有价值的评审方向
 

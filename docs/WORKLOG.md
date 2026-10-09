@@ -2062,3 +2062,14 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 截图 `docs/screenshots/channel-rows/01…10`(01 首页焦点在频道行、02 焦点在频道行下一行、03 无图回落卡、04 编辑页频道架子、05 需要重新授权、06「频道」满 5 行变暗、07 选频道页、08 拒绝授权、09 没有任何频道、10 系统授权窗)。02 取的是频道行**下面**那行有焦点:首页第一行在屏幕下部,焦点在它上面时频道行在屏幕外。
 - 性能(首页 5 应用行 + 5 频道行 × 12 vs 纯 5 应用行,同操作:下 9 / 右 11 / 上 9;release 包已 `compile -m speed`;各跑两遍,数字只作相对比较):gfxinfo 50th 97 vs 57–69 ms、90th 都是 150 ms 档;framestats UI 线程 50th 0.9–1.6 vs 0.6–1.0 ms、90th 3.3–4.5 vs 2.0–5.3 ms(同量级);RenderThread 50th 46–70 vs 23–34 ms(频道行画的像素多,模拟器 GPU 是瓶颈,不代表 A95L,见 perf-2026-09-28 的 GPU 坑)。海报只加载焦点行 ± 1(`loadsPosters`)。PSS 92 vs 61 MB,两遍间不涨(LRU 16 MB 封顶);模拟器 `Graphics` 一栏恒 0,看不出图形内存。编辑页 10 层(5 应用 + 5 频道,毛玻璃底)上下各 11 下:UI 50th 0.7–1.5 ms、RenderThread 50th 25–26 ms,与 5 层纯应用(27–34 ms)持平。A95L 的手感要随正式版由 Gordon 在电视上看。
 - 仍待:电视上看(随下一个正式版)。
+
+## 2026-10-09 · 频道行实现收口(R164 / R165 §3–§5,计划 `docs/superpowers/plans/2026-10-08-channel-rows.md`)
+- 做了什么(按任务):①模型与 layout.json(`LayoutRow.channel`,旧版读到是空应用行)②行数判据:应用行 / 频道行各自最多 5 行 ③匹配 / 排序 / 截断 12 张 ④`moveCard` / `moveInLayout` 跳过频道行 ⑤缺包清理 ⑥「加到桌面」只列应用行 ⑦`ChannelSource` 读 TvProvider + `ChannelCache` + `READ_TV_LISTINGS` ⑧`PosterLoader` ⑨授权请求、500 ms 去抖、`LocalChannelEnv`、`ChannelLaunch` 两条防线 ⑩`HomeVertical` 逐行累计纵向几何 ⑪e2e 夹具 `test.channels` ⑫首页频道行(目标改按 layout.json 行号认行)⑬编辑页频道架子 ⑭「新的一行」加「频道」卡 ⑮选频道页 ⑯e2e `j_channels` ⑰模拟器验收与截图 ⑱本条文档同步。
+- 关键结论:①**没授权时 TvProvider 不抛异常、只返回 0 行**,「需要重新授权」以 `checkSelfPermission` 为准;②`pm revoke` 撤销授权会杀本进程(授权不会),且不清「拒绝过」标记,要清得 `pm clear-permission-flags … user-set user-fixed`;③频道重读**不整段冻结**焦点目标——TvProvider 每变一次就吞方向键不可接受;只在内容真的变了时、同一次恢复里冻结一次(`restoring` → 换数据 → `channelsLanding++`),否则焦点卡被拆那一帧 Compose 抢给的 (0,0) 会改写目标;④首页目标按 layout.json 行号认行、rows 不包 `key`,频道行整行出现 / 消失时下面那行焦点不动;⑤TV 版授权窗连拒两次不会自动变「不再询问」,第二次起多一个显式按钮;⑥读失败时缓存留上一份,设备没有 TvProvider 才算空;⑦海报和 `intent_uri` 都来自第三方,分别加了尺寸 / 像素 / 时限约束与「去授权位、只启发布方自己的导出组件、钉 component」。
+- 联网说明变化:海报是 https 时会联网下载,是继「检查更新」「上传资料」后的第三个联网点,只在用户自己加了频道行时;README 双语「全程不联网」一句同步改。
+- e2e:`j_channels` 72/72(最近一次),`j_edit` + `j_pkg` 131/131;全量单测 + `assembleRelease` 通过。Task 11 的夹具未需要补 `input_id`。
+- Task 17 性能(首页 5 应用行 + 5 频道行 × 12 vs 纯 5 应用行,同操作;模拟器,只作相对比较):gfxinfo 50th 97 vs 57–69 ms;framestats UI 线程 50th 0.9–1.6 vs 0.6–1.0 ms(同量级);RenderThread 50th 46–70 vs 23–34 ms(模拟器 GPU 是瓶颈);PSS 92 vs 61 MB,两遍间不涨(LRU 16 MB 封顶)。截图 `docs/screenshots/channel-rows/01…10`。
+- 验收时的裁定:满 5 行的「频道」选择卡有焦点时用 80% 灰底(不用主题色,免得看着像能按),请 Gordon 看 `06-new-row-full.jpg`;「应用行」卡英文说明改短一行。
+- 未验证项:**国行 A95L 上有没有频道数据、Kodi 型「不 browsable 就不写节目」的应用会怎样,都只能随正式版在电视上看**;A95L 手感(渲染线程耗时模拟器约 2 倍)同样待看。
+- 已知小毛病(记下未修):选频道页标签用 `ctx.getString`(换语言不重组);授权窗开着时 Activity 重建 → 页面停在「询问中」只能按返回;没横幅的应用在选频道页卡上回落成整句文字略挤;满行卡获焦时 alpha 0.45→0.8 瞬跳而填色走 150 ms。
+- 文档同步:CLAUDE.md(首页行补频道行与目标口径、新增「选频道页」行、编辑页补频道架子、模拟器坑)、REVIEW-GUIDE(文件地图 / 约束 / 已知限制 / 计数)、README 双语、DESIGN(「内容推荐行」注明 R164)、gtv 线 §12 R164 状态。`docs/design/settings-inventory.md` 未受影响(没有新设置项)。
