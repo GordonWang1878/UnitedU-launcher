@@ -89,7 +89,7 @@ fun channelCapsuleId(c: UpdateChannel): String = if (c == UpdateChannel.BETA) CH
 /**
  * 关于页此刻画不画(R128)。关于页是叠在外壳第一层之上的整屏页;从它的「恢复默认」进确认层时,确认层是外壳栈上的一层,
  * 关于页让开(淡出、外壳不再 covered),确认层返回 / 确定弹栈后关于页重新出现、落回「恢复默认」。
-R164 起通道页([ShellPages.CHANNEL])同理。
+ * R164 起通道页([ShellPages.CHANNEL])同理。
  * 只有「确认层 / 通道页在栈顶」这两种情况让开——[about] 为真时其余任何栈形状都照常画关于页(不会出现「开着却看不见」的黑洞)。
  */
 fun aboutPageShown(about: Boolean, stack: List<ShellFrame>): Boolean =

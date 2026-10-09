@@ -874,9 +874,11 @@ class MainActivity : ComponentActivity() {
                             onConfirmRestore = { if (live) confirmRestoreDefaults() },
                             // R164:先写盘、再 switchChannel()(它在 IO 线程读 SettingsStore,写必须先完成)。
                             onPickChannel = { c ->
-                                SettingsStore.update(this@MainActivity) { it.copy(updateChannel = c) }
-                                settingsRevision++
-                                aboutFlow.switchChannel()
+                                if (live) {
+                                    SettingsStore.update(this@MainActivity) { it.copy(updateChannel = c) }
+                                    settingsRevision++
+                                    aboutFlow.switchChannel()
+                                }
                             },
                             onChangeHome = { if (live) switchHome() },
                             onHomeKeyTakeover = { if (live) openHomeKeySettings() },
@@ -989,6 +991,7 @@ class MainActivity : ComponentActivity() {
                     versionName = BuildConfig.VERSION_NAME,
                     versionCode = BuildConfig.VERSION_CODE,
                     state = aboutState,
+                    offerKind = aboutFlow.offerKind,
                     onCheck = aboutFlow::check,
                     onDownload = aboutFlow::downloadAndInstall,
                     onInstall = aboutFlow::installReady,

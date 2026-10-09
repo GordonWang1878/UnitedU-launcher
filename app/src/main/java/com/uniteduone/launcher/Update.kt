@@ -84,9 +84,9 @@ object Update {
 
     /** 双通道检查(规则见 [resolveChannel]);三份清单各自走 [resolveLatest] 的逐通道兜底。 */
     @WorkerThread
-    fun checkChannel(channel: UpdateChannel, installedCode: Int, sdk: Int): Result<ChannelUpdate?> =
+    fun checkChannel(channel: UpdateChannel, installedCode: Int, installedName: String, sdk: Int): Result<ChannelUpdate?> =
         resolveChannel(
-            channel, installedCode, sdk,
+            channel, installedCode, installedName, sdk,
             log = { Log.w(TAG, it) },
             fetchStable = { check(configuredUrls()) },
             fetchBeta = { check(parseUpdateUrls(BuildConfig.BETA_URLS)) },

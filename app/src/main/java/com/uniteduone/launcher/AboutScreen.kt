@@ -175,6 +175,13 @@ class AboutController(
         private set
 
     private var session = 0
+
+    /**
+     * 当前这条更新的来路(稳定 / Beta / 回退)。Found 之后的下载 / 失败 / 校验各态都带 info 但不带 kind,
+     * 标题与「取消下载回到 Found」都要靠它:回退包不能被叫成「新版本」。新检查开始与 [reset] 时清回 STABLE。
+     */
+    var offerKind: UpdateKind by mutableStateOf(UpdateKind.STABLE)
+        private set
     private var checkJob: Job? = null
     private var downloadJob: Job? = null
     /** R151 ②:这次打开关于页已经带用户去开过「显示在其他应用上层」(关页时清,下次打开再问一次)。 */
@@ -184,17 +191,19 @@ class AboutController(
     /** 手动检查(spec §7.3):结果一定落到 Latest / Found / Failed 之一,不静默。 */
     fun check() {
         if (state.action != AboutAction.CHECK) return
+        offerKind = UpdateKind.STABLE
         val my = begin(AboutState.Checking)
         checkJob = activity.lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
                 val ch = channel() // 每次检查只读一次,日志与请求用同一个值
-                ch to Update.checkChannel(ch, currentVersionCode, Build.VERSION.SDK_INT)
+                ch to Update.checkChannel(ch, currentVersionCode, BuildConfig.VERSION_NAME, Build.VERSION.SDK_INT)
             }
             if (my != session) return@launch
             val (ch, outcome) = result
             state = outcome.fold(
                 onSuccess = { up ->
                     Log.i(TAG, "update check (${ch.id}): current $currentVersionCode, found=${up?.info?.versionCode} kind=${up?.kind}")
+                    if (up != null) offerKind = up.kind
                     if (up != null) AboutState.Found(up.info, up.kind) else AboutState.Latest
                 },
                 onFailure = { e ->
@@ -333,7 +342,7 @@ class AboutController(
         val info = s.info
         if (!s.cancellable || info == null) return false
         Log.i(TAG, "update download cancelled by user")
-        begin(AboutState.Found(info))
+        begin(AboutState.Found(info, offerKind))
         return true
     }
 
@@ -344,6 +353,7 @@ class AboutController(
     fun reset() {
         val ready = (state as? AboutState.ReadyToInstall)?.file
         overlayAsked = false
+        offerKind = UpdateKind.STABLE
         begin(AboutState.Idle)
         if (ready != null) {
             Log.i(TAG, "about closed; discarding verified update ${ready.name} (not installed)")
@@ -376,7 +386,7 @@ class AboutController(
 
 /**
  * 关于页(spec §7.1;R74 起换成设置页外壳的样子):左边标题 + 版本 + 检查结果 + 许可声明 + 项目地址,
- * 右边两颗胶囊(R128):检查更新(下载并安装 / 安装更新 / 忙碌态的进度文字)、恢复默认 ›。一屏放下,**不滚动**(铁律 1);
+ * 右边三颗胶囊(R128 两颗,R164 加「更新通道」):检查更新(下载并安装 / 安装更新 / 忙碌态的进度文字)、恢复默认 ›。一屏放下,**不滚动**(铁律 1);
  * `notes` 最多四行,超出省略。
  *
  * 焦点账本 = 外壳同一个 [CapsuleColumn]:初始焦点循环只信自报、`nonce` 变化(从别的应用回来)重来一轮、
@@ -398,6 +408,8 @@ fun AboutScreen(
     versionName: String,
     versionCode: Int,
     state: AboutState,
+    /** 当前更新的来路([AboutController.offerKind]);Found 之后各态的标题据此区分「回退」。 */
+    offerKind: UpdateKind = UpdateKind.STABLE,
     onCheck: () -> Unit,
     onDownload: () -> Unit,
     onInstall: () -> Unit,
@@ -472,7 +484,7 @@ fun AboutScreen(
                         // 结果区。第一行始终占位(空白态也留一行高),下面的许可声明不会因为「检查中 → 已是最新」上下跳。
                         Spacer(Modifier.height(10.dp))
                         val info = state.info
-                        val headline = headline(state)
+                        val headline = headline(state, offerKind)
                         // 2026-10-03 Gordon:结果这一行不够醒目,但不许改字号——字号不动,改成一颗实心胶囊:
                         // 底色 = 语气色(好消息主题色 / 失败错误色),字按底色亮度取对比色(同聚焦胶囊的做法)。
                         // 外层 Box 按胶囊高度占位,空白态也留这一格,下面的许可声明不跳。
@@ -559,10 +571,10 @@ private fun buttonLabel(state: AboutState): String = when (state) {
 
 /** 按钮下方第一行:有新版就是「发现新版本 x」,否则是检查结果(已是最新 / 失败原因),空白态为 null。 */
 @Composable
-private fun headline(state: AboutState): Pair<String, Tone>? {
+private fun headline(state: AboutState, offerKind: UpdateKind): Pair<String, Tone>? {
     val info = state.info
     if (info != null) {
-        val res = if ((state as? AboutState.Found)?.kind == UpdateKind.ROLLBACK) R.string.about_found_rollback else R.string.about_found
+        val res = if (offerKind == UpdateKind.ROLLBACK) R.string.about_found_rollback else R.string.about_found
         return stringResource(res, info.versionName) to Tone.GOOD
     }
     return when (state) {
