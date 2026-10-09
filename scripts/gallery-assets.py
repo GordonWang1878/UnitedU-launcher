@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+"""Offline resource catalog builder; originals are never converted."""
+import argparse
+import hashlib
+import io
+import json
+import re
+import tempfile
+from pathlib import Path
+from PIL import Image
+
+CATALOG_LIMIT=2*1024*1024
+ORIGINAL_LIMIT=32*1024*1024
+THUMB_LIMIT=512*1024
+FORMATS={'JPEG':('jpg','image/jpeg'), 'PNG':('png','image/png'), 'WEBP':('webp','image/webp')}
+
+def require(condition, message):
+    if not condition: raise ValueError(message)
+
+def integer(value, low, high):
+    require(type(value) is int and low <= value <= high, 'invalid integer')
+
+def text(value):
+    require(isinstance(value,str) and value.strip(), 'missing nonblank text')
+
+def safe_path(root, relative):
+    text(relative)
+    require(not any(c.isspace() or ord(c)<32 or c in '%\\?#:' for c in relative), 'unsafe path')
+    parts=relative.split('/')
+    require(all(p and p not in ('.','..') for p in parts) and not relative.startswith('/'), 'path traversal')
+    no_symlink_ancestors(root)
+    root=Path(root).resolve(); candidate=root.joinpath(*parts)
+    require(all(not root.joinpath(*parts[:i]).is_symlink() for i in range(1,len(parts)+1)), 'symlink forbidden')
+    require(candidate.resolve().is_relative_to(root), 'path escape')
+    return candidate
+
+def no_symlink_ancestors(path):
+    require(all((not p.is_symlink() or str(p) in ('/tmp','/var')) for p in (Path(path).absolute(), *Path(path).absolute().parents)), "symlink ancestor forbidden")
+
+def read_json(path, limit=CATALOG_LIMIT):
+    no_symlink_ancestors(path)
+    require(path.stat().st_size <= limit, 'JSON too large')
+    def pairs(values):
+        result={}
+        for k,v in values:
+            require(k not in result, 'duplicate JSON key'); result[k]=v
+        return result
+    return json.loads(path.read_text(encoding='utf-8'), object_pairs_hook=pairs)
+
+def validate_item(item):
+    require(isinstance(item,dict), 'item must be object')
+    require(isinstance(item.get('id'),str) and re.fullmatch('[a-z0-9][a-z0-9-]{0,95}',item['id']), 'invalid ID')
+    require(item.get('kind') in ('cards','wallpapers','screensavers'), 'invalid kind')
+    require(isinstance(item.get('names'),dict), 'names must be object')
+    for lang in ('zh-CN','zh-TW','en'): text(item['names'].get(lang))
+    integer(item.get('order'),-2**31,2**31-1); text(item.get('credit'))
+    packages=item.get('packages',[])
+    require(isinstance(packages,list) and (packages or item['kind']!='cards'), 'missing packages')
+    for p in packages: require(isinstance(p,str) and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+',p), 'invalid package')
+    require(len(packages)==len(set(packages)), 'duplicate package')
+
+def image_info(data, kind, thumbnail=False):
+    require(0<len(data)<= (THUMB_LIMIT if thumbnail else ORIGINAL_LIMIT), 'image too large')
+    try:
+        with Image.open(io.BytesIO(data)) as image:
+            fmt=image.format; size=image.size; frames=getattr(image,'n_frames',1)
+            require(fmt in FORMATS, 'unsupported image')
+            require(all(1<=v<=8192 for v in size), 'image dimension too large')
+            if thumbnail: require(fmt=='JPEG' and max(size)<=640 and frames==1, 'invalid SDR thumbnail')
+            for frame in range(frames): image.seek(frame); image.load()
+    except (OSError,Image.DecompressionBombError) as error: raise ValueError('corrupt image') from error
+    hdr=b'hdrgm' in data or b'iso:ts:21496' in data or b'MPF' in data
+    if kind!='cards' and not thumbnail:
+        require(fmt=='JPEG' and b'MPF' in data and data.find(b'\xff\xd8',2)>0 and b'hdrgm' in data and b'iso:ts:21496' in data,
+                'dual HDR JPEG required; run scripts/hdr-assets.py <input> <separate-output-directory> (SDR input cannot create HDR)')
+    if kind!='cards' and not thumbnail:
+        try:
+            with Image.open(io.BytesIO(data[data.find(b'\xff\xd8',2):])) as gainmap: gainmap.load()
+        except OSError as error: raise ValueError('corrupt HDR gainmap') from error
+    if kind=='cards' or thumbnail: require(not hdr, 'SDR image required')
+    return size, FORMATS[fmt]
+
+def validate_catalog(catalog):
+    require(isinstance(catalog,dict), 'catalog must be object')
+    integer(catalog.get('schemaVersion'),1,1); integer(catalog.get('revision'),0,2**63-1)
+    items=catalog.get('items'); require(isinstance(items,list) and len(items)<=2000, 'invalid items')
+    ids=set()
+    for item in items:
+        validate_item(item); require(item['id'] not in ids,'duplicate ID'); ids.add(item['id'])
+        for key,limit in [('original',ORIGINAL_LIMIT),('thumbnail',THUMB_LIMIT)]:
+            blob=item.get(key); require(isinstance(blob,dict),'missing blob')
+            safe_path(Path('/tmp'),blob.get('path'))
+            integer(blob.get('bytes'),1,limit)
+            require(isinstance(blob.get('sha256'),str) and re.fullmatch('[a-f0-9]{64}',blob['sha256']), 'invalid SHA256')
+            require(Path(blob['path']).stem==blob['sha256'], 'hash filename required')
+        original=item['original']
+        for dimension in ('width','height'): integer(original.get(dimension),1,8192)
+        require(original.get('mediaType') in {v[1] for v in FORMATS.values()}, 'invalid mediaType')
+    return catalog
+
+def validate_history(audit, catalog):
+    require(isinstance(audit,dict) and type(audit.get('revision')) is int and audit['revision']==catalog['revision'],'invalid history')
+    history=audit.get('ids'); require(isinstance(history,dict),'invalid history')
+    for id_, value in history.items():
+        require(isinstance(id_,str) and re.fullmatch('[a-z0-9][a-z0-9-]{0,95}',id_) and isinstance(value,dict) and value.get('kind') in ('cards','wallpapers','screensavers') and type(value.get('active')) is bool,'invalid history entry')
+        hashes=value.get('hashes'); require(isinstance(hashes,list) and bool(hashes) and all(isinstance(h,str) and re.fullmatch('[a-f0-9]{64}',h) for h in hashes),'invalid history hashes')
+    active={i['id']:i['kind'] for i in catalog['items']}
+    require({k:v['kind'] for k,v in history.items() if v['active']}==active,'history mismatch')
+    for item in catalog['items']: require(item['original']['sha256'] in history[item['id']]['hashes'],'history hash mismatch')
+    return history
+
+def validate_artifact(root):
+    root=Path(root); require(not root.is_symlink(),'artifact symlink forbidden')
+    catalog=validate_catalog(read_json(safe_path(root,'index.json')))
+    for item in catalog['items']:
+        for key in ('original','thumbnail'):
+            blob=item[key]; path=safe_path(root,blob['path']); require(path.is_file(),'missing image')
+            require(path.stat().st_size==blob['bytes'],'size mismatch'); data=path.read_bytes()
+            require(hashlib.sha256(data).hexdigest()==blob['sha256'],'hash mismatch')
+            size,(_,mime)=image_info(data,item['kind'],key=='thumbnail')
+            if key=='original': require(list(size)==[blob['width'],blob['height']] and mime==blob['mediaType'],'metadata mismatch')
+    audit=read_json(safe_path(root,'id-history.json'))
+    validate_history(audit,catalog)
+    return catalog
+
+def generate(source, previous, out, revision):
+    source=Path(source); out=Path(out)
+    no_symlink_ancestors(source); no_symlink_ancestors(out)
+    require(not source.is_symlink() and not out.is_symlink(),'root symlink forbidden')
+    integer(revision,0,2**63-1)
+    require(not out.exists(),'output must be a new directory')
+    require(not out.resolve().is_relative_to(source.resolve()),'output must be outside source')
+    history={}; prior_items={}
+    if previous:
+        previous=Path(previous); prior=validate_catalog(read_json(previous)); require(revision>prior['revision'],'revision must increase')
+        prior_items={i['id']:i for i in prior['items']}
+        history={i['id']:{'kind':i['kind'],'active':True,'hashes':[i['original']['sha256']]} for i in prior['items']}
+        audit=previous.parent/'id-history.json'
+        if audit.is_file():
+            audit_value=read_json(audit)
+            history=validate_history(audit_value,prior)
+    resources=read_json(safe_path(source,'resources.json')); require(isinstance(resources,dict) and isinstance(resources.get('items'),list) and len(resources['items'])<=2000,'invalid resources')
+    items=[]; seen=set(); prepared=[]
+    for entry in resources['items']:
+        validate_item(entry); id_=entry['id']; require(id_ not in seen,'duplicate ID'); seen.add(id_)
+        if id_ in history: require(history[id_]['kind']==entry['kind'],'retired ID reuse or kind change')
+        path=safe_path(source,entry.get('source')); require(path.is_file(),'missing source'); require(path.stat().st_size<=ORIGINAL_LIMIT,'image too large')
+        data=path.read_bytes(); size,(suffix,mime)=image_info(data,entry['kind'])
+        if id_ in history and not history[id_]['active']:
+            require(hashlib.sha256(data).hexdigest() in history[id_].get('hashes',[]),'retired ID reuse requires known original hash')
+        image=Image.open(io.BytesIO(data)).convert('RGB'); image.thumbnail((640,640))
+        buffer=io.BytesIO(); image.save(buffer,'JPEG',quality=85,optimize=True); thumb=buffer.getvalue(); image_info(thumb,'cards',True)
+        item={k:entry[k] for k in ('id','kind','names','order','credit')}; item['packages']=entry.get('packages',[])
+        for key,content,ext in [('original',data,suffix),('thumbnail',thumb,'jpg')]:
+            digest=hashlib.sha256(content).hexdigest(); relative=f'{key}s/{digest}.{ext}'
+            item[key]={'path':relative,'bytes':len(content),'sha256':digest}; prepared.append((relative,content))
+        item['original'].update(width=size[0],height=size[1],mediaType=mime); items.append(item)
+    catalog={'schemaVersion':1,'revision':revision,'items':items}; validate_catalog(catalog)
+    encoded=json.dumps(catalog,ensure_ascii=False,indent=2).encode(); require(len(encoded)<=CATALOG_LIMIT,'catalog too large')
+    for value in history.values(): value['active']=False
+    for item in items:
+        hashes=history.get(item['id'],{}).get('hashes',[])
+        history[item['id']]={'kind':item['kind'],'active':True,'hashes':sorted(set(hashes+[item['original']['sha256']]))}
+    out.parent.mkdir(parents=True,exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=out.parent) as temp:
+        staged=Path(temp)/'artifact'; staged.mkdir()
+        for relative,data in prepared:
+            dest=staged/relative; dest.parent.mkdir(exist_ok=True); dest.write_bytes(data)
+        (staged/'index.json').write_bytes(encoded)
+        changes={'added':sorted(seen-set(prior_items)), 'updated':sorted(i['id'] for i in items if i['id'] in prior_items and i != prior_items[i['id']]), 'removed':sorted(set(prior_items)-seen)}
+        (staged/'changes.json').write_text(json.dumps(changes,ensure_ascii=False,indent=2))
+        (staged/'id-history.json').write_text(json.dumps({'revision':revision,'ids':history},ensure_ascii=False))
+        validate_artifact(staged); staged.rename(out)
+    return catalog
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__); parser.add_argument('--source',required=True,type=Path); parser.add_argument('--previous',type=Path); parser.add_argument('--out',required=True,type=Path); parser.add_argument('--revision',required=True,type=int)
+    args=parser.parse_args()
+    try: generate(args.source,args.previous,args.out,args.revision)
+    except (ValueError,OSError,KeyError,TypeError) as error: parser.exit(1,f'{error}\n')
+
+if __name__=='__main__': main()
