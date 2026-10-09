@@ -56,6 +56,32 @@ class ChannelShelfTest {
         assertEquals(ShelfSpot(1, CHIPS, 0), clampSpot(shelves(), ShelfSpot(1, CHIPS, 0)))
     }
 
+    /** controller 裁定(Task 13 复审 2):焦点在「重新授权」上、授权回来它没了 → 落第一颗,不按位置夹到「删除」。 */
+    @Test fun reauthorizeVanishingWhileFocusedLandsOnTheFirstChip() {
+        val old = shelfChips(shelves(ChannelContent.NeedsPermission), 1)   // [UP, DOWN, DELETE, REAUTHORIZE]
+        val new = shelfChips(shelves(), 1)                                 // [UP, DOWN, DELETE]
+        assertEquals(0, landingAfterChipsChanged(old, new, old.indexOf(ShelfChip.REAUTHORIZE)))
+        assertEquals(
+            "编辑页的目标解析同一条规则",
+            ShelfSpot(1, CHIPS, 0),
+            resolveEditTarget(shelves(), ShelfSpot(1, CHIPS, 3), ShelfChip.REAUTHORIZE),
+        )
+    }
+
+    /** 焦点在别的胶囊上、「重新授权」消失 / 出现:还是那一颗。 */
+    @Test fun otherChipsKeepTheirIdentityWhenReauthorizeComesAndGoes() {
+        val old = shelfChips(shelves(ChannelContent.NeedsPermission), 1)
+        val new = shelfChips(shelves(), 1)
+        for (chip in new) {
+            assertEquals("消失:$chip", new.indexOf(chip), landingAfterChipsChanged(old, new, old.indexOf(chip)))
+            assertEquals("出现:$chip", old.indexOf(chip), landingAfterChipsChanged(new, old, new.indexOf(chip)))
+        }
+        assertEquals(ShelfSpot(1, CHIPS, 2), resolveEditTarget(shelves(), ShelfSpot(1, CHIPS, 2), ShelfChip.DELETE))
+        // 别的胶囊没了(比如「下移」:这一层变成最后一个内容层)→ 按位置夹
+        assertEquals(1, landingAfterChipsChanged(listOf(ShelfChip.UP, ShelfChip.DOWN, ShelfChip.DELETE), listOf(ShelfChip.UP, ShelfChip.DELETE), 1))
+        assertEquals("不知道是哪颗:按位置夹", ShelfSpot(1, CHIPS, 2), resolveEditTarget(shelves(), ShelfSpot(1, CHIPS, 3), null))
+    }
+
     /** Task 13 复审:频道被删(Missing)、没授权时快照里没有应用名,行头仍写 PackageManager 查到的名字;都查不到(已卸载)才写包名。 */
     @Test fun channelShelfLabelFallsBackToThePackageManagerLabel() {
         val pm = mapOf("com.cibn.tv" to "CIBN酷喵")
@@ -86,7 +112,7 @@ class ChannelShelfTest {
     @Test fun clampKeepsSpotsOnAChannelShelfOnItsChips() {
         // clampSpot 换条时格号不清零、照夹(edit-shelves 的写法,应用架子 NEW → CARDS 同样如此):3 颗胶囊 → 夹到 2
         assertEquals("频道架子没有卡片条:改落胶囊条", ShelfSpot(1, CHIPS, 2), clampSpot(shelves(), ShelfSpot(1, CARDS, 3)))
-        assertEquals("授权回来「重新授权」没了:同一位置夹取", ShelfSpot(1, CHIPS, 2), clampSpot(shelves(), ShelfSpot(1, CHIPS, 3)))
+        assertEquals("clampSpot 只按位置夹(按身份落见 resolveEditTarget)", ShelfSpot(1, CHIPS, 2), clampSpot(shelves(), ShelfSpot(1, CHIPS, 3)))
     }
 
     @Test fun swapDeleteAndAppendLandings() {

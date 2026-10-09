@@ -172,12 +172,41 @@ internal fun clampSpot(shelves: List<Shelf>, spot: ShelfSpot): ShelfSpot {
     val shelf = if (spot.zone == ShelfZone.NEW && newRow >= 0) newRow else spot.shelf.coerceIn(0, shelves.lastIndex)
     val zone = when (shelves[shelf]) {
         is Shelf.AppShelf -> if (spot.zone == ShelfZone.NEW) ShelfZone.CARDS else spot.zone
-        // 频道架子只有胶囊:授权回来「重新授权」那颗没了,目标 (层, CHIPS, i) 在下面按新胶囊表夹到同一位置
+        // 频道架子只有胶囊(格号这里按位置夹;胶囊表变了按身份落是 [resolveEditTarget] 的事)
         is Shelf.ChannelShelf -> ShelfZone.CHIPS
         Shelf.NewRowShelf -> ShelfZone.NEW
     }
     val n = laneSize(shelves, shelf, zone)
     return ShelfSpot(shelf, zone, spot.index.coerceIn(0, (n - 1).coerceAtLeast(0)))
+}
+
+/**
+ * 一层的胶囊表变了之后(授权回来「重新授权」没了、应用行数变了「删除」没了……),原来在 [oldIndex] 那颗落到新表的第几颗:
+ * **按身份**——那颗还在 → 它的新下标;没了的是「重新授权」→ 0(controller 裁定,Task 13 复审 2:按位置夹会落到它前面的
+ * 「删除」,频道行删除不弹确认,授权回来再按一下确定就把这一行删了);别的没了 → 按位置夹。
+ */
+internal fun landingAfterChipsChanged(oldChips: List<ShelfChip>, newChips: List<ShelfChip>, oldIndex: Int): Int =
+    chipLanding(oldChips.getOrNull(oldIndex), newChips, oldIndex)
+
+/** [landingAfterChipsChanged] 的核心:[chip] = 原来那颗(不知道 → null,按位置夹),[fallback] = 原来的下标。 */
+internal fun chipLanding(chip: ShelfChip?, newChips: List<ShelfChip>, fallback: Int): Int {
+    if (newChips.isEmpty()) return 0
+    val i = if (chip == null) -1 else newChips.indexOf(chip)
+    return when {
+        i >= 0 -> i
+        chip == ShelfChip.REAUTHORIZE -> 0
+        else -> fallback.coerceIn(0, newChips.lastIndex)
+    }
+}
+
+/**
+ * 编辑页把(可能已过期的)目标解析成此刻的一格:先 [clampSpot],目标在胶囊条上、层号没被夹动、且记得设目标那一刻是哪颗
+ * 胶囊([chip])时,再按身份落([chipLanding])。编辑页的显式重定位与看门狗都经这里,胶囊表在哪里变都一样处理。
+ */
+internal fun resolveEditTarget(shelves: List<Shelf>, spot: ShelfSpot, chip: ShelfChip?): ShelfSpot {
+    val c = clampSpot(shelves, spot)
+    if (c.zone != ShelfZone.CHIPS || chip == null || c.shelf != spot.shelf) return c
+    return c.copy(index = chipLanding(chip, shelfChips(shelves, c.shelf), spot.index))
 }
 
 /** 这张选择卡是不是已满(spec §2.4:变暗、写「已满 5 行」、确定不响应,仍可聚焦)。 */

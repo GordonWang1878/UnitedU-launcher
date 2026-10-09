@@ -218,18 +218,44 @@ fun EditScreen(
     val shelfCol = remember { mutableStateMapOf<Int, Int>() }
 
     /** 安排一次重定位:冻结(tick++)与写目标在同一个同步动作里(旧编辑页 2026-09-11 的实测教训)。所有动作都走这里。 */
-    fun retarget(s: ShelfSpot) {
-        retargetTick++
+    /**
+     * 目标在胶囊条上时,设目标那一刻那一格是哪颗胶囊(Task 13 复审 2):胶囊表之后变了(授权回来「重新授权」没了),
+     * [resolveEditTarget] 按身份落,而不是按位置夹到旁边那颗(「删除」)。与 [target] 永远一起写([setTarget])。
+     */
+    var targetChip by remember { mutableStateOf<ShelfChip?>(null) }
+    fun chipAt(s: ShelfSpot): ShelfChip? =
+        if (s.zone == ShelfZone.CHIPS) shelfChips(shelvesNow(), s.shelf).getOrNull(s.index) else null
+    fun setTarget(s: ShelfSpot, chip: ShelfChip? = chipAt(s)) {
         target = s
+        targetChip = chip
+    }
+    fun retarget(s: ShelfSpot, chip: ShelfChip? = chipAt(s)) {
+        retargetTick++
+        setTarget(s, chip)
     }
     fun report(s: ShelfSpot, got: Boolean) {
         if (got) {
             holder = s
             if (s.zone == ShelfZone.CARDS) shelfCol[s.shelf] = s.index
             // 读的是活的状态(不是组合期的 val):重定位 / 暂停 / 拿起中,Compose 抢先给出的焦点事件改不动目标
-            if (retargetTick == retargetDone && !paused && carry == null) target = s
+            if (retargetTick == retargetDone && !paused && carry == null) setTarget(s)
         } else if (holder == s) holder = null
     }
+
+    // **组合阶段发现目标那一层的胶囊表变了 → 同步冻结并按身份重定位**(Task 13 复审 2;SettingsShell 条件行同一手法)。
+    // 授权回来 ChannelCache 重读,「重新授权」那颗被摘掉的那一帧,Compose 当场把焦点派给左上角那张卡(模拟器实测 5 ms 内),
+    // 那次上报若看到「没在重定位」就把目标改写成第一张卡、看门狗也看不到「没人持有」。所以必须在**组合阶段**(节点被摘之前)
+    // 就置上重定位;落点由 resolveEditTarget 按身份算(那颗还在 → 跟着它;是「重新授权」→ 这一层第一颗,不落到「删除」)。
+    // 显式落点(删行 / 上下移等)在同一个快照里连 targetChip 一起写好,这里按身份解析出的是同一格,只是多一次无害的重定位。
+    // 普通数组,只在组合阶段读写,不引起重组。拿起中不动(目标是被搬的卡,不在胶囊条上)。
+    val lastTargetChips = remember { arrayOfNulls<Pair<Int, List<ShelfChip>>>(1) }
+    val targetLaneChips = if (target.zone == ShelfZone.CHIPS) shelfChips(shelves, target.shelf) else null
+    val prevChips = lastTargetChips[0]
+    if (targetLaneChips != null && carry == null && prevChips != null && prevChips.first == target.shelf && prevChips.second != targetLaneChips) {
+        val to = resolveEditTarget(shelves, target, targetChip)
+        retarget(to, shelfChips(shelves, to.shelf).getOrNull(to.index))
+    }
+    lastTargetChips[0] = targetLaneChips?.let { target.shelf to it }
 
     // ---------------- 写盘 ----------------
     val scope = rememberCoroutineScope()
@@ -346,7 +372,8 @@ fun EditScreen(
             }
             ShelfChip.REAUTHORIZE -> channelEnv.requestPermission { result ->
                 // 授权窗盖上来时本页 ON_PAUSE 冻结焦点、ON_RESUME 按目标重定位;授权回来 channelsRevision++ → ChannelCache 重读 →
-                // 「重新授权」那颗消失,目标 (层, CHIPS, i) 由 clampSpot 夹到同一位置。owner 裁定(2026-10-09):只有永久拒绝
+                // 「重新授权」那颗消失,目标记着的是它(targetChip)→ resolveEditTarget 落这一层第一颗(不是位置上的「删除」,
+                // controller 裁定 Task 13 复审 2)。owner 裁定(2026-10-09):只有永久拒绝
                 // (系统没弹窗,见 permissionResult)才自动去系统设置;点了拒绝 / 返回关窗 → 留在这颗胶囊上,再按一次再问。
                 if (result == PermissionResult.DENIED_PERMANENTLY) channelEnv.openPermissionSettings()
             }
@@ -378,7 +405,8 @@ fun EditScreen(
     // ON_PAUSE:拿起取消 + 冻结目标;ON_RESUME:解冻并按目标重定位(从系统设置侧板 / 别的应用回来时 Compose 会抢先给第一张卡)。
     // 经 rememberUpdatedState 调:观察者只建一次,直接捕获的话读到的是第一次组合的函数
     val pauseNow by rememberUpdatedState { cancelCarry(); paused = true }
-    val resumeNow by rememberUpdatedState { paused = false; retarget(target) }
+    // 原样带上记住的那颗胶囊:回来时胶囊表可能已经变了(授权窗里点了允许),不能按此刻那一格重新认
+    val resumeNow by rememberUpdatedState { paused = false; retarget(target, targetChip) }
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
         val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
@@ -396,6 +424,7 @@ fun EditScreen(
     LaunchedEffect(retargetTick, ghost) {
         if (ghost) return@LaunchedEffect
         val wanted = target
+        val wantedChip = targetChip
         // 目标格若是注定被整格替换的加载占位,先等它换完(旧编辑页 §0-16 的根因:焦点落在占位上,数据一到占位被真卡替换,
         // 焦点随旧节点消失、Compose 从左上角往下找)。只等目标格自己;加载失败也会对上,不会卡住
         snapshotFlow {
@@ -404,17 +433,22 @@ fun EditScreen(
             val pkg = (sh.getOrNull(s.shelf) as? Shelf.AppShelf)?.takeIf { s.zone == ShelfZone.CARDS }?.apps?.getOrNull(s.index)
             pkg == null || loadedFor?.first == rows.flatMap { it.apps }.toSet() || loadedFor?.second?.containsKey(pkg) == true
         }.first { it }
-        val want = clampSpot(shelvesFor(view()), wanted)
-        target = want
+        var want = resolveEditTarget(shelvesFor(view()), wanted, wantedChip)
+        setTarget(want, wantedChip.takeIf { want.zone == ShelfZone.CHIPS } ?: chipAt(want))
         var frames = 0
         while (frames < 60 && holder != want) {   // 退出判据:目标自报(铁律 2),不信 requestFocus() 的返回
             withFrameNanos { }
+            // 每帧重新解析:循环跑着的时候胶囊表可能变了(授权窗关掉 → ON_RESUME 重定位到「重新授权」→ 几帧后 ChannelCache
+            // 重读、那颗被摘掉)。只算一次的话会对着已经没了的节点请求满 60 帧,再把 Compose 随手派的第一张卡认作目标
+            // (Task 13 复审 2 模拟器实测)。按身份解析,那颗没了就落这一层第一颗
+            want = resolveEditTarget(shelvesFor(view()), wanted, wantedChip)
             runCatching { req(want).requestFocus() }
             frames++
         }
+        if (holder == want) setTarget(want)
         // 到 60 帧上限还没落下:账本改成焦点此刻真正所在的那一格,下次 ON_RESUME 不再按过期的目标重定位。
         // 守卫同 report():暂停中 / 拿起中焦点停在 Compose 随手派的地方(多半是第一张卡),不能写进目标(铁律 5)
-        if (holder != want && !paused && carry == null) holder?.let { target = it }
+        if (holder != want && !paused && carry == null) holder?.let { setTarget(it) }
         retargetDone = retargetTick
     }
 
@@ -428,7 +462,7 @@ fun EditScreen(
         var frames = 0
         while (holder == null && frames < 60) {
             withFrameNanos { }
-            runCatching { req(clampSpot(shelvesFor(view()), target)).requestFocus() }
+            runCatching { req(resolveEditTarget(shelvesFor(view()), target, targetChip)).requestFocus() }
             frames++
         }
     }
