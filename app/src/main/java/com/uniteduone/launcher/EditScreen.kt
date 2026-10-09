@@ -385,6 +385,8 @@ fun EditScreen(
             runCatching { req(want).requestFocus() }
             frames++
         }
+        // 到 60 帧上限还没落下:账本改成焦点此刻真正所在的那一格,下次 ON_RESUME 不再按过期的目标重定位
+        if (holder != want) holder?.let { target = it }
         retargetDone = retargetTick
     }
 
@@ -496,9 +498,11 @@ fun EditScreen(
     // ---------------- 纵向位移(焦点线,spec §2.1)----------------
     var viewportPx by remember { mutableStateOf(0) }
     val heights = remember { mutableStateMapOf<Int, Int>() }
-    // 焦点层 = 此刻持有焦点的那一层,没人持有时才看目标。非焦点层的胶囊是透明的但可聚焦(Task 7):焦点一落上去,
-    // 不论目标冻没冻(重定位中 / 暂停 / 拿起中 report 不改目标),这一层同一帧就变成焦点层、胶囊随之淡入——焦点永远不停在看不见的胶囊上
-    val activeShelf = (holder ?: target).shelf.coerceIn(0, shelves.lastIndex)
+    // 焦点层:平时 = 此刻持有焦点的那一层(没人持有才看目标)——非焦点层的胶囊透明但可聚焦(Task 7),焦点一落上去
+    // (拿起中 report 不改目标也一样)这一层同一帧就变成焦点层、胶囊随之淡入。**重定位中 / 暂停时只看目标**:那几帧 Compose
+    // 会把焦点短暂派给别处(ON_RESUME、焦点节点被删行 / 卸载 / 拿起离开源行摘掉,铁律 5),跟着持有者走整页会朝错的层动一下;
+    // 重定位到 60 帧上限放弃后 retargeting 即为假,回到跟着持有者走
+    val activeShelf = (if (retargeting || paused) target else holder ?: target).shelf.coerceIn(0, shelves.lastIndex)
     val shiftPx = with(density) {
         shelfScroll(
             heights = shelves.indices.map { heights[it] ?: 0 },
@@ -562,9 +566,9 @@ fun EditScreen(
                             report = ::report,
                             place = place,
                             onChip = { onChip(si, it) },
-                            onAddTile = { if (carry == null && overlay == null) openPicker(si, ShelfSpot(si, ShelfZone.CARDS, 0)) },
+                            onAddTile = { if (!ghost && carry == null && overlay == null) openPicker(si, ShelfSpot(si, ShelfZone.CARDS, 0)) },
                             // 卡片的 onClick 只可能来自指针 / 无障碍(确定键在根上就被截走):给卡片菜单
-                            onCardClick = { ci -> if (carry == null && overlay == null) openCardMenu(si, ci) },
+                            onCardClick = { ci -> if (!ghost && carry == null && overlay == null) openCardMenu(si, ci) },
                             modifier = measure,
                         )
                         Shelf.NewRowShelf -> NewRowShelfView(
