@@ -98,6 +98,8 @@ internal val layoutWrites: CoroutineDispatcher = Dispatchers.IO.limitedParalleli
 /**
  * layout.json 形如:
  *   {"rows":[{"icon":"movie","apps":["com.a","com.b"]}, ...]}
+ * **R164 频道行**多一个可选的 `channel` 对象:`{"icon":"tv","apps":[],"channel":{"pkg":…,"key":…,"name":…}}`(`apps` 恒空)。
+ * 至少要有一行应用行,否则读盘当损坏([hasAppRow]);[write] 也拒绝写出这样的列表。
  * **R163 起行没有名字**:写盘只写 `icon` + `apps`。老文件里的 `name` 读盘时只用来给没存合法 `icon` 的行回落图标
  * ([layoutRowFromDisk]),此后写盘就不再带它;新文件没有 `name` 也能读。
  * 缺失或损坏时回落到内置默认([DEFAULT_LAYOUT])按已装过滤的那份([installedDefaultLayout]),并写回磁盘,方便 adb 拉下来改。
@@ -113,6 +115,9 @@ internal val layoutWrites: CoroutineDispatcher = Dispatchers.IO.limitedParalleli
 internal fun installedDefaultLayout(ctx: Context): List<LayoutRow> =
     runCatching { plannedLayout(DEFAULT_LAYOUT, installedDefaultApps(ctx).keys) }
         .getOrElse { skippedLayout(DEFAULT_LAYOUT) }
+
+/** R164:至少有一行应用行。[Layout.parse] 与 [Layout.write] 共用这一条,写出去的东西一定读得回来。 */
+internal fun hasAppRow(rows: List<LayoutRow>): Boolean = rows.any { !it.isChannel }
 
 object Layout {
     private const val TAG = "UnitedU"
@@ -175,15 +180,15 @@ object Layout {
             )
         }
         // R164:全是频道行 = 一个「添加应用」入口都没有,同「零行」一样是功能性死胡同,当损坏回落(spec §3.3)
-        if (parsed.none { !it.isChannel }) error("layout.json 里没有应用行")
+        if (!hasAppRow(parsed)) error("layout.json 里没有应用行")
         return parsed
     }
 
-    /** 行 → 文本(`internal`:单测核对落盘字段)。每行只有 `icon` + `apps`,**不写 `name`**(R163);缩进 2 格,adb 拉下来好读好改。 */
+    /** 行 → 文本(`internal`:单测核对落盘字段)。每行只有 `icon` + `apps`,**不写 `name`**(R163);频道行(R164)多写 `channel` 对象,`apps` 恒写空数组;缩进 2 格,adb 拉下来好读好改。 */
     internal fun toJson(rows: List<LayoutRow>): String {
         val arr = JSONArray()
         rows.forEach { row ->
-            val o = JSONObject().put("icon", row.icon).put("apps", JSONArray(row.apps))
+            val o = JSONObject().put("icon", row.icon).put("apps", JSONArray(if (row.isChannel) emptyList() else row.apps))
             row.channel?.let { o.put("channel", JSONObject().put("pkg", it.pkg).put("key", it.key).put("name", it.name)) }
             arr.put(o)
         }
@@ -252,6 +257,11 @@ object Layout {
      */
     fun write(ctx: Context, rows: List<LayoutRow>): Boolean = store.locked {
         val base = Paths.baseOrNull(ctx) ?: return@locked false
+        // R164:写出去读不回来的列表(没有应用行)会被 parse 当损坏、回落 .prev / 默认 = 静默丢掉这次编辑
+        if (!hasAppRow(rows)) {
+            Log.w(TAG, "layout.json 拒绝写入:没有任何应用行")
+            return@locked false
+        }
         try {
             store.write(base, toJson(rows))
         } catch (e: Throwable) {

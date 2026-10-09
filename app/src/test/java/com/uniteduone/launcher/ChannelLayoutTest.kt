@@ -82,4 +82,15 @@ class ChannelLayoutTest {
         assertNull(channelRefFromDisk("p", "k", "  "))
         assertNull(channelRefFromDisk(null, "k", "n"))
     }
+
+    @Test fun hasAppRowRequiresAtLeastOneAppRow() {
+        assertFalse(hasAppRow(emptyList()))
+        assertFalse(hasAppRow(listOf(LayoutRow("tv", channel = kumiao))))
+        assertTrue(hasAppRow(listOf(LayoutRow("tv", channel = kumiao), LayoutRow("movie"))))
+    }
+
+    @Test fun channelRowAppsAreNotWritten() {
+        val json = JSONObject(Layout.toJson(listOf(LayoutRow("movie", listOf("a")), LayoutRow("tv", apps = listOf("stray"), channel = kumiao))))
+        assertEquals(0, json.getJSONArray("rows").getJSONObject(1).getJSONArray("apps").length())
+    }
 }
