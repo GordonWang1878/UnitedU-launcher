@@ -41,3 +41,34 @@ class PublishTest(unittest.TestCase):
     def test_redirect_outside_root_rejected(self):
         for url in ('http://dl.uniteduone.com/gallery/a.jpg','https://evil.example/gallery/a.jpg','https://dl.uniteduone.com/gallery/../a.jpg','https://dl.uniteduone.com/gallery/%2e%2e/a.jpg'):
             with self.subTest(url=url), self.assertRaises(ValueError): self.p.validate_remote_url(url)
+
+class RemoteVerifierTest(unittest.TestCase):
+    def setUp(self):
+        self.p=load('gallery-publish'); self.temp=fixtures.tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
+        self.path=fixtures.Path(self.temp.name)/'object.jpg'; self.path.write_bytes(b'abc')
+        self.url='https://dl.uniteduone.com/gallery/originals/object.jpg'
+    def response(self,body,url=None,delay=0):
+        import io,time
+        class Response(io.BytesIO):
+            def geturl(inner): return url or self.url
+            def read(inner,size=-1):
+                if delay: time.sleep(delay)
+                return super().read(size)
+        return Response(body)
+    def verify(self,response):
+        with patch.object(self.p.urllib.request,'build_opener') as opener:
+            opener.return_value.open.return_value=response
+            self.p.verify_remote(self.url,self.path)
+    def test_body_integrity(self):
+        self.verify(self.response(b'abc'))
+        for body in (b'xyz',b'ab',b'abcd'):
+            with self.subTest(body=body),self.assertRaises(ValueError): self.verify(self.response(body))
+    def test_final_redirect(self):
+        self.verify(self.response(b'abc','https://dl.uniteduone.com/gallery/new.jpg'))
+        with self.assertRaises(ValueError): self.verify(self.response(b'abc','https://evil.example/gallery/a.jpg'))
+    def test_slow_read_absolute_deadline(self):
+        import time
+        start=time.monotonic()
+        with patch.object(self.p,'TOTAL_TIMEOUT',0.03,create=True),self.assertRaisesRegex(ValueError,'total timeout'):
+            self.verify(self.response(b'abc',delay=0.2))
+        self.assertLess(time.monotonic()-start,0.15)

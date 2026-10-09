@@ -89,3 +89,10 @@ class AssetsTest(unittest.TestCase):
         with self.assertRaises(ValueError): self.a.validate_catalog(result)
 
 if __name__=='__main__': unittest.main()
+
+class HdrSpoofTest(unittest.TestCase):
+    def test_marker_spoof_is_not_hdr(self):
+        import io
+        a=load('gallery-assets'); output=io.BytesIO(); Image.new('RGB',(32,32)).save(output,'JPEG')
+        fake=output.getvalue()+b'hdrgm iso:ts:21496 MPF'+output.getvalue()
+        with self.assertRaises(ValueError): a.image_info(fake,'wallpapers')

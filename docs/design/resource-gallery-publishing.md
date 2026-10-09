@@ -12,7 +12,7 @@
 
 三类 kind 为 cards / wallpapers / screensavers。必须有三语名称、整数 order 和来源许可说明；卡片必须有精确包名。source 为源目录内相对路径。ID 与名称、排序分离；更新同一资源可以改变原图 hash，但不能把同一 ID 转作另一张不相关的图片。工具只能检查种类与历史 hash，语义身份和许可有效性由审阅者确认。
 
-原图最长边 ≤8192、≤32 MiB；支持 JPEG / PNG / WebP。壁纸、屏保必须为现有双写法 HDR JPEG：Android 14 XMP hdrgm 与 Android 15+ ISO 21496-1 标记、MPF 和可解码增益图。卡片为 SDR。工具拒绝不合格 HDR，不转换、不建立 HOME 备份；使用现有 `scripts/hdr-assets.py <input> <separate-output-directory>` 先转换，详见 [HDR 规范](hdr-image-spec.md)。SDR 无法凭空转换为 HDR。
+原图最长边 ≤8192、≤32 MiB；支持 JPEG / PNG / WebP。壁纸、屏保必须为现有双写法 HDR JPEG：结构化 MPF 索引必须关联基础图及增益图；Android 14 XMP 与 Android 15+ ISO 21496-1 元数据分别由真实 libultrahdr 解码器探测，参数有效且一致。需要已安装的 `/opt/homebrew/bin/ultrahdr_app`，也可通过 `UHDR_READER` 指定现有 reader；缺工具立即失败并给出安装指引。卡片为 SDR。工具拒绝不合格 HDR，不转换、不建立 HOME 备份；使用现有 `scripts/hdr-assets.py <input> <separate-output-directory>` 先转换，详见 [HDR 规范](hdr-image-spec.md)。SDR 无法凭空转换为 HDR。
 
 ## 本地生成与审阅
 
@@ -34,10 +34,10 @@ out 必须是新的、位于源目录外的目录。工具先完整检查再原�
 python3 scripts/gallery-publish.py --artifact /absolute/build-v2 --bucket unitedu --base-url https://dl.uniteduone.com/gallery/ --publish
 ```
 
-此显式参数是工具执行门；不是本任务的生产发布授权。发布器先完整验证所有本地文件，再用参数数组调用 wrangler `r2 object put --remote`。图片使用一年 immutable 缓存；上传后通过限定 HTTPS 同域图库目录 GET 读取并核对实际体积与 hash，重定向也受同一约束。任一图片上传/验证失败，禁止上传新清单；清单最后上传，缓存 60 秒。失败可能留下未引用图片，重试可复用相同内容地址，不删除旧对象。仅上传最后清单时的服务端失败可能存在结果不确定，须另行检查正式 index.json 后决定是否重试。
+此显式参数是工具执行门；不是本任务的生产发布授权。发布器先完整验证所有本地文件，再用参数数组调用 wrangler `r2 object put --remote`。图片使用一年 immutable 缓存；上传后通过限定 HTTPS 同域图库目录 GET 读取并核对实际体积与 hash，重定向也受同一约束。整个远端连接/读取由 120 秒 Unix 进程定时器硬截止，持续 trickle 数据也不能延长；工具需要 macOS/Linux 主线程运行，不支持已经占用 SIGALRM 定时器的宿主。任一图片上传/验证失败，禁止上传新清单；清单最后上传，缓存 60 秒。失败可能留下未引用图片，重试可复用相同内容地址，不删除旧对象。仅上传最后清单时的服务端失败可能存在结果不确定，须另行检查正式 index.json 后决定是否重试。
 
 回滚不是降低 revision：以当前最新版本作为 previous，恢复旧源内容/名称/排序并使用更高 revision。保留历史使已下架资源恢复可核对；所有原图及旧产物继续保留。
 
 ## 验证边界
 
-图片检查复用现有 HDR 标记口径并解码基础图与增益图；不宣称验证 HDR 光学表现、原始转换 PSNR 或许可真实性。源码工具为 Python，不声明 zsh/bash 数据传递支持。JSON 可保留真实多行、字面反斜杠 n/c；上传参数不经 shell。测试不联网，云端权限、CDN 行为与电视视觉效果仍须正式发布授权后的独立验收。
+图片检查解析真实 MPF 关联并解码基础图及增益图；保留长度及索引偏移屏蔽另一份元数据，分别交给现有 libultrahdr reader 验证两份编码及参数一致性，任意字面标记不构成 HDR；不宣称验证 HDR 光学表现、原始转换 PSNR 或许可真实性。源码工具为 Python，不声明 zsh/bash 数据传递支持。JSON 可保留真实多行、字面反斜杠 n/c；上传参数不经 shell。测试不联网，云端权限、CDN 行为与电视视觉效果仍须正式发布授权后的独立验收。

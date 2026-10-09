@@ -5,6 +5,9 @@ import hashlib
 import io
 import json
 import re
+import math
+import os
+import subprocess
 import tempfile
 from pathlib import Path
 from PIL import Image
@@ -59,6 +62,61 @@ def validate_item(item):
     for p in packages: require(isinstance(p,str) and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+',p), 'invalid package')
     require(len(packages)==len(set(packages)), 'duplicate package')
 
+def jpeg_segments(data, start):
+    require(data[start:start+2]==b'\xff\xd8','invalid JPEG association')
+    cursor=start+2; segments=[]
+    while True:
+        require(cursor+4<=len(data) and data[cursor]==255,'invalid JPEG header')
+        marker=data[cursor+1]; length=int.from_bytes(data[cursor+2:cursor+4],'big')
+        require(length>=2 and cursor+2+length<=len(data),'invalid JPEG segment')
+        segments.append((marker,cursor+4,cursor+2+length))
+        if marker==0xda: return segments
+        require(marker not in (0xd8,0xd9),'unexpected JPEG marker'); cursor+=2+length
+
+def validate_hdr(data):
+    """MPF association plus independent libultrahdr parses of both metadata encodings."""
+    primary=jpeg_segments(data,0)
+    mpf=[(a,b) for marker,a,b in primary if marker==0xe2 and data[a:b].startswith(b'MPF\0')]
+    require(len(mpf)==1,'HDR requires one structured MPF index')
+    try:
+        with Image.open(io.BytesIO(data)) as image: mp=image._getmp()
+        require(mp and mp.get(45057)==2 and len(mp.get(45058,[]))==2,'invalid MPF image index')
+        first,second=mp[45058]; base=mpf[0][0]+4
+        offset=base+second['DataOffset']; length=second['Size']
+        require(first['DataOffset']==0 and first['Size']==offset and 0<length and offset+length==len(data),'inconsistent MPF association')
+        require(data[offset-2:offset]==b'\xff\xd9' and data[-2:]==b'\xff\xd9','truncated MPF image')
+        gain=jpeg_segments(data,offset)
+        with Image.open(io.BytesIO(data[offset:])) as image: image.load()
+    except (OSError,KeyError,TypeError,IndexError,SyntaxError) as error: raise ValueError('invalid HDR MPF/gainmap') from error
+    xmp_header=b'http://ns.adobe.com/xap/1.0/\0'; iso_header=b'urn:iso:std:iso:ts:21496:-1\0'
+    segments=primary+gain
+    xmp=[(a,b) for marker,a,b in segments if marker==0xe1 and data[a:b].startswith(xmp_header)]
+    iso=[(a,b) for marker,a,b in segments if marker==0xe2 and data[a:b].startswith(iso_header)]
+    require(xmp and iso,'dual HDR metadata segments required')
+    reader=os.environ.get('UHDR_READER','/opt/homebrew/bin/ultrahdr_app')
+    metadata=[]
+    with tempfile.TemporaryDirectory() as directory:
+        for label,masked in [('Android14-XMP',iso),('Android15-ISO',xmp)]:
+            variant=bytearray(data)
+            # Keep APP segment lengths and MPF offsets intact; hide only the other encoding.
+            for a,b in masked: variant[a:b]=bytes(b-a)
+            probe=Path(directory)/(label+'.jpg'); probe.write_bytes(variant)
+            try: result=subprocess.run([reader,'-m','1','-P','-j',str(probe)],capture_output=True,text=True,check=True,timeout=30)
+            except (OSError,subprocess.SubprocessError) as error: raise ValueError('HDR probe failed; install libultrahdr or configure UHDR_READER') from error
+            require('Ultra HDR Image: Yes' in result.stdout,f'invalid {label} metadata')
+            values={}
+            for line in result.stdout.splitlines():
+                words=line.split()
+                if words and words[0].startswith('--'):
+                    try: values[words[0]]=[float(v) for v in words[1:]]
+                    except ValueError as error: raise ValueError('invalid HDR metadata values') from error
+            required=('--maxContentBoost','--minContentBoost','--gamma','--offsetSdr','--offsetHdr','--hdrCapacityMin','--hdrCapacityMax','--useBaseColorSpace')
+            require(all(k in values and values[k] and all(math.isfinite(v) for v in values[k]) for k in required),'incomplete HDR metadata')
+            require(all(v>0 for k in ('--maxContentBoost','--minContentBoost','--gamma','--hdrCapacityMin','--hdrCapacityMax') for v in values[k]),'invalid HDR gain parameters')
+            metadata.append(values)
+    for key in metadata[0]:
+        require(key in metadata[1] and len(metadata[0][key])==len(metadata[1][key]) and all(abs(a-b)<=0.01*max(1,abs(a),abs(b)) for a,b in zip(metadata[0][key],metadata[1][key])),'inconsistent dual HDR metadata')
+
 def image_info(data, kind, thumbnail=False):
     require(0<len(data)<= (THUMB_LIMIT if thumbnail else ORIGINAL_LIMIT), 'image too large')
     try:
@@ -71,12 +129,9 @@ def image_info(data, kind, thumbnail=False):
     except (OSError,Image.DecompressionBombError) as error: raise ValueError('corrupt image') from error
     hdr=b'hdrgm' in data or b'iso:ts:21496' in data or b'MPF' in data
     if kind!='cards' and not thumbnail:
-        require(fmt=='JPEG' and b'MPF' in data and data.find(b'\xff\xd8',2)>0 and b'hdrgm' in data and b'iso:ts:21496' in data,
-                'dual HDR JPEG required; run scripts/hdr-assets.py <input> <separate-output-directory> (SDR input cannot create HDR)')
-    if kind!='cards' and not thumbnail:
-        try:
-            with Image.open(io.BytesIO(data[data.find(b'\xff\xd8',2):])) as gainmap: gainmap.load()
-        except OSError as error: raise ValueError('corrupt HDR gainmap') from error
+        require(fmt=='JPEG','dual HDR JPEG required; run scripts/hdr-assets.py <input> <separate-output-directory>')
+        try: validate_hdr(data)
+        except ValueError as error: raise ValueError(f'{error}; run scripts/hdr-assets.py <input> <separate-output-directory> (SDR input cannot create HDR)') from error
     if kind=='cards' or thumbnail: require(not hdr, 'SDR image required')
     return size, FORMATS[fmt]
 

@@ -6,6 +6,10 @@ import importlib.util
 import mimetypes
 import re
 import subprocess
+import signal
+import threading
+import time
+from contextlib import contextmanager
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -34,15 +38,31 @@ def validate_remote_url(url):
     assets.require(parsed.scheme=='https' and parsed.netloc=='dl.uniteduone.com' and parsed.path.startswith('/gallery/') and not parsed.query and not parsed.fragment,'unsafe remote URL')
     assets.safe_path(Path('/tmp'),parsed.path[len('/gallery/'):])
 
+TOTAL_TIMEOUT=120
+
+@contextmanager
+def absolute_deadline(seconds):
+    # The CLI runs on the main thread on macOS/Linux. SIGALRM interrupts a
+    # buffered read even when a trickling peer continually resets socket timeout.
+    assets.require(threading.current_thread() is threading.main_thread(),'verification deadline requires main thread')
+    assets.require(hasattr(signal,'setitimer'),'verification deadline requires Unix timers')
+    previous=signal.getsignal(signal.SIGALRM); existing=signal.getitimer(signal.ITIMER_REAL)
+    assets.require(existing==(0.0,0.0),'verification cannot replace an existing process timer')
+    def expired(signum,frame): raise ValueError('remote total timeout')
+    signal.signal(signal.SIGALRM,expired); signal.setitimer(signal.ITIMER_REAL,seconds)
+    try: yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL,0); signal.signal(signal.SIGALRM,previous)
+
 def verify_remote(url,path):
     validate_remote_url(url)
     size=path.stat().st_size; digest=hashlib.sha256(); total=0
     import time
     started=time.monotonic()
-    with urllib.request.build_opener(RedirectGuard()).open(url,timeout=10) as response:
+    with absolute_deadline(TOTAL_TIMEOUT), urllib.request.build_opener(RedirectGuard()).open(url,timeout=10) as response:
         validate_remote_url(response.geturl())
         while True:
-            assets.require(time.monotonic()-started<=120,'remote total timeout')
+            assets.require(time.monotonic()-started<=TOTAL_TIMEOUT,'remote total timeout')
             chunk=response.read(min(65536,size-total+1))
             if not chunk: break
             total+=len(chunk); assets.require(total<=size,'remote oversized'); digest.update(chunk)
