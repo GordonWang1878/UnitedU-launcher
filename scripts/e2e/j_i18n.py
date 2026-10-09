@@ -8,7 +8,7 @@ import xml.etree.ElementTree as ET
 sys.path.insert(0, os.path.dirname(__file__))
 from lib import *
 from j_overlays import (o_settings_root, o_group, o_standby, o_about, o_restore_confirm, o_apps, o_apps_menu1, o_inputs,
-                        o_home_menu, o_home_rename, o_edit, o_edit_row_menu, o_wallpaper, o_gallery, o_import, o_default_home,
+                        o_home_menu, o_home_rename, o_edit, o_edit_chips, o_wallpaper, o_gallery, o_import, o_default_home,
                         o_lang_options, o_standby_options)
 
 W, H_ = 1920, 1080
@@ -19,7 +19,7 @@ PAGES = [
     ("settings", o_settings_root), ("layout", o_group("settings_group_layout")), ("general", o_group("settings_group_general")),
     ("appearance", o_group("settings_group_appearance")), ("screensaver", o_group("settings_group_screensaver")),
     ("standby", o_standby), ("about", o_about), ("restore", o_restore_confirm),
-    ("apps-menu", o_apps_menu1), ("edit-row-menu", o_edit_row_menu),
+    ("apps-menu", o_apps_menu1), ("edit-shelves", o_edit_chips),
 ]
 
 def tree():

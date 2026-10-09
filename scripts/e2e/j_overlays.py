@@ -104,26 +104,30 @@ def o_edit():
     open_edit(); return ("label", S("edit_title"))
 
 def o_edit_card_menu():
-    open_edit(); c = screen().focus(); key("ok"); time.sleep(1.2); return ("box", c)
+    open_edit(); c = screen().focus(); long_ok(); return ("box", c)
 
-def _edit_row_menu():
-    # 第 2 行(3 个应用,不横向滚动):第 1 行 8 张会横滚,焦点框停在同一处,row_end() 会以为到头了
-    open_edit(); key("down"); plus = row_end(); key("ok"); time.sleep(1.2); return ("box", plus)
+def o_edit_chips():
+    """编辑页第 2 层的胶囊(R165:取代行菜单;不是浮层,给三语溢出检查 / 重建用)。"""
+    open_edit(); key("down"); return None
 
-def o_edit_row_menu():
-    return _edit_row_menu()
+def _edit_chip(k):
+    # 第 1 层卡片按下 → 第 2 层胶囊(3 个应用,不横向滚动),再走到那颗
+    open_edit(); key("down")
+    for _ in range(6): key("left", gap=0.3)
+    move_to(S(k), "right", max_steps=6, exact=True)
+    key("ok"); time.sleep(1.8); return ("label", S(k))
 
 def o_edit_add_app():
-    r = _edit_row_menu(); move_to(S("edit_row_add_app")); key("ok"); time.sleep(2.5); return r
+    return _edit_chip("edit_row_add_app")
 
 def o_edit_row_icon():
-    r = _edit_row_menu(); move_to(S("edit_row_icon")); key("ok"); time.sleep(1.2); return r
+    return _edit_chip("edit_chip_icon")
 
 def o_edit_delete_confirm():
-    r = _edit_row_menu(); move_to(S("edit_row_delete")); key("ok"); time.sleep(1.5); return r
+    return _edit_chip("edit_chip_delete")
 
 def o_edit_cardart():
-    open_edit(); s = screen(); lab = s.label(); key("ok"); time.sleep(1.2)
+    open_edit(); s = screen(); lab = s.label(); long_ok()
     move_to(S("edit_change_image")); key("ok"); time.sleep(2); return ("label", lab)
 
 def o_wallpaper():
@@ -172,10 +176,10 @@ CASES = [
     ("首页·长按菜单", o_home_menu, lambda s: s.has(S("card_menu_uninstall"))),
     ("首页·改名页", o_home_rename, lambda s: s.has(S("title_dialog_hint"))),
     ("首页·换卡片图", o_home_cardart, lambda s: s.has(S("picker_card_image_title"))),
-    ("编辑页", o_edit, lambda s: s.has(S("edit_title")) and s.has(S("edit_hint")[:20])),
+    ("编辑页", o_edit, lambda s: s.has(S("edit_title")) and s.has(S("edit_hint_pick"))),
     ("编辑·卡片菜单", o_edit_card_menu, lambda s: s.has(S("edit_remove"))),
-    ("编辑·行菜单", o_edit_row_menu, lambda s: s.has(S("edit_row_add_app")) and s.has(S("edit_row_delete"))),
-    ("编辑·添加应用", o_edit_add_app, lambda s: s.has(S("edit_add_app_title")) and not s.has(S("edit_row_delete"))),
+    # 页名「Add App」与胶囊同字:按字高认页名(31 sp 的页名 > 50 px,12 sp 的胶囊字 ≈ 32 px)
+    ("编辑·添加应用", o_edit_add_app, lambda s: any(n["text"] == S("edit_add_app_title") and n["b"][3] - n["b"][1] > 50 for n in s.nodes)),
     ("编辑·行图标", o_edit_row_icon, lambda s: s.has(S("edit_row_icon_heading"))),
     ("编辑·删行确认", o_edit_delete_confirm, lambda s: s.has(S("edit_row_delete_confirm_title"))),
     ("编辑·换卡片图", o_edit_cardart, lambda s: s.has(S("picker_card_image_title"))),

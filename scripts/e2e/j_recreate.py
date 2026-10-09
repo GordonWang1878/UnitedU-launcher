@@ -5,7 +5,7 @@ import sys, time, json, os
 sys.path.insert(0, os.path.dirname(__file__))
 from lib import *
 from j_overlays import (o_settings_root, o_group, o_lang_options, o_about, o_restore_confirm, o_apps, o_apps_menu1, o_inputs,
-                        o_inputs_menu, o_home_menu, o_home_rename, o_edit, o_edit_row_menu, o_edit_add_app, o_wallpaper,
+                        o_inputs_menu, o_home_menu, o_home_rename, o_edit, o_edit_card_menu, o_edit_add_app, o_wallpaper,
                         o_gallery, o_import, o_gallery_preview, o_standby)
 from j_upload import up, forward_from_screen
 
@@ -14,7 +14,7 @@ BASE = {"language": "en", "onboardingDone": True, "showTitles": False}
 CASES = [
     ("首页", lambda: (home_intent(), key("down", "up"))),
     ("设置·语言选项层", o_lang_options), ("恢复默认确认页", o_restore_confirm), ("所有应用页·菜单", o_apps_menu1),
-    ("首页·改名页", o_home_rename), ("编辑·行菜单", o_edit_row_menu), ("图库·全屏预览", o_gallery_preview), ("扫码页", o_import),
+    ("首页·改名页", o_home_rename), ("编辑·卡片菜单", o_edit_card_menu), ("图库·全屏预览", o_gallery_preview), ("扫码页", o_import),
 ]
 
 def fatal():
@@ -67,7 +67,7 @@ def run():
             sh("settings put system font_scale 1.0")
 
     journey("force-stop-cold-start")
-    for name, opener in [("所有应用页", o_apps), ("编辑·行菜单", o_edit_row_menu), ("扫码页", o_import)]:
+    for name, opener in [("所有应用页", o_apps), ("编辑·卡片菜单", o_edit_card_menu), ("扫码页", o_import)]:
         sh("logcat -b all -c")
         restart(layout=LAYOUT) if name.startswith("编辑") else home_intent()
         opener()
