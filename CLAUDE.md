@@ -195,3 +195,10 @@ adb emu kill                                     # 关闭
 - 有多个写者的状态文件(layout / titles / hidden-inputs / settings)一律走 `LockedFile`,新文件也一样;读取统一用 `store.load`。排查表见 `docs/design/persistence-audit.md`。
 - 读 → 改 → 写要整段放在 `store.locked` 里(`update`);文件缺失时「写默认值」也在同一把锁里。整份快照写盘还要走串行调度器 `layoutWrites`,否则旧快照可能后落盘。
 - 禁止用「rename 失败就删正式文件」这种兜底,除非先有备份(`.prev`);禁止两个写者共用一个固定的 `.tmp`。二进制文件用 `writeFileAtomically`。
+
+## 数据格式向下兼容铁律(2026-10-09 双通道)
+
+从 Beta 切回稳定版装的是**旧代码**(回退包),它要读 Beta 写下的 layout / titles / hidden-inputs / settings。
+- Beta 只**新增**字段;不改既有字段的含义、类型、取值集合,不改文件名与目录结构。
+- 确需改格式:先发一个「能读新格式」的稳定版,再发写新格式的 Beta。
+- `ForwardCompatTest` 钉住每个读盘函数对未知字段宽容;新增落盘文件时同步加一条。设计稿 `docs/superpowers/specs/2026-10-09-release-channels-design.md`。
