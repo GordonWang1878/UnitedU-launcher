@@ -1994,3 +1994,8 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 图库最终集成验收见 [resource-gallery-acceptance-2026-10-09.md](design/resource-gallery-acceptance-2026-10-09.md)：906项JVM（905通过+1既有忽略）、Python20项、debug/release；真实Dream/原图gainmap/离线与取消行为。实际孤儿清理返回删除hash被UI误判残留已修复。Settings卡片测试前缺少单文件原状态备份，不能宣称已恢复；其余设置/layout/gallery及系统设置有比较证据。计划中的oldItem/fakeTransport只是测试草图，正式用例均须自建完整fixture。
 
 Task8评审补验：同一mounted picker延迟清单响应，wall-04经插入/重排保持身份及单焦点，下架后落同组邻项wall-inserted，坐标与三张截图记录在验收报告；不把重新开页默认落焦算证据。Settings原图有界恢复来源核查未找到可信测试前字节，其此前有无文件仍未知，完整保留约束未满足、待Gordon/控制器处置；未猜测或删除。补验仅文档/证据，不重跑已有绿全套。
+
+
+## 2026-10-09 · 图库最终评审有界修复
+
+I1/I2/M1/M2收口：在线缩略图按UI物理像素采样并保留真实bounds；页面失败状态/Retry及refresh代次使304也重启可见缩略图，离屏/换代等待者由effect取消；评审入口修正为GalleryHttp.kt与scripts/gallery-assets.py。最终图库85/85；全JVM912项（911通过、1既有Ignore）、Python20/20；debug/release及lint/R8成功1m22s，两APK无图库fixture标记、生产根/版本不变。Android生产函数探针证实195759B的8192²图实际仅256×256/262144B分配，16:9图采用横幅分支。未安装/写设备应用数据，无额外UI矩阵；I3未知原Settings图仍不动、待处置。详细验收与边界见[验收报告](design/resource-gallery-acceptance-2026-10-09.md)。

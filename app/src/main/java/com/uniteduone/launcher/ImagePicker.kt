@@ -806,12 +806,21 @@ private fun ThumbCard(
     // 不需要手动清零——效果与「换 key 就重置」等价,但不用在协程开头多写一次 value = null。
     // 第三项 = 卡面底色(R88,只在 asCard 时算):null = 当横幅裁满,非 null = 当图标居中、铺这个底色。
     val isVideo = item is PickerItem.Library && ScreensaverMedia.isVideo(item.file.name)
-    val thumb by produceState<ThumbData?>(null, item, asCard, visible) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val targetWidth = with(density) { thumbWidth.roundToPx() }.coerceAtLeast(1)
+    val targetHeight = with(density) { thumbHeight.roundToPx() }.coerceAtLeast(1)
+    val thumbnailGeneration = if (item is PickerItem.Gallery) galleryState?.thumbnailGeneration else null
+    val thumb by produceState<ThumbData?>(null, item, asCard, visible, thumbnailGeneration, targetWidth, targetHeight) {
         value = withContext(Dispatchers.IO) {
             var srcW = 0; var srcH = 0
             var videoMs: Long? = null
             val bmp = when {
-                item is PickerItem.Gallery -> if (visible) try { val thumb = galleryState!!.repository.thumbnail(item.row.item); BitmapFactory.decodeFile(thumb.absolutePath) } catch (e: CancellationException) { throw e } catch (_: Exception) { null } else null
+                item is PickerItem.Gallery -> if (visible) try {
+                    val file = galleryState!!.repository.thumbnail(item.row.item)
+                    decodeGalleryThumbnail(file, targetWidth, targetHeight).also {
+                        srcW = it.sourceWidth; srcH = it.sourceHeight
+                    }.bitmap
+                } catch (e: CancellationException) { throw e } catch (_: Exception) { null } else null
                 item is PickerItem.Original -> item.bitmap.also { srcW = it.width; srcH = it.height }
                 file == null -> null
                 // 视频(R104):首帧缩略图 + 时长,MediaMetadataRetriever,带缓存
@@ -832,6 +841,8 @@ private fun ThumbCard(
             } else null
             ThumbData(item, bmp, backdrop, videoMs)
         }
+        // Runs on the page scope after cancellable IO returns; obsolete/disposed effects cannot report.
+        if (item is PickerItem.Gallery && visible) galleryState?.thumbnailResult(item.row.key, value?.bitmap == null)
     }
 
     val label = when (item) {
@@ -839,7 +850,17 @@ private fun ThumbCard(
         is PickerItem.Original -> stringResource(R.string.picker_restore_original)
         is PickerItem.Library -> item.file.nameWithoutExtension
         is PickerItem.Builtin -> builtinName(item.image)
-        is PickerItem.Gallery -> (item.row.item.names[stringResource(R.string.builtin_names_lang)] ?: item.row.item.id) + if (item.row.retained) " · " + stringResource(R.string.gallery_retained) else if (item.row.update) " · " + stringResource(R.string.gallery_update) else if (item.row.downloaded) " · " + stringResource(R.string.gallery_downloaded) else ""
+        is PickerItem.Gallery -> {
+            val status = when {
+                item.row.retained -> R.string.gallery_retained
+                item.row.update -> R.string.gallery_update
+                item.row.downloaded -> R.string.gallery_downloaded
+                else -> null
+            }
+            (item.row.item.names[stringResource(R.string.builtin_names_lang)] ?: item.row.item.id) +
+                (status?.let { " · " + stringResource(it) } ?: "") +
+                (if (item.row.key in galleryState?.thumbnailFailures.orEmpty()) " · " + stringResource(R.string.gallery_failed) else "")
+        }
         PickerItem.GalleryRefresh -> ""
     }
     val highlight = LocalThemeColors.current.highlight

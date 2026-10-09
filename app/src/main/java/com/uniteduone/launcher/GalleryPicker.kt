@@ -62,6 +62,15 @@ internal class GalleryPickerState(val repository: GalleryRepository, val actions
     private var generation = 0L
     private var cancelUse: (() -> Unit)? = null
     var joined by mutableStateOf<Map<String, GalleryAdoption>>(emptyMap())
+    var thumbnailGeneration by mutableStateOf(0L)
+        private set
+    var thumbnailFailures by mutableStateOf<Set<String>>(emptySet())
+        private set
+    fun thumbnailResult(key: String, failed: Boolean) {
+        thumbnailFailures = if (failed) thumbnailFailures + key else thumbnailFailures - key
+    }
+    /** Effects own repository waiters; changing only this key preserves the grid/focus identity. */
+    fun retryThumbnails() { thumbnailGeneration++ }
     suspend fun refresh() {
         notice = null
         try {
@@ -69,6 +78,8 @@ internal class GalleryPickerState(val repository: GalleryRepository, val actions
             repository.state.value.error?.let { message -> showRefreshFailure(java.io.IOException(message)) }
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: Exception) { showRefreshFailure(failure) }
+        // Includes unchanged catalog/304 and manifest errors: cached rows may still recover thumbnails.
+        retryThumbnails()
     }
     private fun showRefreshFailure(error: Exception) {
         notice = when (galleryFailure(error)) {
@@ -160,6 +171,9 @@ internal fun GalleryPickerOverlay(state: GalleryPickerState, screensaver: Boolea
     else if (menu != null) GearMenu(title = title, nonce = nonce,
         body = if (menu.update) stringResource(R.string.gallery_update) else if (menu.retained) stringResource(R.string.gallery_retained) else if (menu.downloaded) stringResource(R.string.gallery_downloaded) else stringResource(R.string.gallery_available),
         items = buildList {
+            if (menu.key in state.thumbnailFailures) add(MenuItem(retry, "") {
+                state.menu = null; state.retryThumbnails()
+            })
             add(MenuItem(preview, "") { state.preview(menu) })
             if (screensaver && state.joined[menu.item.id]?.sha256 == menu.item.original.blob.sha256) {
                 add(MenuItem(remove, "") { state.actions.removeScreensaver(menu.item.id) { result -> if (result.isFailure) state.notice = R.string.gallery_failed; state.menu = null } })

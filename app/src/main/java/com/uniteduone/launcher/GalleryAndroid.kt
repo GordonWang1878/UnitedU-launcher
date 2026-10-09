@@ -78,3 +78,17 @@ object GalleryAndroid {
         } finally { bitmap.recycle(); sdr.recycle() }
     }
 }
+
+internal data class GalleryDecodedThumbnail(val bitmap: Bitmap, val sourceWidth: Int, val sourceHeight: Int)
+
+/** UI decoding is independently bounded even for a valid small file containing 8192² pixels. */
+internal fun decodeGalleryThumbnail(file: File, targetWidth: Int, targetHeight: Int): GalleryDecodedThumbnail {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(file.absolutePath, bounds)
+    val plan = galleryThumbnailPlan(bounds.outWidth, bounds.outHeight, targetWidth, targetHeight)
+    val bitmap = BitmapFactory.decodeFile(file.absolutePath, BitmapFactory.Options().apply {
+        inSampleSize = plan.sampleSize
+        inPreferredConfig = Bitmap.Config.ARGB_8888
+    }) ?: error("Cannot decode gallery thumbnail")
+    return GalleryDecodedThumbnail(bitmap, plan.sourceWidth, plan.sourceHeight)
+}

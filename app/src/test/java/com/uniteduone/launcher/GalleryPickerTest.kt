@@ -143,7 +143,9 @@ class GalleryPickerTest {
         state.refresh()
         assertEquals(R.string.gallery_storage_failed, state.notice)
         assertEquals(listOf("cached"), galleryRows(repository.state.value, BuiltinKind.WALLPAPERS, null).map { it.item.id })
+        val before = state.thumbnailGeneration
         fail = false; state.refresh()
+        assertTrue("Unchanged catalog refresh must restart mounted thumbnail effects", state.thumbnailGeneration > before)
         assertNull(state.notice)
         assertEquals(cached, repository.state.value)
     }

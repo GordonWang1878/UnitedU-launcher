@@ -93,6 +93,21 @@ class GalleryRepositoryTest {
             r.original(item()) {}; assertEquals(2, t.downloadCalls.get()); assertTrue(s.root.listFiles()!!.none { it.name.endsWith(".part") })
         } finally { scope.cancel() }
     }
+    @Test fun cancelledThumbnailEffectReleasesLastWaiterAndRetryStartsFresh() = runBlocking {
+        val s = store(); val t = FakeTransport(bytes).apply { downloadGate = CompletableDeferred() }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val r = repo(s, t, scope)
+            val mountedEffect = async { r.thumbnail(item()) }
+            t.downloadEntered.await()
+            mountedEffect.cancelAndJoin()
+            t.downloadGate!!.complete(Unit)
+            assertTrue(r.thumbnail(item()).isFile)
+            assertEquals(2, t.downloadCalls.get())
+            eventually { s.thumbs.listFiles().orEmpty().none { it.name.endsWith(".part") } }
+            assertTrue(s.downloaded().isEmpty())
+        } finally { scope.cancel() }
+    }
     @Test fun decodedFormatOrDimensionsRejectBeforeCommit() = runBlocking {
         val s = store(); val t = FakeTransport(bytes); val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         try {

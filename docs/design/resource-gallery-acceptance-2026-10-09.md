@@ -64,3 +64,13 @@ git diff --check
 持久证据：[same-page-focus-evidence.json](../screenshots/resource-gallery/same-page-focus-evidence.json)与同目录三张`same-page-*`截图；临时逐步输出`/tmp/task8-focus.log`。最初Activity捕获过滤字段写为mResumedActivity而实际字段是topResumedActivity，输出为空，因此没有将两个空值相等当作Activity身份保持的证明。真正依据是同一次挂载中的按键/响应序列、焦点自报及实际画面。
 
 这轮补验只改目录缓存和已备份设置，恢复后settings/layout JSON比较一致，gallery10个文件逐个SHA256与原基线一致；Settings未知原图仍保持不动。只增加文档/证据，不修改功能代码或重复全套构建。既有最终全套结果仍是906项JVM（905执行通过、1既有忽略）、Python20/20及两构建。
+
+## 最终评审修复（2026-10-09）
+
+I1/I2/M1/M2已修复：在线缩略图按格子实际像素长边使用二次幂采样，保留真实编码宽高供卡片横幅判定；每页记录缩略图失败并显示失败标记/菜单重试。手动刷新完成（含304、目录不变及清单失败）推进页面缩略图代次，只有可见格子的produceState重启；稳定cell key/FocusRequester不重建。换代、离屏或页面离开取消旧effect的仓库等待者，取消刷新不推进代次，原图预览/采用状态独立。
+
+新增回归覆盖真实195759字节8192² PNG采样计划、真实源比例、窄/奇数/非法bounds、同一mounted可见代次观察者失败→304→成功、明确重试、隐藏格不下载、取消刷新及最后缩略图等待者释放。最终针对图库85/85通过。Android14 emulator-5560的app_process直接调用本次APK的生产decodeGalleryThumbnail与Apps.cardBackdropFor：8192²→256×256，实际allocationByteCount=262144；7680×4320→480×270，allocation=518400、backdrop=null（横幅）。探针没有安装APK、进入选图页或写应用数据，本次专用临时设备目录已删除；没有重跑UI矩阵。
+
+最终全量结果：912项JVM，911执行通过、1既有忽略、0失败/异常，86 suites；Python20/20。debug/release、release lint/R8成功（BUILD SUCCESSFUL in 1m22s）；两APK全部dex无本轮/既有图库fixture端口与临时目录标记，ZIP无fixture文件，生产HTTPS根正确。版本保持1.0.3/code6，没有发布或推远程。
+
+**I3仍未关闭：Settings卡片测试前原字节没有可信备份，不能恢复或证明恢复。本轮完全未触碰icons文件，保留现有文件与既有备份；完整数据保留例外仍待Gordon/控制器明确处置。** 本轮没有新增真机、三语实际布局或完整legacy E2E证据，既有限制保留。
