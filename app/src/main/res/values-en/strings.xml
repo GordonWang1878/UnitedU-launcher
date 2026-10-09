@@ -265,6 +265,7 @@
     <string name="about_checking">Checking…</string>
     <string name="about_latest">You\'re up to date</string>
     <string name="about_found">New version %1$s available</string>
+    <string name="about_found_rollback">Back to stable %1$s (layout and settings kept)</string>
     <string name="about_download">Download and Install</string>
     <string name="about_ready_install">Install Update</string>
     <string name="about_downloading">Downloading %1$d%%</string>

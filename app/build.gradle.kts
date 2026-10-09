@@ -21,6 +21,10 @@ val releaseProps = Properties().apply {
 val updateUrls: String = providers.gradleProperty("unitedu.updateUrls").orNull?.takeIf { it.isNotBlank() }
     ?: "https://github.com/GordonWang1878/UnitedU-launcher/releases/latest/download/latest.json"
 
+/** Beta 通道 / 回退清单地址(逗号分隔,同 [updateUrls]);模拟器验证时用 `-Punitedu.betaUrls=http://127.0.0.1:…/beta.json` 覆盖。缺省空串。 */
+val betaUrls: String = providers.gradleProperty("unitedu.betaUrls").orNull ?: ""
+val rollbackUrls: String = providers.gradleProperty("unitedu.rollbackUrls").orNull ?: ""
+
 /**
  * 版本号。1.0.3 = 6(2026-10-03,关于页检查结果改成实心胶囊);1.0.2 = 5(2026-10-03,更新通道改 Cloudflare R2 自有域名、撤腾讯云);1.0.1 = 4(2026-10-03,更新通道加腾讯云镜像);
  * 1.0.0 = 3(2026-10-02 首次公开发布);1.0.0-beta 内部版是 2(spec §9)。
@@ -54,6 +58,16 @@ android {
             "String",
             "UPDATE_URLS",
             "\"" + updateUrls.replace("\\", "\\\\").replace("\"", "\\\"") + "\"",
+        )
+        buildConfigField(
+            "String",
+            "BETA_URLS",
+            "\"" + betaUrls.replace("\\", "\\\\").replace("\"", "\\\"") + "\"",
+        )
+        buildConfigField(
+            "String",
+            "ROLLBACK_URLS",
+            "\"" + rollbackUrls.replace("\\", "\\\\").replace("\"", "\\\"") + "\"",
         )
     }
 

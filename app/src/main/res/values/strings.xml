@@ -257,6 +257,7 @@
     <string name="about_checking">检查中…</string>
     <string name="about_latest">已是最新版本</string>
     <string name="about_found">发现新版本 %1$s</string>
+    <string name="about_found_rollback">可回到稳定版 %1$s（布局与设置保留）</string>
     <string name="about_download">下载并安装</string>
     <string name="about_ready_install">安装更新</string>
     <string name="about_downloading">下载中 %1$d%%</string>

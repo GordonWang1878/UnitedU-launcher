@@ -94,7 +94,7 @@ sealed class AboutState {
         override val action get() = AboutAction.CHECK
     }
 
-    data class Found(override val info: LatestInfo) : AboutState() {
+    data class Found(override val info: LatestInfo, val kind: UpdateKind = UpdateKind.STABLE) : AboutState() {
         override val action get() = AboutAction.DOWNLOAD
     }
 
@@ -169,7 +169,7 @@ sealed class AboutState {
 class AboutController(
     private val activity: ComponentActivity,
     private val currentVersionCode: Int,
-    private val urls: List<String>,
+    private val channel: () -> UpdateChannel,
 ) {
     var state: AboutState by mutableStateOf(AboutState.Idle)
         private set
@@ -186,13 +186,16 @@ class AboutController(
         if (state.action != AboutAction.CHECK) return
         val my = begin(AboutState.Checking)
         checkJob = activity.lifecycleScope.launch {
-            val result = withContext(Dispatchers.IO) { Update.check(urls) }
+            val result = withContext(Dispatchers.IO) {
+                val ch = channel() // 每次检查只读一次,日志与请求用同一个值
+                ch to Update.checkChannel(ch, currentVersionCode, Build.VERSION.SDK_INT)
+            }
             if (my != session) return@launch
-            state = result.fold(
-                onSuccess = { info ->
-                    val newer = isNewer(info, currentVersionCode, Build.VERSION.SDK_INT)
-                    Log.i(TAG, "update check: server ${info.versionCode} (${info.versionName}), current $currentVersionCode, newer=$newer")
-                    if (newer) AboutState.Found(info) else AboutState.Latest
+            val (ch, outcome) = result
+            state = outcome.fold(
+                onSuccess = { up ->
+                    Log.i(TAG, "update check (${ch.id}): current $currentVersionCode, found=${up?.info?.versionCode} kind=${up?.kind}")
+                    if (up != null) AboutState.Found(up.info, up.kind) else AboutState.Latest
                 },
                 onFailure = { e ->
                     val reason = (e as? UpdateCheckException)?.reason ?: CheckFailure.NETWORK
@@ -346,6 +349,15 @@ class AboutController(
             Log.i(TAG, "about closed; discarding verified update ${ready.name} (not installed)")
             Update.discard(activity, ready)
         }
+    }
+
+    /**
+     * 用户刚换了通道:作废进行中的检查 / 下载(包括等着按「安装」的那一份,文件删掉),
+     * 再按新通道检查一次。旧通道下了一半的包绝不会被装上——它的会话号已经作废。
+     */
+    fun switchChannel() {
+        reset()
+        check()
     }
 
     /** 新会话:作废旧工作的结果、取消旧工作(不等它结束)、切到 [next]。返回新会话号。 */
@@ -535,7 +547,10 @@ private fun buttonLabel(state: AboutState): String = when (state) {
 @Composable
 private fun headline(state: AboutState): Pair<String, Tone>? {
     val info = state.info
-    if (info != null) return stringResource(R.string.about_found, info.versionName) to Tone.GOOD
+    if (info != null) {
+        val res = if ((state as? AboutState.Found)?.kind == UpdateKind.ROLLBACK) R.string.about_found_rollback else R.string.about_found
+        return stringResource(res, info.versionName) to Tone.GOOD
+    }
     return when (state) {
         AboutState.Latest -> stringResource(R.string.about_latest) to Tone.GOOD
         is AboutState.Failed -> {

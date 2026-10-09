@@ -262,7 +262,7 @@ class MainActivity : ComponentActivity() {
      * 关于页的状态机(检查 / 下载 / 校验 / 安装)。页面关掉时 [closeAbout] 调 `reset()`
      * 取消进行中的一切,所以它的寿命可以跟 Activity 走——构造时只存引用,不碰 Context。
      */
-    private val aboutFlow = AboutController(this, BuildConfig.VERSION_CODE, Update.configuredUrls())
+    private val aboutFlow = AboutController(this, BuildConfig.VERSION_CODE) { SettingsStore.read(this).updateChannel }
     /**
      * 首次引导浮层(T10,spec §8)开着没有。**只在 `onCreate` 里由 settings.json 派生**
      * (`resolveOnboarding`:`onboardingDone == false` 才开),关掉只有 [endOnboarding] 一条路,

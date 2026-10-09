@@ -82,6 +82,17 @@ object Update {
     fun check(urls: List<String>): Result<LatestInfo> =
         resolveLatest(urls, log = { Log.w(TAG, it) }) { url -> fetchText(url) }
 
+    /** 双通道检查(规则见 [resolveChannel]);三份清单各自走 [resolveLatest] 的逐通道兜底。 */
+    @WorkerThread
+    fun checkChannel(channel: UpdateChannel, installedCode: Int, sdk: Int): Result<ChannelUpdate?> =
+        resolveChannel(
+            channel, installedCode, sdk,
+            log = { Log.w(TAG, it) },
+            fetchStable = { check(configuredUrls()) },
+            fetchBeta = { check(parseUpdateUrls(BuildConfig.BETA_URLS)) },
+            fetchRollback = { check(parseUpdateUrls(BuildConfig.ROLLBACK_URLS)) },
+        )
+
     /**
      * 清掉上一条命留下的更新文件(进程在下载中途被杀留下的 `.part`、校验通过后进程被杀没来得及删的 `.apk`、
      * 上一版固定文件名的 `update.apk`)。在 `MainActivity.onCreate` 调(与 UploadServer 的 sweepStale 同一思路)。
