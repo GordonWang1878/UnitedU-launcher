@@ -4,7 +4,7 @@ Gordon 定的三条(grilling,2026-10-09):
 
 1. **同一个应用 + 通道开关**:包名、签名不变,用户在应用里选「稳定版 / Beta」。
 2. **切回稳定版用回退包**:当场回到稳定版、布局与设置保留。
-3. **main = Beta,稳定版从 Beta 晋级**:新功能在 main 开发、发 Beta;某个 Beta 验证够了,同一个提交重新构建成稳定版。稳定版急修从上一个稳定 tag 拉临时 hotfix 分支。
+3. **main = Beta,稳定版从 Beta 晋级**:新功能在 main 开发、发 Beta;某个 Beta 验证够了,同一份代码 + 只改版本号的提交重新构建成稳定版。稳定版急修从上一个稳定 tag 拉临时 hotfix 分支。
 
 ## 1. 机制
 
@@ -17,7 +17,8 @@ Gordon 定的三条(grilling,2026-10-09):
 | `rollback.json` | 当前稳定版源码、versionCode = 最新 Beta + 1 的回退包 | 从 Beta 切回稳定、且已装版本高于稳定版的人 |
 
 - **Beta 通道**同时读 `latest.json` 与 `beta.json`,取 versionCode 大的那份——稳定版追上 Beta 时,Beta 用户也收到它。
-- **稳定通道**只读 `latest.json`;若已装的 versionCode 比它大(刚从 Beta 切回来),改读 `rollback.json`。
+- **稳定通道**只读 `latest.json`;若已装的 versionCode 比它大**且版本名带 `-beta`**(刚从 Beta 切回来),改读 `rollback.json`;已装的是回退包(名字不带 `-beta`)则视为已是最新。
+- Gordon 2026-10-10 定:Beta 通道只接收版本名不低于当前 Beta 基础版本的稳定版(装 1.1.0-beta.2 不收稳定急修 1.0.4);急修要给 Beta 用户就并进 main 发下一个 Beta。
 - 安装链路(SHA-256、包名、versionCode、签名证书核对)完全复用,不加新路径。
 
 ## 2. versionCode 与命名
@@ -25,7 +26,7 @@ Gordon 定的三条(grilling,2026-10-09):
 - versionCode 是**全局单调计数**,三类包共用:例 稳定 6 → Beta 7 + 回退包 8 → Beta 9 + 回退包 10 → 稳定 11。
 - Beta:versionName `1.1.0-beta.1`,tag `v1.1.0-beta.1`,GitHub 标 **prerelease**(不影响 `releases/latest` 指向稳定版)。
 - 回退包:versionName 与它所含的稳定版相同(用户看到的仍是「1.0.3」),不建 tag,只作为 `channel-beta` 这个固定 prerelease 的附件。
-- 晋级稳定:同一提交、去掉后缀重新构建(versionName 带 `-beta.N` 不能直接当稳定版发),versionCode 照计数取下一个。
+- 晋级稳定:同一份代码 + 只改版本号的提交重新构建(versionName 带 `-beta.N` 不能直接当稳定版发),versionCode 照计数取下一个。
 
 ## 3. 发布地址
 
@@ -36,7 +37,7 @@ Gordon 定的三条(grilling,2026-10-09):
 ## 4. 界面(R164)
 
 - 关于页加一颗胶囊「更新通道:稳定版 / Beta」,进选项层二选一(关于页胶囊 2 → 3,仍 ≤ 6)。左侧说明:Beta 先拿到新功能、可能不稳定、随时可切回且不丢布局。
-- 选完立即检查一次更新:切到 Beta → 有 Beta 就提示下载;从 Beta 切回稳定 → 提示「回到稳定版 1.0.3(布局与设置保留)」。
+- 选完立即检查一次更新:切到 Beta → 有 Beta 就提示下载;从 Beta 切回稳定 → 提示「可回到稳定版 1.0.3（布局与设置保留）」。
 - Beta 包的关于页版本号后标「Beta」。
 - 设置字段 `updateChannel`(`stable` 默认 / `beta`),进 settings.json,走 `LockedFile`。
 

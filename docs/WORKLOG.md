@@ -1997,3 +1997,10 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - **Gordon 2026-10-09 定:更新通道顺序沿用 R2 优先、GitHub 兜底、先到先得;清单读到后下载失败不换通道重试,不改。**
 - **发版顺序前提**:第一个带通道开关的版本必须先作为**稳定版**发出(1.0.3 及以前的用户没有开关,发了 Beta 他们也看不到);稳定版发出后才能发第一个 Beta。`release.sh` 的 versionCode 必须比已发布最大值大(三类包共用一个计数)。
 - 模拟器小坑已记 CLAUDE.md:自我更新要同时开 `REQUEST_INSTALL_PACKAGES` 与 `SYSTEM_ALERT_WINDOW` 两个 appop;系统确认页默认焦点在 Cancel、Update 在它左边。
+
+## 2026-10-10 · 双通道终审修复(分支 feature/release-channels)
+
+- 回退包只对「已装名字带 `-beta`」的包生效(`resolveChannel` 新参数 `installedName`);已是回退包则视为最新。Beta 分支先滤「装得上且更新」再择优。
+- **Gordon 2026-10-10 定**:Beta 通道只接收版本名不低于当前 Beta 基础版本的稳定版(装 1.1.0-beta.2 不收稳定急修 1.0.4;`compareSemver`);急修要给 Beta 用户就并进 main 发下一个 Beta。
+- `release.sh` Beta 模式:先 `git fetch --tags`,稳定 tag 须等于线上 `latest.json` 的 versionName,且该 tag 的 `gradle.properties` 已有 `unitedu.rollbackUrls`(第一个带通道开关的版本必须先发稳定版);`published_max_code` 网络失败不再当 0(404 只对 beta/rollback 算 0);dry-run 只警告。回退包 trap 的 INT/TERM 现会退出。
+- 关于页:`offerKind` 记当前更新来路,回退包在下载失败 / 校验失败等态也不叫「新版本」。
