@@ -553,10 +553,14 @@ internal fun HomeScreen(
             runCatching { rowFocus[r].requestFocus() }
             frames++
         }
-        // 目标行不在了、焦点落到补上它位置的那一行时,**落定之后**把目标行改成这一行(列号不动,与行变短夹列同例):
-        // 否则那个频道行过一会儿又有了内容(发布方重新发布),还原效果会把焦点从用户眼前这一行拽回去——
-        // 「频道行整行出现 / 消失,焦点不动」(owner 裁定)。只在目标自报落地后写(铁律 2),移动态不写(目标归 moving.pos)。
-        if (moveTarget == null && focusedCell == want) rows.getOrNull(r)?.let { tgtLayoutRow = it.layoutRow }
+        // 落定之后把目标改成实际落点(补位行 / 夹过的列),只在前台、非移动态、目标自报落地时(判据见 homeLandingTarget 的 KDoc):
+        // ON_PAUSE 期间发布方清空重发让目标行暂时消失时,不能把「回来要回到的那张卡」改掉(铁律 5)。
+        homeLandingTarget(
+            rows, want,
+            landed = focusedCell == want,
+            resumed = lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED),
+            moving = moveTarget != null,
+        )?.let { (lr, col) -> tgtLayoutRow = lr; tgtCol = col }
         restoring = !lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
     }
     LaunchedEffect(rows.isEmpty(), loaded != null, focusNonce, focusedCell, covered, restoring) {

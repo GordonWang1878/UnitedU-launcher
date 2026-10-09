@@ -78,4 +78,24 @@ class HomeChannelsTest {
         assertEquals(0, homeTargetRow(emptyList(), 2))
         assertEquals("列号夹到落点那一行的格数", 2 to 0, homeTargetCell(rows, 4, 5))
     }
+
+    // ---- Task 12 修订一:落定后目标改写(补位行 / 夹过的列)只在前台、非移动态、目标自报落地时做 ----
+    @Test fun landingAdoptsReplacementRowAndClampedColumnOnlyWhenResumed() {
+        val rows = listOf(appRow(0, "a"), appRow(2, "c", "d"))
+        // 目标 layout 行 1(频道行)没画 → 落到 layout 行 2 的第 1 格(列 5 夹到 1)
+        val want = homeTargetCell(rows, tgtLayoutRow = 1, tgtCol = 5)
+        assertEquals(1 to 1, want)
+        assertEquals(2 to 1, homeLandingTarget(rows, want, landed = true, resumed = true, moving = false))
+        assertEquals("ON_PAUSE 期间不改写(铁律 5)", null, homeLandingTarget(rows, want, landed = true, resumed = false, moving = false))
+        assertEquals("没落地不改写(铁律 2)", null, homeLandingTarget(rows, want, landed = false, resumed = true, moving = false))
+        assertEquals("移动态不改写", null, homeLandingTarget(rows, want, landed = true, resumed = true, moving = true))
+    }
+
+    @Test fun shrunkRowLandingAdoptsTheClampedColumn() {
+        val before = listOf(appRow(0, "a"), ready.copy(programs = (1L..8L).map { prog(it) }))
+        val after = listOf(before[0], before[1].copy(programs = (1L..3L).map { prog(it) }))
+        val want = homeTargetCell(after, 1, 7)
+        assertEquals(1 to 2, want)
+        assertEquals("行变短夹到第 3 张后,目标列就是 2(上下键同列落点从这里算)", 1 to 2, homeLandingTarget(after, want, true, true, false))
+    }
 }

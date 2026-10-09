@@ -43,3 +43,17 @@ internal fun homeTargetCell(rows: List<Row>, tgtLayoutRow: Int, tgtCol: Int): Pa
     val r = homeTargetRow(rows, tgtLayoutRow)
     return r to homeFocusCol(rows, r, tgtCol)
 }
+
+/**
+ * 还原效果**落定之后**要不要改写目标(Task 12 修订一):返回 (layout 行号, 列号) = 新目标,null = 不改。
+ * 目标行不在了、焦点落到补位行([homeTargetRow]),或这一行变短、列被夹到末张([homeFocusCol])时,把目标改成实际落点:
+ * 否则那一行过一会儿又有了内容 / 又变长,还原效果会把焦点从用户眼前这一格拽走(owner 裁定「整行出现 / 消失,焦点不动」);
+ * 列号跟着夹过的那一格,上下键同列落点从这里算。
+ * 只在 [landed](目标自报落地,铁律 2)、[resumed](前台——ON_PAUSE 起目标冻结,铁律 5:用户从频道行打开节目后发布方在后台
+ * 清空重发,补位落点不能把「回来要回到的那张卡」改掉)、非 [moving](目标归 moving.pos)时改。
+ */
+internal fun homeLandingTarget(rows: List<Row>, want: Pair<Int, Int>, landed: Boolean, resumed: Boolean, moving: Boolean): Pair<Int, Int>? {
+    if (!landed || !resumed || moving) return null
+    val row = rows.getOrNull(want.first) ?: return null
+    return row.layoutRow to want.second
+}
