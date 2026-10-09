@@ -82,8 +82,8 @@ cd /Users/gordonwang/orca/workspaces/UnitedU-launcher/频道推荐 && source scr
 | `app/src/main/java/com/uniteduone/launcher/Apps.kt` | 改 | `Apps.labelOf(ctx, pkg)` |
 | `app/src/main/java/com/uniteduone/launcher/GtvTokens.kt` | 改 | `PosterFallback` 底色 |
 | `app/src/main/java/com/uniteduone/launcher/EditShelves.kt` | 改(edit-shelves 产出) | `Shelf.ChannelShelf`、`ChannelShelfState`、`shelfChips` / `shelfLanes` / `clampSpot` 的频道分支、`NewRowChoice.CHANNEL` / `choiceMax`、`EditCounts.channels` |
-| `app/src/main/java/com/uniteduone/launcher/EditShelfParts.kt` | 改(edit-shelves 产出) | `chipLabel` / `chipIcon` 加 `REAUTHORIZE`;`choiceTitle` / `choiceDesc` / `choiceIcon` 加 `CHANNEL` |
-| `app/src/main/java/com/uniteduone/launcher/EditScreen.kt` | 改(edit-shelves 产出) | `shelvesFor`(读 `ChannelCache`)、`ChannelShelfView`、「频道」选择卡接线、`EditOverlay.ChannelPick`、页头频道数、`knownOnDisk` 初值 |
+| `app/src/main/java/com/uniteduone/launcher/EditShelfParts.kt` | 改(edit-shelves 产出) | `chipLabel` / `chipIcon` 加 `REAUTHORIZE`;`choiceTitle` / `choiceDesc` / `choiceIcon` 加 `CHANNEL`;`ChannelShelfView` / `ChannelShelfBody`(海报预览要 `clipToBounds`,`EditIronRulesTest` 不许它出现在 `EditScreen.kt`) |
+| `app/src/main/java/com/uniteduone/launcher/EditScreen.kt` | 改(edit-shelves 产出) | `shelvesFor`(读 `ChannelCache`)、渲染 `ChannelShelfView`、「频道」选择卡接线、`EditOverlay.ChannelPick`、页头频道数、`knownOnDisk` 初值 |
 | `app/src/main/java/com/uniteduone/launcher/AppPicker.kt` | 改(edit-shelves 产出) | `PickerRow` 改 `internal`(选频道页复用) |
 | `app/src/main/java/com/uniteduone/launcher/ChannelPicker.kt` | 新 | 选频道页(照 `AppPicker`):授权流程、空态、拒绝态、按 id 重定位 |
 | `app/src/main/java/com/uniteduone/launcher/ChannelInit.kt` | 新 | `INITIALIZE_PROGRAMS` 通知 + `channel-init.json`(纯函数可测) |
@@ -3613,7 +3613,7 @@ EOF
 
 **Files:**
 - Modify: `app/src/main/java/com/uniteduone/launcher/EditShelves.kt`
-- Modify: `app/src/main/java/com/uniteduone/launcher/EditShelfParts.kt`(`chipLabel` / `chipIcon` 加 `REAUTHORIZE`)
+- Modify: `app/src/main/java/com/uniteduone/launcher/EditShelfParts.kt`(`chipLabel` / `chipIcon` 加 `REAUTHORIZE`;末尾加 `ChannelShelfView` / `ChannelShelfBody`)
 - Modify: `app/src/main/java/com/uniteduone/launcher/EditScreen.kt`
 - Modify: `app/src/main/res/values/strings.xml`、`values-en/strings.xml`、`values-zh-rTW/strings.xml`
 - Test: `app/src/test/java/com/uniteduone/launcher/ChannelShelfTest.kt`
@@ -3913,7 +3913,7 @@ Step 3 新加的 `Shelf.ChannelShelf` 与 `ShelfChip.REAUTHORIZE` 让 `EditScree
         BasicText("$rowsText · $appsText · $channelsText", style = Type.caption)
 ```
 
-(e) `EditScreen.kt` 末尾加频道架子与它的正文(都不新增焦点状态:可聚焦的只有胶囊,写法与 `AppShelfView` 的胶囊行逐字相同——逐项 requester、得失都上报、量水平中心):
+(e) **`EditShelfParts.kt`**(不是 `EditScreen.kt`)末尾加频道架子与它的正文,`internal`。放这里是因为海报预览要 `clipToBounds`,而 `EditIronRulesTest.theShelfNeverClipsTheFocusedCardOrItsLeftEdge` 禁止 `EditScreen.kt` 里出现 `clipToBounds`(连 import 都算)——那条防的是卡片条裁掉焦点卡,海报预览不可聚焦,不在它要防的范围;写进 `EditScreen.kt` 会让 Step 7 的全量单测变红。(都不新增焦点状态:可聚焦的只有胶囊,写法与 `AppShelfView` 的胶囊行逐字相同——逐项 requester、得失都上报、量水平中心):
 
 ```kotlin
 /**
@@ -3921,7 +3921,7 @@ Step 3 新加的 `Shelf.ChannelShelf` 与 `ShelfChip.REAUTHORIZE` 让 `EditScree
  * 高度同应用架子(海报预览高 = 应用卡高),纵向位移的累计不需要区分种类。
  */
 @Composable
-private fun ChannelShelfView(
+internal fun ChannelShelfView(
     shelf: Shelf.ChannelShelf,
     chips: List<ShelfChip>,
     focus: () -> Float,
@@ -3987,7 +3987,7 @@ private fun ChannelShelfView(
  * 不进任何焦点账本),或一行状态文字(「暂无内容」/「需要重新授权」)。海报只在焦点层 ± 1 才加载,同首页。
  */
 @Composable
-private fun ChannelShelfBody(state: ChannelShelfState, loadPosters: Boolean) {
+internal fun ChannelShelfBody(state: ChannelShelfState, loadPosters: Boolean) {
     when (state) {
         // 外层按架子宽裁;里层 Row 放开测量(unbounded),右缘那张是被裁掉一截,而不是被约束挤窄(铁律 1 同一个测量坑)
         is ChannelShelfState.Posters -> Box(Modifier.fillMaxWidth().clipToBounds()) {
@@ -4023,10 +4023,10 @@ private fun ChannelShelfBody(state: ChannelShelfState, loadPosters: Boolean) {
 }
 ```
 
-(海报缓存与首页共用,解码高度用首页卡高 220 px,同一张图只缓存一份。`EditScreen.kt` 缺的 import 按编译器提示补:
+(海报缓存与首页共用,解码高度用首页卡高 220 px,同一张图只缓存一份。`EditShelfParts.kt` 缺的 import 按编译器提示补(它已有 `Box` / `Row` / `Spacer` / `BasicText` / `RoundedCornerShape` / `clip` / `background` / `TextAlign` 等,另需 `fillMaxWidth` / `fillMaxSize` / `wrapContentWidth` / `focusRequester` / `onGloballyPositioned` / `boundsInRoot` / `LocalDensity` / `LocalContext` 等):
 `androidx.compose.foundation.Image`、`androidx.compose.ui.draw.clip`、`androidx.compose.ui.draw.clipToBounds`、`androidx.compose.ui.graphics.asImageBitmap`、
 `androidx.compose.ui.layout.ContentScale`、`androidx.compose.ui.text.style.TextAlign`、`androidx.compose.ui.text.style.TextOverflow`、`androidx.compose.runtime.produceState`;
-`AppShelfView` 已用到的那些(`ShelfFrame`、`RowIcon`、`onGloballyPositioned`、`boundsInRoot`、`wrapContentWidth` 等)不用再加。)
+已有的不重复加。)
 
 - [ ] **Step 7: 构建 + 模拟器核对**
 
@@ -4064,6 +4064,7 @@ EOF
 - Modify: `app/src/main/java/com/uniteduone/launcher/EditScreen.kt`(`onChoice`;`NewRowShelfView` 的说明行)
 - Modify: 三份 `strings.xml`
 - Test: `app/src/test/java/com/uniteduone/launcher/NewRowChoiceTest.kt`
+- Modify: `app/src/test/java/com/uniteduone/launcher/EditShelvesTest.kt`(一条按「新的一行只有一格」写死的断言,见 Step 3 末尾)
 
 **Interfaces:**
 - Consumes: Task 2 `MAX_CHANNEL_ROWS`;Task 13 `Shelf.ChannelShelf`;edit-shelves `NewRowChoice` / `choiceFull` / `appShelfCount` / `laneSize`。
@@ -4189,6 +4190,11 @@ private fun choiceIcon(c: NewRowChoice): ImageVector = when (c) {
 
 (「已满 N 行」用已有的 `edit_choice_full`,不另起;`CopyTest` 按占位符集合比对,英文用两次 `%1$d` 照样一致。)
 
+`EditShelvesTest.kt`(edit-shelves 已提交)的 `clampKeepsTheNewRowOnTheNewRowWhenRowsChange` 里
+`assertEquals(ShelfSpot(3, NEW, 0), clampSpot(three, ShelfSpot(3, NEW, 5)))` 是按「新的一行只有一张卡」写的——加了 `CHANNEL` 后格号夹到 1,
+Step 4 的 `--tests '*EditShelves*'` 会红。改成 `assertEquals(ShelfSpot(3, NEW, NewRowChoice.entries.lastIndex), clampSpot(three, ShelfSpot(3, NEW, 5)))`
+(意思不变:越界的格号夹到最后一张选择卡)。同文件别的 `NEW` 断言都用格 0 或 `NewRowChoice.entries.size`,不用改。
+
 - [ ] **Step 4: 跑测试确认通过 + 构建**
 
 Run: `cd /Users/gordonwang/orca/workspaces/UnitedU-launcher/频道推荐 && source scripts/env.sh && gradle --no-daemon testReleaseUnitTest --tests '*NewRowChoiceTest*' --tests '*EditShelves*' --tests '*CopyTest*' assembleRelease`
@@ -4217,7 +4223,7 @@ adb -s $DEV shell am start -a android.intent.action.MAIN -c android.intent.categ
 - [ ] **Step 6: 提交**
 
 ```bash
-cd /Users/gordonwang/orca/workspaces/UnitedU-launcher/频道推荐 && git add app/src/main/java/com/uniteduone/launcher/EditShelves.kt app/src/main/java/com/uniteduone/launcher/EditShelfParts.kt app/src/main/java/com/uniteduone/launcher/EditScreen.kt app/src/main/res/values/strings.xml app/src/main/res/values-en/strings.xml app/src/main/res/values-zh-rTW/strings.xml app/src/test/java/com/uniteduone/launcher/NewRowChoiceTest.kt && git commit -F - <<'EOF'
+cd /Users/gordonwang/orca/workspaces/UnitedU-launcher/频道推荐 && git add app/src/main/java/com/uniteduone/launcher/EditShelves.kt app/src/main/java/com/uniteduone/launcher/EditShelfParts.kt app/src/main/java/com/uniteduone/launcher/EditScreen.kt app/src/main/res/values/strings.xml app/src/main/res/values-en/strings.xml app/src/main/res/values-zh-rTW/strings.xml app/src/test/java/com/uniteduone/launcher/NewRowChoiceTest.kt app/src/test/java/com/uniteduone/launcher/EditShelvesTest.kt && git commit -F - <<'EOF'
 feat(channels): 「新的一行」加「频道」选择卡,两类各自满 5 行变暗(R165 §2.4)
 
 Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
@@ -4805,13 +4811,17 @@ def revoke():
     sh(f"pm revoke {PKG} {PERM}")
     sh(f"pm clear-permission-flags {PKG} {PERM} user-set user-fixed")
 
-def answer_permission(allow=True):
-    """系统授权窗(permissioncontroller 的 GrantPermissionsActivity)里把焦点挪到 Allow / Don't allow(旧版 Deny)再按确定。"""
+def wait_permission_dialog():
+    """等系统授权窗到前台(最多 6 s):选页淡入 → LaunchedEffect → 授权窗起来,宿主负载高时 1.5 s 不一定够。"""
     for _ in range(12):
         if "permissioncontroller" in foreground():
-            break
+            return True
         time.sleep(0.5)
-    else:
+    return False
+
+def answer_permission(allow=True):
+    """系统授权窗(permissioncontroller 的 GrantPermissionsActivity)里把焦点挪到 Allow / Don't allow(旧版 Deny)再按确定。"""
+    if not wait_permission_dialog():
         return False
     for direction in ["down"] * 4 + ["up"] * 8:
         lab = screen().label().strip()
@@ -4854,7 +4864,7 @@ def run():
     open_edit()
     check("走到「新的一行 → 频道」", to_new_channel_card(), screen().label())
     key("ok"); time.sleep(1.5)
-    check("没授权时弹系统授权窗", "permissioncontroller" in foreground(), foreground())
+    check("没授权时弹系统授权窗", wait_permission_dialog(), foreground())
     shot("ch-01-permission-dialog")
     check("按 Allow", answer_permission(True))
     check("授权到手", "granted=true" in sh(f"dumpsys package {PKG} | grep {PERM}"))
