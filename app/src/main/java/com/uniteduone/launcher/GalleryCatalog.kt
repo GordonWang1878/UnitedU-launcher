@@ -69,3 +69,15 @@ fun parseGalleryCatalog(json: String): Result<GalleryCatalog> = runCatching {
 fun galleryItems(catalog: GalleryCatalog, kind: BuiltinKind, packageName: String?): List<GalleryItem> =
     catalog.items.filter { it.kind == kind && (kind != BuiltinKind.CARDS || packageName in it.packages) }
         .sortedWith(compareBy<GalleryItem> { it.order }.thenBy { it.id })
+
+/** The same schema is used by network catalogs and durable local metadata. */
+fun serializeGalleryCatalog(catalog: GalleryCatalog): String {
+    fun blob(value: GalleryBlob) = JSONObject().put("path", value.path).put("bytes", value.bytes).put("sha256", value.sha256)
+    val entries = catalog.items.map { item ->
+        JSONObject().put("id", item.id).put("kind", item.kind.dir).put("names", JSONObject(item.names))
+            .put("order", item.order).put("thumbnail", blob(item.thumbnail))
+            .put("original", blob(item.original.blob).put("width", item.original.width).put("height", item.original.height).put("mediaType", item.original.mediaType))
+            .put("packages", JSONArray(item.packages.sorted())).put("credit", item.credit)
+    }
+    return JSONObject().put("schemaVersion", 1).put("revision", catalog.revision).put("items", JSONArray(entries)).toString()
+}
