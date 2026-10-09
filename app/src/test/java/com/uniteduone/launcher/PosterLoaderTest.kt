@@ -5,6 +5,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.net.InetAddress
@@ -143,5 +145,34 @@ class PosterLoaderTest {
         assertNull(fetchBytes(URL("http://127.0.0.1:${server.localPort}/p"), 500, 4096))
         assertTrue((System.nanoTime() - t0) / 1_000_000 < 2_000)
         server.close()
+    }
+
+    /** 调用方被取消:CancellationException 照常抛出,不进 failed、不记日志。 */
+    @Test fun cancelledLoadIsNotRecordedAsFailed() = kotlinx.coroutines.runBlocking {
+        val failed = java.util.concurrent.ConcurrentHashMap<String, Long>()
+        var logged = false
+        val job = launch(kotlinx.coroutines.Dispatchers.Default) {
+            loadTracked<ByteArray>(failed, "u", { 1L }, { logged = true }) {
+                readResolverBounded(5_000, { java.util.concurrent.CountDownLatch(1).await(); null }, 1024)
+            }
+        }
+        kotlinx.coroutines.delay(200)
+        job.cancelAndJoin()
+        assertTrue(job.isCancelled)
+        assertTrue(failed.isEmpty())
+        assertFalse(logged)
+        // 真失败照记
+        assertNull(loadTracked<ByteArray>(failed, "v", { 7L }, { logged = true }) { null })
+        assertEquals(7L, failed["v"]); assertTrue(logged)
+    }
+
+    @Test fun resolverWorkersAreCapped() = kotlinx.coroutines.runBlocking {
+        val gate = java.util.concurrent.CountDownLatch(1)
+        val jobs = (1..RESOLVER_MAX_WORKERS).map { launch(kotlinx.coroutines.Dispatchers.Default) { readResolverBounded(3_000, { gate.await(); null }, 16) } }
+        kotlinx.coroutines.delay(300)
+        val t0 = System.nanoTime()
+        assertNull(readResolverBounded(3_000, { ByteArrayInputStream(ByteArray(3)) }, 16))
+        assertTrue("满了要立刻返回", (System.nanoTime() - t0) / 1_000_000 < 500)
+        gate.countDown(); jobs.forEach { it.cancelAndJoin() }
     }
 }

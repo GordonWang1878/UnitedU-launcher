@@ -160,13 +160,34 @@ private val resolverScope = CoroutineScope(SupervisorJob() + resolverPool)
  * 的 provider 不占 IO 槽位;迟到的工作线程在 open 返回后由 [readWithWatchdog] 的过期标记自己关流。
  */
 internal suspend fun readResolverBounded(timeoutMs: Int, open: () -> InputStream?, maxBytes: Int): ByteArray? {
-    val job = resolverScope.async { readWithWatchdog(timeoutMs, open, maxBytes) }
-    return withTimeoutOrNull(timeoutMs.toLong() + 200) { job.await() }.also { if (it == null) job.cancel() }
+    if (resolverWorkers.incrementAndGet() > RESOLVER_MAX_WORKERS) { resolverWorkers.decrementAndGet(); return null }
+    val job = resolverScope.async { try { readWithWatchdog(timeoutMs, open, maxBytes) } finally { resolverWorkers.decrementAndGet() } }
+    try {
+        return withTimeoutOrNull(timeoutMs.toLong() + 200) { job.await() }
+    } finally {
+        job.cancel()   // 超时或调用方被取消:不再等;已完成的 job 上是空操作
+    }
+}
+
+/** 同时在途的 resolver 工作线程上限(卡死的 provider 不能让线程无限增长);满了直接当没图,不派发。 */
+internal const val RESOLVER_MAX_WORKERS = 16
+private val resolverWorkers = java.util.concurrent.atomic.AtomicInteger()
+
+/**
+ * 取一张海报并记账:[produce] 返回 null → 记入 [failed] 并回调 [onFail];非 null → 清除失败记录。
+ * 取消(CancellationException)原样抛出,**不**记失败(调用方只是滑出了范围)。
+ */
+internal suspend fun <T : Any> loadTracked(
+    failed: MutableMap<String, Long>, uri: String, now: () -> Long, onFail: () -> Unit, produce: suspend () -> T?,
+): T? {
+    val r = produce()
+    if (r != null) failed.remove(uri) else { failed[uri] = now(); onFail() }
+    return r
 }
 
 /**
  * 海报内存缓存:按 uri,`LruCache` 16 MB(按 `allocationByteCount`);失败的 uri 记时间,[POSTER_RETRY_MS] 内不再试。
- * 并发最多 4 路(一行 12 张同时进范围时不把 IO 池占满)。首页只对焦点行 ± 1 调 [load](见 HomeChannels.kt 的 `loadsPosters`)。
+ * 并发:https 下载与解码共用最多 4 路 IO;resolver 读取在独立守护线程上,同时在途 ≤ [RESOLVER_MAX_WORKERS](16),超出当没图。首页只对焦点行 ± 1 调 [load](见 HomeChannels.kt 的 `loadsPosters`)。
  */
 object PosterCache {
     private val mem = object : LruCache<String, Bitmap>(POSTER_CACHE_BYTES) {
@@ -192,19 +213,15 @@ object PosterCache {
         val now = SystemClock.elapsedRealtime()
         if (!posterRetryDue(failed[uri], now)) return null
         pruneFailed(now)
-        val bytes = runCatching {
-            if (posterSourceOf(uri) == PosterSource.RESOLVER)
+        val bmp = loadTracked(failed, uri, { SystemClock.elapsedRealtime() },
+            { Log.i("UnitedU", "海报读不到(${POSTER_RETRY_MS / 1000} s 内不再试): ${logId(uri)}") }   // e2e j_channels 认这一行
+        ) {
+            val bytes = if (posterSourceOf(uri) == PosterSource.RESOLVER)
                 readResolverBounded(POSTER_TIMEOUT_MS, { ctx.contentResolver.openInputStream(Uri.parse(uri)) }, POSTER_MAX_BYTES)
-            else withContext(io) { bytesOf(ctx, uri) }
-        }.getOrNull()
-        val bmp = if (bytes == null) null else withContext(io) { runCatching { decode(bytes, heightPx) }.getOrNull() }
-        if (bmp != null) {
-            mem.put(uri, bmp)
-            failed.remove(uri)
-        } else {
-            failed[uri] = SystemClock.elapsedRealtime()
-            Log.i("UnitedU", "海报读不到(${POSTER_RETRY_MS / 1000} s 内不再试): ${logId(uri)}")   // e2e j_channels 认这一行
+            else withContext(io) { runCatching { bytesOf(ctx, uri) }.getOrNull() }
+            if (bytes == null) null else withContext(io) { runCatching { decode(bytes, heightPx) }.getOrNull() }
         }
+        if (bmp != null) mem.put(uri, bmp)
         return bmp
     }
 
