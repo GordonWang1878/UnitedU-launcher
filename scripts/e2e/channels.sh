@@ -8,6 +8,12 @@
 # 不带 build 时直接用 $E2E_WORK/{A,B,C}.apk;带 build 就用 release 签名把三个包造出来(A=100/1.0.3、B=101/1.0.4-beta.1、C=102/1.0.3)。
 # 环境变量:DEV(必填之外默认 emulator-5562)、E2E_WORK(包 / 清单 / 服务目录,默认 /tmp/unitedu-channels)、
 #           SHOTS(截图目录,默认 docs/screenshots/channels)。
+#
+# 会改动的东西(只在模拟器上跑,别对着真机 / 日常设备用):
+#   - 卸载并重装 com.uniteduone.launcher,**应用数据全部清空**;
+#   - 留下 set-home-activity 设定,以及 SYSTEM_ALERT_WINDOW / REQUEST_INSTALL_PACKAGES 两个 appop(allow);
+#   - 带 build 参数时临时改 app/build.gradle.kts 的 versionName,每个包构建完用 git checkout 还原
+#     (所以开跑前该文件不能有未提交改动,有就直接中止)。
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 export DEV="${DEV:-emulator-5562}"
@@ -17,6 +23,10 @@ PORT=8099
 URLS=(-Punitedu.updateUrls=http://127.0.0.1:$PORT/latest.json -Punitedu.betaUrls=http://127.0.0.1:$PORT/beta.json
       -Punitedu.rollbackUrls=http://127.0.0.1:$PORT/rollback.json -PrequireReleaseKey=true)
 mkdir -p "$WORK" "$SHOTS"
+if [[ "${1:-}" == build ]] && ! git diff --quiet -- app/build.gradle.kts; then
+  echo "app/build.gradle.kts 有未提交改动,build 会用 git checkout 把它还原掉——先提交或还原再跑" >&2
+  exit 1
+fi
 
 build_one() {  # <versionCode> <versionName> <输出名>
   if [[ "$2" != "1.0.3" ]]; then sed -i '' "s/versionName = \"1.0.3\"/versionName = \"$2\"/" app/build.gradle.kts; fi
@@ -61,7 +71,7 @@ PY
 rm -f "$WORK/THROTTLE"
 python3 "$WORK/server.py" "$WORK" $PORT >"$WORK/server.log" 2>&1 &
 SRV=$!
-trap 'kill $SRV 2>/dev/null || true' EXIT
+trap 'kill $SRV 2>/dev/null || true; adb -s "$DEV" reverse --remove tcp:$PORT 2>/dev/null || true' EXIT
 adb -s "$DEV" reverse tcp:$PORT tcp:$PORT
 
 # 起点:干净装 A,跳过引导,设英文
