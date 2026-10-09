@@ -79,6 +79,8 @@ data class Settings(
      * 三态靠"缺省"表达,见 [toJson] 只在非 null 时写这个键。
      */
     val onboardingDone: Boolean? = null,
+    /** 更新通道(2026-10-09 双通道):关于页「更新通道」选的。「恢复默认」不动它(见 [restoredDefaults])。 */
+    val updateChannel: UpdateChannel = UpdateChannel.STABLE,
 )
 
 // `internal`(而非 `private`):这两张表是 cardsPerRow / idleAfterMs 的唯一合法取值集合,
@@ -254,6 +256,7 @@ fun parseSettings(json: String): Settings {
             // 三态:extractBoolean 解析不出(缺键、或值不是 true/false)时本来就是 null,
             // 直接透传即可——和其它布尔字段不同,这里"缺失"不该回落到某个默认布尔。
             onboardingDone = extractBoolean(json, "onboardingDone"),
+            updateChannel = UpdateChannel.fromId(extractString(json, "updateChannel")),
         )
     } catch (e: Throwable) {
         // 理论上上面每一步都已经用 ?: 兜底、不会抛,这层 catch 只是和 Layout 保持同一套
@@ -290,6 +293,7 @@ fun Settings.toJson(): String {
         append("  \"cardBrightness\": $cardBrightness,\n")
         append("  \"cardOpacity\": $cardOpacity,\n")
         append("  \"language\": \"${esc(language)}\",\n")
+        append("  \"updateChannel\": \"${updateChannel.id}\",\n")
         onboardingDone?.let { append("  \"onboardingDone\": $it,\n") }
         append("  \"newAppsSeenAt\": $newAppsSeenAt\n")
         append("}\n")
@@ -300,13 +304,14 @@ fun Settings.toJson(): String {
  * 「恢复默认」纯函数:除了 `newAppsSeenAt`(传入 [nowMs],否则「新应用」判定会把恢复前
  * 装的所有应用瞬间打成"新")、`onboardingDone`(引导流程不是外观设置,恢复默认不该让
  * 老用户重新走一遍引导)和 `excludedBuiltinScreensavers`(R117:哪几张内置图参不参与轮播是图库的取舍,
- * 确认框写着「图片库都不会变」)之外,其余字段全部回落到 [Settings] 的构造默认值。
+ * 确认框写着「图片库都不会变」)、`updateChannel`(更新通道不是外观设置,恢复默认不该把用户切回稳定版)之外,其余字段全部回落到 [Settings] 的构造默认值。
  */
 fun restoredDefaults(current: Settings, nowMs: Long): Settings =
     Settings().copy(
         newAppsSeenAt = nowMs,
         onboardingDone = current.onboardingDone,
         excludedBuiltinScreensavers = current.excludedBuiltinScreensavers,
+        updateChannel = current.updateChannel,
     )
 
 /**
