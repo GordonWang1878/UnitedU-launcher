@@ -439,4 +439,11 @@
     <string name="channel_stable_note">经过验证的版本，推荐大多数人使用。从 Beta 切回时会装回稳定版，布局与设置保留。</string>
     <string name="channel_beta_note">先用上新功能，可能不太稳定。随时可以切回稳定版，不丢布局。</string>
     <string name="about_beta_badge">Beta</string>
+
+    <!-- R164 首页频道行:行头「应用名 · 频道名」;焦点行卡下第二行的元数据 -->
+    <string name="channel_row_title">%1$s · %2$s</string>
+    <string name="channel_meta_season_episode">第 %1$s 季 · 第 %2$s 集</string>
+    <string name="channel_meta_episode">第 %1$s 集</string>
+    <string name="channel_meta_hours_minutes">%1$d 小时 %2$d 分钟</string>
+    <string name="channel_meta_minutes">%1$d 分钟</string>
 </resources>

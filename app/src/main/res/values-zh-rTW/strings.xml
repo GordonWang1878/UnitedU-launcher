@@ -438,4 +438,11 @@
     <string name="channel_stable_note">經過驗證的版本，推薦大多數人使用。從 Beta 切回時會裝回穩定版，版面與設定保留。</string>
     <string name="channel_beta_note">先用上新功能，可能不太穩定。隨時可以切回穩定版，不丟版面。</string>
     <string name="about_beta_badge">Beta</string>
+
+    <!-- R164 首頁頻道列:列頭「應用程式名稱 · 頻道名稱」;焦點列卡片下第二行的資訊 -->
+    <string name="channel_row_title">%1$s · %2$s</string>
+    <string name="channel_meta_season_episode">第 %1$s 季 · 第 %2$s 集</string>
+    <string name="channel_meta_episode">第 %1$s 集</string>
+    <string name="channel_meta_hours_minutes">%1$d 小時 %2$d 分鐘</string>
+    <string name="channel_meta_minutes">%1$d 分鐘</string>
 </resources>

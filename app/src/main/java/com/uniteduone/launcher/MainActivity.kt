@@ -227,6 +227,8 @@ class MainActivity : ComponentActivity() {
     private var wakeDownTime = -1L
     /** 首页当前聚焦的卡(HomeScreen 上报);长按确定键时据此弹菜单。 */
     private var focusedCard by mutableStateOf<CardRef?>(null)
+    /** R164:首页焦点在频道卡上(HomeScreen 上报)。长按频道卡整下吞掉:不弹菜单,松开也不当点击启动节目(spec §2.3)。 */
+    private var focusedOnChannel by mutableStateOf(false)
     /** 长按菜单开着的那张卡;null = 没开。 */
     private var cardMenu by mutableStateOf<CardRef?>(null)
     /** 「修改标题」对话框(Task 5 接线)。 */
@@ -568,6 +570,8 @@ class MainActivity : ComponentActivity() {
             val backdrop = remember { HomeBackdropBridge() }
             // 首页行距(dp),只给 WALLPAPER_DIM_PER_ROW 的逐行插值用。
             val homePitch = GtvLayout.rowPitch(cardsPerRowToGtvSize(homeSettings.cardsPerRow), homeSettings.showTitles)
+            // R164:首页交上来的逐行累计几何(HomeVertical);null = 首页不在组合里,退回按统一行距。只在下面的 alpha lambda(绘制阶段)里读。
+            var homeVertical by remember { mutableStateOf<HomeVertical?>(null) }
             val touched = lastInput
             // **编辑界面和菜单开着时不进入待机。**淡出只做在首页那一层,而吞掉唤醒键是
             // Activity 级的 —— 两头不占的结果是:编辑界面画面全亮(看着醒着),
@@ -742,7 +746,10 @@ class MainActivity : ComponentActivity() {
                 wallpaperSpec,
                 onSettingsChanged = { settingsRevision++ },
                 // vertical-motion(2026-09-27):WALLPAPER_DIM_PER_ROW 默认关 = 仍是 wallpaperAlpha(pageShift)。
-                alpha = { GtvLayout.homeWallpaperAlpha(pageShiftState?.value?.value ?: 0f, homePitch) },
+                alpha = {
+                    val shift = pageShiftState?.value?.value ?: 0f
+                    homeVertical?.wallpaperAlpha(shift) ?: GtvLayout.homeWallpaperAlpha(shift, homePitch)
+                },
                 bridge = backdrop,
                 gradientBaked = gradientBaked,
             )
@@ -812,6 +819,8 @@ class MainActivity : ComponentActivity() {
                     cardsPerRow = homeSettings.cardsPerRow,
                     showTitles = homeSettings.showTitles,
                     onFocusedCard = { focusedCard = it },
+                    onFocusedChannel = { focusedOnChannel = it },
+                    onVerticalGeometry = { homeVertical = it },
                     cardMenu = cardMenu,
                     cardMenuItems = remember(cardMenu) { cardMenu?.let { cardMenuItems(it) } ?: emptyList() },
                     onCardMenuDismiss = ::closeCardMenu,
@@ -1322,6 +1331,11 @@ class MainActivity : ComponentActivity() {
                     longPressDownTime = event.downTime
                     window.decorView.playSoundEffect(SoundEffectConstants.CLICK)
                     cardMenu = ref
+                    return true
+                }
+                if (focusedOnChannel) {
+                    // R164:频道卡长按不做事——整下吞掉(含随后的 UP),否则松手会被 Card 当成一次点击、把节目打开
+                    longPressDownTime = event.downTime
                     return true
                 }
             }
