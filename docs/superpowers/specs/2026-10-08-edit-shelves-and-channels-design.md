@@ -1,6 +1,6 @@
 # 编辑桌面「货架」重做 + 频道行(Ruling R164 / R165)设计
 
-日期:2026-10-08 · 状态:待 Gordon 审
+日期:2026-10-08 · 状态:Gordon 2026-10-08 审定
 取代:`2026-10-08-channel-rows-design.md` 里的入口与编辑页部分(§2.1、§2.2、§5 编辑页那条);那份里首页频道行、数据、海报、权限、测试仍有效,本文按需转述,冲突时以本文为准。
 材料:调研 `docs/research/2026-10-07-tv-channels-recommendations.md` · 原厂频道参照 `docs/screenshots/channels/ref/` · 原厂编辑参照 `docs/screenshots/edit-ref/` · 本方案效果图 `docs/screenshots/edit-redesign/c1.jpg`、`c2.jpg`(源文件 `docs/design/edit-redesign/`)
 
