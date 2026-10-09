@@ -2108,7 +2108,9 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        return rows.mapIndexed { i, r ->
+        // R164:只列应用行(频道行不收应用);i 仍是 layout.json 下标,rowApps 与 addToRow 都按它取
+        return appRowIndices(rows).map { i ->
+            val r = rows[i]
             val here = m.app.packageName in r.apps
             val summary = if (here) getString(R.string.apps_add_row_here) else rowNamesSummary(
                 m.rowApps.getOrNull(i).orEmpty(),

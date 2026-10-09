@@ -533,6 +533,7 @@ internal fun rowNamesSummary(
 /**
  * 每一行现有应用的显示名(R163,给 [AppsMenu.rowApps]):行内顺序、只含**装着且能启动**的包(与首页同口径);显示名取
  * 自定义标题,没有就用应用名,应用名读不到用包名。IO 线程调用(枚举应用 + 读标签 + 读 titles.json,不解码任何位图)。
+ * R164:频道行在这里是空列表(它没有应用),第二层本来就不列它。
  */
 @androidx.annotation.WorkerThread
 internal fun rowAppNames(ctx: Context, layout: List<LayoutRow>): List<List<String>> {
