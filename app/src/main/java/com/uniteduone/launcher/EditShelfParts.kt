@@ -1,6 +1,21 @@
 package com.uniteduone.launcher
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.material.icons.rounded.LockOpen
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -139,6 +154,7 @@ private fun chipLabel(chip: ShelfChip): Int = when (chip) {
     ShelfChip.UP -> R.string.edit_chip_up
     ShelfChip.DOWN -> R.string.edit_chip_down
     ShelfChip.DELETE -> R.string.edit_chip_delete
+    ShelfChip.REAUTHORIZE -> R.string.shelf_chip_reauthorize
 }
 
 private fun chipIcon(chip: ShelfChip): ImageVector = when (chip) {
@@ -147,6 +163,7 @@ private fun chipIcon(chip: ShelfChip): ImageVector = when (chip) {
     ShelfChip.UP -> Icons.Rounded.ArrowUpward
     ShelfChip.DOWN -> Icons.Rounded.ArrowDownward
     ShelfChip.DELETE -> Icons.Outlined.Delete
+    ShelfChip.REAUTHORIZE -> Icons.Rounded.LockOpen
 }
 
 /** 一颗矢量图标([boxSize] 见方),颜色在绘制阶段着色。 */
@@ -407,4 +424,124 @@ internal fun Modifier.carryArrows(dirs: Set<MoveDir>, color: Color): Modifier = 
     if (MoveDir.RIGHT in dirs) tri(Offset(size.width + gap + s, cy), Offset(size.width + gap, cy - s), Offset(size.width + gap, cy + s))
     if (MoveDir.UP in dirs) tri(Offset(cx, -gap - s), Offset(cx - s, -gap), Offset(cx + s, -gap))
     if (MoveDir.DOWN in dirs) tri(Offset(cx, size.height + gap + s), Offset(cx - s, size.height + gap), Offset(cx + s, size.height + gap))
+}
+
+/**
+ * 一层频道架子(R164 / R165 §2.1):顶行 = 频道图标 +「应用名 · 频道名」+ 小标签「频道」+ 胶囊;下面是海报预览或状态文字。
+ * 高度同应用架子(海报预览高 = 应用卡高),纵向位移的累计不需要区分种类。
+ * **焦点**:可聚焦的只有胶囊,写法与 `AppShelfView` 的胶囊行逐字相同——逐项 requester(按 `ShelfSpot` 取)、得失都上报(铁律 4)、
+ * 量水平中心;不新增任何焦点状态,恢复由编辑页的账本(目标 / 持有者、看门狗、显式重定位)负责。
+ */
+@Composable
+internal fun ChannelShelfView(
+    shelf: Shelf.ChannelShelf,
+    chips: List<ShelfChip>,
+    focus: () -> Float,
+    active: Boolean,
+    accent: Color,
+    loadPosters: Boolean,
+    req: (ShelfSpot) -> FocusRequester,
+    report: (ShelfSpot, Boolean) -> Unit,
+    place: (ShelfSpot, Float) -> Unit,
+    onChip: (ShelfChip) -> Unit,
+    modifier: Modifier,
+) {
+    val si = shelf.row
+    ShelfFrame(focus = focus, dashed = false, modifier = modifier.fillMaxWidth().height(ShelfLayout.APP_SHELF_HEIGHT.dp)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(start = ShelfLayout.PAD_START.dp, end = ShelfLayout.PAD_END.dp, top = ShelfLayout.HEADER_TOP.dp)
+                .height(ShelfLayout.HEADER_HEIGHT.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            RowIcon(CHANNEL_ROW_ICON, tint = { if (active) accent else Ink.Secondary }, boxSize = ShelfLayout.ICON.dp)
+            Spacer(Modifier.width(ShelfLayout.ICON_GAP.dp))
+            BasicText(
+                stringResource(R.string.channel_row_title, shelf.appLabel, shelf.ref.name),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = Type.body.copy(color = Ink.Label),
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            Box(
+                Modifier
+                    .padding(start = 10.dp)
+                    .background(Color.White.copy(alpha = 0.10f), RoundedCornerShape(percent = 50))
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+            ) {
+                BasicText(stringResource(R.string.shelf_channel_tag), style = Type.micro.copy(color = Ink.Label))
+            }
+            Spacer(Modifier.weight(1f))
+            Row(horizontalArrangement = Arrangement.spacedBy(ShelfLayout.CHIP_GAP.dp), verticalAlignment = Alignment.CenterVertically) {
+                chips.forEachIndexed { ci, chip ->
+                    val spot = ShelfSpot(si, ShelfZone.CHIPS, ci)
+                    ShelfChipPill(
+                        chip = chip,
+                        visible = focus,
+                        onClick = { onChip(chip) },
+                        onFocusChange = { report(spot, it) },
+                        isFirst = ci == 0,
+                        isLast = ci == chips.lastIndex,
+                        modifier = Modifier.focusRequester(req(spot)).onGloballyPositioned { place(spot, it.boundsInRoot().center.x) },
+                    )
+                }
+            }
+        }
+        Box(Modifier.fillMaxWidth().padding(start = ShelfLayout.PAD_START.dp, end = ShelfLayout.PAD_END.dp, top = ShelfLayout.CARDS_TOP.dp)) {
+            ChannelShelfBody(shelf.state, loadPosters)
+        }
+    }
+}
+
+/**
+ * R164 频道架子的正文:海报预览(按比例、高 [SHELF_POSTER_HEIGHT]、最多画到架子右缘,**不可聚焦**——一个 focusable 都没有,
+ * 不进任何焦点账本),或一行状态文字(「暂无内容」/「需要重新授权」)。海报只在焦点层 ± 1 才加载,同首页。
+ * `clipToBounds` 放在本文件而不是 EditScreen.kt:`EditIronRulesTest` 禁止 EditScreen.kt 出现它(防卡片条裁掉焦点卡);
+ * 这里裁的是不可聚焦的预览,不在那条要防的范围。
+ */
+@Composable
+internal fun ChannelShelfBody(state: ChannelShelfState, loadPosters: Boolean) {
+    when (state) {
+        // 外层按架子宽裁;里层 Row 放开测量(unbounded),右缘那张是被裁掉一截,而不是被约束挤窄(铁律 1 同一个测量坑)
+        is ChannelShelfState.Posters -> Box(Modifier.fillMaxWidth().clipToBounds()) {
+            Row(
+                modifier = Modifier.wrapContentWidth(Alignment.Start, unbounded = true),
+                horizontalArrangement = Arrangement.spacedBy(ShelfLayout.CARD_GAP.dp),
+            ) {
+                val ctx = LocalContext.current
+                // 解码高度用首页卡高(220 px):海报缓存与首页共用,同一张图只缓存一份
+                val heightPx = with(LocalDensity.current) { ChannelRowLayout.CARD_HEIGHT.dp.roundToPx() }
+                state.programs.forEach { p ->
+                    val uri = p.posterUri
+                    val bmp by produceState(uri?.let { PosterCache.peek(it) }, uri, loadPosters) {
+                        value = uri?.let { PosterCache.peek(it) }   // 同 PosterCard:同一格换了节目先换掉旧图
+                        if (uri != null && value == null && loadPosters) value = PosterCache.load(ctx, uri, heightPx)
+                    }
+                    Box(
+                        Modifier
+                            .size(shelfPosterWidthDp(p.aspect).dp, SHELF_POSTER_HEIGHT.dp)
+                            .clip(RoundedCornerShape(GtvLayout.CARD_CORNER.dp))
+                            .background(GtvTokens.PosterFallback),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        val b = bmp
+                        if (b != null) {
+                            Image(b.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        } else {
+                            BasicText(
+                                p.title,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                style = Type.micro.copy(color = Ink.Primary, textAlign = TextAlign.Center),
+                                modifier = Modifier.padding(4.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        ChannelShelfState.Empty -> BasicText(stringResource(R.string.shelf_channel_empty), style = Type.body)
+        ChannelShelfState.NeedsPermission -> BasicText(stringResource(R.string.shelf_channel_needs_permission), style = Type.body)
+    }
 }

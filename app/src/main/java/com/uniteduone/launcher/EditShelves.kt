@@ -7,7 +7,7 @@ import kotlin.math.abs
  * 动作后的落点、纵向位移、拿起时的方向箭头、架子的明暗。不依赖 Android,单测 EditShelvesTest / EditShelvesLandingTest。
  *
  * **扩展点(计划 2:频道行)**——加频道时只动这几处,`EditScreen` 的账本与按键截获不用改:
- * - `Shelf` 加 `data class ChannelShelf(val row: Int, …) : Shelf`(行号仍 = layout.json 行号);
+ * - (R164 已落地)`Shelf.ChannelShelf(row, ref, appLabel, state)`(行号仍 = layout.json 行号);
  * - `shelfLanes` 给它只出一条 `CHIPS`(海报预览不可聚焦,spec §2.1);
  * - `shelfChips` 给它 `UP` / `DOWN` / `DELETE`(删除不受「应用行多于 1 行」限制),需要时加 `REAUTHORIZE`;
  * - `NewRowChoice` 加 `CHANNEL`,`choiceFull` 按频道行数判;
@@ -17,11 +17,13 @@ import kotlin.math.abs
 /** 编辑页的一层。[AppShelf.row] = layout.json 的行号(= 本页 `rows` 的下标);[NewRowShelf] 永远是最后一层。 */
 internal sealed interface Shelf {
     data class AppShelf(val row: Int, val icon: String, val apps: List<String>) : Shelf
+    /** R164 / R165 §2.1:频道架子——顶部频道图标 +「应用名 · 频道名」+ 小标签「频道」+ 胶囊;下面不可聚焦的海报预览或状态文字。[row] = layout.json 行号。 */
+    data class ChannelShelf(val row: Int, val ref: ChannelRef, val appLabel: String, val state: ChannelShelfState) : Shelf
     data object NewRowShelf : Shelf
 }
 
-/** 应用架子顶部的操作胶囊,从左到右就是这个顺序(spec §2.1)。 */
-internal enum class ShelfChip { ADD_APP, ICON, UP, DOWN, DELETE }
+/** 架子顶部的操作胶囊。左右顺序由 [shelfChips] 的 `buildList` 决定,不看枚举顺序([REAUTHORIZE] 只在频道架子上,R164)。 */
+internal enum class ShelfChip { ADD_APP, ICON, UP, DOWN, DELETE, REAUTHORIZE }
 
 /** 「新的一行」里的选择卡(计划 2 加 CHANNEL)。 */
 internal enum class NewRowChoice { APP_ROW }
@@ -35,12 +37,37 @@ internal data class ShelfSpot(val shelf: Int, val zone: ShelfZone, val index: In
 /** 上下键逐格走的一条(一层的胶囊、一层的卡片、新的一行)。 */
 internal data class ShelfLane(val shelf: Int, val zone: ShelfZone)
 
-/** 顶部概况「N 行 · N 个应用」的两个数(计划 2 加频道数)。 */
-internal data class EditCounts(val rows: Int, val apps: Int)
+/** 顶部概况「N 行 · N 个应用 · N 个频道」的三个数(spec §2.1)。 */
+internal data class EditCounts(val rows: Int, val apps: Int, val channels: Int = 0)
 
-/** 看得见的那份行(R67,`visibleRows`)→ 货架:每行一层应用架子,最后一层「新的一行」。 */
-internal fun shelvesOf(view: List<LayoutRow>): List<Shelf> =
-    view.mapIndexed { i, r -> Shelf.AppShelf(i, r.icon, r.apps) } + Shelf.NewRowShelf
+/** R164:频道架子此刻画什么。 */
+internal sealed interface ChannelShelfState {
+    data class Posters(val programs: List<Program>) : ChannelShelfState
+    data object Empty : ChannelShelfState
+    data object NeedsPermission : ChannelShelfState
+}
+
+/** 内容 → 架子状态;还没读到(null)按「暂无内容」画。 */
+internal fun channelShelfState(c: ChannelContent?): ChannelShelfState = when (c) {
+    is ChannelContent.Ready -> ChannelShelfState.Posters(c.programs)
+    ChannelContent.NeedsPermission -> ChannelShelfState.NeedsPermission
+    ChannelContent.Missing, null -> ChannelShelfState.Empty
+}
+
+/**
+ * 看得见的那份行(R67,`visibleRows`)→ 货架:应用行一层应用架子,频道行一层频道架子(R164),最后一层「新的一行」。
+ * 层号 = layout.json 行号(`visibleRows` 与 `rows` 逐行一一对应),所以 `swapRows` / `deleteRow` 直接拿层号当行号。
+ * [channelLabels] / [channelContent] 来自进程级 `ChannelCache`(EditScreen 的 `shelvesFor` 统一传);缺省空表 = 用包名、按「暂无内容」。
+ */
+internal fun shelvesOf(
+    view: List<LayoutRow>,
+    channelLabels: Map<String, String> = emptyMap(),
+    channelContent: Map<ChannelRef, ChannelContent> = emptyMap(),
+): List<Shelf> = view.mapIndexed { i, r ->
+    val ref = r.channel
+    if (ref != null) Shelf.ChannelShelf(i, ref, channelLabels[ref.pkg] ?: ref.pkg, channelShelfState(channelContent[ref]))
+    else Shelf.AppShelf(i, r.icon, r.apps)
+} + Shelf.NewRowShelf
 
 internal fun appShelfCount(shelves: List<Shelf>): Int = shelves.count { it is Shelf.AppShelf }
 
@@ -49,15 +76,23 @@ private fun lastContentShelf(shelves: List<Shelf>): Int = shelves.indexOfLast { 
 
 /**
  * 第 [shelf] 层顶部画哪几颗胶囊(spec §2.1):添加应用、换图标恒有;上移只在不是第一层时;下移只在不是最后一个内容层时;
- * 删除只在应用行多于 [MIN_ROWS] 行时。「新的一行」与越界 → 空。
+ * 删除只在应用行多于 [MIN_ROWS] 行时(只数应用架子,[appShelfCount])。
+ * 频道架子:上移 / 下移同应用架子;删除永远有、不弹确认;没授权时最前面多一颗「重新授权」——那是这一层此刻最该按的一颗。
+ * 「新的一行」与越界 → 空。
  */
-internal fun shelfChips(shelves: List<Shelf>, shelf: Int): List<ShelfChip> = when (shelves.getOrNull(shelf)) {
+internal fun shelfChips(shelves: List<Shelf>, shelf: Int): List<ShelfChip> = when (val s = shelves.getOrNull(shelf)) {
     is Shelf.AppShelf -> buildList {
         add(ShelfChip.ADD_APP)
         add(ShelfChip.ICON)
         if (shelf > 0) add(ShelfChip.UP)
         if (shelf < lastContentShelf(shelves)) add(ShelfChip.DOWN)
         if (appShelfCount(shelves) > MIN_ROWS) add(ShelfChip.DELETE)
+    }
+    is Shelf.ChannelShelf -> buildList {
+        if (s.state == ChannelShelfState.NeedsPermission) add(ShelfChip.REAUTHORIZE)
+        if (shelf > 0) add(ShelfChip.UP)
+        if (shelf < lastContentShelf(shelves)) add(ShelfChip.DOWN)
+        add(ShelfChip.DELETE)
     }
     else -> emptyList()
 }
@@ -76,6 +111,8 @@ internal fun laneSize(shelves: List<Shelf>, shelf: Int, zone: ShelfZone): Int {
 internal fun shelfLanes(shelves: List<Shelf>): List<ShelfLane> = shelves.flatMapIndexed { i, s ->
     when (s) {
         is Shelf.AppShelf -> listOf(ShelfLane(i, ShelfZone.CHIPS), ShelfLane(i, ShelfZone.CARDS))
+        // 海报预览不可聚焦(spec §2.1):只有胶囊那一条
+        is Shelf.ChannelShelf -> listOf(ShelfLane(i, ShelfZone.CHIPS))
         Shelf.NewRowShelf -> listOf(ShelfLane(i, ShelfZone.NEW))
     }
 }.filter { laneSize(shelves, it.shelf, it.zone) > 0 }
@@ -124,6 +161,8 @@ internal fun clampSpot(shelves: List<Shelf>, spot: ShelfSpot): ShelfSpot {
     val shelf = if (spot.zone == ShelfZone.NEW && newRow >= 0) newRow else spot.shelf.coerceIn(0, shelves.lastIndex)
     val zone = when (shelves[shelf]) {
         is Shelf.AppShelf -> if (spot.zone == ShelfZone.NEW) ShelfZone.CARDS else spot.zone
+        // 频道架子只有胶囊:授权回来「重新授权」那颗没了,目标 (层, CHIPS, i) 在下面按新胶囊表夹到同一位置
+        is Shelf.ChannelShelf -> ShelfZone.CHIPS
         Shelf.NewRowShelf -> ShelfZone.NEW
     }
     val n = laneSize(shelves, shelf, zone)
@@ -135,8 +174,9 @@ internal fun choiceFull(shelves: List<Shelf>, choice: NewRowChoice): Boolean = w
     NewRowChoice.APP_ROW -> appShelfCount(shelves) >= MAX_ROWS
 }
 
-/** 顶部概况:行数 + 看得见的应用数。 */
-internal fun editCounts(view: List<LayoutRow>): EditCounts = EditCounts(view.size, view.sumOf { it.apps.size })
+/** 顶部概况「N 行 · N 个应用 · N 个频道」(spec §2.1):行数(含频道行)+ 看得见的应用数 + 频道行数。 */
+internal fun editCounts(view: List<LayoutRow>): EditCounts =
+    EditCounts(view.size, view.sumOf { it.apps.size }, view.count { it.isChannel })
 
 /**
  * 货架的几何、配色、动效常量(R165 §2.1 / §2.5)。数值逐项来自效果图 `docs/design/edit-redesign/shelf.css`、`c1.html`、`c2.html`
@@ -268,6 +308,16 @@ internal fun initialEditSpot(rows: List<LayoutRow>, seed: Pair<Int, String>?): S
  */
 internal fun shelfCardClipRight(distToShelfEnd: Float, cardW: Float, current: Boolean): Float? =
     if (current && distToShelfEnd >= cardW) null else distToShelfEnd
+
+/** 加频道之后:落最后一个频道架子(就是新的那层)的第一颗胶囊(spec §2.2)。 */
+internal fun landingAfterAppendChannel(shelves: List<Shelf>): ShelfSpot =
+    clampSpot(shelves, ShelfSpot(shelves.indexOfLast { it is Shelf.ChannelShelf }.coerceAtLeast(0), ShelfZone.CHIPS, 0))
+
+/** 编辑页海报预览的高(dp)= 编辑页应用卡高(中档 122 × 9 / 16,§2.1「高 68.6 dp」)。 */
+internal const val SHELF_POSTER_HEIGHT = 68.625f
+
+/** 海报预览宽(dp):首页卡宽([PosterAspect.widthDp],110 dp 高下)按 [SHELF_POSTER_HEIGHT] 等比缩。 */
+internal fun shelfPosterWidthDp(aspect: PosterAspect): Float = aspect.widthDp * SHELF_POSTER_HEIGHT / ChannelRowLayout.CARD_HEIGHT
 
 /** 新建应用行之后:落最后一个应用架子(就是新的那层)的「添加应用」方块。 */
 internal fun landingAfterAppend(shelves: List<Shelf>): ShelfSpot =

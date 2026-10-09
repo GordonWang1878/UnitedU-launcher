@@ -446,4 +446,13 @@
     <string name="channel_meta_episode">第 %1$s 集</string>
     <string name="channel_meta_hours_minutes">%1$d 小时 %2$d 分钟</string>
     <string name="channel_meta_minutes">%1$d 分钟</string>
+    <!-- R164 编辑页频道架子 -->
+    <string name="shelf_channel_tag">频道</string>
+    <string name="shelf_channel_empty">暂无内容</string>
+    <string name="shelf_channel_needs_permission">需要重新授权</string>
+    <string name="shelf_chip_reauthorize">重新授权</string>
+    <plurals name="edit_channels_count">
+        <item quantity="one">%1$d 个频道</item>
+        <item quantity="other">%1$d 个频道</item>
+    </plurals>
 </resources>

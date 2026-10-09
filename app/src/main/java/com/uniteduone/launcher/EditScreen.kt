@@ -173,12 +173,24 @@ fun EditScreen(
     }
     /** 看得见的那份(R67);回调里一律现调,不用组合期的 viewRows(拿起的方向键可能在两次组合之间连着来)。 */
     fun view(): List<LayoutRow> = visibleRows(rows, shownNow())
-    fun shelvesNow(): List<Shelf> = shelvesOf(view())
+    // R164 + owner 裁定(2026-10-08):频道架子的内容与应用名来自进程级 ChannelCache(MainActivity 按 channelsRevision 刷新),
+    // 本页不查 TvProvider;海报预览不可聚焦,换内容不拆任何焦点节点。
+    val channelEnv = LocalChannelEnv.current
+    val channelSnap by ChannelCache.data.collectAsState()
+    val channelRefs = remember(rows) { rows.mapNotNull { it.channel } }
+    val channelContentNow by rememberUpdatedState(remember(channelSnap, channelRefs) { channelContentsFrom(channelSnap, channelRefs) })
+    val channelLabelsNow by rememberUpdatedState(channelSnap?.labels.orEmpty())
+    /**
+     * 本页的货架一律经这里算(组合期、按键回调、重定位的 snapshotFlow、看门狗)。频道架子的胶囊表取决于授权状态(「重新授权」那颗),
+     * 有一处漏传内容,那一处算出的胶囊下标就与画出来的对不上。读的是 State(rememberUpdatedState),回调与 snapshotFlow 读到的都是最新的。
+     */
+    fun shelvesFor(v: List<LayoutRow>): List<Shelf> = shelvesOf(v, channelLabelsNow, channelContentNow)
+    fun shelvesNow(): List<Shelf> = shelvesFor(view())
     fun applyView(edited: List<LayoutRow>, base: List<LayoutRow> = rows) {
         rows = withVisibleEdits(base, edited, shownNow())
     }
     val viewRows = view()
-    val shelves = shelvesOf(viewRows)
+    val shelves = shelvesFor(viewRows)
 
     // ---------------- 焦点账本 ----------------
     /** 目标:回来落哪一格。三个分量在一个不可变值里一起写,与 [holder] 永远是两个量(铁律 5)。带种子进页时第一帧就在种子那一层。 */
@@ -323,7 +335,14 @@ fun EditScreen(
             ShelfChip.DELETE -> {
                 // 按看得见的算(R67):只剩看不见的包(被停用的)的行,在用户眼里就是空行 → 直接删
                 val apps = view().getOrNull(si)?.apps.orEmpty()
+                // 频道行的 apps 恒空 → 直接删、不弹确认(spec §2.1);deleteRow 对频道行不设下限,应用行只剩 1 行时挡住
                 if (apps.isEmpty()) deleteRowAt(si) else overlay = EditOverlay.Confirm(si, r.icon, apps.size)
+            }
+            ShelfChip.REAUTHORIZE -> channelEnv.requestPermission { result ->
+                // 授权窗盖上来时本页 ON_PAUSE 冻结焦点、ON_RESUME 按目标重定位;授权回来 channelsRevision++ → ChannelCache 重读 →
+                // 「重新授权」那颗消失,目标 (层, CHIPS, i) 由 clampSpot 夹到同一位置。owner 裁定(2026-10-09):只有永久拒绝
+                // (系统没弹窗,见 permissionResult)才自动去系统设置;点了拒绝 / 返回关窗 → 留在这颗胶囊上,再按一次再问。
+                if (result == PermissionResult.DENIED_PERMANENTLY) channelEnv.openPermissionSettings()
             }
         }
     }
@@ -374,12 +393,12 @@ fun EditScreen(
         // 目标格若是注定被整格替换的加载占位,先等它换完(旧编辑页 §0-16 的根因:焦点落在占位上,数据一到占位被真卡替换,
         // 焦点随旧节点消失、Compose 从左上角往下找)。只等目标格自己;加载失败也会对上,不会卡住
         snapshotFlow {
-            val sh = shelvesOf(view())
+            val sh = shelvesFor(view())
             val s = clampSpot(sh, wanted)
             val pkg = (sh.getOrNull(s.shelf) as? Shelf.AppShelf)?.takeIf { s.zone == ShelfZone.CARDS }?.apps?.getOrNull(s.index)
             pkg == null || loadedFor?.first == rows.flatMap { it.apps }.toSet() || loadedFor?.second?.containsKey(pkg) == true
         }.first { it }
-        val want = clampSpot(shelvesOf(view()), wanted)
+        val want = clampSpot(shelvesFor(view()), wanted)
         target = want
         var frames = 0
         while (frames < 60 && holder != want) {   // 退出判据:目标自报(铁律 2),不信 requestFocus() 的返回
@@ -403,7 +422,7 @@ fun EditScreen(
         var frames = 0
         while (holder == null && frames < 60) {
             withFrameNanos { }
-            runCatching { req(clampSpot(shelvesOf(view()), target)).requestFocus() }
+            runCatching { req(clampSpot(shelvesFor(view()), target)).requestFocus() }
             frames++
         }
     }
@@ -581,6 +600,19 @@ fun EditScreen(
                             onCardClick = { ci -> if (!ghost && carry == null && overlay == null) openCardMenu(si, ci) },
                             modifier = measure,
                         )
+                        is Shelf.ChannelShelf -> ChannelShelfView(
+                            shelf = shelf,
+                            chips = shelfChips(shelves, si),
+                            focus = { focusAnim.value },
+                            active = si == activeShelf,
+                            accent = accent,
+                            loadPosters = loadsPosters(si, activeShelf),
+                            req = ::req,
+                            report = ::report,
+                            place = place,
+                            onChip = { onChip(si, it) },
+                            modifier = measure,
+                        )
                         Shelf.NewRowShelf -> NewRowShelfView(
                             shelfIndex = si,
                             shelves = shelves,
@@ -689,7 +721,8 @@ private fun EditTopBar(counts: EditCounts, hints: EditHintSet) {
         Spacer(Modifier.width(14.dp))
         val rowsText = pluralStringResource(R.plurals.edit_summary_rows, counts.rows, counts.rows)
         val appsText = pluralStringResource(R.plurals.edit_apps_count, counts.apps, counts.apps)
-        BasicText("$rowsText · $appsText", style = Type.caption)
+        val channelsText = pluralStringResource(R.plurals.edit_channels_count, counts.channels, counts.channels)
+        BasicText("$rowsText · $appsText · $channelsText", style = Type.caption)
         Spacer(Modifier.weight(1f))
         EditKeyHints(hints)
     }

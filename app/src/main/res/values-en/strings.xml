@@ -454,4 +454,13 @@
     <string name="channel_meta_episode">Episode %1$s</string>
     <string name="channel_meta_hours_minutes">%1$d h %2$d min</string>
     <string name="channel_meta_minutes">%1$d min</string>
+    <!-- R164 edit page: channel shelf -->
+    <string name="shelf_channel_tag">Channel</string>
+    <string name="shelf_channel_empty">Nothing here right now</string>
+    <string name="shelf_channel_needs_permission">Permission needed</string>
+    <string name="shelf_chip_reauthorize">Allow Again</string>
+    <plurals name="edit_channels_count">
+        <item quantity="one">%1$d channel</item>
+        <item quantity="other">%1$d channels</item>
+    </plurals>
 </resources>
