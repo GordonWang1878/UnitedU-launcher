@@ -20,13 +20,19 @@ import kotlin.concurrent.thread
 
 /** R164 spec §3.3 海报:来源分类、采样、失败退避、下载上限与超时。下载用本机 ServerSocket 模拟(http 与 https 走同一个 fetchBytes)。 */
 class PosterLoaderTest {
+    /** 任何会阻塞的测试出回归时失败而不是挂死整个套件(每测 60 s 上限)。 */
+    @get:org.junit.Rule val globalTimeout: org.junit.rules.Timeout = org.junit.rules.Timeout.seconds(60)
+
     /** 在途计数是进程级全局量:每个测试前后都等它回零,前一个测试的迟到工作线程不会污染下一个的基线。 */
     private fun awaitNoResolverWorkers() {
         val end = System.nanoTime() + 30_000_000_000L
         while (resolverWorkersInFlight() != 0 && System.nanoTime() < end) Thread.sleep(5)
     }
     @Before fun quiesceBefore() = awaitNoResolverWorkers()
-    @After fun quiesceAfter() = awaitNoResolverWorkers()
+    @After fun quiesceAfter() {
+        awaitNoResolverWorkers()
+        assertEquals("leaked resolver workers", 0, resolverWorkersInFlight())
+    }
 
     private fun serveOnce(response: ByteArray): Int {
         val server = ServerSocket(0, 1, InetAddress.getLoopbackAddress())
@@ -116,12 +122,13 @@ class PosterLoaderTest {
 
     @Test fun watchdogUnblocksAStuckRead() {
         val inp = object : java.io.InputStream() {
-            @Volatile var closed = false
+            // JVM 上没有 libcore 的 AsynchronousCloseMonitor:假流自己守住 close() 语义——read 阻塞在 latch 上,close 放行并抛 IOException
+            val closedLatch = java.util.concurrent.CountDownLatch(1)
             override fun read(): Int {
-                while (!closed) Thread.sleep(10)
+                closedLatch.await()
                 throw java.io.IOException("closed")
             }
-            override fun close() { closed = true }
+            override fun close() { closedLatch.countDown() }
         }
         val t0 = System.nanoTime()
         assertNull(readWithWatchdog(300, { inp }, 1024))
@@ -171,20 +178,23 @@ class PosterLoaderTest {
         var logged = false
         val gate = java.util.concurrent.CountDownLatch(1)
         val started = java.util.concurrent.CountDownLatch(1)
-        val job = launch(kotlinx.coroutines.Dispatchers.Default) {
-            loadTracked<ByteArray>(failed, "u", { 1L }, { logged = true }) {
-                readResolverBounded(60_000, { started.countDown(); gate.await(); null }, 1024)
+        try {
+            val job = launch(kotlinx.coroutines.Dispatchers.Default) {
+                loadTracked<ByteArray>(failed, "u", { 1L }, { logged = true }) {
+                    readResolverBounded(60_000, { started.countDown(); gate.await(); null }, 1024)
+                }
             }
+            assertTrue(started.await(30, java.util.concurrent.TimeUnit.SECONDS))   // 工作线程确已开跑再取消
+            job.cancelAndJoin()
+            assertTrue(job.isCancelled)
+            assertTrue(failed.isEmpty())
+            assertFalse(logged)
+            // 真失败照记
+            assertNull(loadTracked<ByteArray>(failed, "v", { 7L }, { logged = true }) { null })
+            assertEquals(7L, failed["v"]); assertTrue(logged)
+        } finally {
+            gate.countDown()   // 放掉卡住的工作线程,名额归还(断言失败也不漏)
         }
-        assertTrue(started.await(30, java.util.concurrent.TimeUnit.SECONDS))   // 工作线程确已开跑再取消
-        job.cancelAndJoin()
-        assertTrue(job.isCancelled)
-        assertTrue(failed.isEmpty())
-        assertFalse(logged)
-        // 真失败照记
-        assertNull(loadTracked<ByteArray>(failed, "v", { 7L }, { logged = true }) { null })
-        assertEquals(7L, failed["v"]); assertTrue(logged)
-        gate.countDown()   // 放掉卡住的工作线程,名额归还(测试不依赖执行顺序)
         awaitNoResolverWorkers()
         assertEquals(0, resolverWorkersInFlight())
     }
