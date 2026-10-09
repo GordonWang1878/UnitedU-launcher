@@ -6,6 +6,9 @@ import androidx.compose.runtime.compositionLocalOf
 /** ContentObserver 去抖时长(spec §3.3:500 ms 后 `channelsRevision++`)。 */
 internal const val CHANNELS_DEBOUNCE_MS = 500L
 
+/** 去抖的最长等待:应用持续不断地写时,从第一次变化起最多 2 s 也要刷新一次(不能被无限推迟)。 */
+internal const val CHANNELS_MAX_WAIT_MS = 2_000L
+
 /** MainActivity 记「用户点过拒绝」的 SharedPreferences 文件名与键([permissionResult] 的 deniedBefore)。 */
 internal const val TV_LISTINGS_MARKS = "channel-permission"
 internal const val TV_LISTINGS_DENIED = "deniedBefore"

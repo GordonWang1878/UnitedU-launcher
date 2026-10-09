@@ -126,6 +126,8 @@ class MainActivity : ComponentActivity() {
     private var tvListingsRationaleBefore = false
     private lateinit var tvListingsRequest: androidx.activity.result.ActivityResultLauncher<String>
     private var channelsBump: kotlinx.coroutines.Job? = null
+    /** 这一轮去抖里第一次变化的时刻(uptime);0 = 没有待刷新的变化。最长等待见 [channelsBumpDelay]。 */
+    private var channelsBumpSince = 0L
     private var tvObserverOn = false
     private val tvObserver = object : android.database.ContentObserver(android.os.Handler(android.os.Looper.getMainLooper())) {
         override fun onChange(selfChange: Boolean) = bumpChannelsSoon()
@@ -386,8 +388,8 @@ class MainActivity : ComponentActivity() {
             // 「点过拒绝」的记号:见过 rationale 为真就记下,授权到手就清(之后被自动收回 / 清标记时不会把一次返回关窗误判成永久拒绝)。
             // 单写者(主线程)的小 SharedPreferences,同 RelaunchMarks,不是落盘铁律管的多写者状态文件。
             when {
-                granted -> marks.edit().remove(TV_LISTINGS_DENIED).commit()
-                tvListingsRationaleBefore || after -> marks.edit().putBoolean(TV_LISTINGS_DENIED, true).commit()
+                granted -> marks.edit().remove(TV_LISTINGS_DENIED).apply()
+                tvListingsRationaleBefore || after -> marks.edit().putBoolean(TV_LISTINGS_DENIED, true).apply()
             }
             tvListingsCallback?.invoke(result)
             tvListingsCallback = null
@@ -1732,11 +1734,14 @@ class MainActivity : ComponentActivity() {
         super.onStop()
     }
 
-    /** R164:500 ms 去抖后 channelsRevision++(应用同步频道时会连写几十行)。 */
+    /** R164:500 ms 尾沿去抖后 channelsRevision++(应用同步频道时会连写几十行);持续在写时从第一次变化起最多等 2 s。 */
     private fun bumpChannelsSoon() {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (channelsBumpSince == 0L) channelsBumpSince = now
         channelsBump?.cancel()
         channelsBump = lifecycleScope.launch {
-            delay(CHANNELS_DEBOUNCE_MS)
+            delay(channelsBumpDelay(now, channelsBumpSince))
+            channelsBumpSince = 0L
             channelsRevision++
         }
     }
@@ -1779,6 +1784,11 @@ class MainActivity : ComponentActivity() {
         // checkSelfPermission 就返回;有授权时不论有没有频道行都整份重读(缓存也供选频道页用),内容相同则不通知任何人。
         ensureTvObserver()
         channelsRevision++
+        // 在系统设置里开了授权:清掉「点过拒绝」的记号,否则以后被收回、从没拒绝过的状态下按返回关窗会被误判成永久拒绝。
+        if (ChannelSource.hasPermission(this)) {
+            val marks = getSharedPreferences(TV_LISTINGS_MARKS, MODE_PRIVATE)
+            if (marks.contains(TV_LISTINGS_DENIED)) marks.edit().remove(TV_LISTINGS_DENIED).apply()
+        }
         // 兜底清掉布局里已经没装的包(Ruling R68):卸载广播漏掉的、进程不在时卸的、历史残留。
         // 改了才 revision++(首页 / 编辑页按新文件重读);防误删的判据都在 pruneMissingPackages 里。
         lifecycleScope.launch {
@@ -2360,6 +2370,7 @@ class MainActivity : ComponentActivity() {
         runCatching { unregisterReceiver(packageChanges) }
         if (tvObserverOn) runCatching { contentResolver.unregisterContentObserver(tvObserver) }
         channelsBump?.cancel()
+        channelsBumpSince = 0L
         // 关于页的状态机不跨 Activity 重建(页面本身只在「恢复默认把语言改回跟随系统」那一趟随外壳栈种回来,
         // 状态从 Idle 重新开始,R128):这个实例一走,它等着用户按「安装」的
         // 那份已校验文件就再没人用了,在这里丢掉;进行中的检查 / 下载本来就随 lifecycleScope 取消。
