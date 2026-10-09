@@ -17,12 +17,6 @@ internal fun appRowCount(rows: List<LayoutRow>): Int = rows.size
 internal fun appendAppRow(rows: List<LayoutRow>): List<LayoutRow> =
     if (appRowCount(rows) >= MAX_ROWS) rows else rows + LayoutRow(icon = NEW_ROW_ICON)
 
-/** 在第 [index] 行下方插一个空行(默认图标 [NEW_ROW_ICON],R163 起行没有名字);已满 [MAX_ROWS] 行或越界 → 原样返回同一个 list。 */
-internal fun addRowBelow(rows: List<LayoutRow>, index: Int): List<LayoutRow> {
-    if (rows.size >= MAX_ROWS || index !in rows.indices) return rows
-    return rows.toMutableList().apply { add(index + 1, LayoutRow(icon = NEW_ROW_ICON)) }
-}
-
 /** 删第 [index] 行;只剩 [MIN_ROWS] 行或越界 → 原样返回。行里的应用只是离开桌面,不卸载。 */
 internal fun deleteRow(rows: List<LayoutRow>, index: Int): List<LayoutRow> {
     if (rows.size <= MIN_ROWS || index !in rows.indices) return rows

@@ -115,7 +115,6 @@
 
     <!-- edit_* : 编辑分栏界面 -->
     <string name="edit_title">编辑桌面</string>
-    <string name="edit_hint">在应用上按确定：移动、换卡片图、移出这一行。在每行末尾的 + 上按确定：添加应用、管理这一行。按返回键完成。</string>
     <string name="edit_toast_order_not_saved">顺序没能存下来，重启后会变回原样</string>
     <string name="edit_change_image">换卡片图</string>
     <string name="edit_change_image_desc">选一张 16:9 的图替换</string>
@@ -315,19 +314,7 @@
     <string name="title_dialog_hint_input">确定保存 · 返回取消 · 清空恢复系统名</string>
     <!-- edit_row_* / row_icon_* : 编辑页行菜单(行尾「+」)、行图标选择器、删行确认框(M4b Task 4;R163 起行没有名字,「行改名」整页取消) -->
     <string name="edit_row_add_app">添加应用</string>
-    <string name="edit_row_add_app_desc">从已安装的应用里挑</string>
-    <string name="edit_row_icon">更换此行图标</string>
-    <string name="edit_row_icon_desc">更换这一行的图标</string>
-    <string name="edit_row_up">此行上移</string>
-    <string name="edit_row_up_desc">和上面一行对调</string>
-    <string name="edit_row_down">此行下移</string>
-    <string name="edit_row_down_desc">和下面一行对调</string>
-    <string name="edit_row_new">在下方新建一行</string>
-    <string name="edit_row_new_desc">在这一行下面加一个空行</string>
-    <string name="edit_row_delete">删除此行</string>
-    <string name="edit_row_delete_desc">行里的应用不会被卸载</string>
     <string name="edit_row_icon_heading">选择行图标</string>
-    <string name="edit_row_menu_title">分栏管理</string>
     <string name="edit_row_delete_confirm_title">删除这一行？</string>
     <plurals name="edit_row_delete_confirm_body">
         <item quantity="one">这一行的 %1$d 个应用会从桌面移除，不会卸载。</item>
@@ -377,8 +364,6 @@
     <!-- home_move_hint / toast_move_failed : 首页原地移动态(M4b Task 5) -->
     <string name="home_move_hint">← → 移动 · ↑ ↓ 换行 · 确定 放下 · 返回 取消</string>
     <string name="toast_move_failed">没能保存新位置，请稍后再试</string>
-    <!-- edit_move_desc : 编辑页搬运模式(M4b 真机验收补丁 Task 2) -->
-    <string name="edit_move_desc">在编辑页里用方向键挪这张卡，空行也能去</string>
     <!-- settings shell:设置页胶囊外壳(R69–R72,2026-09-23) -->
     <string name="shell_root_layout_desc">编辑桌面、应用名、卡片显示偏好</string>
     <string name="shell_root_general_desc">语言、默认桌面、上传资料、时钟</string>

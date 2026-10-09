@@ -7,8 +7,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Ruling R29(owner 真机反馈 Round 8,取代 R27):浏览位移走临界阻尼弹簧,四处调用点
- * (`HomeScreen` 的行 x/y 位移两处、`EditScreen` 的纵向位移与行内横向位移两处)都读
+ * Ruling R29(owner 真机反馈 Round 8,取代 R27):浏览位移走临界阻尼弹簧,三处调用点
+ * (`HomeScreen` 的行 x/y 位移两处、`EditScreen` 的行内横向位移一处;R165 起编辑页纵向位移按 spec 走 200 ms FastOutSlowIn)都读
  * [Theme.browseShiftSpec],stiffness 来自同一个常量 [GtvLayout.BROWSE_SPRING_STIFFNESS]。
  *
  * **这个测试覆盖不到什么**(如实记录):它只断言那个工厂的参数与纯常量,不渲染 Compose——

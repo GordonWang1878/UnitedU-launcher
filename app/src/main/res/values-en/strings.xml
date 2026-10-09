@@ -123,7 +123,6 @@
 
     <!-- edit_* : Edit Rows screen -->
     <string name="edit_title">Edit Home Screen</string>
-    <string name="edit_hint">On an app, press OK to move it, change its card art or remove it. On the + at the end of a row, press OK to add apps or manage the row. Press Back when you\'re done.</string>
     <string name="edit_toast_order_not_saved">The order couldn\'t be saved and will reset after restart</string>
     <string name="edit_change_image">Change Card Art</string>
     <string name="edit_change_image_desc">Pick a 16:9 image to replace it</string>
@@ -323,19 +322,7 @@
     <string name="title_dialog_hint_input">OK saves · Back cancels · empty restores the system name</string>
     <!-- edit_row_* / row_icon_* : edit-screen row menu (row-end +), row icon picker, delete-row confirm (M4b Task 4; since R163 rows have no names, so the rename page is gone) -->
     <string name="edit_row_add_app">Add App</string>
-    <string name="edit_row_add_app_desc">Pick from installed apps</string>
-    <string name="edit_row_icon">Change Row Icon</string>
-    <string name="edit_row_icon_desc">Pick the icon for this row</string>
-    <string name="edit_row_up">Move Row Up</string>
-    <string name="edit_row_up_desc">Swap with the row above</string>
-    <string name="edit_row_down">Move Row Down</string>
-    <string name="edit_row_down_desc">Swap with the row below</string>
-    <string name="edit_row_new">New Row Below</string>
-    <string name="edit_row_new_desc">Add an empty row under this one</string>
-    <string name="edit_row_delete">Delete Row</string>
-    <string name="edit_row_delete_desc">The apps in it won\'t be uninstalled</string>
     <string name="edit_row_icon_heading">Choose Row Icon</string>
-    <string name="edit_row_menu_title">Manage Row</string>
     <string name="edit_row_delete_confirm_title">Delete this row?</string>
     <plurals name="edit_row_delete_confirm_body">
         <item quantity="one">The app in this row leaves your home screen. It won\'t be uninstalled.</item>
@@ -385,8 +372,6 @@
     <!-- home_move_hint / toast_move_failed : in-place move on the home screen (M4b Task 5) -->
     <string name="home_move_hint">← → Move · ↑ ↓ Change Row · OK Drop · Back Cancel</string>
     <string name="toast_move_failed">Couldn\'t save the new position, try again</string>
-    <!-- edit_move_desc : edit-screen carry mode (M4b follow-up Task 2) -->
-    <string name="edit_move_desc">Move this card with the arrow keys, empty rows included</string>
     <!-- settings shell: capsule shell for all settings pages (R69–R72, 2026-09-23) -->
     <string name="shell_root_layout_desc">Edit home screen, app names, card display</string>
     <string name="shell_root_general_desc">Language, default home, upload files, clock</string>

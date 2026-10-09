@@ -274,14 +274,6 @@ class MainActivity : ComponentActivity() {
     private var onbStep by mutableStateOf(1)
     /** 长按识别:记下那次按压的 downTime,同一次按压之后的事件(含 UP)全吞——clickable 在 UP 才触发,不会顺带启动应用。 */
     private var longPressDownTime = -1L
-    /**
-     * 编辑页正在搬运一张卡(M4b spec §0-18)。EditScreen 以 `onCarryingChange` 上报:搬运开始 / 结束各报一次,
-     * 编辑页离开组合时补报 false——唯一的写入方是编辑页那个以它为 key 的 DisposableEffect,不是闩(铁律 7)。
-     * 搬运中 [dispatchKeyEvent]:MENU 什么都不做(不退出编辑页);确定键的按下 / 重复 / 松开原样交给编辑页
-     * (它按重复事件认长按、松开才放下),不走这里的长按识别、重复吞掉与按键音。
-     * 只在 [dispatchKeyEvent] 里读,不进任何组合与效果,所以不是 `mutableStateOf`(同 [shownRows])。
-     */
-    private var editCarrying = false
 
     /**
      * **所有应用页**(R90,顶栏「应用」胶囊)开着没有。叠在常驻首页之上的整屏浮层,是 [overlayOpen] 的成员。
@@ -823,10 +815,9 @@ class MainActivity : ComponentActivity() {
                         onExit = ::leaveEdit,
                         focusNonce = focusNonce,
                         revision = revision,
-                        cardsPerRow = homeSettings.cardsPerRow,
-                        showTitles = homeSettings.showTitles,
+                        // R165:卡片固定中档、不画标题;模糊底按当前壁纸算
+                        wallpaperFile = homeSettings.wallpaperFile,
                         initialTarget = editTarget,
-                        onCarryingChange = { editCarrying = it },
                     )
                 }
                 // 编辑页里能打开的只有「换卡片图」(pt = 包名);其余几种选择器只能从首页 / 设置页
@@ -1204,7 +1195,7 @@ class MainActivity : ComponentActivity() {
             if (onboarding) return true
             // 选择器开着(叠在首页 / 设置页上,或替换了编辑页)时 MENU 什么都不做:排在 editing /
             // settings 之前,否则会把底下那页收掉、选择器留在首页上(终审 C1)。关掉选择器之后
-            // pickerTarget 回到 null,MENU 在编辑页上照常 = 退出编辑。
+            // pickerTarget 回到 null,MENU 在编辑页上照常 = 卡片菜单(R165)。
             // 唯一例外(R117):屏保图库里焦点在内置图上 → MENU = 胶囊菜单「不参与 / 加入轮播」(同长按);菜单开着 = 收掉它。
             if (pickerTarget != null) {
                 if (pickerTarget == VIEW_SCREENSAVER_POOL) {
@@ -1219,11 +1210,10 @@ class MainActivity : ComponentActivity() {
                 }
                 return true
             }
-            // 编辑页搬运中 MENU 什么都不做(M4b spec §0-18,同首页移动态「其余键按下去什么都不发生」);
-            // 要走先按返回取消,或确定放下。
-            // Ruling R76(2026-09-23 交互测试):从设置外壳进来的编辑页按 MENU 整个收回首页(编辑页 + 外壳),
-            // 与外壳其他层按 MENU 一致;不是从外壳进来的(shellStack 空)leaveSettings 什么都不做,行为不变。
-            if (editing) { if (!editCarrying) { leaveEdit(); leaveSettings() }; return true }
+            // **R165:编辑页里 MENU = 卡片菜单**(焦点在卡片上时;别处、拿起中什么都不做;卡片菜单开着时 = 收掉它)——
+            // 由编辑页根节点的 onPreviewKeyEvent 认(它知道焦点在哪一格),这里原样交过去、不出声(开菜单那一声由编辑页出)。
+            // 退出编辑页一律按返回;R76「从外壳进来按 MENU 整个收回首页」随之取消。
+            if (editing) return super.dispatchKeyEvent(event)
             // 所有应用页(R90):MENU = 焦点那一张的菜单(打开 / 卸载 / 加到桌面…);菜单开着 = 收掉它。
             if (appsPage) {
                 if (appsMenu != null) closeAppsMenu()
@@ -1258,13 +1248,15 @@ class MainActivity : ComponentActivity() {
             openSettings()
             return true
         }
-        // **编辑页搬运中**(M4b spec §0-18):确定键整下(按下 / 重复 / 松开)原样交给编辑页,不走下面的长按识别、
-        // 重复吞掉与按键音——编辑页按重复事件认长按、松开才放下,放下那一声由它自己出(与首页移动态同一套:
-        // 短按松开 = 放下 + 一声,长按 = 什么都不发生)。搬运结束后才松开的那一下 UP,编辑页按 downTime 认出来照吞。
-        if (editCarrying && (event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER || event.keyCode == KeyEvent.KEYCODE_ENTER ||
+        // **R165:编辑页里确定键整下(按下 / 重复 / 松开)原样交给编辑页**,不走下面的长按识别与重复吞掉——编辑页根节点按
+        // downTime 认(OkPress):卡片上短按松开 = 拿起 / 放下,按满 LONG_PRESS_MS = 卡片菜单;胶囊、选择卡、「添加应用」方块
+        // 照常点击(重复事件由编辑页吞掉)。按下那一声在这里出,开菜单那一声由编辑页出。选择器替换编辑页时(pickerTarget != null)走原路。
+        if (editing && pickerTarget == null && (event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER || event.keyCode == KeyEvent.KEYCODE_ENTER ||
                 event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)
         ) {
-            return super.dispatchKeyEvent(event)
+            val handled = super.dispatchKeyEvent(event)
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) playKeySound(event.keyCode)
+            return handled
         }
         if (event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER || event.keyCode == KeyEvent.KEYCODE_ENTER) {
             if (longPressDownTime != -1L && event.downTime == longPressDownTime) {

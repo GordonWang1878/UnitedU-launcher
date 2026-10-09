@@ -13,20 +13,7 @@ class LayoutOpsTest {
         LayoutRow("music"),
     )
 
-    @Test fun addInsertsAnEmptyRowBelowWithTheDefaultIcon() {
-        val next = addRowBelow(three, 0)
-        assertEquals(listOf("movie", "apps", "tv", "music"), next.map { it.icon })
-        assertEquals(LayoutRow(icon = "apps"), next[1])
-        assertEquals(NEW_ROW_ICON, next[1].icon)
-        assertEquals(emptyList<String>(), next[1].apps)
-    }
 
-    @Test fun addStopsAtFiveRowsAndOnBadIndex() {
-        val five = three + LayoutRow("games") + LayoutRow("kids")
-        assertSame(five, addRowBelow(five, 0))
-        assertSame(three, addRowBelow(three, 3))
-        assertSame(three, addRowBelow(three, -1))
-    }
 
     /** R165:新行一律追加在最后(「新的一行 → 应用行」),不再有「在下方新建一行」。 */
     @Test fun appendAddsAnEmptyAppRowAtTheEnd() {

@@ -24,8 +24,6 @@ class LayoutOpsBoundaryTest {
     // ---- 空布局 / 只有一行 ----
 
     @Test fun everyOpOnAnEmptyLayoutReturnsTheSameList() {
-        assertSame(empty, addRowBelow(empty, 0))
-        assertSame(empty, addRowBelow(empty, -1))
         assertSame(empty, deleteRow(empty, 0))
         assertSame(empty, setRowIcon(empty, 0, "games"))
         assertSame(empty, addToRow(empty, 0, "p"))
@@ -36,7 +34,7 @@ class LayoutOpsBoundaryTest {
     }
 
     @Test fun aSingleRowCanGrowButIsNeverDeleted() {
-        assertEquals(listOf(ONLY, NEW_ROW_ICON), addRowBelow(one, 0).map { it.icon })
+        assertEquals(listOf(ONLY, NEW_ROW_ICON), appendAppRow(one).map { it.icon })
         assertSame(one, deleteRow(one, 0))
         assertSame(one, deleteRow(one, -1))
         assertSame(one, swapRows(one, 0, 0))
@@ -45,24 +43,12 @@ class LayoutOpsBoundaryTest {
 
     // ---- 加行 ----
 
-    @Test fun addBelowTheLastRowAppendsAndTheFifthRowIsTheLastOneAllowed() {
-        val five = addRowBelow(four, 3)
-        assertEquals(listOf(A, B, C, D, NEW_ROW_ICON), five.map { it.icon })
-        assertEquals(LayoutRow(icon = NEW_ROW_ICON), five[4])
-        assertEquals(four, five.take(4))
-        assertSame(five, addRowBelow(five, 4))
-    }
 
-    @Test fun addBelowIndexEqualToSizeIsOutOfRange() {
-        assertSame(four, addRowBelow(four, 4))
-        assertSame(four, addRowBelow(four, Int.MAX_VALUE))
-        assertSame(four, addRowBelow(four, Int.MIN_VALUE))
-    }
 
     @Test fun anOversizedLayoutIsNotGrownButCanStillShrink() {
         // 手改坏的文件可能多于 MAX_ROWS 行:不再往上加,但删行照常
         val six = four + row(E) + row(F)
-        assertSame(six, addRowBelow(six, 0))
+        assertSame(six, appendAppRow(six))
         assertEquals(listOf(A, B, C, D, E), deleteRow(six, 5).map { it.icon })
     }
 

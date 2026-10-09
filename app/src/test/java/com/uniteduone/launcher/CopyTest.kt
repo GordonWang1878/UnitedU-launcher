@@ -155,4 +155,18 @@ class CopyTest {
             }
         }
     }
+
+    /** R165:行菜单与行尾「+」取消,它们的文案(以及旧的整段说明、「移动位置」说明)三种语言都删掉。 */
+    @Test fun rowMenuStringsAreGone() {
+        val gone = listOf(
+            "edit_hint", "edit_row_add_app_desc", "edit_row_icon", "edit_row_icon_desc",
+            "edit_row_up", "edit_row_up_desc", "edit_row_down", "edit_row_down_desc",
+            "edit_row_new", "edit_row_new_desc", "edit_row_delete", "edit_row_delete_desc",
+            "edit_row_menu_title", "edit_move_desc",
+        )
+        for (l in langs) {
+            val s = strings(l)
+            for (k in gone) assertTrue("$l 里还有 $k(R165 行菜单取消)", k !in s)
+        }
+    }
 }
