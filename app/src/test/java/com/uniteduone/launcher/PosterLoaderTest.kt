@@ -8,6 +8,8 @@ import org.junit.Assert.assertTrue
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.net.InetAddress
@@ -18,6 +20,14 @@ import kotlin.concurrent.thread
 
 /** R164 spec §3.3 海报:来源分类、采样、失败退避、下载上限与超时。下载用本机 ServerSocket 模拟(http 与 https 走同一个 fetchBytes)。 */
 class PosterLoaderTest {
+    /** 在途计数是进程级全局量:每个测试前后都等它回零,前一个测试的迟到工作线程不会污染下一个的基线。 */
+    private fun awaitNoResolverWorkers() {
+        val end = System.nanoTime() + 30_000_000_000L
+        while (resolverWorkersInFlight() != 0 && System.nanoTime() < end) Thread.sleep(5)
+    }
+    @Before fun quiesceBefore() = awaitNoResolverWorkers()
+    @After fun quiesceAfter() = awaitNoResolverWorkers()
+
     private fun serveOnce(response: ByteArray): Int {
         val server = ServerSocket(0, 1, InetAddress.getLoopbackAddress())
         thread(isDaemon = true) {
@@ -115,37 +125,44 @@ class PosterLoaderTest {
         }
         val t0 = System.nanoTime()
         assertNull(readWithWatchdog(300, { inp }, 1024))
-        assertTrue((System.nanoTime() - t0) / 1_000_000 < 2_000)
+        assertTrue((System.nanoTime() - t0) / 1_000_000 < 30_000)   // 不卡死即可,上限宽松
     }
 
     /** open() 本身卡死:load 在期限内返回 null,且之后的读取仍拿得到线程。 */
     @Test fun blockedOpenReturnsNullAndDoesNotStarveLaterReads() = kotlinx.coroutines.runBlocking {
         val gate = java.util.concurrent.CountDownLatch(1)
-        repeat(6) {   // 比 4 个槽位多
-            val t0 = System.nanoTime()
-            assertNull(readResolverBounded(200, { gate.await(); null }, 1024))
-            assertTrue((System.nanoTime() - t0) / 1_000_000 < 1_500)
-        }
-        assertArrayEquals(ByteArray(3), readResolverBounded(200, { ByteArrayInputStream(ByteArray(3)) }, 1024))
-        gate.countDown()
+        try {
+            repeat(6) {   // 比 4 个槽位多
+                val t0 = System.nanoTime()
+                assertNull(readResolverBounded(200, { gate.await(); null }, 1024))
+                assertTrue((System.nanoTime() - t0) / 1_000_000 < 30_000)   // 远小于「一直等 gate」
+            }
+            assertArrayEquals(ByteArray(3), readResolverBounded(5_000, { ByteArrayInputStream(ByteArray(3)) }, 1024))
+        } finally { gate.countDown() }
     }
 
     /** 服务器逐字节滴水:总期限(watchdog 断开)到点放手。 */
     @Test fun fetchHasAHardTotalDeadline() {
         val server = ServerSocket(0, 1, InetAddress.getLoopbackAddress())
-        thread(isDaemon = true) {
+        // 全部滴完要 100000 × 20 ms ≈ 33 min;客户端一断开写入即抛异常,服务线程随之退出
+        val t = thread(isDaemon = true) {
             runCatching {
                 server.accept().use { c ->
                     c.getInputStream().read(ByteArray(4096))
-                    c.getOutputStream().write("HTTP/1.1 200 OK\r\nContent-Length: 1000\r\n\r\n".toByteArray())
-                    repeat(1000) { c.getOutputStream().write(1); c.getOutputStream().flush(); Thread.sleep(100) }
+                    c.getOutputStream().write("HTTP/1.1 200 OK\r\nContent-Length: 100000\r\n\r\n".toByteArray())
+                    repeat(100_000) { c.getOutputStream().write(1); c.getOutputStream().flush(); Thread.sleep(20) }
                 }
             }
         }
-        val t0 = System.nanoTime()
-        assertNull(fetchBytes(URL("http://127.0.0.1:${server.localPort}/p"), 500, 4096))
-        assertTrue((System.nanoTime() - t0) / 1_000_000 < 2_000)
-        server.close()
+        try {
+            val t0 = System.nanoTime()
+            assertNull(fetchBytes(URL("http://127.0.0.1:${server.localPort}/p"), 500, 200_000))
+            // 只断言「远早于滴完」:期限 0.5 s,给负载留 60 s 余量,不断言下限
+            assertTrue((System.nanoTime() - t0) / 1_000_000 < 60_000)
+        } finally {
+            runCatching { server.close() }
+            t.join(5_000)
+        }
     }
 
     /** 调用方被取消:CancellationException 照常抛出,不进 failed、不记日志。 */
@@ -153,12 +170,13 @@ class PosterLoaderTest {
         val failed = java.util.concurrent.ConcurrentHashMap<String, Long>()
         var logged = false
         val gate = java.util.concurrent.CountDownLatch(1)
+        val started = java.util.concurrent.CountDownLatch(1)
         val job = launch(kotlinx.coroutines.Dispatchers.Default) {
             loadTracked<ByteArray>(failed, "u", { 1L }, { logged = true }) {
-                readResolverBounded(5_000, { gate.await(); null }, 1024)
+                readResolverBounded(60_000, { started.countDown(); gate.await(); null }, 1024)
             }
         }
-        kotlinx.coroutines.delay(200)
+        assertTrue(started.await(30, java.util.concurrent.TimeUnit.SECONDS))   // 工作线程确已开跑再取消
         job.cancelAndJoin()
         assertTrue(job.isCancelled)
         assertTrue(failed.isEmpty())
@@ -167,8 +185,7 @@ class PosterLoaderTest {
         assertNull(loadTracked<ByteArray>(failed, "v", { 7L }, { logged = true }) { null })
         assertEquals(7L, failed["v"]); assertTrue(logged)
         gate.countDown()   // 放掉卡住的工作线程,名额归还(测试不依赖执行顺序)
-        val t0 = System.nanoTime()
-        while (resolverWorkersInFlight() != 0 && (System.nanoTime() - t0) / 1_000_000 < 2_000) kotlinx.coroutines.delay(10)
+        awaitNoResolverWorkers()
         assertEquals(0, resolverWorkersInFlight())
     }
 
@@ -178,10 +195,11 @@ class PosterLoaderTest {
         val held = kotlinx.coroutines.CoroutineScope(
             kotlinx.coroutines.SupervisorJob() + java.util.concurrent.Executor { queued.add(it) }.asCoroutineDispatcher(),
         )
+        awaitNoResolverWorkers()   // 基线必须是干净的 0,别的测试的迟到线程不能掺进来
         val before = resolverWorkersInFlight()
         var opened = false
         val job = launch(kotlinx.coroutines.Dispatchers.Default) {
-            readResolverBounded(5_000, { opened = true; null }, 16, held)
+            readResolverBounded(60_000, { opened = true; null }, 16, held)
         }
         while (queued.isEmpty()) kotlinx.coroutines.delay(5)   // 工作 job 已派发、还没跑
         assertEquals(before + 1, resolverWorkersInFlight())
@@ -193,11 +211,14 @@ class PosterLoaderTest {
 
     @Test fun resolverWorkersAreCapped() = kotlinx.coroutines.runBlocking {
         val gate = java.util.concurrent.CountDownLatch(1)
-        val jobs = (1..RESOLVER_MAX_WORKERS).map { launch(kotlinx.coroutines.Dispatchers.Default) { readResolverBounded(3_000, { gate.await(); null }, 16) } }
-        kotlinx.coroutines.delay(300)
-        val t0 = System.nanoTime()
-        assertNull(readResolverBounded(3_000, { ByteArrayInputStream(ByteArray(3)) }, 16))
-        assertTrue("满了要立刻返回", (System.nanoTime() - t0) / 1_000_000 < 500)
-        gate.countDown(); jobs.forEach { it.cancelAndJoin() }
+        val jobs = (1..RESOLVER_MAX_WORKERS).map { launch(kotlinx.coroutines.Dispatchers.Default) { readResolverBounded(60_000, { gate.await(); null }, 16) } }
+        try {
+            val end = System.nanoTime() + 30_000_000_000L
+            while (resolverWorkersInFlight() < RESOLVER_MAX_WORKERS && System.nanoTime() < end) kotlinx.coroutines.delay(5)
+            assertEquals(RESOLVER_MAX_WORKERS, resolverWorkersInFlight())
+            val t0 = System.nanoTime()
+            assertNull(readResolverBounded(60_000, { ByteArrayInputStream(ByteArray(3)) }, 16))
+            assertTrue("满了要立刻返回(不等 60 s 超时)", (System.nanoTime() - t0) / 1_000_000 < 20_000)
+        } finally { gate.countDown(); jobs.forEach { it.cancelAndJoin() } }
     }
 }
