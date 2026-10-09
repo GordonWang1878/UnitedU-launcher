@@ -1159,7 +1159,7 @@ EOF
 ### Task 6: 「加到桌面… → 选一行」只列应用行
 
 **Files:**
-- Modify: `app/src/main/java/com/uniteduone/launcher/MainActivity.kt`(`appsMenuItems` 第二层,约 2108–2131 行的 `return rows.mapIndexed { i, r -> … }`)
+- Modify: `app/src/main/java/com/uniteduone/launcher/MainActivity.kt`(`appsMenuItems` 第二层,约 2100–2124 行的 `return rows.mapIndexed { i, r -> … }`)
 - Modify: `app/src/main/java/com/uniteduone/launcher/AppsPage.kt`(`rowAppNames` 的 KDoc)
 - Test: `app/src/test/java/com/uniteduone/launcher/AppsPageChannelTest.kt`
 
@@ -1890,7 +1890,7 @@ EOF
 **Files:**
 - Create: `app/src/main/java/com/uniteduone/launcher/ChannelEnv.kt`
 - Create: `app/src/main/java/com/uniteduone/launcher/ChannelLaunch.kt`
-- Modify: `app/src/main/java/com/uniteduone/launcher/MainActivity.kt`(字段区约 118 行 `revision` 旁;`onCreate` 约 370–400;`setContent` 的 `CompositionLocalProvider` 约 638;`onResume` 约 1691;`onDestroy` 约 2274)
+- Modify: `app/src/main/java/com/uniteduone/launcher/MainActivity.kt`(字段区约 118 行 `revision` 旁;`onCreate` 约 363;`setContent` 的 `CompositionLocalProvider` 约 630;`onResume` 约 1683;`onDestroy` 约 2268——行号以 HEAD b3d9a15 + Task 6 为准,按锚点文字找)
 - Test: `app/src/test/java/com/uniteduone/launcher/ChannelLaunchTest.kt`
 
 **Interfaces:**
@@ -2104,7 +2104,7 @@ Expected: PASS。
         channelsBump?.cancel()
 ```
 
-`setContent` 里的 `CompositionLocalProvider(`(约 638 行)多提供一项:
+`setContent` 里的 `CompositionLocalProvider(`(约 630 行)多提供一项:
 
 ```kotlin
                 LocalChannelEnv provides remember(channelsRevision) {
@@ -4065,6 +4065,7 @@ EOF
 - Modify: 三份 `strings.xml`
 - Test: `app/src/test/java/com/uniteduone/launcher/NewRowChoiceTest.kt`
 - Modify: `app/src/test/java/com/uniteduone/launcher/EditShelvesTest.kt`(一条按「新的一行只有一格」写死的断言,见 Step 3 末尾)
+- Modify: `scripts/e2e/j_edit.py`(`edit-new-row` 旅程按「新的一行只有一张卡」走,见 Step 3 末尾)
 
 **Interfaces:**
 - Consumes: Task 2 `MAX_CHANNEL_ROWS`;Task 13 `Shelf.ChannelShelf`;edit-shelves `NewRowChoice` / `choiceFull` / `appShelfCount` / `laneSize`。
@@ -4195,6 +4196,23 @@ private fun choiceIcon(c: NewRowChoice): ImageVector = when (c) {
 Step 4 的 `--tests '*EditShelves*'` 会红。改成 `assertEquals(ShelfSpot(3, NEW, NewRowChoice.entries.lastIndex), clampSpot(three, ShelfSpot(3, NEW, 5)))`
 (意思不变:越界的格号夹到最后一张选择卡)。同文件别的 `NEW` 断言都用格 0 或 `NewRowChoice.entries.size`,不用改。
 
+`scripts/e2e/j_edit.py`(edit-shelves 已提交)的 `edit-new-row` 旅程开头 `s = move_to(S("edit_choice_app_row"), "down", max_steps=14)` 也是按一张卡写的:
+它从第 2 层的「删除」胶囊一路按下,每一步按水平中心取最近,到第 4 层卡片条时停在第 3 张(中心 ≈ 403 dp),再按下落到「新的一行」里
+离它最近的**「频道」卡**(中心 ≈ 528 dp,「应用行」≈ 208 dp);之后的下键在最后一条上被吞掉,`move_to` 永远等不到「App Row」→ FAIL
+(Task 16 Step 3 回归 `E2E_ONLY=j_edit` 时暴露)。把那两行换成(落到「频道」卡就向左一格):
+
+```python
+    s = None
+    for _ in range(15):   # R164 起「新的一行」有两张卡:按最近可能落到「频道」卡,向左回「应用行」
+        lab = screen().label()
+        if S("edit_choice_app_row") in lab:
+            s = screen(); break
+        key("left" if S("shelf_new_channel_desc") in lab else "down")
+    check("一路按下到「新的一行」→「应用行」", s is not None, screen().label())
+```
+
+后面 `move_to(S("edit_choice_app_row"), "down", max_steps=4)`(从新架子的「添加应用」方块按下,最近的是「应用行」)不用改。
+
 - [ ] **Step 4: 跑测试确认通过 + 构建**
 
 Run: `cd /Users/gordonwang/orca/workspaces/UnitedU-launcher/频道推荐 && source scripts/env.sh && gradle --no-daemon testReleaseUnitTest --tests '*NewRowChoiceTest*' --tests '*EditShelves*' --tests '*CopyTest*' assembleRelease`
@@ -4218,12 +4236,12 @@ adb -s $DEV shell am force-stop com.uniteduone.launcher
 adb -s $DEV shell am start -a android.intent.action.MAIN -c android.intent.category.HOME -n com.uniteduone.launcher/.MainActivity
 ```
 
-进编辑页走到「新的一行」→ 右键到「频道」卡:截图 `/tmp/unitedu-e2e/new-row-full.png`,卡变暗、写「Full · 5 rows max」(`edit_choice_full` 的英文);说明行「Up to 5 app rows and 5 channel rows」。
+进编辑页走到「新的一行」→ 右键到「频道」卡:截图 `/tmp/unitedu-e2e/new-row-full.png`,卡变暗、写「Full (max 5 rows)」(`edit_choice_full` 现行英文);说明行「Up to 5 app rows and 5 channel rows」。再跑 `E2E_ONLY=j_edit DEV=emulator-5562 python3 scripts/e2e/run_all.py`,全过。
 
 - [ ] **Step 6: 提交**
 
 ```bash
-cd /Users/gordonwang/orca/workspaces/UnitedU-launcher/频道推荐 && git add app/src/main/java/com/uniteduone/launcher/EditShelves.kt app/src/main/java/com/uniteduone/launcher/EditShelfParts.kt app/src/main/java/com/uniteduone/launcher/EditScreen.kt app/src/main/res/values/strings.xml app/src/main/res/values-en/strings.xml app/src/main/res/values-zh-rTW/strings.xml app/src/test/java/com/uniteduone/launcher/NewRowChoiceTest.kt app/src/test/java/com/uniteduone/launcher/EditShelvesTest.kt && git commit -F - <<'EOF'
+cd /Users/gordonwang/orca/workspaces/UnitedU-launcher/频道推荐 && git add app/src/main/java/com/uniteduone/launcher/EditShelves.kt app/src/main/java/com/uniteduone/launcher/EditShelfParts.kt app/src/main/java/com/uniteduone/launcher/EditScreen.kt app/src/main/res/values/strings.xml app/src/main/res/values-en/strings.xml app/src/main/res/values-zh-rTW/strings.xml app/src/test/java/com/uniteduone/launcher/NewRowChoiceTest.kt app/src/test/java/com/uniteduone/launcher/EditShelvesTest.kt scripts/e2e/j_edit.py && git commit -F - <<'EOF'
 feat(channels): 「新的一行」加「频道」选择卡,两类各自满 5 行变暗(R165 §2.4)
 
 Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
