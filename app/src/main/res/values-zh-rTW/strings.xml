@@ -457,4 +457,13 @@
         <item quantity="one">%1$d 個頻道</item>
         <item quantity="other">%1$d 個頻道</item>
     </plurals>
+    <!-- R164 選頻道頁 -->
+    <string name="channel_picker_title">新增頻道</string>
+    <string name="channel_picker_hint">UnitedU 會讀取電視上各應用程式提供的頻道，只在本機顯示，不會上傳。</string>
+    <string name="channel_picker_loading">正在讀取頻道…</string>
+    <string name="channel_picker_empty">目前沒有應用程式提供頻道</string>
+    <string name="channel_picker_empty_hint">開啟過一次的影音應用程式才會提供</string>
+    <string name="channel_picker_denied">沒有讀取頻道的權限，可以在系統設定裡開啟。</string>
+    <string name="channel_picker_open_settings">前往系統設定開啟</string>
+    <string name="channel_picker_back">返回</string>
 </resources>

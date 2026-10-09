@@ -78,6 +78,10 @@ private sealed interface EditOverlay {
     class Pick(val row: Int, val icon: String, val exclude: Set<String>, val from: ShelfSpot) : EditOverlay {
         override val layer get() = "pick:$row"
     }
+    /** R164 选频道页。[onLayout] 打开那一刻布局里已有的频道(残影画关掉前那一份,不现查);[from] = 打开它的「频道」卡,返回落回那里。 */
+    class ChannelPick(val onLayout: List<ChannelRef>, val from: ShelfSpot) : EditOverlay {
+        override val layer get() = "channels"
+    }
 }
 
 private fun dirOf(code: Int): MoveDir? = when (code) {
@@ -314,6 +318,7 @@ fun EditScreen(
         is EditOverlay.Icon -> landingOnChip(shelvesNow(), o.row, ShelfChip.ICON)
         is EditOverlay.Confirm -> landingOnChip(shelvesNow(), o.row, ShelfChip.DELETE)
         is EditOverlay.Pick -> clampSpot(shelvesNow(), o.from)
+        is EditOverlay.ChannelPick -> clampSpot(shelvesNow(), o.from)
     }
     fun closeOverlay(o: EditOverlay) {
         if (overlay !== o) return
@@ -389,7 +394,14 @@ fun EditScreen(
                 persist()
                 retarget(landingAfterAppend(shelvesNow()))
             }
-            NewRowChoice.CHANNEL -> Unit   // Task 15:打开选频道页(EditOverlay.ChannelPick)
+            NewRowChoice.CHANNEL -> {
+                if (choiceFull(shelvesNow(), NewRowChoice.CHANNEL)) return   // 已满 5 行:确定不响应(spec §2.4)
+                // 状态并进 overlay = 自动并进 overlayOpen(看门狗 / 定位效果让路,铁律 6);ON_PAUSE 不清它(授权窗回来选页要还在)
+                overlay = EditOverlay.ChannelPick(
+                    rows.mapNotNull { it.channel },
+                    from = ShelfSpot(shelvesNow().lastIndex, ShelfZone.NEW, NewRowChoice.CHANNEL.ordinal),
+                )
+            }
         }
     }
 
@@ -479,6 +491,8 @@ fun EditScreen(
         is EditOverlay.Icon -> o.row !in rows.indices
         is EditOverlay.Confirm -> o.row !in rows.indices
         is EditOverlay.Pick -> o.row !in rows.indices
+        // 不指向某一行:行被删不影响它
+        is EditOverlay.ChannelPick -> false
         null -> false
     }
     LaunchedEffect(staleOverlay) { if (staleOverlay) overlay = null }
@@ -739,6 +753,27 @@ fun EditScreen(
                         }
                     },
                     // AppPicker 没有自己的 BackHandler:返回走上面那个,落回打开它的那一格(ov.from)
+                )
+                // 返回键不另接:编辑页唯一的 BackHandler 对任何浮层都是 closeOverlay(o),落回 ov.from(「频道」卡)
+                is EditOverlay.ChannelPick -> ChannelPicker(
+                    nonce = focusNonce,
+                    onLayout = ov.onLayout,
+                    onPick = { ref ->
+                        if (overlay === ov) {
+                            val next = appendChannelRow(rows, ref)
+                            overlay = null
+                            if (next !== rows) {
+                                rows = next
+                                persist()
+                                // §2.2:加频道 → 新频道架子的第一颗胶囊(新行一律在最后)
+                                retarget(landingAfterAppendChannel(shelvesNow()))
+                            } else {
+                                // 满了 / 重复(选页开着时别处改过布局)→ 回「频道」卡
+                                retarget(clampSpot(shelvesNow(), ov.from))
+                            }
+                        }
+                    },
+                    onBack = { closeOverlay(ov) },
                 )
             }
         }

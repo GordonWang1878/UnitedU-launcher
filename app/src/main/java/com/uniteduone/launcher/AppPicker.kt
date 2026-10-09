@@ -168,7 +168,7 @@ private val PickerCardMetrics = CardMetrics(
 
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
-private fun PickerRow(
+internal fun PickerRow(
     app: AppEntry,
     /** 非 null = 这一项是「系统工具」组的第一项,标题画在它上方(同一个聚焦节点里,见下)。 */
     header: String?,

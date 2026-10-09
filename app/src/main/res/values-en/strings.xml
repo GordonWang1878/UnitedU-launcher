@@ -466,4 +466,13 @@
         <item quantity="one">%1$d channel</item>
         <item quantity="other">%1$d channels</item>
     </plurals>
+    <!-- R164 channel picker -->
+    <string name="channel_picker_title">Add Channel</string>
+    <string name="channel_picker_hint">UnitedU reads the channels that apps on this TV provide. They\'re shown only on this TV and never uploaded.</string>
+    <string name="channel_picker_loading">Loading channels…</string>
+    <string name="channel_picker_empty">No apps offer channels yet</string>
+    <string name="channel_picker_empty_hint">Video apps usually offer one after you open them once</string>
+    <string name="channel_picker_denied">UnitedU isn\'t allowed to read channels. You can allow it in System Settings.</string>
+    <string name="channel_picker_open_settings">Open System Settings</string>
+    <string name="channel_picker_back">Back</string>
 </resources>

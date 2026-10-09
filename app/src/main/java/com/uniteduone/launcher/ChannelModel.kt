@@ -232,3 +232,44 @@ internal fun snapshotFrom(
     }
     return ChannelSnapshot(true, all, progs, all.map { it.pkg }.distinct().associateWith(labelOf))
 }
+
+/** 选频道页的一项:频道 + 发布方应用名(显示「应用名 · 频道名」)。 */
+internal data class ChannelCandidate(val channel: TvChannel, val appLabel: String)
+
+/**
+ * 选频道页列哪些(§3.1):`TYPE_PREVIEW`、不是自己发的、还不在桌面上(按 [matchChannel] 认,与首页同一个规则);
+ * 按应用名、频道名、id 排。[labels] 缺的用包名。
+ */
+internal fun pickerChannels(all: List<TvChannel>, onLayout: List<ChannelRef>, labels: Map<String, String>, selfPkg: String): List<ChannelCandidate> {
+    val taken = onLayout.mapNotNull { matchChannel(it, all)?.id }.toSet()
+    return all.filter { it.type == CHANNEL_TYPE_PREVIEW && it.pkg != selfPkg && it.id !in taken }
+        .map { ChannelCandidate(it, labels[it.pkg] ?: it.pkg) }
+        .sortedWith(compareBy<ChannelCandidate>({ it.appLabel.lowercase() }, { it.channel.name.lowercase() }, { it.channel.id }))
+}
+
+/**
+ * 列表变了(TvProvider 冒出新频道 / 删了一个)时焦点目标挪到哪(同应用页 `appsPageRetarget`):原来那个频道还在 → 它的新位置;
+ * 被删 → 同一位置(补上来的下一项),越界 → 最后一项;列表空 → 0。
+ */
+internal fun retargetById(old: List<Long>, new: List<Long>, idx: Int): Int {
+    if (new.isEmpty()) return 0
+    val id = old.getOrNull(idx) ?: return idx.coerceIn(0, new.lastIndex)
+    return new.indexOf(id).takeIf { it >= 0 } ?: idx.coerceIn(0, new.lastIndex)
+}
+
+/** 选频道页的阶段:没授权且授权窗还没回话([asked] = 回过话)→ Asking(弹窗在途,右边空着);回话是拒绝 → Denied;读列表中 → Loading;没频道 → Empty;否则 Ready。 */
+internal sealed interface ChannelPickerPhase {
+    data object Asking : ChannelPickerPhase
+    data object Denied : ChannelPickerPhase
+    data object Loading : ChannelPickerPhase
+    data object Empty : ChannelPickerPhase
+    data class Ready(val items: List<ChannelCandidate>) : ChannelPickerPhase
+}
+
+internal fun channelPickerPhase(granted: Boolean, asked: Boolean, candidates: List<ChannelCandidate>?): ChannelPickerPhase = when {
+    !granted && !asked -> ChannelPickerPhase.Asking
+    !granted -> ChannelPickerPhase.Denied
+    candidates == null -> ChannelPickerPhase.Loading
+    candidates.isEmpty() -> ChannelPickerPhase.Empty
+    else -> ChannelPickerPhase.Ready(candidates)
+}
