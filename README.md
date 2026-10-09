@@ -109,7 +109,7 @@ If HOME still goes to the stock home screen after the steps above (on Google TV 
 The first time UnitedU opens (a fresh install, not an upgrade) a three-step guide appears; Back returns to the previous step:
 
 1. **Choose a language**: System Default / 简体中文 / 繁體中文 / English, applied immediately.
-2. **Put your installed apps on the home screen**: this is not a recommendation algorithm, just a fixed list of common Chinese-market apps, filtered to those installed on the TV: video (Tencent Video's TV app Yunshiting Jiguang, iQIYI's TV app Yinhe Qiyiguo, CIBN Kumiao, Mango TV, bilibili's TV app Yunshiting Xiaodianshi), live TV (CCTV Video, MIGU), music (NetEase Cloud Music, QQ Music). "Continue" places them; "Skip" leaves three empty rows and the home screen hints at Edit Home Screen ("Go Now" opens it), where you add apps with the "＋" at the end of each row. You can also hold OK on an app in All Apps → "Add to Home…". On TVs outside China this list usually finds nothing; add your apps from All Apps.
+2. **Put your installed apps on the home screen**: this is not a recommendation algorithm, just a fixed list of common Chinese-market apps, filtered to those installed on the TV: video (Tencent Video's TV app Yunshiting Jiguang, iQIYI's TV app Yinhe Qiyiguo, CIBN Kumiao, Mango TV, bilibili's TV app Yunshiting Xiaodianshi), live TV (CCTV Video, MIGU), music (NetEase Cloud Music, QQ Music). "Continue" places them; "Skip" leaves three empty rows and the home screen hints at Edit Home Screen ("Go Now" opens it), where you add apps with "Add App" at the top of each row (an empty row has an "Add App" tile where its cards go). You can also hold OK on an app in All Apps → "Add to Home…". On TVs outside China this list usually finds nothing; add your apps from All Apps.
 3. **Make UnitedU your default home screen**: the same as [Set as the default home screen](#set-as-the-default-home-screen), offered once up front (TVs where UnitedU isn't the default home app also get a "Home Button Takeover" button here). "Done" goes to the home screen; you can change this in Settings any time.
 
 Users upgrading from an older version don't see the guide.
@@ -125,7 +125,7 @@ Hold OK on an app card (about 0.6 seconds) for a menu:
 - **Move** — right on the home screen: left/right swap with the neighboring card, up/down move to the adjacent row, OK drops it, Back cancels
 - **Remove from Row** — only takes it off this row; the app itself is not uninstalled
 
-Adding and deleting rows, changing a row's icon (rows have no names, only icons) and reorganizing across rows happen in Settings → Layout → Edit Home Screen.
+Adding and deleting rows, changing a row's icon (rows have no names, only icons) and reorganizing across rows happen in Settings → Layout → Edit Home Screen. It shows your rows as shelves: each shelf's actions sit along its top (Add App / Icon / Move Up / Move Down / Delete). Press OK on a card to pick it up, move it with the arrow keys (up and down move it to another row), then OK to drop it or Back to cancel. Hold OK or press Menu on a card for its menu (Change Card Art / Remove). "New Row" at the bottom adds a row (up to 5).
 
 ## Settings
 

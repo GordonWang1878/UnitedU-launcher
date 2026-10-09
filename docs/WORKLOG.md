@@ -2044,3 +2044,13 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 核对通过:第 1 张卡柔光连续画出架子左缘、无硬边(`e-first-card-left-glow.jpg`);行尾露出那张齐齐截在架子右缘;换层淡入时焦点卡四边完整(`08*`);焦点落到非焦点层的透明胶囊时那一层同帧变焦点层、胶囊随架子 200 ms 淡入(`d-chip-on-inactive-shelf.jpg`)。
 - 与效果图的差异(未改,记下):焦点色是当前主题的 accent(模拟器默认白),效果图是绿;卡片按上落「离得最近的胶囊」、胶囊按下落离得最近的卡(spec 本意),所以从「添加应用」按下会落到第 5 张而不是第 1 张;页头渐隐遮罩下,滚上去那层的行名在屏幕最顶端还隐约透出一点(遮罩 97%);胶囊失焦的头一两帧字色已换成浅色、底色还没褪,字会短暂看不清(约 50 ms)。
 - 帧时间(模拟器,只作相对参照;5 行 + 新的一行 + 模糊底,上下各 10 下):252 帧,Janky 42%,50th 48 ms / 90th 121 ms / 95th 150 ms / 99th 150 ms。同样按键在首页:139 帧,50th 42 ms / 90th 129 ms / 95th 150 / 99th 150——两者同一个量级。真机由 Gordon 随正式版看。
+
+## 2026-10-09 · 编辑桌面货架实施收口(R165,计划 1)
+- 按 `docs/superpowers/plans/2026-10-08-edit-shelves.md` 实施 spec §2(编辑页)与 §5 的两条(菜单键、新行追加到末尾);频道行留给计划 2。
+- 新文件:`EditShelves.kt`(纯逻辑,单测 `EditShelvesTest` / `EditShelvesLandingTest`)、`EditPress.kt`(`OkPressTest`)、`EditBackdrop.kt`(`EditBackdropTest`)、`EditShelfParts.kt`、`AppPicker.kt`(从 EditScreen 搬来);`EditScreen.kt` 重写;删 `addRowBelow`、`editFirstRow`(`EditScrollTest`)与行菜单文案。
+- 解释过的 spec 空白:非焦点层胶囊透明度 0 但照常布局、可聚焦(「卡片 → 下一层胶囊」要有落点);所有应用架子同高 140 dp(效果图非焦点层 118 dp,同高避免换层时整页跳);拿起 = 焦点放大 + highlight 描边 + 阴影 + 方向箭头,不再叠 1.08;删除落上一层**第一颗**胶囊(防连删);跨层上下也按水平中心取最近;货架不画卡片标题。
+- Task 10 的两处运行时修正已写进 CLAUDE.md 焦点表:焦点卡滑入架子右端时照样裁(静止的焦点卡不裁,owner 裁定);换卡片图回来第一帧就在种子那层(`initialEditSpot`)。REVIEW-GUIDE 里「回编辑页滚动位置不同」那条已删(已修)。
+- 验证:单测、模拟器 `unitedu-tv-2` 的 e2e(`j_edit`、`j_overlays`、`j_home`、`j_pkg`)与 1× 录像逐帧见上一条(模拟器验收);帧时间 252 帧,Janky 42%,50th 48 ms / 90th 121 ms / 99th 150 ms(首页同操作 50th 42 ms,同量级)。截图 `docs/screenshots/edit-shelves/`。
+- 与效果图的差异:焦点色用当前主题 accent(效果图是绿);卡片按上落「离得最近的胶囊」;页头渐隐遮罩下滚上去那层的行名仍隐约透出;胶囊失焦头一两帧字色先于底色褪(约 50 ms)。其余见上一条。
+- 文档同步:CLAUDE.md 焦点表(重写「编辑页」、删「编辑页的行菜单」、改行图标 / 删行确认 / 添加应用三行、长按菜单行调用点数)、REVIEW-GUIDE、README 双语、gtv 线 §12(R165 状态、R76 标被取代)。
+- 仍待:电视上看(随下一个正式版);计划 2(频道行、`Move.kt` 跳过频道行、应用页「加到桌面」只列应用行)。
