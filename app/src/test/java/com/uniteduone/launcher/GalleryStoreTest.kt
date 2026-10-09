@@ -120,4 +120,16 @@ class GalleryStoreTest {
         assertTrue(GalleryStore(s.root, s.thumbs).removeOriginal(a.original.blob.sha256, emptySet()))
         assertFalse(local.file.exists())
     }
+    @Test fun explicitOrphanCleanupKeepsRegisteredAndProtectedOriginals() {
+        val s = store(); val a = item(); s.commitOriginal(a, part(s, "original"))
+        val orphanHash = hash("orphan".toByteArray())
+        val orphan = File(s.root, "$orphanHash.original").apply { writeText("orphan") }
+        File(s.root, "unrelated.original").writeText("keep")
+        assertEquals(setOf(orphanHash), s.orphanedOriginals())
+        assertTrue(s.cleanupOrphans(setOf(orphanHash)).isEmpty()); assertTrue(orphan.exists())
+        assertEquals(setOf(orphanHash), s.cleanupOrphans(emptySet())); assertFalse(orphan.exists())
+        assertNotNull(s.resolve(GalleryAdoption(a.id, a.original.blob.sha256)))
+        assertTrue(File(s.root, "unrelated.original").exists())
+    }
+
 }

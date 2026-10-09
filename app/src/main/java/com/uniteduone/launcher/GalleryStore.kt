@@ -152,6 +152,16 @@ class GalleryStore(val root: File, val thumbs: File,
         if (!deleteOriginal(dst)) throw IOException("Cannot delete gallery original")
         return true
     }
+    /** Enumerates retryable bytes left after membership removal; never deletes automatically. */
+    fun orphanedOriginals(): Set<String> = files.registry.locked {
+        val registered = loadRegistry().map { it.original.blob.sha256 }.toSet()
+        root.listFiles().orEmpty().filter { it.isFile && it.name.matches(Regex("[a-f0-9]{64}\\.original")) }
+            .map { it.name.removeSuffix(".original") }.filter { it !in registered }.toSet()
+    }
+    fun cleanupOrphans(protected: Set<String>): Set<String> = files.registry.locked {
+        val keep = protected.map(::checkedHash).toSet()
+        orphanedOriginals().filter { it !in keep }.filter { removeOriginalFile(it) }.toSet()
+    }
     fun sweepParts(active: Set<File>) = files.registry.locked {
         val protected = active.map { it.canonicalFile }.toSet()
         root.listFiles().orEmpty().filter { it.isFile && it.name.endsWith(".part") && it.canonicalFile !in protected }

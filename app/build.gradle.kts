@@ -11,6 +11,10 @@ val releaseProps = Properties().apply {
     if (f.exists()) f.inputStream().use { load(it) }
 }
 
+// GalleryHttp enforces HTTPS; DEBUG alone can use explicit 127.0.0.1 HTTP tests.
+val galleryBaseUrl: String = providers.gradleProperty("unitedu.galleryBaseUrl").orNull
+    ?: "https://dl.uniteduone.com/gallery/"
+
 /**
  * 检查更新的通道(spec §7.3),按顺序尝试,逗号分隔。来源:Gradle 属性 `unitedu.updateUrls`
  * (写在 gradle.properties 或命令行 `-Punitedu.updateUrls=…`)。COS 桶地址由 Gordon 自己在
@@ -49,6 +53,8 @@ android {
         targetSdk = 35
         versionCode = appVersionCode
         versionName = "1.0.3"
+        buildConfigField("String", "GALLERY_BASE_URL",
+            "\"" + galleryBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"") + "\"")
         // 进 Java 字符串字面量:反斜杠与引号先转义(地址里本不该有,防手误把整个构建弄坏)。
         buildConfigField(
             "String",
