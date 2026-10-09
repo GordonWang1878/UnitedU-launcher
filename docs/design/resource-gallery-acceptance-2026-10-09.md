@@ -13,7 +13,7 @@
 | 壁纸/卡片采用 | 壁纸持久化 id/hash并关闭页，冷启动不变；卡片关闭页，9092字节独立副本 hash 等于原图 | Settings卡片原文件备份缺口见下节 |
 | 屏保加入/移除与共享播放 | ✓截图；移除写空集合，重加恢复id/hash；排除内置后，桌面屏保及系统Dream实际渲染同一screen-00 | 未重放完整旧上传视频/全部legacy E2E |
 | 系统Dream真正进入 | dumpsys `mCurrentDream=DreamRecord(...UnitedUDream...)`，窗口 `android.service.dreams.DreamActivity`；全部5项系统设置恢复比较一致 | 仅模拟器；不以截图或Somnambulator启动成功代替证明 |
-| 内容更新不暗换图、下架保留 | revision B新hash显示Update available，旧选择不变；明确重选才改hash；revision3下架后两旧版本仍可见，断开本地网络后选旧版成功并关页 | 同页后台插入/重排/下架焦点维持主要由稳定key JVM用例验证；重新开页的默认落焦不算该证明 |
+| 内容更新不暗换图、下架保留 | revision B新hash显示Update available，旧选择不变；明确重选才改hash；revision3下架后两旧版本仍可见，断开本地网络后选旧版成功并关页 | 补验同一mounted picker：插入+重排保持wall-04；下架wall-04落同组相邻wall-inserted，均1焦点且有坐标/截图。重新开页默认落焦不算证明 |
 | 内置/我的、遥控焦点 | 内置保持可见、我的上传入口保持；取消回原格；按住DPAD_DOWN后1个焦点且bounds在屏内，自算offset网格可到保留版本 | 上传图片新增/视频全路径未重放；焦点截图不是动画时序证明 |
 | 原图HDR保真 | 真正下载1557093字节，SHA256与源完全一致；Android14 BitmapFactory探针3840×2160，`hasGainmap=true`；采用原图路径 | 模拟器不能证明HDR亮度/电视面板视觉表现，真机须经正式检查更新路径另行验收 |
 | 删除保护/未使用下载/孤儿清理 | 当前壁纸拒删；未使用wall-01原图删除且状态更新；孤儿d*64文件删除，修复后不再失败提示；保护hash未变 | 原图自动淘汰未实施，设计就是显式清理 |
@@ -52,3 +52,15 @@ git diff --check
 真实观察截图在 [resource-gallery](../screenshots/resource-gallery/)：`wallpaper-adopted`、`card-adopted`、`screensaver-joined`、`custom-screensaver`、`system-dream`、`cached-offline`、`first-offline`、`retained-version`、`hdr-wallpaper-adopted`、`invalid-original`、`long-list-focus`、`cleanup-success`。截图用于确认画面，持久化/HTTP/解码/Dream结论另有上述独立证据。`protected-download`与`refresh-failed`截图来自提示标题小修前APK，保护/失败行为有效，当前标题已统一为在线图库。
 
 设计见 [官方图库](../superpowers/specs/2026-10-08-resource-gallery-design.md)，发布步骤见 [发布工具](resource-gallery-publishing.md)。实际上传、推远程、正式APK发布和电视验证是独立授权边界，本文不宣称上线。
+
+## Task8 独立评审补验（2026-10-09）
+
+有界核查原Settings图恢复来源：`/tmp/gallery-task6-ui`9项、`/tmp/task8-restoration`2项、`/tmp/unitedu-e2e`229项、`/tmp/gallery-task6-fixture`34项，以及/tmp顶层包名/icon候选，未找到独立的测试前原图。模拟器icons目录仅有22:02写入的9092字节测试图，无prev/part；`/tmp/task8-card-copy.png`是采用后拉取的测试图，不是恢复源。基线layout三行空应用不记录icons文件，也不能证明文件原来不存在；Paths.iconFor按包名固定映射到这一basename，没有可据此认定的旧别名。gallery基线tar包含内部gallery10个文件，不包含外置icons。
+
+因此，本轮已知来源没有可认证的原Settings图字节，仍无法确认此前文件存在与否，**无法恢复或证明恢复；完整数据保留约束尚未满足，该例外待Gordon/控制器处置**。没有猜测原图、替换成系统默认图或删除当前测试文件。这里不是对设备全部潜在法证恢复可能性的断言。
+
+同页焦点补验采用延迟manifest响应，没有产品debug hook或功能修改。在缓存网格聚焦wall-04后释放revision10（插入wall-inserted并把wall-04重排到首项）：wall-04保持唯一焦点，控件bounds由`(548,586,940,860)`移到`(548,280,940,554)`，截图里焦框确实跟随这一紫色资源。然后在同一picker从刷新菜单启动下一请求，返回网格、移到wall-04再释放revision11（下架未下载wall-04）：焦点按同组旧位置落到邻项wall-inserted，仍只有1个焦点、bounds`(548,280,940,554)`。三个画面均已目视核对名称和焦框；两次响应之间没有返回/关闭或重开picker。
+
+持久证据：[same-page-focus-evidence.json](../screenshots/resource-gallery/same-page-focus-evidence.json)与同目录三张`same-page-*`截图；临时逐步输出`/tmp/task8-focus.log`。最初Activity捕获过滤字段写为mResumedActivity而实际字段是topResumedActivity，输出为空，因此没有将两个空值相等当作Activity身份保持的证明。真正依据是同一次挂载中的按键/响应序列、焦点自报及实际画面。
+
+这轮补验只改目录缓存和已备份设置，恢复后settings/layout JSON比较一致，gallery10个文件逐个SHA256与原基线一致；Settings未知原图仍保持不动。只增加文档/证据，不修改功能代码或重复全套构建。既有最终全套结果仍是906项JVM（905执行通过、1既有忽略）、Python20/20及两构建。

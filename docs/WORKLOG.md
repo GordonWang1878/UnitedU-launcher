@@ -1992,3 +1992,5 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - Task7 最终真实三类产物已由 Kotlin parser 全量读取，原图/缩略图实际 byte/hash 与协议一致，临时 smoke 1/1 通过；不是生产 CDN 或视觉 HDR 验收。
 
 图库最终集成验收见 [resource-gallery-acceptance-2026-10-09.md](design/resource-gallery-acceptance-2026-10-09.md)：906项JVM（905通过+1既有忽略）、Python20项、debug/release；真实Dream/原图gainmap/离线与取消行为。实际孤儿清理返回删除hash被UI误判残留已修复。Settings卡片测试前缺少单文件原状态备份，不能宣称已恢复；其余设置/layout/gallery及系统设置有比较证据。计划中的oldItem/fakeTransport只是测试草图，正式用例均须自建完整fixture。
+
+Task8评审补验：同一mounted picker延迟清单响应，wall-04经插入/重排保持身份及单焦点，下架后落同组邻项wall-inserted，坐标与三张截图记录在验收报告；不把重新开页默认落焦算证据。Settings原图有界恢复来源核查未找到可信测试前字节，其此前有无文件仍未知，完整保留约束未满足、待Gordon/控制器处置；未猜测或删除。补验仅文档/证据，不重跑已有绿全套。

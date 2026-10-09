@@ -1,0 +1,55 @@
+{
+  "device": "emulator-5560",
+  "samePickerMount": true,
+  "mechanism": "Hold index.json HTTP response; move focus on cached grid; release response; second refresh returns immediately to same grid while response held. No picker dismiss/reopen between releases.",
+  "phases": [
+    {
+      "catalogRevisionBefore": 1,
+      "focusedIdBefore": "wall-04",
+      "focusCountBefore": 1,
+      "boundsBefore": [
+        548,
+        586,
+        940,
+        860
+      ],
+      "catalogRevisionAfter": 10,
+      "catalogMutation": "insert wall-inserted order=-5; reorder wall-04 to order=-10",
+      "focusedIdAfter": "wall-04",
+      "focusCountAfter": 1,
+      "boundsAfter": [
+        548,
+        280,
+        940,
+        554
+      ]
+    },
+    {
+      "catalogRevisionBefore": 10,
+      "focusedIdBefore": "wall-04",
+      "focusCountBefore": 1,
+      "boundsBefore": [
+        548,
+        280,
+        940,
+        554
+      ],
+      "catalogRevisionAfter": 11,
+      "catalogMutation": "downlist undownloaded wall-04",
+      "focusedIdAfter": "wall-inserted",
+      "focusCountAfter": 1,
+      "boundsAfter": [
+        548,
+        280,
+        940,
+        554
+      ]
+    }
+  ],
+  "screenshots": [
+    "same-page-before-insert.png",
+    "same-page-after-insert-reorder.png",
+    "same-page-after-downlist.png"
+  ],
+  "activityIdentityComparison": "Not used: attempted mResumedActivity filter returned empty because this Android build exposes topResumedActivity; empty equality is not evidence."
+}
