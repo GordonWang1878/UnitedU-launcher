@@ -74,7 +74,7 @@ cd /Users/gordonwang/orca/workspaces/UnitedU-launcher/频道推荐 && source scr
 | `app/src/main/java/com/uniteduone/launcher/PosterLoader.kt` | 新 | 海报:来源分类、`fetchBytes`(JVM 可测)、采样、`PosterCache`(16 MB LRU + 失败退避) |
 | `app/src/main/java/com/uniteduone/launcher/ChannelLaunch.kt` | 新 | 启动节目:`parseUri` + 去掉授权位 + 只许发布方自己的包,失败回落 `Apps.launch` |
 | `app/src/main/java/com/uniteduone/launcher/ChannelEnv.kt` | 新 | `ChannelEnv` + `LocalChannelEnv`(版本号、请求授权、去系统设置) |
-| `app/src/main/java/com/uniteduone/launcher/HomeVertical.kt` | 新 | 纵向几何:`ChannelRowLayout`、`RowGeom`、`appRowGeom` / `channelRowGeom`、`HomeVertical`(逐行累计 top、焦点线、位移) |
+| `app/src/main/java/com/uniteduone/launcher/HomeVertical.kt` | 新 | 纵向几何:`ChannelRowLayout`、`RowGeom`、`appRowGeom` / `channelRowGeom`、`HomeVertical`(逐行累计 top、焦点线、位移、壁纸逐行压暗) |
 | `app/src/main/java/com/uniteduone/launcher/GtvLayout.kt` | 改 | `rowShiftX(focusedIndex, widths, screenWidthDp)` 变宽版 |
 | `app/src/main/java/com/uniteduone/launcher/HomeChannels.kt` | 新 | 首页纯逻辑:`withChannelContent`、`homeFocusCol`、`loadsPosters` |
 | `app/src/main/java/com/uniteduone/launcher/HomeChannelRow.kt` | 新 | 首页频道行 `ChannelRow` + 海报卡 `PosterCard` |
@@ -1449,6 +1449,14 @@ import android.util.Log
  *   `SecurityException`,研究 §6.4);频道按 `?package=` 过滤,节目按 [TvContract.buildPreviewProgramsUriForChannel]。
  * - **没授权时 TvProvider 不抛异常,只返回 0 行**(研究 §6.2),所以「需要重新授权」先看 [hasPermission];
  *   `SecurityException` 只是兜底。不看 `browsable`(研究 §6.6–6.7:国行与 Google TV 上没人审批,永远是 0)。
+ * - **列不受限、行受限**(AOSP android14-release `TvProvider.java` 核对,2026-10-09):`query` 只用 `createProjectionMapForQuery`
+ *   (约 1823 行)按投影映射取列,不按调用方身份屏蔽或置空任何列——`internal_provider_id`(频道 237 行、预览节目 468 行)、
+ *   `display_name`、`type`、`poster_art_uri` / `_aspect_ratio`、`intent_uri`、`weight`、`duration_millis`、季 / 集字段都在映射里,
+ *   非特权调用方照样读得到;映射里没有的列返回 `NULL AS 列名`、不抛。限制全在**行**上:`createSqlParams`(1887–1900 行)对没有
+ *   `ACCESS_ALL_EPG_DATA` 的调用方,带 selection 抛 `SecurityException`(1890 行),持 `READ_TV_LISTINGS` 时只放开
+ *   `package_name = 自己 OR searchable = 1`(1896 行)。所以发布方把频道或节目设成 `searchable = 0` 时我们读不到那一行
+ *   → 「暂无内容」,不是 bug;`?package=` 由 `appendWhere` 以括号 AND 在后面(1902 行),不破坏这个条件。
+ *   `sortOrder` 传 null(非特权调用方的排序列要过 `validateSortOrder`,1492 行),排序在 `topPrograms` 里做。
  */
 object ChannelSource {
     const val PERMISSION = "android.permission.READ_TV_LISTINGS"
@@ -2145,7 +2153,7 @@ EOF
   - `internal object ChannelRowLayout { CARD_HEIGHT = 110f; HEADER_LINE = 22f; HEADER_IDLE_ALPHA = 0.6f; INFO_TITLE_LINE = 21f; INFO_META_LINE = 16f; fun headerGap(): Float; fun infoGap(): Float; fun infoHeight(): Float; fun cardTop(): Float }`
   - `internal data class RowGeom(val pitch: Float, val cardTop: Float, val visibleBelow: Float)`
   - `internal fun appRowGeom(size: GtvCardSize, showTitles: Boolean): RowGeom`、`internal fun channelRowGeom(): RowGeom`
-  - `internal class HomeVertical(geoms: List<RowGeom>, screenHeightDp: Float, fallback: RowGeom) { val rowsTop: Float; fun focusLine(row: Int): Float; fun restBlockTop(row: Int): Float; fun restCardTop(row: Int): Float; fun shiftY(activeRow: Int): Float }`
+  - `internal class HomeVertical(geoms: List<RowGeom>, screenHeightDp: Float, fallback: RowGeom) { val rowsTop: Float; fun focusLine(row: Int): Float; fun restBlockTop(row: Int): Float; fun restCardTop(row: Int): Float; fun shiftY(activeRow: Int): Float; fun wallpaperAlpha(shiftDp: Float, perRow: Boolean = GtvLayout.WALLPAPER_DIM_PER_ROW): Float }`(最后一个给 MainActivity 的壁纸逐行压暗,替掉按统一 `rowPitch` 插值的 `homeWallpaperAlpha`)
   - `GtvLayout.rowShiftX(focusedIndex: Int, widths: List<Float>, screenWidthDp: Float): Float`
 
 - [ ] **Step 1: 写失败的测试(先钉「全是应用行时逐像素不变」)**
@@ -2223,6 +2231,30 @@ class HomeVerticalTest {
                 assertTrue("$size titles=$titles ${pair.map { it === c }} 行 1 顶 ${v.restBlockTop(1)}", v.restBlockTop(1) >= 540f)
             }
         }
+    }
+
+    /** 壁纸逐行压暗(WALLPAPER_DIM_PER_ROW):全是应用行时与改前 `homeWallpaperAlpha(shift, rowPitch)` 逐值相同(含越过最后一行的弹簧过冲)。 */
+    @Test fun wallpaperDimForAppOnlyLayoutsIsUnchanged() {
+        for (size in sizes) for (titles in listOf(false, true)) for (n in 1..5) {
+            val v = appsOnly(n, size, titles, 540f)
+            val pitch = GtvLayout.rowPitch(size, titles)
+            var s = 0f
+            while (s <= 8 * pitch) {
+                for (perRow in listOf(true, false)) for (sign in listOf(-1f, 1f))
+                    assertEquals("$size titles=$titles n=$n s=$s perRow=$perRow", GtvLayout.homeWallpaperAlpha(sign * s, pitch, perRow), v.wallpaperAlpha(sign * s, perRow), 0.0001f)
+                s += 7.3f
+            }
+        }
+    }
+
+    /** 混排:每行静止位移上 = 该位移的静止 alpha;两行之间按这次位移的进度线性插值(不按统一 rowPitch 折行)。 */
+    @Test fun wallpaperDimInMixedLayoutsFollowsCumulativeTops() {
+        val a = appRowGeom(GtvCardSize.MEDIUM, false)
+        val c = channelRowGeom()
+        val v = HomeVertical(listOf(a, c, a, c), 540f, a)
+        for (r in 0..3) assertEquals("行 $r", GtvLayout.wallpaperAlpha(v.shiftY(r)), v.wallpaperAlpha(v.shiftY(r), perRow = true), 0.0001f)
+        val mid = (v.shiftY(1) + v.shiftY(2)) / 2
+        assertEquals((GtvLayout.wallpaperAlpha(v.shiftY(1)) + GtvLayout.wallpaperAlpha(v.shiftY(2))) / 2, v.wallpaperAlpha(mid, perRow = true), 0.0001f)
     }
 
     @Test fun widthListShiftEqualsTheUniformOneForEqualWidths() {
@@ -2325,6 +2357,30 @@ internal class HomeVertical(geoms: List<RowGeom>, private val screenHeightDp: Fl
         if (activeRow <= 0) return focusLine(0) - restCardTop(0)
         val r = at(activeRow)
         return focusLine(r) - restCardTop(r)
+    }
+
+    /**
+     * 壁纸逐行压暗([GtvLayout.WALLPAPER_DIM_PER_ROW])的逐行累计版本,MainActivity 的壁纸层用它替掉 `homeWallpaperAlpha(shift, rowPitch)`:
+     * |[shiftDp]| 落在哪两行的静止位移(-[shiftY])之间,就在这两行的静止 alpha(都取 [GtvLayout.wallpaperAlpha])之间线性插值;
+     * 越过最后一行(弹簧过冲)按最后一行的 pitch 外推。全是应用行时 -shiftY(n) = n × rowPitch,与改前逐值相同(HomeVerticalTest)。
+     */
+    fun wallpaperAlpha(shiftDp: Float, perRow: Boolean = GtvLayout.WALLPAPER_DIM_PER_ROW): Float {
+        if (!perRow) return GtvLayout.wallpaperAlpha(shiftDp)
+        val d = kotlin.math.abs(shiftDp)
+        fun lerp(s0: Float, s1: Float): Float {
+            val a0 = GtvLayout.wallpaperAlpha(s0)
+            val a1 = GtvLayout.wallpaperAlpha(s1)
+            return if (s1 <= s0) a0 else a0 + (a1 - a0) * ((d - s0) / (s1 - s0))
+        }
+        for (i in 0 until g.lastIndex) {
+            val s1 = -shiftY(i + 1)
+            if (d < s1) return lerp(-shiftY(i), s1)
+        }
+        val sLast = -shiftY(g.lastIndex)
+        val p = g.last().pitch
+        if (p <= 0f) return GtvLayout.wallpaperAlpha(d)
+        val n = kotlin.math.floor(((d - sLast) / p).coerceAtLeast(0f))
+        return lerp(sLast + n * p, sLast + (n + 1f) * p)
     }
 }
 ```
@@ -2708,7 +2764,7 @@ EOF
   - `internal fun loadsPosters(row: Int, activeRow: Int): Boolean`
   - `internal fun homeTargetRow(rows: List<Row>, tgtLayoutRow: Int): Int`、`internal fun homeTargetCell(rows: List<Row>, tgtLayoutRow: Int, tgtCol: Int): Pair<Int, Int>`(owner 裁定:首页焦点目标按 `layoutRow` 认行)
   - `@Composable internal fun ChannelRow(...)`、`@Composable internal fun PosterCard(...)`(签名见 Step 5)
-  - `HomeScreen(..., onFocusedChannel: (Boolean) -> Unit = {})`(频道内容直接 collect `ChannelCache.data`,不再收版本号参数)
+  - `HomeScreen(..., onFocusedChannel: (Boolean) -> Unit = {}, onVerticalGeometry: (HomeVertical?) -> Unit = {})`(后者给 MainActivity 的壁纸逐行压暗;频道内容直接 collect `ChannelCache.data`,不再收版本号参数)
   - 字符串 `channel_row_title`、`channel_meta_season_episode`、`channel_meta_episode`、`channel_meta_hours_minutes`、`channel_meta_minutes`。
 
 - [ ] **Step 1: 写失败的测试**
@@ -3190,6 +3246,8 @@ internal fun PosterCard(
 ```kotlin
     /** R164:焦点在不在频道卡上(得到 / 失去都报)——MainActivity 据此把长按整下吞掉(频道卡长按不做事)。 */
     onFocusedChannel: (Boolean) -> Unit = {},
+    /** R164:首页此刻的纵向几何(逐行累计),交给 MainActivity 的壁纸逐行压暗;null = 首页不在组合里。同 [onPageShiftState] 的上报方式。 */
+    onVerticalGeometry: (HomeVertical?) -> Unit = {},
 ```
 
 (b) 把 `var restoring by remember { mutableStateOf(false) }`(原在 `var tgtPill …` 之后)**整行挪到** `val titles = loaded?.second.orEmpty()` 之前(语义不变,只是要早于下面的频道效果声明);原位置删掉这一行。
@@ -3261,6 +3319,9 @@ internal fun PosterCard(
         else vertical.restCardTop(row)
     val anchorTop = vertical.rowsTop.dp
     val shiftTarget = vertical.shiftY(activeRowSafe)
+    // 壁纸逐行压暗按同一份累计几何插值(MainActivity 绘制阶段读;同一实例重复写不触发失效,只在行的种类 / 尺寸变时换)
+    SideEffect { onVerticalGeometry(vertical) }
+    DisposableEffect(Unit) { onDispose { onVerticalGeometry(null) } }
 ```
 
 `startRowEnter` 里 `val top = GtvLayout.restCardTop(row, cardSize, showTitles, screenHeightDp) + shiftState.value.value` 换成 `val top = restVisibleTop(row) + shiftState.value.value`。
@@ -3464,6 +3525,23 @@ HomeScreen 调用处(`onFocusedCard = { focusedCard = it },` 之后)加:
 
 ```kotlin
                     onFocusedChannel = { focusedOnChannel = it },
+                    onVerticalGeometry = { homeVertical = it },
+```
+
+壁纸逐行压暗改读累计几何(原来按统一 `homePitch` 折行,频道行比应用行高,混排时每行静止位置上的暗度会错):`val homePitch = …` 下面加
+
+```kotlin
+            // R164:首页交上来的逐行累计几何(HomeVertical);null = 首页不在组合里,退回按统一行距。只在下面的 alpha lambda(绘制阶段)里读。
+            var homeVertical by remember { mutableStateOf<HomeVertical?>(null) }
+```
+
+`Wallpaper(…)` 的 `alpha = { GtvLayout.homeWallpaperAlpha(pageShiftState?.value?.value ?: 0f, homePitch) },` 换成
+
+```kotlin
+                alpha = {
+                    val shift = pageShiftState?.value?.value ?: 0f
+                    homeVertical?.wallpaperAlpha(shift) ?: GtvLayout.homeWallpaperAlpha(shift, homePitch)
+                },
 ```
 
 长按识别处:
