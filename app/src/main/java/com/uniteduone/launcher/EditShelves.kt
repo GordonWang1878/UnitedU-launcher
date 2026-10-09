@@ -137,3 +137,165 @@ internal fun choiceFull(shelves: List<Shelf>, choice: NewRowChoice): Boolean = w
 
 /** 顶部概况:行数 + 看得见的应用数。 */
 internal fun editCounts(view: List<LayoutRow>): EditCounts = EditCounts(view.size, view.sumOf { it.apps.size })
+
+/**
+ * 货架的几何、配色、动效常量(R165 §2.1 / §2.5)。数值逐项来自效果图 `docs/design/edit-redesign/shelf.css`、`c1.html`、`c2.html`
+ * (画布 960 × 540 = dp)。字号不在这里——一律 `Type`(12 sp = `Type.CAPTION`,13 px 的行头取 `Type.BODY` 14,17 = `SECTION`,11 = `MICRO`)。
+ */
+internal object ShelfLayout {
+    /** 架子左右留白、圆角、层间距。 */
+    const val SIDE = 40f
+    const val CORNER = 20f
+    const val GAP = 14f
+    /** 第一层架子不位移时的顶边(c1)。 */
+    const val TOP = 84f
+    /** 焦点线:焦点层的顶边对齐屏幕上方 1/3(540 / 3)。 */
+    const val FOCUS_LINE = 180f
+    /** 内容末尾(「新的一行」下面那行说明之后)的留白。 */
+    const val BOTTOM_PAD = 24f
+    /** 页头:左右边距、文字行的顶、渐隐遮罩高(c2:96 px,55% 处起变透明)。 */
+    const val HEADER_LEFT = 58f
+    const val HEADER_Y = 34f
+    const val SCRIM_HEIGHT = 96f
+    const val HINT_GAP = 12f
+    /** 架子里的顶行:离顶 12、高 28、左 18 / 右 16;行图标 18、图标与字间距 8。 */
+    const val HEADER_TOP = 12f
+    const val HEADER_HEIGHT = 28f
+    const val PAD_START = 18f
+    const val PAD_END = 16f
+    const val ICON = 18f
+    const val ICON_GAP = 8f
+    /** 卡片行:离架子顶 56(= 12 + 28 + 16),卡下留 15.375,应用架子总高 140。 */
+    const val CARDS_TOP = 56f
+    const val CARDS_BOTTOM = 15.375f
+    const val APP_SHELF_HEIGHT = 140f
+    const val CARD_GAP = 20f
+    /** 操作胶囊(spec §2.5):28 高、14 圆角、左右内边距 12、间距 8、图标 15;聚焦放大 1.08;平时白 8% 底。 */
+    const val CHIP_HEIGHT = 28f
+    const val CHIP_CORNER = 14f
+    const val CHIP_PAD_H = 12f
+    const val CHIP_GAP = 8f
+    const val CHIP_ICON = 15f
+    const val CHIP_ICON_GAP = 5f
+    const val CHIP_FOCUS_SCALE = 1.08f
+    const val CHIP_IDLE_ALPHA = 0.08f
+    const val CHIP_SHADOW = 6f
+    /** 「新的一行」的选择卡(c2):离架子顶 52、300 × 110、圆角 16、内边距 20 / 16、间距 20;聚焦放大 1.05;平时白 7% 底;已满整卡 45%。 */
+    const val CHOICE_TOP = 52f
+    const val CHOICE_WIDTH = 300f
+    const val CHOICE_HEIGHT = 110f
+    const val CHOICE_CORNER = 16f
+    const val CHOICE_PAD_H = 20f
+    const val CHOICE_PAD_V = 16f
+    const val CHOICE_GAP = 20f
+    const val CHOICE_ICON = 28f
+    const val CHOICE_IDLE_ALPHA = 0.07f
+    const val CHOICE_FOCUS_SCALE = 1.05f
+    const val CHOICE_SHADOW = 14f
+    const val CHOICE_FULL_ALPHA = 0.45f
+    /** 「新的一行」架子高 190(= 52 + 110 + 28),下面一行说明离架子 16。 */
+    const val NEW_ROW_HEIGHT = 190f
+    const val NEW_ROW_CAPTION_GAP = 16f
+    /** 架子玻璃(spec §2.5):平时白 5.5% 底 + 白 7% 边;焦点层白 10% + 白 14% + 阴影;新的一行平时白 3%。 */
+    const val BG_ALPHA = 0.055f
+    const val BORDER_ALPHA = 0.07f
+    const val BG_ALPHA_FOCUSED = 0.10f
+    const val BORDER_ALPHA_FOCUSED = 0.14f
+    const val NEW_ROW_BG_ALPHA = 0.03f
+    const val BORDER = 1f
+    /** 焦点层阴影(效果图 `0 20px 60px rgba(0,0,0,.45)`):黑 45%、向下 20、铺开 40。 */
+    const val SHADOW_ALPHA = 0.45f
+    const val SHADOW_SPREAD = 40f
+    const val SHADOW_DY = 20f
+    /** 非焦点层整层不透明度(效果图 .62)。 */
+    const val IDLE_SHELF_ALPHA = 0.62f
+    /** 整层淡化用的离屏层四边各撑大这么多(R129f:焦点卡的 60 dp 柔光画在架子外)。 */
+    const val LAYER_PAD = GtvLayout.APP_FOCUS_GLOW_DP
+    /** 拿起时的方向箭头:离卡边 12(在放大溢出之外)、三角半宽 5;抬起的阴影 12。 */
+    const val ARROW_GAP = 12f
+    const val ARROW_SIZE = 5f
+    const val CARRY_SHADOW = 12f
+    /** 换层(架子亮度 + 整页位移)200 ms、拿起 / 放下 150 ms,曲线 FastOutSlowIn(spec §2.5)。 */
+    const val SHIFT_MS = 200
+    const val LIFT_MS = 150
+}
+
+/** 落在第 [shelf] 层的 [chip] 那颗;那颗此刻不在(比如删除已不允许)→ 第一颗。 */
+internal fun landingOnChip(shelves: List<Shelf>, shelf: Int, chip: ShelfChip): ShelfSpot =
+    clampSpot(shelves, ShelfSpot(shelf, ShelfZone.CHIPS, shelfChips(shelves, shelf).indexOf(chip).coerceAtLeast(0)))
+
+/** 落在第 [shelf] 层第 [col] 张卡(夹到这一层的卡片数;空架子 = 「添加应用」方块)。 */
+internal fun landingOnCard(shelves: List<Shelf>, shelf: Int, col: Int): ShelfSpot =
+    clampSpot(shelves, ShelfSpot(shelf, ShelfZone.CARDS, col))
+
+/**
+ * 上移 / 下移之后([shelves] 是换完的,[newShelf] 是这一层的新下标):跟着这一层走,落同一颗胶囊;那颗在新位置上没了
+ * (移到第一层没有「上移」、移到最后一个内容层没有「下移」)→ 反方向那颗;再没有 →「换图标」(Review Focus 2)。
+ */
+internal fun landingAfterSwap(shelves: List<Shelf>, newShelf: Int, pressed: ShelfChip): ShelfSpot {
+    val chips = shelfChips(shelves, newShelf)
+    val opposite = when (pressed) {
+        ShelfChip.UP -> ShelfChip.DOWN
+        ShelfChip.DOWN -> ShelfChip.UP
+        else -> pressed
+    }
+    val chip = listOf(pressed, opposite, ShelfChip.ICON).firstOrNull { it in chips } ?: ShelfChip.ADD_APP
+    return landingOnChip(shelves, newShelf, chip)
+}
+
+/**
+ * 删掉第 [deleted] 层之后([shelves] 是删完的):落上一层的**第一颗**胶囊(「添加应用」);删的是第一层落新的第一层。
+ * spec 只写「落上一层的胶囊」——取第一颗而不是同位置的「删除」,免得连按两下确定连删两行(空行删除不弹确认)。
+ */
+internal fun landingAfterDelete(shelves: List<Shelf>, deleted: Int): ShelfSpot =
+    clampSpot(shelves, ShelfSpot((deleted - 1).coerceAtLeast(0), ShelfZone.CHIPS, 0))
+
+/** 新建应用行之后:落最后一个应用架子(就是新的那层)的「添加应用」方块。 */
+internal fun landingAfterAppend(shelves: List<Shelf>): ShelfSpot =
+    clampSpot(shelves, ShelfSpot(shelves.indexOfLast { it is Shelf.AppShelf }.coerceAtLeast(0), ShelfZone.CARDS, 0))
+
+/**
+ * 货架整块往上挪多少 px(≥ 0,spec §2.1):焦点层([focused])的顶边对齐焦点线 [focusLine],再夹到「内容末尾 + [bottomPad]
+ * 刚好贴屏幕底边」为止。[heights] = 各层实测高度,[top] = 第一层不位移时的顶边,[gap] = 层间距,[viewport] = 屏高;
+ * 视窗没量到(0)或没有层 → 0。
+ */
+internal fun shelfScroll(heights: List<Int>, gap: Int, focused: Int, top: Int, focusLine: Int, viewport: Int, bottomPad: Int): Int {
+    if (heights.isEmpty() || viewport <= 0) return 0
+    val f = focused.coerceIn(0, heights.lastIndex)
+    val focusedTop = top + (0 until f).sumOf { heights[it] + gap }
+    val contentBottom = top + heights.sum() + gap * (heights.size - 1) + bottomPad
+    val maxShift = (contentBottom - viewport).coerceAtLeast(0)
+    return (focusedTop - focusLine).coerceIn(0, maxShift)
+}
+
+/** 拿起时卡片四周画哪几个方向箭头:只画按下去真的会挪的方向(与 [moveInLayout] 同一判据;照 Google TV gtv-04)。 */
+internal fun carryArrows(view: List<LayoutRow>, pos: MovePos): Set<MoveDir> =
+    MoveDir.entries.filterTo(mutableSetOf()) { moveInLayout(view, pos, it).first !== view }
+
+/** 整层不透明度:[focus] 0 = 非焦点层([ShelfLayout.IDLE_SHELF_ALPHA]),1 = 焦点层。只在绘制阶段读。 */
+internal fun shelfAlpha(focus: Float): Float {
+    val t = focus.coerceIn(0f, 1f)
+    return ShelfLayout.IDLE_SHELF_ALPHA + (1f - ShelfLayout.IDLE_SHELF_ALPHA) * t
+}
+
+/** 一层玻璃的底 / 边 / 阴影透明度(白 / 白 / 黑),按焦点系数插值。 */
+internal data class ShelfLook(val bg: Float, val border: Float, val shadow: Float)
+
+internal fun shelfLook(focus: Float, dashed: Boolean): ShelfLook {
+    val t = focus.coerceIn(0f, 1f)
+    val bgIdle = if (dashed) ShelfLayout.NEW_ROW_BG_ALPHA else ShelfLayout.BG_ALPHA
+    return ShelfLook(
+        bg = bgIdle + (ShelfLayout.BG_ALPHA_FOCUSED - bgIdle) * t,
+        border = ShelfLayout.BORDER_ALPHA + (ShelfLayout.BORDER_ALPHA_FOCUSED - ShelfLayout.BORDER_ALPHA) * t,
+        shadow = ShelfLayout.SHADOW_ALPHA * t,
+    )
+}
+
+/** 页头右边的按键提示是哪一组:平时(c1)、焦点在新的一行(c2)、拿起中。 */
+internal enum class EditHintSet { BROWSE, NEW_ROW, CARRY }
+
+internal fun editHintSet(zone: ShelfZone?, carrying: Boolean): EditHintSet = when {
+    carrying -> EditHintSet.CARRY
+    zone == ShelfZone.NEW -> EditHintSet.NEW_ROW
+    else -> EditHintSet.BROWSE
+}
