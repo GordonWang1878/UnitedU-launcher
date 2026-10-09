@@ -320,7 +320,7 @@
     <string name="settings_hidden_inputs_count">%1$d hidden</string>
     <string name="toast_inputs_restored">All inputs restored</string>
     <string name="title_dialog_hint_input">OK saves · Back cancels · empty restores the system name</string>
-    <!-- edit_row_* / row_icon_* : edit-screen row menu (row-end +), row icon picker, delete-row confirm (M4b Task 4; since R163 rows have no names, so the rename page is gone) -->
+    <!-- edit_row_* / row_icon_* : edit-screen shelf chips (since R165, replacing the row-end + menu), row icon picker, delete-row confirm (M4b Task 4; since R163 rows have no names, so the rename page is gone) -->
     <string name="edit_row_add_app">Add App</string>
     <string name="edit_row_icon_heading">Choose Row Icon</string>
     <string name="edit_row_delete_confirm_title">Delete this row?</string>
@@ -355,7 +355,7 @@
     <string name="edit_new_row">New Row</string>
     <string name="edit_choice_app_row">App Row</string>
     <string name="edit_choice_app_row_desc">Apps you pick yourself. Reorder them and change the icon.</string>
-    <string name="edit_choice_full">Full · %1$d rows max</string>
+    <string name="edit_choice_full">Full (max %1$d rows)</string>
     <string name="edit_new_row_caption">Up to %1$d app rows</string>
     <string name="row_icon_movie">Movies</string>
     <string name="row_icon_tv">TV</string>

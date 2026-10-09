@@ -108,7 +108,7 @@
 - **R129 换行淡入按几何只在下键触发**:我们的焦点线在屏幕下部,上一行静止时全亮,单按上键不满足「换行前看不见」的条件(连按时才会);这是规则的结果,不是漏写。
 - **A95L 界面层显示不了 HDR**(见 §5),内置 HDR 图在它上面等于 SDR。
 - **主线程 / 组合期的文件 IO**:有几处小文件读取在主线程或组合期里(`MainActivity.kt` 约 468 / 1449 / 1498 / 1822 行、`EditScreen.kt` 里 `rows` 的初值 `Layout.read`),体检报告里列了;目前文件都很小,未改。
-- **超大 composable**:`EditScreen` 约 540 行(R165 已拆出纯逻辑与零件)、`HomeScreen` 约 800 行、`MainActivity.onCreate` 约 580 行。拆分是已知的技术债,不是本轮目标。
+- **超大 composable**:`EditScreen.kt` 约 890 行,其中 `EditScreen` 这个 composable 约 550 行(R165 已拆出纯逻辑与零件)、`HomeScreen` 约 800 行、`MainActivity.onCreate` 约 580 行。拆分是已知的技术债,不是本轮目标。
 - **遗留代码**:`Theme.cardMetrics` / `HomeLayout` 是旧 main 线几何,只剩测试与少量常量引用;`GtvLayout.SETTINGS_TYPE_STEP` / `settingsSp` 是 R109 的记录,界面代码不再读(`Clock.kt` 的 `HeroClock` 已在 R134 删掉)。
 - **代码注释里的少量过时描述**:例如 `GtvLayout.kt` 约 981 行 `ROW_ENTER_*` 的 KDoc 仍写 `FastOutSlowIn`(R129e 起实际是 `LinearEasing`,见 `Theme.homeRowEnterSpec` 与同处 R129e 注释);`Settings.kt` 里 `wallpaperBlur` 注释写「0–100,步 10」(R119 起 0–50、步 5,以 `WALLPAPER_BLUR_MAX` / `_STEP` 为准);`MainActivity` 顶部 KDoc 仍提「齿轮菜单入口」(R69 起是设置外壳)。以代码为准。
 - **测试轮留着没修的两处**(`docs/design/test-round-2026-09-30.md`):`standbyPlan(1, Long.MAX_VALUE)` 溢出成负数——设置只允许固定档位,实际走不到,单测里是 `@Ignore` 用例;`sanitizeUploadName` 不去 C1 控制字符(U+0080–009F),它们在 ext4 上是合法文件名,不影响落盘与删除。

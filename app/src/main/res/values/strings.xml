@@ -312,7 +312,7 @@
     <string name="settings_hidden_inputs_count">%1$d 个</string>
     <string name="toast_inputs_restored">已恢复全部输入源</string>
     <string name="title_dialog_hint_input">确定保存 · 返回取消 · 清空恢复系统名</string>
-    <!-- edit_row_* / row_icon_* : 编辑页行菜单(行尾「+」)、行图标选择器、删行确认框(M4b Task 4;R163 起行没有名字,「行改名」整页取消) -->
+    <!-- edit_row_* / row_icon_* : 编辑页货架顶部的操作胶囊(R165 起取代行尾「+」的行菜单)、行图标选择器、删行确认框(M4b Task 4;R163 起行没有名字,「行改名」整页取消) -->
     <string name="edit_row_add_app">添加应用</string>
     <string name="edit_row_icon_heading">选择行图标</string>
     <string name="edit_row_delete_confirm_title">删除这一行？</string>
