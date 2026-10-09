@@ -411,6 +411,9 @@ fun AboutScreen(
     onTarget: (String) -> Unit = {},
     /** R128:第二颗「恢复默认」——推外壳的恢复默认确认层(关于页随之让开,见 [aboutPageShown])。 */
     onRestoreDefaults: () -> Unit = {},
+    /** R164:第二颗「更新通道」——推外壳的通道页(关于页随之让开)。[channel] = 当前已保存的通道,画在胶囊右端。 */
+    channel: UpdateChannel = UpdateChannel.STABLE,
+    onChannel: () -> Unit = {},
 ) {
     val highlight = LocalThemeColors.current.highlight
 
@@ -419,7 +422,17 @@ fun AboutScreen(
 
     // 按 ABOUT_CAPSULES 的顺序画(R128 的单测按同一张表数胶囊)。
     val items = ABOUT_CAPSULES.map { id ->
-        if (id == ABOUT_RESTORE) {
+        if (id == ABOUT_CHANNEL) {
+            Capsule(
+                id = id,
+                label = stringResource(R.string.channel_title),
+                trailing = Trailing.Value(
+                    stringResource(if (channel == UpdateChannel.BETA) R.string.channel_beta else R.string.channel_stable),
+                    chevron = true,
+                ),
+                onClick = onChannel,
+            )
+        } else if (id == ABOUT_RESTORE) {
             // R128(Gordon 2026-09-29):「恢复默认」从「通用」组挪来(Google TV 也把重置放在 系统 → 关于)。右端 › = 进确认层。
             Capsule(
                 id = id,
@@ -452,7 +465,8 @@ fun AboutScreen(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         BasicText(
-                            text = stringResource(R.string.about_version, versionName, versionCode),
+                            text = stringResource(R.string.about_version, versionName, versionCode) +
+                                if (versionName.contains("-beta")) " · " + stringResource(R.string.about_beta_badge) else "",
                             style = Type.body.copy(color = Ink.Primary),
                         )
                         // 结果区。第一行始终占位(空白态也留一行高),下面的许可声明不会因为「检查中 → 已是最新」上下跳。

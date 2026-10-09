@@ -101,7 +101,8 @@ class SettingsPageLimitTest {
         assertEquals(5, n(ShellPages.group(GroupId.APPEARANCE)))
         assertEquals(6, n(ShellPages.group(GroupId.SCREENSAVER)))
         assertEquals(2, n(ShellPages.sub(STANDBY_ROW)))
-        assertEquals(2, n(ShellPages.ABOUT))
+        assertEquals(3, n(ShellPages.ABOUT))
+        assertEquals(2, n(ShellPages.CHANNEL))
         assertEquals(2, n(ShellPages.RESTORE))
         assertEquals(2, n(ShellPages.HOME))
         // 选项层里最多的是主题色 5 个预设、待机时长 5 档、屏保启动 5 档

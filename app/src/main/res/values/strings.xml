@@ -420,4 +420,10 @@
     <string name="onb_step2_body_empty">没有找到常见的影视、直播或音乐应用。以后可以在「所有应用」里把任何应用加到桌面。</string>
     <string name="onb_add_to_home">放到桌面</string>
     <string name="onb_done">完成</string>
+    <string name="channel_title">更新通道</string>
+    <string name="channel_stable">稳定版</string>
+    <string name="channel_beta">Beta</string>
+    <string name="channel_stable_note">经过验证的版本，推荐大多数人使用。从 Beta 切回时会装回稳定版，布局与设置保留。</string>
+    <string name="channel_beta_note">先用上新功能，可能不太稳定。随时可以切回稳定版，不丢布局。</string>
+    <string name="about_beta_badge">Beta</string>
 </resources>

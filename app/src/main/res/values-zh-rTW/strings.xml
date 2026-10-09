@@ -419,4 +419,10 @@
     <string name="onb_step2_body_empty">沒有找到常見的影音、直播或音樂應用程式。之後可以在「所有應用程式」裡把任何應用程式加到桌面。</string>
     <string name="onb_add_to_home">放到桌面</string>
     <string name="onb_done">完成</string>
+    <string name="channel_title">更新通道</string>
+    <string name="channel_stable">穩定版</string>
+    <string name="channel_beta">Beta</string>
+    <string name="channel_stable_note">經過驗證的版本，推薦大多數人使用。從 Beta 切回時會裝回穩定版，版面與設定保留。</string>
+    <string name="channel_beta_note">先用上新功能，可能不太穩定。隨時可以切回穩定版，不丟版面。</string>
+    <string name="about_beta_badge">Beta</string>
 </resources>

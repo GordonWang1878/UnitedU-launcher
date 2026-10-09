@@ -133,7 +133,7 @@ class ShellModelTest {
     // ---- R128:关于页两颗胶囊;恢复默认确认层从关于页进 ----
 
     @Test fun aboutPageCapsules() {
-        assertEquals(listOf(ShellPages.ABOUT, ABOUT_RESTORE), ABOUT_CAPSULES)
+        assertEquals(listOf(ShellPages.ABOUT, ABOUT_CHANNEL, ABOUT_RESTORE), ABOUT_CAPSULES)
         assertEquals("restoreDefaults", ABOUT_RESTORE)
         assertEquals(ABOUT_CAPSULES, pageCapsuleIds(ShellPages.ABOUT, groups()))
         assertEquals(listOf(SHELL_CANCEL, SHELL_CONFIRM), pageCapsuleIds(ShellPages.RESTORE, groups()))
@@ -385,5 +385,22 @@ class ShellModelTest {
         assertEquals(225f, r.height, 1e-4f)
         // 预览框在左半屏之内
         assertTrue(r.x + r.width <= 960f / 2)
+    }
+
+    @Test fun aboutHidesUnderChannelPage() {
+        assertFalse(aboutPageShown(true, listOf(ShellFrame(ShellPages.ROOT), ShellFrame(ShellPages.CHANNEL))))
+        assertTrue(aboutPageShown(true, listOf(ShellFrame(ShellPages.ROOT))))
+    }
+    @Test fun channelPageCapsules() {
+        assertEquals(CHANNEL_CAPSULES, pageCapsuleIds(ShellPages.CHANNEL, emptyList()))
+        assertTrue(ShellPages.CHANNEL in shellPages(emptyList()))
+    }
+    @Test fun channelCapsuleIds() {
+        assertEquals(CHANNEL_BETA, channelCapsuleId(UpdateChannel.BETA))
+        assertEquals(CHANNEL_STABLE, channelCapsuleId(UpdateChannel.STABLE))
+    }
+    @Test fun decodeKnowsChannelPage() {
+        val stack = listOf(ShellFrame(ShellPages.ROOT, "x"), ShellFrame(ShellPages.CHANNEL, CHANNEL_BETA))
+        assertEquals(stack, decodeShellStack(encodeShellStack(stack)))
     }
 }

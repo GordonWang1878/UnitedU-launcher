@@ -30,6 +30,8 @@ object ShellPages {
     const val HOME = "home"
     /** 「恢复默认」确认页(取代 `ConfirmDialog` 那一处用法)。 */
     const val RESTORE = "restore"
+    /** 「更新通道」二选一页(R164):从关于页的「更新通道」进来,与 [RESTORE] 同属关于页让开的那类层。 */
+    const val CHANNEL = "channel"
     /** 第一层的两颗不进下一层的胶囊:跳系统设置、打开关于页。 */
     const val SYSTEM_SETTINGS = "systemSettings"
     const val ABOUT = "about"
@@ -70,16 +72,28 @@ val HOME_CAPSULES: List<String> = listOf(SHELL_CHANGE_HOME, SHELL_HOME_TAKEOVER)
  */
 const val ABOUT_RESTORE = "restoreDefaults"
 
-/** 关于页的胶囊,自上而下:检查更新(id 沿用 [ShellPages.ABOUT])、恢复默认(界面按这张表画)。 */
-val ABOUT_CAPSULES: List<String> = listOf(ShellPages.ABOUT, ABOUT_RESTORE)
+/** R164:关于页的第二颗「更新通道 稳定版 ›」,按下去推外壳的通道页([ShellPages.CHANNEL])。 */
+const val ABOUT_CHANNEL = "updateChannel"
+
+/** 关于页的胶囊,自上而下:检查更新(id 沿用 [ShellPages.ABOUT])、更新通道、恢复默认(界面按这张表画)。 */
+val ABOUT_CAPSULES: List<String> = listOf(ShellPages.ABOUT, ABOUT_CHANNEL, ABOUT_RESTORE)
+
+/** 通道页的两颗胶囊 id(R164)。 */
+const val CHANNEL_STABLE = "channel:stable"
+const val CHANNEL_BETA = "channel:beta"
+val CHANNEL_CAPSULES: List<String> = listOf(CHANNEL_STABLE, CHANNEL_BETA)
+
+/** 通道对应的胶囊 id。通道页推栈时的缺省焦点 = 当前已保存通道那一颗(由 MainActivity 传,`defaultFocus` 不给 CHANNEL 缺省)。 */
+fun channelCapsuleId(c: UpdateChannel): String = if (c == UpdateChannel.BETA) CHANNEL_BETA else CHANNEL_STABLE
 
 /**
  * 关于页此刻画不画(R128)。关于页是叠在外壳第一层之上的整屏页;从它的「恢复默认」进确认层时,确认层是外壳栈上的一层,
  * 关于页让开(淡出、外壳不再 covered),确认层返回 / 确定弹栈后关于页重新出现、落回「恢复默认」。
- * 只有「确认层在栈顶」这一种情况让开——[about] 为真时其余任何栈形状都照常画关于页(不会出现「开着却看不见」的黑洞)。
+R164 起通道页([ShellPages.CHANNEL])同理。
+ * 只有「确认层 / 通道页在栈顶」这两种情况让开——[about] 为真时其余任何栈形状都照常画关于页(不会出现「开着却看不见」的黑洞)。
  */
 fun aboutPageShown(about: Boolean, stack: List<ShellFrame>): Boolean =
-    about && stack.lastOrNull()?.page != ShellPages.RESTORE
+    about && stack.lastOrNull()?.page.let { it != ShellPages.RESTORE && it != ShellPages.CHANNEL }
 
 /** 第一层的一颗胶囊:标题 + 说明小字(Gordon 定案:第一层保留两行胶囊)。 */
 data class RootEntry(val id: String, val labelRes: Int, val hintRes: Int)
@@ -154,6 +168,7 @@ fun pageCapsuleIds(page: String, groups: List<GroupSpec>): List<String>? {
         ShellPages.HOME -> HOME_CAPSULES
         ShellPages.RESTORE -> RESTORE_CAPSULES
         ShellPages.ABOUT -> ABOUT_CAPSULES
+        ShellPages.CHANNEL -> CHANNEL_CAPSULES
         else -> null
     }
 }
@@ -173,6 +188,7 @@ fun shellPages(groups: List<GroupSpec>): List<String> = buildList {
     }
     add(ShellPages.HOME)
     add(ShellPages.RESTORE)
+    add(ShellPages.CHANNEL)
     add(ShellPages.ABOUT)
 }
 
@@ -290,7 +306,7 @@ fun decodeShellStack(text: String?): List<ShellFrame> {
     }
     if (frames.first().page != ShellPages.ROOT) return emptyList()
     val known = frames.all { f ->
-        f.page == ShellPages.ROOT || f.page == ShellPages.HOME || f.page == ShellPages.RESTORE ||
+        f.page == ShellPages.ROOT || f.page == ShellPages.HOME || f.page == ShellPages.RESTORE || f.page == ShellPages.CHANNEL ||
             ShellPages.groupOf(f.page) != null ||
             ShellPages.subRow(f.page)?.let { it in SUB_PAGE_ROWS } == true ||
             ShellPages.optionsRow(f.page)?.let { it == "language" || optionWrite(it) != null } == true

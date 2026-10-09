@@ -872,6 +872,12 @@ class MainActivity : ComponentActivity() {
                             // R128:每次打开关于页都从「检查更新」开始(目标清空);恢复默认确认层回来时不经这里,目标留着。
                             onOpenAbout = { if (live) { aboutFocus = null; about = true } },
                             onConfirmRestore = { if (live) confirmRestoreDefaults() },
+                            // R164:先写盘、再 switchChannel()(它在 IO 线程读 SettingsStore,写必须先完成)。
+                            onPickChannel = { c ->
+                                SettingsStore.update(this@MainActivity) { it.copy(updateChannel = c) }
+                                settingsRevision++
+                                aboutFlow.switchChannel()
+                            },
                             onChangeHome = { if (live) switchHome() },
                             onHomeKeyTakeover = { if (live) openHomeKeySettings() },
                             onWritten = { settingsRevision++ },
@@ -991,6 +997,8 @@ class MainActivity : ComponentActivity() {
                     target = aboutFocus,
                     onTarget = { if (live) aboutFocus = it },
                     onRestoreDefaults = { if (live) pushShell(ShellPages.RESTORE) },
+                    channel = homeSaved.updateChannel,
+                    onChannel = { if (live) shellStack = shellPush(shellStack, ShellPages.CHANNEL, channelCapsuleId(homeSaved.updateChannel)) },
                 )
             }
             // 首次引导(T10,spec §8)。画在最上层,而且**放在 editing 的 if/else 之外**:引导开着时

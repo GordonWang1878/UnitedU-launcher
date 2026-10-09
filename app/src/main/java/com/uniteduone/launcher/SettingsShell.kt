@@ -403,6 +403,8 @@ fun SettingsShell(
     onOpenSystemSettings: () -> Unit,
     onOpenAbout: () -> Unit,
     onConfirmRestore: () -> Unit,
+    /** R164:通道页选中一颗(已保存的那颗不回调)。调用方写盘后再触发一次检查。 */
+    onPickChannel: (UpdateChannel) -> Unit,
     onChangeHome: () -> Unit,
     /** R162:「主页键接管」胶囊(「设置默认桌面」页第二颗,条件行)。 */
     onHomeKeyTakeover: () -> Unit,
@@ -641,6 +643,32 @@ fun SettingsShell(
                     left = {
                         ShellTitle(settingsTitle + " · " + stringResource(R.string.menu_about), stringResource(R.string.restore_title)) {
                             BasicText(stringResource(R.string.restore_body), style = shellBodyStyle.copy(textAlign = TextAlign.Center))
+                        }
+                    },
+                    right = { CapsuleColumn(items, target, onFocus, focusNonce, covered) },
+                )
+            }
+
+            top.page == ShellPages.CHANNEL -> {
+                // 双通道(2026-10-09,R164):从关于页「更新通道」进来,关于页此时让开(aboutPageShown)。
+                // 选中即写盘、弹栈,关于页重新出现并按新通道检查一次;返回 = 不改。✓ 标在已保存的那一颗。
+                val channel = saved.updateChannel
+                val items = CHANNEL_CAPSULES.map { id ->
+                    val c = if (id == CHANNEL_BETA) UpdateChannel.BETA else UpdateChannel.STABLE
+                    Capsule(
+                        id = id,
+                        label = stringResource(if (c == UpdateChannel.BETA) R.string.channel_beta else R.string.channel_stable),
+                        trailing = if (c == channel) Trailing.Check else Trailing.None,
+                        onClick = { onPop(); if (c != channel) onPickChannel(c) },
+                    )
+                }
+                ShellScaffold(
+                    left = {
+                        ShellTitle(settingsTitle + " · " + stringResource(R.string.menu_about), stringResource(R.string.channel_title)) {
+                            ShellNote(
+                                text = stringResource(if (target == CHANNEL_BETA) R.string.channel_beta_note else R.string.channel_stable_note),
+                                reserve = listOf(stringResource(R.string.channel_beta_note), stringResource(R.string.channel_stable_note)),
+                            )
                         }
                     },
                     right = { CapsuleColumn(items, target, onFocus, focusNonce, covered) },

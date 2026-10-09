@@ -428,4 +428,10 @@
     <string name="onb_step2_body_empty">We didn\'t find common video, live TV or music apps. You can add any app later from All Apps.</string>
     <string name="onb_add_to_home">Add to Home Screen</string>
     <string name="onb_done">Done</string>
+    <string name="channel_title">Update channel</string>
+    <string name="channel_stable">Stable</string>
+    <string name="channel_beta">Beta</string>
+    <string name="channel_stable_note">Tested releases, recommended for most people. Switching back from Beta reinstalls the stable version and keeps your layout and settings.</string>
+    <string name="channel_beta_note">Get new features first; may be less stable. You can switch back to Stable anytime without losing your layout.</string>
+    <string name="about_beta_badge">Beta</string>
 </resources>
