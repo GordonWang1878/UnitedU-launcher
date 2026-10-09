@@ -117,6 +117,20 @@ class MainActivity : ComponentActivity() {
     /** 换过图/改过布局后 +1,用来强制界面重新读取 */
     private var revision by mutableStateOf(0)
     /**
+     * R164:频道数据的版本号——TvProvider 有变化(ContentObserver,500 ms 去抖)、授权结果回来、onResume 时 ++。
+     * 只重读频道内容,不重读 layout.json 与应用横幅(那是 [revision] 的事,spec §3.3)。
+     */
+    private var channelsRevision by mutableStateOf(0)
+    private var tvListingsCallback: ((PermissionResult) -> Unit)? = null
+    /** 这次申请前的 shouldShowRequestPermissionRationale(前后对照判「系统有没有弹窗」,见 [permissionResult])。 */
+    private var tvListingsRationaleBefore = false
+    private lateinit var tvListingsRequest: androidx.activity.result.ActivityResultLauncher<String>
+    private var channelsBump: kotlinx.coroutines.Job? = null
+    private var tvObserverOn = false
+    private val tvObserver = object : android.database.ContentObserver(android.os.Handler(android.os.Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) = bumpChannelsSoon()
+    }
+    /**
      * 只重读 settings.json、**不重建首页行**的计数器。壁纸选图 / 铺入清理 / 设置页每一次改动走它:
      * 这些事很频繁,若走 revision 会连 layout.json 与全部卡片图一起重读一遍。
      */
@@ -361,6 +375,30 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // R164:本应用第一处运行时权限。结果回来 channelsRevision++(编辑页 / 选频道页 / 首页重读),focusNonce++(系统授权窗
+        // 盖过来时本页 ON_PAUSE 冻结了焦点,回来要接回)。
+        tvListingsRequest = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
+            channelsRevision++
+            focusNonce++
+            val after = shouldShowRequestPermissionRationale(ChannelSource.PERMISSION)
+            val marks = getSharedPreferences(TV_LISTINGS_MARKS, MODE_PRIVATE)
+            val result = permissionResult(granted, tvListingsRationaleBefore, after, marks.getBoolean(TV_LISTINGS_DENIED, false))
+            // 「点过拒绝」的记号:见过 rationale 为真就记下,授权到手就清(之后被自动收回 / 清标记时不会把一次返回关窗误判成永久拒绝)。
+            // 单写者(主线程)的小 SharedPreferences,同 RelaunchMarks,不是落盘铁律管的多写者状态文件。
+            when {
+                granted -> marks.edit().remove(TV_LISTINGS_DENIED).commit()
+                tvListingsRationaleBefore || after -> marks.edit().putBoolean(TV_LISTINGS_DENIED, true).commit()
+            }
+            tvListingsCallback?.invoke(result)
+            tvListingsCallback = null
+        }
+        ensureTvObserver()
+        // owner 裁定(2026-10-08):频道数据只有一份进程级缓存 ChannelCache(Task 7),首页 / 编辑页 / 选频道页都读它。
+        // channelsRevision 每变一次(TvProvider 去抖、授权结果、onResume)后台重读一次;snapshotFlow 先发当前值 = 启动时读一次。
+        // 同 warmAppsPage 的写法(snapshotFlow + conflate:连着变几次只读最后一次)。
+        lifecycleScope.launch {
+            snapshotFlow { channelsRevision }.conflate().collect { ChannelCache.refresh(applicationContext) }
+        }
         // HDR 窗口:Ultra HDR 壁纸 / 屏保的增益图只在 HDR 模式下被用上。Android 14 的语义(AOSP ViewRootImpl /
         // CanvasContext):HDR 模式向系统要的余量恒为 `debug.hwui.max_hdr_headroom_on_8bit`(默认 5),与画面内容无关;
         // 显示器不报 HDR/SDR 比例时系统把它降成广色域,不是广色域屏再降成默认——都不会报错(gtv spec「HDR 壁纸 / 屏保显示链」一节)。
@@ -632,6 +670,9 @@ class MainActivity : ComponentActivity() {
                 LocalCardFade provides homeSettings.cardFade(),
                 LocalToast provides showToast,
                 LocalAmbient provides ambient,
+                LocalChannelEnv provides remember(channelsRevision) {
+                    ChannelEnv(channelsRevision, ::requestTvListings, ::openTvListingsSettings)
+                },
             ) {
             Box(
                 Modifier
@@ -1691,6 +1732,41 @@ class MainActivity : ComponentActivity() {
         super.onStop()
     }
 
+    /** R164:500 ms 去抖后 channelsRevision++(应用同步频道时会连写几十行)。 */
+    private fun bumpChannelsSoon() {
+        channelsBump?.cancel()
+        channelsBump = lifecycleScope.launch {
+            delay(CHANNELS_DEBOUNCE_MS)
+            channelsRevision++
+        }
+    }
+
+    /** 监听 `content://android.media.tv`(含子路径)。注册失败(provider 不在、厂商改过)只是不自动刷新,onResume 再试。 */
+    private fun ensureTvObserver() {
+        if (tvObserverOn) return
+        tvObserverOn = runCatching {
+            contentResolver.registerContentObserver(android.net.Uri.parse("content://android.media.tv"), true, tvObserver)
+        }.isSuccess
+    }
+
+    /** 弹系统授权窗;已经有权限时直接回调 GRANTED。结果经 [tvListingsRequest] 回到主线程;起不来按 DENIED(留在原地)。 */
+    private fun requestTvListings(onResult: (PermissionResult) -> Unit) {
+        if (ChannelSource.hasPermission(this)) { onResult(PermissionResult.GRANTED); return }
+        tvListingsCallback = onResult
+        tvListingsRationaleBefore = shouldShowRequestPermissionRationale(ChannelSource.PERMISSION)
+        runCatching { tvListingsRequest.launch(ChannelSource.PERMISSION) }.onFailure {
+            tvListingsCallback = null
+            onResult(PermissionResult.DENIED)
+        }
+    }
+
+    /** 跳本应用的系统详情页(拒绝过之后只能从那里开);回来由 onResume 的 channelsRevision++ 重读授权。 */
+    private fun openTvListingsSettings() {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", packageName, null))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (runCatching { startActivity(intent) }.isFailure) toast(getString(R.string.toast_system_settings_unavailable))
+    }
+
     override fun onResume() {
         super.onResume()
         lastInput = System.currentTimeMillis()
@@ -1699,6 +1775,10 @@ class MainActivity : ComponentActivity() {
         // 第一下按键才建立、而且落在第一张卡)。所以这里必须补一次请求;
         // 界面那边现在会把它送回**离开前那张卡**,不再是第一行第一张。
         focusNonce++
+        // R164:授权可能在系统设置里被改(撤销会杀进程,开启不会);频道数据重读一次。没授权时 snapshot 只查一次
+        // checkSelfPermission 就返回;有授权时不论有没有频道行都整份重读(缓存也供选频道页用),内容相同则不通知任何人。
+        ensureTvObserver()
+        channelsRevision++
         // 兜底清掉布局里已经没装的包(Ruling R68):卸载广播漏掉的、进程不在时卸的、历史残留。
         // 改了才 revision++(首页 / 编辑页按新文件重读);防误删的判据都在 pruneMissingPackages 里。
         lifecycleScope.launch {
@@ -2278,6 +2358,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         runCatching { unregisterReceiver(packageChanges) }
+        if (tvObserverOn) runCatching { contentResolver.unregisterContentObserver(tvObserver) }
+        channelsBump?.cancel()
         // 关于页的状态机不跨 Activity 重建(页面本身只在「恢复默认把语言改回跟随系统」那一趟随外壳栈种回来,
         // 状态从 Idle 重新开始,R128):这个实例一走,它等着用户按「安装」的
         // 那份已校验文件就再没人用了,在这里丢掉;进行中的检查 / 下载本来就随 lifecycleScope 取消。
