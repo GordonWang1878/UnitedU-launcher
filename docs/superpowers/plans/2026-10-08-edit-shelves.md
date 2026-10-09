@@ -83,7 +83,7 @@ spec 没明写、但最可能让真人用户撞上的五种情况,各自在所�
 ```bash
 cd /Users/gordonwang/orca/workspaces/UnitedU-launcher/频道推荐
 git switch -c edit-shelves
-git status --short   # 工作区里已有的 docs/WORKLOG.md、spec、docs/screenshots/edit-ref/ 改动属于上一段会话,不要 add 进本计划的提交
+git status --short   # 应为空(上一段会话的 WORKLOG / spec / edit-ref 截图都已提交);若有别人的未提交改动,不要 add 进本计划的提交
 ```
 
 ---
@@ -3265,7 +3265,8 @@ def run():
     long_ok()
     s = screen()
     check("长按 = 卡片菜单:换卡片图 / 移出这一行", s.has(S("edit_change_image")) and s.has(S("edit_remove")), s.texts()[-6:])
-    check("卡片菜单里没有「移动位置」(R165:确定就是拿起)", not s.has(S("card_menu_move")), s.texts()[-6:])
+    # 按整串相等判:菜单底下的编辑页节点仍在 uiautomator 树里,焦点层胶囊「Move Up / Move Down」含子串「Move」,s.has 会误报
+    check("卡片菜单里没有「移动位置」(R165:确定就是拿起)", S("card_menu_move") not in s.texts(), s.texts()[-6:])
     check("长按松手不误拿起(没有「放下」提示、没写盘)", not s.has(S("edit_hint_drop")) and rows() == order_before, s.texts()[:12])
     check("长按松手不误点菜单第一项(没进换卡片图页)", not s.has(S("picker_card_image_title")), s.texts()[:6])
     check("卡片菜单单个焦点", s.count_focused() == 1, s.count_focused())
@@ -3678,7 +3679,8 @@ sub("docs/REVIEW-GUIDE.md",
 p = pathlib.Path("docs/REVIEW-GUIDE.md"); t = p.read_text()
 old107 = next(l for l in t.split("\n") if l.startswith("- **从「换卡片图」回到编辑页时,编辑页的纵向滚动位置可能与离开前不同**"))
 t = t.replace(old107 + "\n", "")
-t = t.replace("`EditScreen` 约 880 行、", "`EditScreen` 约 700 行(R165 已拆出纯逻辑与零件)、")
+t = t.replace("`EditScreen` 约 880 行、", "`EditScreen` 约 540 行(R165 已拆出纯逻辑与零件)、")
+t = t.replace("`EditScreen.kt` 约 135 行", "`EditScreen.kt` 里 `rows` 的初值 `Layout.read`")
 p.write_text(t)
 # README 中文
 sub("README.zh-CN.md", "在每一行末尾的「＋」里添加;", "在每一行顶部的「添加应用」里添加(空行直接按卡片位置的「添加应用」方块);")

@@ -2083,7 +2083,8 @@ Expected: PASS。
 `onResume` 里 `focusNonce++` 之后加:
 
 ```kotlin
-        // R164:授权可能在系统设置里被改(撤销会杀进程,开启不会);频道数据重读一次。没有频道行时这次重读不碰 TvProvider。
+        // R164:授权可能在系统设置里被改(撤销会杀进程,开启不会);频道数据重读一次。没授权时 snapshot 只查一次
+        // checkSelfPermission 就返回;有授权时不论有没有频道行都整份重读(缓存也供选频道页用),内容相同则不通知任何人。
         ensureTvObserver()
         channelsRevision++
 ```
@@ -3336,6 +3337,13 @@ internal fun PosterCard(
 
 (下面的 `while` 循环照旧请求 `rowFocus[r]`、退出判据 `focusedCell != want`。)
 
+**同一个效果里三处 `restoring = false`(顶栏分支、空桌面分支、末尾)一律换成**
+`restoring = !lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)`(`lifecycle` 是上面 ON_PAUSE 观察者用的那个,声明在本效果之前)。
+理由:R164 之前这个效果在后台几乎不会重跑;现在 `channelsLanding` 会在**本页 ON_PAUSE 期间**变——用户在发布方应用里看视频时,那个应用正好在后台同步频道,
+ContentObserver → `channelsRevision++` → 缓存换内容 → 本效果重跑,末尾若无条件 `restoring = false`,就把 ON_PAUSE 起的冻结提前放掉了;
+用户按返回回到首页那一刻 Compose 抢先给 (0,0) 的那次上报就会改写 `tgtLayoutRow` / `tgtCol`(铁律 5「从 ON_PAUSE 就冻结」,同设置外壳「末尾只在 RESUMED 时放开 restoring」)。
+留在 true 不会卡死:回前台 `onResume` 的 `focusNonce++` 让本效果再跑一次,那时已是 RESUMED,照常放开。看门狗以 `restoring` 为 key 与守卫,期间让路(本来也收不到按键)。
+
 看门狗里的
 
 ```kotlin
@@ -3615,7 +3623,8 @@ class ChannelShelfTest {
     }
 
     @Test fun clampKeepsSpotsOnAChannelShelfOnItsChips() {
-        assertEquals("频道架子没有卡片条", ShelfSpot(1, CHIPS, 0), clampSpot(shelves(), ShelfSpot(1, CARDS, 3)))
+        // clampSpot 换条时格号不清零、照夹(edit-shelves 的写法,应用架子 NEW → CARDS 同样如此):3 颗胶囊 → 夹到 2
+        assertEquals("频道架子没有卡片条:改落胶囊条", ShelfSpot(1, CHIPS, 2), clampSpot(shelves(), ShelfSpot(1, CARDS, 3)))
         assertEquals("授权回来「重新授权」没了:同一位置夹取", ShelfSpot(1, CHIPS, 2), clampSpot(shelves(), ShelfSpot(1, CHIPS, 3)))
     }
 
@@ -3772,7 +3781,7 @@ Step 3 新加的 `Shelf.ChannelShelf` 与 `ShelfChip.REAUTHORIZE` 让 `EditScree
 
 `EditScreen.kt`(edit-shelves 重写后的那份):
 
-(a) 在 `fun view()` 之后、`fun shelvesNow()` 之前加,并把本页**每一处** `shelvesOf(…)` 换成 `shelvesFor(…)`(`shelvesNow()`、`val shelves = shelvesOf(viewRows)`、显式重定位的 `snapshotFlow` 里那一处、看门狗里那一处——共四处,换完 `grep -n "shelvesOf(" EditScreen.kt` 为空):
+(a) 在 `fun view()` 之后、`fun shelvesNow()` 之前加,并把本页**每一处** `shelvesOf(…)` 换成 `shelvesFor(…)`(`shelvesNow()`、`val shelves = shelvesOf(viewRows)`、显式重定位效果里两处(`snapshotFlow` 里一处、`val want = clampSpot(shelvesOf(view()), wanted)` 一处)、看门狗里那一处——共五处,换完 `grep -n "shelvesOf(" EditScreen.kt` 为空):
 
 ```kotlin
     // R164 + owner 裁定(2026-10-08):频道架子的内容与应用名来自进程级 ChannelCache(MainActivity 按 channelsRevision 刷新),
@@ -5055,7 +5064,7 @@ EOF
 焦点表「首页卡片 / 顶栏药丸组」那一行末尾追加:
 
 ```
-**R164 频道行**是 `rows` 里的普通一行(`Row.channel` 非 null,卡是 `programs`,画法 `ChannelRow`,HomeChannelRow.kt)。**目标按 layout.json 行号认行**(owner 裁定 2026-10-08):`tgtRow` / `tgtIdx`(画出来的行号、`remember(rows.size)` 整表重建)换成 `tgtLayoutRow` / `tgtCol`,画在第几行由 `homeTargetCell` 现算(行不在了 → 补上它位置的那一行)——频道行没内容 / 节目晚到时整行出现或消失,画出来的行号整体挪一格,下面那行的焦点不动(e2e `j_channels` 实测);rows 仍按位置组合、**不包 `key(layoutRow)`**(包了之后焦点节点跟着行挪走、没有焦点事件,`focusedCell` 过期)。一切「夹到本行末格」改按 `Row.cellCount`(`homeFocusCol`,与 requester 挂点同一个夹取);频道内容来自进程级 `ChannelCache`(首页 / 编辑页 / 选频道页同一份,MainActivity 按 `channelsRevision` 刷新),真的换了内容时**同一次恢复里**先 `restoring = true`、再换数据、再 `channelsLanding++` 让还原效果重跑——应用在后台删节目、焦点卡被拆那一帧 Compose 抢先给的 (0,0) 改不了目标,焦点落回同一行的末张(e2e `j_channels` 8 → 3 张实测);不把「频道重读在途」整段算进 `stale`(否则 TvProvider 每变一次都会吞掉用户的方向键)。没内容 / 没授权的频道行与空应用行同一条过滤(`withChannelContent`)。长按频道卡由 MainActivity 整下吞掉(`focusedOnChannel`),不弹菜单、松手也不启动
+**R164 频道行**是 `rows` 里的普通一行(`Row.channel` 非 null,卡是 `programs`,画法 `ChannelRow`,HomeChannelRow.kt)。**目标按 layout.json 行号认行**(owner 裁定 2026-10-08):`tgtRow` / `tgtIdx`(画出来的行号、`remember(rows.size)` 整表重建)换成 `tgtLayoutRow` / `tgtCol`,画在第几行由 `homeTargetCell` 现算(行不在了 → 补上它位置的那一行)——频道行没内容 / 节目晚到时整行出现或消失,画出来的行号整体挪一格,下面那行的焦点不动(e2e `j_channels` 实测);rows 仍按位置组合、**不包 `key(layoutRow)`**(包了之后焦点节点跟着行挪走、没有焦点事件,`focusedCell` 过期)。一切「夹到本行末格」改按 `Row.cellCount`(`homeFocusCol`,与 requester 挂点同一个夹取);频道内容来自进程级 `ChannelCache`(首页 / 编辑页 / 选频道页同一份,MainActivity 按 `channelsRevision` 刷新),真的换了内容时**同一次恢复里**先 `restoring = true`、再换数据、再 `channelsLanding++` 让还原效果重跑——应用在后台删节目、焦点卡被拆那一帧 Compose 抢先给的 (0,0) 改不了目标,焦点落回同一行的末张(e2e `j_channels` 8 → 3 张实测);不把「频道重读在途」整段算进 `stale`(否则 TvProvider 每变一次都会吞掉用户的方向键);还原效果三处放开 `restoring` 都只在 RESUMED 时放(发布方在后台同步频道会让它在 ON_PAUSE 期间重跑,无条件放开等于提前解冻)。没内容 / 没授权的频道行与空应用行同一条过滤(`withChannelContent`)。长按频道卡由 MainActivity 整下吞掉(`focusedOnChannel`),不弹菜单、松手也不启动
 ```
 
 在「添加应用列表」那一行之后插入新行:
@@ -5078,10 +5087,10 @@ EOF
 
 - [ ] **Step 2: REVIEW-GUIDE.md**
 
-§4 标题里的「84 个文件」按 `ls app/src/main/java/com/uniteduone/launcher/*.kt | wc -l` 的实际数改掉(本计划新增 10 个,edit-shelves 另有新增)。§4 文件地图「首页、行、卡片」一节末尾加:
+§4 标题里的「84 个文件」按 `ls app/src/main/java/com/uniteduone/launcher/*.kt | wc -l` 的实际数改掉(本计划新增 11 个,edit-shelves 另有新增)。§4 文件地图「首页、行、卡片」一节末尾加:
 
 ```
-- 频道行(R164):`ChannelModel.kt`(纯模型:TvProvider 列名、解析、按 key / 名字匹配、排序截断、元数据、选频道页的列表与重定位)、`ChannelSource.kt`(读 TvProvider:显式投影、`?package=`、按频道取节目)、`PosterLoader.kt`(海报:ContentResolver / https 5 s、220 px、16 MB LRU、失败一分钟内不重试)、`ChannelLaunch.kt`(启动节目:去掉 URI 授权位、只许发布方自己的包)、`ChannelEnv.kt`(`LocalChannelEnv`)、`ChannelInit.kt`(`INITIALIZE_PROGRAMS` + `channel-init.json`)、`HomeVertical.kt`(首页纵向几何逐行累计)、`HomeChannels.kt` + `HomeChannelRow.kt`(首页频道行)、`ChannelPicker.kt`(选频道页)。
+- 频道行(R164):`ChannelModel.kt`(纯模型:TvProvider 列名、解析、按 key / 名字匹配、排序截断、元数据、选频道页的列表与重定位)、`ChannelSource.kt`(读 TvProvider:显式投影、`?package=`、按频道取节目)、`ChannelCache.kt`(进程级频道缓存:首页 / 编辑页 / 选频道页共用一份,`channelsRevision` 驱动刷新、内容相同不通知)、`PosterLoader.kt`(海报:ContentResolver / https 5 s、220 px、16 MB LRU、失败一分钟内不重试)、`ChannelLaunch.kt`(启动节目:去掉 URI 授权位、只许发布方自己的包)、`ChannelEnv.kt`(`LocalChannelEnv`)、`ChannelInit.kt`(`INITIALIZE_PROGRAMS` + `channel-init.json`)、`HomeVertical.kt`(首页纵向几何逐行累计)、`HomeChannels.kt` + `HomeChannelRow.kt`(首页频道行)、`ChannelPicker.kt`(选频道页)。
 ```
 
 §5 约束里加:
@@ -5175,4 +5184,4 @@ EOF
 
 **3. 类型一致性**:`ChannelRef(pkg, key, name)`、`LayoutRow.channel`、`Row.channel / programs / channelAppLabel / cellCount`、`Program`、`PosterAspect.widthDp`、`ChannelContent.{NeedsPermission, Missing, Ready}`、`HomeVertical.{rowsTop, focusLine, restBlockTop, restCardTop, shiftY}`、`GtvLayout.rowShiftX(Int, List<Float>, Float)`、`PosterCache.{peek, load}`、`ChannelLaunch.open`、`LocalChannelEnv.{revision, requestPermission, openPermissionSettings}`、`Shelf.ChannelShelf / ChannelShelfState / ShelfChip.REAUTHORIZE`、`NewRowChoice.CHANNEL` / `choiceMax`、`ChannelSnapshot` / `ChannelCache` / `channelContentsFrom`、`homeTargetRow` / `homeTargetCell`、`ChannelPicker(nonce, onLayout, onPick, onBack)` 在定义任务与使用任务里逐字一致。
 
-**4. Review Focus**:五条各有钉住它的测试——1 → Task 3 `reinstalledChannelWithNewIdStillMatchesByKey` + Task 16 REPUBLISH;2 → Task 7 `deniedMeansEveryRowNeedsPermission` + Task 12 `permissionlessAndEmptyChannelRowsAreDropped` + Task 16 撤销授权;3 → Task 8 `fetchGivesUpAfterTheTimeoutWhenTheServerNeverAnswers` / `failedPosterIsNotRetriedWithinAMinute` + Task 16 海报超时;4 → Task 12 `shrinkingRowClampsTheFocusColumnToItsLastCard` + Task 16 SHRINK;5 → Task 1 `oldVersionRewriteBecomesPlainEmptyAppRows` + Task 2 `legacySevenAppRowsAreReadableButFull`。
+**4. Review Focus**:七条各有钉住它的测试——6 → Task 12 `channelRowAboveDisappearingKeepsTheSameCard` / `channelRowAppearingAboveKeepsTheSameCard` + Task 16「上面的频道行消失 / 出现」;7 → Task 7 `ChannelCacheTest`;1 → Task 3 `reinstalledChannelWithNewIdStillMatchesByKey` + Task 16 REPUBLISH;2 → Task 7 `deniedMeansEveryRowNeedsPermission` + Task 12 `permissionlessAndEmptyChannelRowsAreDropped` + Task 16 撤销授权;3 → Task 8 `fetchGivesUpAfterTheTimeoutWhenTheServerNeverAnswers` / `failedPosterIsNotRetriedWithinAMinute` + Task 16 海报超时;4 → Task 12 `shrinkingRowClampsTheFocusColumnToItsLastCard` + Task 16 SHRINK;5 → Task 1 `oldVersionRewriteBecomesPlainEmptyAppRows` + Task 2 `legacySevenAppRowsAreReadableButFull`。
