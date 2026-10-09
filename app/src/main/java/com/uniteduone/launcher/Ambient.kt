@@ -125,8 +125,8 @@ internal fun ditherAt(x: Int, y: Int): Float {
     return (h and 0xFFFF) / 65536f - 0.5f
 }
 
-/** 原地做一遍可分离的盒式模糊(边缘按边界值延伸)。 */
-private fun boxBlur(p: FloatArray, w: Int, h: Int, r: Int) {
+/** 原地做一遍可分离的盒式模糊(边缘按边界值延伸)。编辑页的模糊底(EditBackdrop.kt)也用它。 */
+internal fun boxBlur(p: FloatArray, w: Int, h: Int, r: Int) {
     if (r <= 0) return
     val tmp = FloatArray(p.size)
     val n = (2 * r + 1).toFloat()
