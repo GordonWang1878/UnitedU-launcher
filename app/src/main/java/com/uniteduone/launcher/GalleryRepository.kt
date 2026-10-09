@@ -21,6 +21,7 @@ interface GalleryRepository {
     suspend fun removeDownloaded(sha256: String, protected: Set<String>): Boolean
     /** Explicit cleanup only; protected content and registered downloads are never swept. */
     suspend fun orphanedDownloads(): Set<String>
+    /** Returns hashes successfully deleted, not remaining orphans. */
     suspend fun cleanupOrphans(protected: Set<String>): Set<String>
 }
 /** Inspector must prove a sampled decode succeeds as well as returning true encoded bounds/type. */

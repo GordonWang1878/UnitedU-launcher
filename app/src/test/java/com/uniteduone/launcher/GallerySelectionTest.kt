@@ -21,7 +21,7 @@ class GallerySelectionTest {
         assertEquals(ImageChoice.Builtin("sky"), decodeImageChoice("builtin:sky"))
         assertEquals(ImageChoice.Mine("sky.jpg"), decodeImageChoice("sky.jpg"))
     }
-    @Test fun pendingAThenBCannotApplyAAndFailureDoesNotCommit() = kotlinx.coroutines.runBlocking {
+    @Test fun olderAndInvalidatedIntentsCannotCommit() = kotlinx.coroutines.runBlocking {
         val gate = GallerySelection(); var selection = "old"
         val a = gate.begin(); val b = gate.begin()
         assertNull(gate.commit(a) { selection = "a" })

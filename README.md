@@ -208,3 +208,9 @@ Problems with the D-pad, long press or Back, and whether the menu path shown on 
 ## License
 
 Apache-2.0, see `LICENSE`; third-party notices are in `NOTICE`. The built-in card images include the logos of Tencent Video, iQIYI, Youku, bilibili, MIGU, Mango TV and YouTube, only so you can recognize these apps on your own home screen. These names and logos are trademarks of their respective owners; UnitedU is not affiliated with them. See `NOTICE` for attributions.
+
+### Official image gallery
+
+The first version with gallery support requires an APK update. After that, official wallpapers, compatible app card art and screensaver images can update independently. Each picker shows **Built-in / Online gallery / My images**; opening it checks the catalog, and **Refresh gallery** checks again. Card art is filtered by the app package. The production gallery has not been published yet; local acceptance uses an offline fixture.
+
+Originals download only when you preview or use an image, with cancel and retry. Downloaded images work offline; a cached catalog can also show images that still need a network connection. Previewing a screensaver image does not add it to playback: choose **Add to slideshow**. Updated or removed catalog entries never silently replace an adopted image. **Delete download** removes unused originals; active wallpaper and slideshow items are protected. The refresh menu can clean unused leftover files. Card art already has its own local copy. No accounts or cross-device personal sync are included.

@@ -1981,3 +1981,14 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 截图是在 unitedu-gtv 模拟器上用 6 个无代码占位应用(包名同腾讯视频 / 爱奇艺 / 优酷 / 哔哩哔哩 / 咪视界 / 芒果TV 的电视版,横幅 = 随包附带的内置卡片图)+ YouTube 拍的,英文界面;拍完已卸载占位应用。
 - Gordon 传好社交预览图后,要再加一张「风暴舰队」壁纸的预览(担心用户不喜欢卡通风)。GitHub 社交预览只有一个位置,所以:两份 README 首屏改成两张截图并排(`home-en.jpg` 夏日数码门 + `home-storm-en.jpg` 风暴舰队);另做一张同版式的 `docs/social-preview-storm.png`,要不要换掉现在的社交预览由 Gordon 定。设内置壁纸写 `settings.json` 的 `wallpaperFile = "builtin:<ID>"`(ID = 去扩展名的文件名),只写文件名不认。
 - Gordon 已把 GitHub 社交预览换成风暴舰队版(`docs/social-preview-storm.png`);`docs/social-preview.png` 留作备用。仓库曝光优化这条线结束。
+
+## 2026-10-09 官方图库实施边界与稳定约束
+
+- 首次功能通过 APK 交付，后续静态目录资源独立发布；生产根为 `https://dl.uniteduone.com/gallery/`，本轮不上传、不推远程、不发布 APK，维持 1.0.3/code 6。官方目录同步不是账号或个人跨设备同步。
+- 新 JSON/二进制复用 LockedFile/writeFileAtomically；图库内部目录不混进外置用户图库。采用/删除共用进程级 IO 门，重新读保护 hash 并确认原图仍在后才提交。壁纸/屏保 pin id/hash，卡片独立复制。
+- HTTP 对 blob 负责，原图解码尺寸在 repository 提交前检查；同 hash 共享下载但每个 id 分别登记。独占 part 的成功点是对外完成发布，取消/超时不能留下未提交 part。
+- 初始化失败属于可恢复存储错误：共享 Deferred 只剔除失败/取消实例，单个等待者取消不毒化健康实例；UI 自动/手动刷新保留旧内容并可重试。
+- 发布 HDR 验证必须解析关联 MPF 增益图和双编码参数，字面 hdrgm/ISO 标记不足；远端 120 秒绝对截止覆盖阻塞读取，工具只支持 Unix 主线程且拒绝已有 timer。产物保留 id-history 供下架 ID 审计；许可真实性仍需人工判断。
+- Task7 最终真实三类产物已由 Kotlin parser 全量读取，原图/缩略图实际 byte/hash 与协议一致，临时 smoke 1/1 通过；不是生产 CDN 或视觉 HDR 验收。
+
+图库最终集成验收见 [resource-gallery-acceptance-2026-10-09.md](design/resource-gallery-acceptance-2026-10-09.md)：906项JVM（905通过+1既有忽略）、Python20项、debug/release；真实Dream/原图gainmap/离线与取消行为。实际孤儿清理返回删除hash被UI误判残留已修复。Settings卡片测试前缺少单文件原状态备份，不能宣称已恢复；其余设置/layout/gallery及系统设置有比较证据。计划中的oldItem/fakeTransport只是测试草图，正式用例均须自建完整fixture。

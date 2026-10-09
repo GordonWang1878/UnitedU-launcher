@@ -216,6 +216,7 @@ private fun extractBoolean(json: String, key: String): Boolean? = when (extractR
 fun parseSettings(json: String): Settings {
     val d = Settings()
     return try {
+        val (galleryWallpaper, galleryScreensavers) = parseGallerySettings(json)
         Settings(
             rowCount = clampRowCount(extractInt(json, "rowCount")),
             cardsPerRow = snapCardsPerRow(extractInt(json, "cardsPerRow")),
@@ -238,8 +239,8 @@ fun parseSettings(json: String): Settings {
             excludedBuiltinScreensavers = extractStringArray(json, "excludedBuiltinScreensavers")
                 ?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSet() ?: d.excludedBuiltinScreensavers,
             wallpaperFile = sanitizeWallpaperFileName(extractString(json, "wallpaperFile")),
-            galleryWallpaper = parseGallerySettings(json).first?.takeIf { extractString(json, "wallpaperFile") == "gallery:${it.id}" },
-            galleryScreensavers = parseGallerySettings(json).second,
+            galleryWallpaper = galleryWallpaper?.takeIf { extractString(json, "wallpaperFile") == "gallery:${it.id}" },
+            galleryScreensavers = galleryScreensavers,
             // 旧文件里可能还有 "wallpaperThemed"(2026-09-16 删掉的开关)、"themedCards"(R58)、
             // "wallpaperRotateMs" / "wallpaperRotatedAt"(R61)、"showInputRow"(R92):这里不读它们,扁平 tokenizer 只认列出的键,
             // 未知键自然被忽略(SettingsTest 的 legacy*KeyIsIgnored 钉住这一点)。

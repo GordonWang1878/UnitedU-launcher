@@ -13,6 +13,12 @@ internal fun resolveGalleryFocus(previous: String, previousKeys: List<String>, n
     if (newKeys.isEmpty()) return "gallery:refresh"
     return newKeys[previousKeys.indexOf(previous).coerceAtLeast(0).coerceAtMost(newKeys.lastIndex)]
 }
+/** Store returns hashes it deleted; the menu only reports files that still need cleanup. */
+internal suspend fun cleanupGalleryLeftovers(repository: GalleryRepository, protected: Set<String>): Set<String> {
+    repository.cleanupOrphans(protected)
+    return repository.orphanedDownloads() - protected
+}
+
 internal enum class GalleryFailure { NETWORK, STORAGE, INVALID, UNKNOWN }
 internal fun galleryFailure(error: Throwable): GalleryFailure {
     val causes = generateSequence(error) { it.cause }.take(8).toList()
@@ -124,7 +130,7 @@ internal fun GalleryPickerOverlay(state: GalleryPickerState, screensaver: Boolea
     val delete = stringResource(R.string.gallery_delete)
     val cancel = stringResource(R.string.dialog_cancel)
     val retry = stringResource(R.string.gallery_retry)
-    if (state.notice != null) GearMenu(title = stringResource(R.string.gallery_delete), body = stringResource(state.notice!!), nonce = nonce,
+    if (state.notice != null) GearMenu(title = stringResource(R.string.picker_section_gallery), body = stringResource(state.notice!!), nonce = nonce,
         items = listOf(MenuItem(cancel, "") { state.notice = null }), onDismiss = { state.notice = null })
     else if (state.refreshMenu) GearMenu(title = stringResource(R.string.gallery_refresh), nonce = nonce,
         items = listOf(
@@ -134,7 +140,7 @@ internal fun GalleryPickerOverlay(state: GalleryPickerState, screensaver: Boolea
                     try {
                         val leftovers = withContext(Dispatchers.IO) { GalleryMutationGate.locked {
                             val settings = SettingsStore.read(ctx)
-                            state.repository.cleanupOrphans(settings.galleryScreensavers.values.map { it.sha256 }.toSet() + listOfNotNull(settings.galleryWallpaper?.sha256))
+                            cleanupGalleryLeftovers(state.repository, settings.galleryScreensavers.values.map { it.sha256 }.toSet() + listOfNotNull(settings.galleryWallpaper?.sha256))
                         } }
                         state.refreshMenu = false
                         if (leftovers.isNotEmpty()) state.notice = R.string.gallery_delete_failed

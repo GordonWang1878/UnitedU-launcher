@@ -7,13 +7,13 @@
 - **产品**:UnitedU,Android TV 桌面(launcher)。一句话定义:**零广告、零推荐,只有用户自己放上去的应用**。面向**国行、没有 GMS 的 Android TV**;外观照着 Google TV(`launcherx`)复刻,内容与功能是自己的。产品基线见 [`DESIGN-unitedu-open-source.md`](DESIGN-unitedu-open-source.md),现行界面见 gtv 线设计稿(§6)。
 - **唯一的真机**:国行 Sony A95L(`XR-77A95L`,MT5897),Android 14,**32 位 armeabi-v7a 用户空间**,界面层 1920×1080 @ 320 dpi(面板 4K,界面由固件放大),无 Google 服务。开发全程在 Android 14 TV 模拟器(arm64)上验证,真机只做里程碑验收。
 - **形态**:单 Activity(`MainActivity`)+ Jetpack Compose(`androidx.tv:tv-material` 1.0.0 只用叶子组件)。包名 `com.uniteduone.launcher`,minSdk 28,target / compile 35。
-- **联网**:只有两处——用户按「检查更新」时拉一次 `latest.json`;用户打开「从手机添加」页(R130 前叫「手机传输」)时在局域网起一个 HTTP 上传服务(关页即停)。没有统计、没有崩溃上报。
-- **状态**:内部版本 `1.0.0-beta`(versionCode 2),**还没发布过**;仓库暂为私有。1.0 前剩下的事见 [`ui-pending.md`](ui-pending.md) F 组。
+- **联网**:除官方图库外两处——用户按「检查更新」时拉一次 `latest.json`;用户打开「从手机添加」页(R130 前叫「手机传输」)时在局域网起一个 HTTP 上传服务(关页即停)。没有统计、没有崩溃上报。
+- **状态**:当前源码版本 `1.0.3`(versionCode 6)。官方在线图库本地实现已验收主要路径，生产目录及首次支持图库的正式 APK 尚未发布；验收边界见本文图库集成验收入口。
 
 ## 2. 怎么构建、测试
 
 - 需要 JDK 17、Android SDK(compileSdk 35、build-tools **35.0.0**,`app/build.gradle.kts` 里显式钉了)、Gradle 8.14.x。**仓库里没有 Gradle Wrapper**。作者机器上工具链刻意不进 PATH,用 `source scripts/env.sh` 注入(路径是作者本机的,仅供参考)。
-- 构建:`gradle --no-daemon assembleRelease`;单测:`gradle --no-daemon testReleaseUnitTest`(`app/src/test/`,74 个文件、约 810 个 JVM 单测;**没有仪器测试**,界面行为靠模拟器端到端脚本 `scripts/e2e/`(15 段旅程,跑法见那里的 README)+ 真机验收,记录在 `WORKLOG.md`)。
+- 构建:`gradle --no-daemon assembleRelease`;单测:`gradle --no-daemon testReleaseUnitTest`(`app/src/test/`,84 个 suites、906 项 JVM 单测（905 执行通过、1 既有忽略）;**没有仪器测试**,界面行为靠模拟器端到端脚本 `scripts/e2e/`(15 段旅程,跑法见那里的 README)+ 真机验收,记录在 `WORKLOG.md`)。
 - 没有 `~/.unitedu/release.jks` 时 release 自动用 debug keystore 签名(`-PrequireReleaseKey=true` 时改为构建失败,`scripts/release.sh` 总带这个参数)。R8 开着(`proguard-rules.pro`),资源裁剪关着(理由见 `build.gradle.kts` 注释)。
 - lint:`lintVitalRelease` 通过;完整 `lintRelease` 报 22 个 error,其中 21 个是误报(`ProduceStateDoesNotAssignValue` ×16、`dispatchKeyEvent` 上的 `RestrictedApi` ×5),1 个是刻意的(`QUERY_ALL_PACKAGES`,桌面必须列出全部应用)。详见同日体检报告 [`design/health-check-2026-09-29.md`](design/health-check-2026-09-29.md)。
 - 内置壁纸 / 屏保图有一道构建前置:`app/src/main/assets/builtin/{wallpapers,screensavers}/` 里的图必须先经 `scripts/hdr-assets.py --in-place` 转成双写法 HDR JPEG,否则单测 `BuiltinHdrAssetsTest` 失败(见 §5)。
@@ -55,7 +55,7 @@
 - `Onboarding.kt` + `OnboardingPure.kt`:首次引导三步(R135 起每步一份 `CapsuleColumn`,不再自带焦点账本)。
 
 **选图、导入、上传**
-- `ImagePicker.kt`(1100 行):壁纸 / 卡片图选择器、屏保图库(`PickerGrid` 一个网格一套焦点,内置 + 「＋」+ 我的);`PickerCells.kt`:格子号换算。
+- `ImagePicker.kt`(1100 行):壁纸 / 卡片图选择器、屏保图库(`PickerGrid` 一个网格一套焦点,内置 + 在线图库（刷新 + 资源）+ 我的（「＋」+ 上传）);`PickerCells.kt`:格子号换算。
 - `BuiltinCatalog.kt`(内置图命名规则、三语名字表 `assets/builtin/names.txt` 的解析与取名,纯函数;R137;卡片对应应用表 `assets/builtin/card-apps.txt` 的解析与按包名筛选,R159)+ `BuiltinImages.kt`(assets 发现与读取、伪路径 `/android_asset/…` 解码)。
 - `ImportScreen.kt`(扫码页)、`UploadServer.kt`(NanoHTTPD,端口 8090–8099,只在扫码页开着时运行)、`UploadPure.kt`(类型 / 文件名清洗 / 上限)、网页在 `app/src/main/assets/web/index.html`(R130 起:服务端注入 `__STRINGS__` 文案表 `WEB_STRING_KEYS` / `WEB_PLURALS`、`__DEFAULT_TAB__`、`__ACCENT__` 主题色、`__LANG__`;网页每 6 秒拉一次列表兼做连接检测)。文案防线在 `CopyTest`:三语 key 与占位符一致、网页用到的每个 `S.xxx` 都已注入、设置每一行都有说明。
 
@@ -140,3 +140,11 @@
 - **工作日志** [`WORKLOG.md`](WORKLOG.md):按日期的排查过程、实测数字、未验证项与决策;真机上看到过什么、Gordon 原话是什么,都在这里。
 - **作者给 AI 助手的手册** [`../CLAUDE.md`](../CLAUDE.md):构建、模拟器与真机的坑、焦点七条与责任表、落盘铁律、内置图铁律。作者本机环境(参考真机的无线调试地址、装包注意事项、代理)在不入库的 `CLAUDE.local.md`,外部评审看不到也不需要。
 - **用户文档双语**:`README.md`(英文主版)与 `README.zh-CN.md`(中文)内容对齐,改一份要同步另一份;Release 说明、`NOTICE`、Issue 表单也是中英双语。`docs/` 下的开发记录只有中文。`TVHOME-README-focus-rules.md` 是前身项目 TvHome 的 README(焦点铁律的来源),铁律已搬进 CLAUDE.md,该文件留作历史。
+
+## 官方图库评审入口（2026-10-09）
+
+协议/上限/路径：GalleryCatalog.kt、GalleryPolicy.kt；受限 HTTP：GalleryTransport.kt；原子持久化/临时文件：GalleryStore.kt；共享刷新与按 hash 下载：GalleryRepository.kt；采用票据与删除门：GallerySelection.kt；三页菜单/焦点/失败：GalleryPicker.kt、ImagePicker.kt、PickerCells.kt。已采用壁纸和屏保保存 id/hash，卡片独立复制，清单更新及下架不暗换图。检查取消、迟到完成、初始化失败重试、跨 Activity 删除/采用串行边界。
+
+发布工具为 scripts/gallery-manifest.py、scripts/gallery-publish.py，默认 dry-run；完整说明见 [resource-gallery-publishing.md](design/resource-gallery-publishing.md)。原图和缩略图核验后才发布清单；回滚使用更高 revision。云端上传、推送与正式 APK 发布均需单独授权。当前版本仍为 1.0.3/code 6，生产图库尚未上线。
+
+本次实际验收、真实清理bug回归、数据保留例外与未执行项见 [图库集成验收](design/resource-gallery-acceptance-2026-10-09.md)。

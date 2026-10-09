@@ -163,4 +163,20 @@ class GalleryPickerTest {
         assertSame(cancelled, failure); assertNull(state.notice)
     }
 
+    @Test fun cleanupReportsRemainingUnprotectedFilesRatherThanSuccessfullyRemovedFiles() = kotlinx.coroutines.runBlocking {
+        var remaining = setOf("protected")
+        val repository = object : GalleryRepository {
+            override val state = kotlinx.coroutines.flow.MutableStateFlow(GallerySnapshot(null, emptyList(), false, null))
+            override suspend fun refresh() = Unit
+            override suspend fun original(item: GalleryItem, onProgress: (Long) -> Unit): GalleryLocal = error("unused")
+            override suspend fun thumbnail(item: GalleryItem): File = error("unused")
+            override suspend fun removeDownloaded(sha256: String, protected: Set<String>) = false
+            override suspend fun orphanedDownloads() = remaining
+            override suspend fun cleanupOrphans(protected: Set<String>) = setOf("removed")
+        }
+        assertTrue(cleanupGalleryLeftovers(repository, setOf("protected")).isEmpty())
+        remaining = setOf("protected", "undeleted")
+        assertEquals(setOf("undeleted"), cleanupGalleryLeftovers(repository, setOf("protected")))
+    }
+
 }

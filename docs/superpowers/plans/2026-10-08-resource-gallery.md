@@ -1,6 +1,8 @@
 # 官方图片资源图库实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. 执行方式待 Gordon 选择；本计划建议当前会话直接执行。
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Gordon 于 2026-10-09 确认分任务子代理实施与独立评审。
+
+本地实施状态（2026-10-09）：客户端与发布工具已实现，主要集成路径完成；最终独立评审待完成。全套及实际/单测证据分层、未执行项、Settings卡片备份缺口见 [验收报告](../../design/resource-gallery-acceptance-2026-10-09.md)。未授权云端发布或推送。
 
 **Goal:** 在三个图片选择器接入官方在线图库，支持目录自动刷新、按需下载与离线选用，资源发布独立于 APK。
 
@@ -23,7 +25,7 @@
 - 正式地址 HTTPS，同域同图库目录；所有重定向重新校验；清单和文件原子替换。
 - 遵守现有自算位移、焦点与 HDR 规范，客户端 minSdk 28 不变。
 - 用户界面、README、发布说明三语/双语沿用项目规则；开发文档中文。
-- 本轮只授权计划；实施开始前取得计划确认。推远程、云端上传、正式发布分别确认，不调用发布脚本试跑生产。
+- 设计与计划已获确认，2026-10-09 授权按本计划实施。推远程、云端上传、正式发布分别确认，不调用发布脚本试跑生产。
 
 ## Review Focus
 

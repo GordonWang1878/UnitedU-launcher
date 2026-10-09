@@ -63,7 +63,7 @@ cards/04-iqiyi = 爱奇艺 | 愛奇藝 | iQIYI
 
 ## 用户那边看到什么
 
-- 三个选图页(换壁纸、屏保图库、换卡片图)上块「内置」、下块「我的」;某个文件夹是空的,那一页就没有上块(和现在一样)。
+- 三个选图页(换壁纸、屏保图库、换卡片图)分为「内置 / 在线图库 / 我的」;内置文件夹为空时不画内置块,在线区提供刷新和适用资源。
 - 内置图删不掉、不占用户图库,手机上传网页里也看不到它们。
 - 屏保:内置图默认全部进轮播,用户在屏保图库里长按(或按菜单键)某张可以「不参与轮播」/「加入轮播」,关掉的那张变暗、角上标「已关」。
 - 卡片装饰图**只给对应的应用**(R159):给腾讯视频换卡片图时「内置」只有腾讯那张,给没有对应卡的应用换图时「内置」整块不出现;照原图显示,不是 16:9 的按卡片同样的规则补边(R88 / R107)。
@@ -101,3 +101,9 @@ unzip -l app/build/outputs/apk/release/app-release.apk | grep assets/builtin/   
 - 同晚 Gordon:01-wetv 这张的名字叫「腾讯」——名字表改成 腾讯 / 騰訊 / Tencent,文件名不动
 - 壁纸与屏保已用 `scripts/hdr-assets.py` 转成双写法 HDR JPEG(Android 14 XMP + ISO 21496-1),4K 不变,共约 10 MB;生图与转换规范见 `docs/design/hdr-image-spec.md`
 - 原图备份:`~/unitedu-assets-originals/2026-09-28/`(Gordon 放入时的原名)、`~/unitedu-assets-originals/2026-09-28-renamed/`(改名后、转换前)
+
+## 官方在线图库（2026-10-09）
+
+APK 内置资源仍随 APK 交付；新增官方图库与内置及用户上传目录分离，协议和发布边界见 [图库设计](../superpowers/specs/2026-10-08-resource-gallery-design.md) 与 [发布工具](resource-gallery-publishing.md)。选图页现在是「内置 / 在线图库 / 我的」，在线卡片按当前包名精确过滤。在线原图采用时保存 id/hash，目录更新不自动换图；下架的已下载版本仍可用。屏保需主动加入，预览不加入。
+
+原图保存在应用内部 files/gallery，缩略图在 cache/gallery；删除未使用下载与清理孤儿文件不动内置/上传图库。当前壁纸、已加入屏保的 hash 受删除保护，卡片已经独立复制。生产目标 https://dl.uniteduone.com/gallery/ 尚未发布；首次支持仍须另行发布 APK，版本号暂不变。
