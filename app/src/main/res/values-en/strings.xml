@@ -354,7 +354,7 @@
     <string name="edit_chip_delete">Delete</string>
     <string name="edit_new_row">New Row</string>
     <string name="edit_choice_app_row">App Row</string>
-    <string name="edit_choice_app_row_desc">Apps you pick yourself. Reorder them and change the icon.</string>
+    <string name="edit_choice_app_row_desc">Apps you pick. Reorder, change icons.</string>
     <string name="edit_choice_full">Full (max %1$d rows)</string>
     <string name="edit_new_row_caption">Up to %1$d app rows and %1$d channel rows</string>
     <!-- R164 new row: channel choice -->

@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -186,7 +187,8 @@ internal fun ChannelPicker(
                     path = null,
                     title = stringResource(R.string.channel_picker_title),
                     extra = {
-                        Column {
+                        // 两段说明各自居中:Column 默认靠左,短的那段会偏离页名中线(「没有任何频道」截图,Task 17)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             ShellBody(hint)
                             if (status != null) {
                                 // 两段说明之间空一行的高度:不空的话「没有权限」一段紧贴在隐私说明下面,读起来像同一句(模拟器截图)
@@ -215,6 +217,8 @@ internal fun ChannelPicker(
                                     isWide = false,
                                 ),
                                 header = null,
+                                // 没横幅的应用卡上只写应用名:整句「应用 · 频道」右边已经写了,卡上再挤一遍太乱(Task 17 验收)
+                                cardLabel = c.appLabel,
                                 modifier = Modifier
                                     .focusRequester(reqs[i.coerceIn(0, reqs.lastIndex)])
                                     .focusProperties { if (ghost) canFocus = false },

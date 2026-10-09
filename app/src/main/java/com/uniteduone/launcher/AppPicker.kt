@@ -177,6 +177,8 @@ internal fun PickerRow(
     isFirst: Boolean = false,
     isLast: Boolean = false,
     isNew: Boolean = false,
+    /** 卡片没有横幅、回落成文字时卡上写什么;null = [app] 的 label。选频道页传应用名(右边已写「应用 · 频道」整句)。 */
+    cardLabel: String? = null,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -241,7 +243,7 @@ internal fun PickerRow(
                         else appCardContainer(shown, shown.fallbackColor?.let { Color(it) }),
                     ),
             ) {
-                if (shown != null) AppCardImage(shown.copy(label = app.label), metrics)
+                if (shown != null) AppCardImage(shown.copy(label = cardLabel ?: app.label), metrics)
             }
             BasicText(
                 text = app.label.ifBlank { app.packageName },

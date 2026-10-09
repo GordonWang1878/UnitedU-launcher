@@ -247,9 +247,33 @@ private fun choiceIcon(c: NewRowChoice): ImageVector = when (c) {
     NewRowChoice.CHANNEL -> Icons.Outlined.LiveTv
 }
 
+/** 选择卡的一套颜色;[alpha] 是整卡不透明度。 */
+internal data class ChoiceLook(val fill: Color, val ink: Color, val sub: Color, val alpha: Float)
+
+/**
+ * 选择卡四种状态的颜色(纯函数,单测 `ChoiceLookTest`)。可用 + 焦点 = 填主题色;**已满 + 焦点 = 灰底、整卡
+ * [ShelfLayout.CHOICE_FULL_FOCUSED_ALPHA]**——原来同样填主题色、只靠整卡 45%,电视上看还是亮的焦点态,认不出
+ * 「已满」(Task 17 验收,ch-07);已满 + 无焦点 = 整卡 [ShelfLayout.CHOICE_FULL_ALPHA]。
+ */
+internal fun choiceLook(focused: Boolean, full: Boolean, accent: Color): ChoiceLook = when {
+    focused && full -> ChoiceLook(
+        fill = Color.White.copy(alpha = ShelfLayout.CHOICE_FULL_FOCUSED_FILL),
+        ink = Ink.Primary,
+        sub = Ink.Primary.copy(alpha = 0.75f),
+        alpha = ShelfLayout.CHOICE_FULL_FOCUSED_ALPHA,
+    )
+    focused -> ChoiceLook(accent, contrastingTextColor(accent), contrastingTextColor(accent).copy(alpha = 0.75f), 1f)
+    else -> ChoiceLook(
+        fill = Color.White.copy(alpha = ShelfLayout.CHOICE_IDLE_ALPHA),
+        ink = Ink.Primary,
+        sub = Ink.Secondary,
+        alpha = if (full) ShelfLayout.CHOICE_FULL_ALPHA else 1f,
+    )
+}
+
 /**
  * 「新的一行」里的一张选择卡(c2):300 × 110、圆角 16、白 7% 底;图标(主题色)+ 名字(17 sp)+ 一句说明(12 sp);
- * 聚焦填 accent、文字取对比色、放大 1.05 + 影子。[full](spec §2.4)= 整卡压到 45%、说明换成「已满 5 行」,**仍可聚焦**
+ * 聚焦填 accent、文字取对比色、放大 1.05 + 影子。[full](spec §2.4)= 变暗(颜色见 [choiceLook])、说明换成「已满 5 行」,**仍可聚焦**
  * (好让人看到原因),确定由调用方不响应。
  */
 @OptIn(ExperimentalComposeUiApi::class)
@@ -266,14 +290,15 @@ internal fun ChoiceCard(
     var focused by remember { mutableStateOf(false) }
     val accent = LocalThemeColors.current.accent
     val ms = if (focused) GtvLayout.FOCUS_FADE_IN_MS else GtvLayout.FOCUS_FADE_OUT_MS
+    val look = choiceLook(focused, full, accent)
     val fill by animateColorAsState(
-        targetValue = if (focused) accent else Color.White.copy(alpha = ShelfLayout.CHOICE_IDLE_ALPHA),
+        targetValue = look.fill,
         animationSpec = tween(ms, easing = Theme.AppFocusEasing),
         label = "choiceFill",
     )
     val grow by animateFloatAsState(if (focused) 1f else 0f, tween(ms, easing = Theme.AppFocusEasing), label = "choiceGrow")
-    val ink = if (focused) contrastingTextColor(accent) else Ink.Primary
-    val sub = if (focused) contrastingTextColor(accent).copy(alpha = 0.75f) else Ink.Secondary
+    val ink = look.ink
+    val sub = look.sub
     val shape = RoundedCornerShape(ShelfLayout.CHOICE_CORNER.dp)
     Column(
         modifier
@@ -281,7 +306,7 @@ internal fun ChoiceCard(
             .graphicsLayer {
                 val s = 1f + (ShelfLayout.CHOICE_FOCUS_SCALE - 1f) * grow
                 scaleX = s; scaleY = s
-                alpha = if (full) ShelfLayout.CHOICE_FULL_ALPHA else 1f
+                alpha = look.alpha
                 shadowElevation = ShelfLayout.CHOICE_SHADOW.dp.toPx() * grow
                 this.shape = shape
             }
@@ -300,7 +325,9 @@ internal fun ChoiceCard(
         BasicText(stringResource(choiceTitle(choice)), maxLines = 1, style = Type.section.copy(color = ink, fontWeight = FontWeight.Normal))
         BasicText(
             text = if (full) stringResource(R.string.edit_choice_full, choiceMax(choice)) else stringResource(choiceDesc(choice)),
-            maxLines = 2,
+            // 卡高 110 只放得下一行说明(16 + 28 + 6 + 22 + 6 + 16 + 16);写不下时露出省略号,不再静默截掉半句(Task 17)
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             style = Type.caption.copy(color = sub),
         )
     }

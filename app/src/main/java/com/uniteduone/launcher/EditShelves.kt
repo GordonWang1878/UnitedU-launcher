@@ -280,6 +280,9 @@ internal object ShelfLayout {
     const val CHOICE_FOCUS_SCALE = 1.05f
     const val CHOICE_SHADOW = 14f
     const val CHOICE_FULL_ALPHA = 0.45f
+    /** 已满的卡有焦点时:不填主题色,白 18% 灰底、整卡 80%(放大 + 影子照旧),见 `choiceLook`。 */
+    const val CHOICE_FULL_FOCUSED_FILL = 0.18f
+    const val CHOICE_FULL_FOCUSED_ALPHA = 0.8f
     /** 「新的一行」架子高 190(= 52 + 110 + 28),下面一行说明离架子 16。 */
     const val NEW_ROW_HEIGHT = 190f
     const val NEW_ROW_CAPTION_GAP = 16f
