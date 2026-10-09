@@ -53,4 +53,13 @@ class ChannelLaunchTest {
         assertEquals("离 2 s 上限还剩 300 ms", 300L, channelsBumpDelay(now = 2_700, firstPending = 1_000))
         assertEquals("已超过上限:立刻刷新", 0L, channelsBumpDelay(now = 3_500, firstPending = 1_000))
     }
+
+    @Test fun bumpOnlyWhenStarted() {
+        val L = androidx.lifecycle.Lifecycle.State.values()
+        assertEquals(false, shouldBumpChannels(androidx.lifecycle.Lifecycle.State.CREATED))
+        assertEquals(true, shouldBumpChannels(androidx.lifecycle.Lifecycle.State.STARTED))
+        assertEquals(true, shouldBumpChannels(androidx.lifecycle.Lifecycle.State.RESUMED))
+        assertEquals(false, shouldBumpChannels(androidx.lifecycle.Lifecycle.State.DESTROYED))
+        assertEquals(5, L.size)
+    }
 }

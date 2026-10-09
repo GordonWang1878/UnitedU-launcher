@@ -110,7 +110,7 @@ internal fun fetchBytes(url: URL, timeoutMs: Int, maxBytes: Int): ByteArray? {
     val conn = (runCatching { url.openConnection() }.getOrNull() as? HttpURLConnection) ?: return null
     val deadline = System.nanoTime() + timeoutMs * 1_000_000L
     // 硬性总期限:到点从看门狗线程断开,卡在 connect / 读响应头 / 读正文的调用随之抛异常返回(DNS 仍是尽力而为)
-    val kill = watchdog.schedule({ runCatching { conn.disconnect() } }, timeoutMs.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
+    val kill = watchdog.schedule({ killer.execute { runCatching { conn.disconnect() } } }, timeoutMs.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
     return try {
         conn.connectTimeout = timeoutMs
         conn.readTimeout = timeoutMs
@@ -126,6 +126,11 @@ internal fun fetchBytes(url: URL, timeoutMs: Int, maxBytes: Int): ByteArray? {
     }
 }
 
+/** 看门狗线程只负责到点触发;真正的 disconnect / close 丢给这里,一个慢的关闭不会拖住别的期限。 */
+private val killer = java.util.concurrent.Executors.newCachedThreadPool { r ->
+    Thread(r, "poster-kill").apply { isDaemon = true }
+}
+
 private val watchdog = java.util.concurrent.Executors.newSingleThreadScheduledExecutor { r ->
     Thread(r, "poster-watchdog").apply { isDaemon = true }
 }
@@ -137,7 +142,7 @@ internal fun readWithWatchdog(timeoutMs: Int, open: () -> InputStream?, maxBytes
     var expired = false
     val lock = Any()
     val task = watchdog.schedule({
-        synchronized(lock) { expired = true; runCatching { stream?.close() } }
+        killer.execute { synchronized(lock) { expired = true; runCatching { stream?.close() } } }
     }, timeoutMs.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
     return try {
         val st = open() ?: return null

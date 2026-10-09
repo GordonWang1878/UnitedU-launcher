@@ -150,9 +150,10 @@ class CopyTest {
         for (l in langs) {
             val s = strings(l)
             for (k in keys) assertNotNull("$l 缺 $k(R165)", s[k])
-            for (k in listOf("edit_choice_full", "edit_new_row_caption", "edit_summary_rows", "edit_apps_count")) {
+            for (k in listOf("edit_choice_full", "edit_summary_rows", "edit_apps_count")) {
                 assertEquals("$l 的 $k", setOf("%1\$d"), placeholders(s.getValue(k)))
             }
+            assertEquals("$l 的 edit_new_row_caption(应用行上限 + 频道行上限)", setOf("%1\$d", "%2\$d"), placeholders(s.getValue("edit_new_row_caption")))
         }
     }
 

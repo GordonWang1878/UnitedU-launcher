@@ -30,20 +30,6 @@ object ChannelSource {
     fun hasPermission(ctx: Context): Boolean =
         ctx.checkSelfPermission(PERMISSION) == PackageManager.PERMISSION_GRANTED
 
-    /** [pkg] = null:全部频道(选频道页);否则只要这个包的。null = 没有权限;其它读取错误 → 空表(只 Log)。 */
-    fun channels(ctx: Context, pkg: String? = null): List<TvChannel>? = when (val r = readChannels(ctx, pkg)) {
-        is ReadResult.Ok -> r.rows
-        is ReadResult.Denied -> null
-        is ReadResult.Error -> emptyList()
-    }
-
-    /** 一个频道的全部预览节目(未排序)。null = 没有权限;其它错误 → 空表。 */
-    fun programs(ctx: Context, channelId: Long): List<Program>? = when (val r = readPrograms(ctx, channelId)) {
-        is ReadResult.Ok -> r.rows
-        is ReadResult.Denied -> null
-        is ReadResult.Error -> emptyList()
-    }
-
     private fun readChannels(ctx: Context, pkg: String?): ReadResult<List<TvChannel>> {
         if (!hasPermission(ctx)) return ReadResult.Denied
         val uri = if (pkg == null) TvContract.Channels.CONTENT_URI

@@ -447,7 +447,7 @@ fun EditScreen(
             pkg == null || loadedFor?.first == rows.flatMap { it.apps }.toSet() || loadedFor?.second?.containsKey(pkg) == true
         }.first { it }
         var want = resolveEditTarget(shelvesFor(view()), wanted, wantedChip)
-        setTarget(want, wantedChip.takeIf { want.zone == ShelfZone.CHIPS } ?: chipAt(want))
+        setTarget(want, if (want == wanted) wantedChip else chipAt(want))
         var frames = 0
         while (frames < 60 && holder != want) {   // 退出判据:目标自报(铁律 2),不信 requestFocus() 的返回
             withFrameNanos { }
@@ -974,7 +974,7 @@ private fun NewRowShelfView(
             }
         }
         BasicText(
-            stringResource(R.string.edit_new_row_caption, MAX_ROWS),
+            stringResource(R.string.edit_new_row_caption, choiceMax(NewRowChoice.APP_ROW), choiceMax(NewRowChoice.CHANNEL)),
             style = Type.caption,
             modifier = Modifier.padding(start = ShelfLayout.PAD_START.dp, top = ShelfLayout.NEW_ROW_CAPTION_GAP.dp),
         )

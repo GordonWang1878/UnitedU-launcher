@@ -1750,6 +1750,7 @@ class MainActivity : ComponentActivity() {
 
     /** R164:500 ms 尾沿去抖后 channelsRevision++(应用同步频道时会连写几十行);持续在写时从第一次变化起最多等 2 s。 */
     private fun bumpChannelsSoon() {
+        if (!shouldBumpChannels(lifecycle.currentState)) return
         val now = android.os.SystemClock.uptimeMillis()
         if (channelsBumpSince == 0L) channelsBumpSince = now
         channelsBump?.cancel()
@@ -1760,11 +1761,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** 监听 `content://android.media.tv`(含子路径)。注册失败(provider 不在、厂商改过)只是不自动刷新,onResume 再试。 */
+    /** 监听 Channels 与 PreviewPrograms 两张表(含子路径)。注册失败(provider 不在、厂商改过)只是不自动刷新,onResume 再试。 */
     private fun ensureTvObserver() {
         if (tvObserverOn) return
         tvObserverOn = runCatching {
-            contentResolver.registerContentObserver(android.net.Uri.parse("content://android.media.tv"), true, tvObserver)
+            // 只听频道表与预览节目表;不听整个 provider(直播 EPG 的 program 表写得很勤)
+            contentResolver.registerContentObserver(android.media.tv.TvContract.Channels.CONTENT_URI, true, tvObserver)
+            contentResolver.registerContentObserver(android.media.tv.TvContract.PreviewPrograms.CONTENT_URI, true, tvObserver)
         }.isSuccess
     }
 

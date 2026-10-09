@@ -30,6 +30,10 @@ internal fun launchIntentAllowed(action: String?, dataScheme: String?, dataAutho
     return true
 }
 
+/** 后台(低于 STARTED)不刷新频道:onResume 本来就会 channelsRevision++,不会漏。 */
+internal fun shouldBumpChannels(state: androidx.lifecycle.Lifecycle.State): Boolean =
+    state.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+
 /** ContentObserver 去抖的下一次等待:平时 [CHANNELS_DEBOUNCE_MS](尾沿),但从第一次变化起最多等 [CHANNELS_MAX_WAIT_MS]。 */
 internal fun channelsBumpDelay(now: Long, firstPending: Long): Long =
     minOf(CHANNELS_DEBOUNCE_MS, maxOf(0L, firstPending + CHANNELS_MAX_WAIT_MS - now))

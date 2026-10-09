@@ -348,7 +348,7 @@
     <string name="edit_choice_app_row">應用程式列</string>
     <string name="edit_choice_app_row_desc">放你自己挑的應用程式，可以排順序、換圖示</string>
     <string name="edit_choice_full">已滿 %1$d 列</string>
-    <string name="edit_new_row_caption">應用程式列、頻道各最多 %1$d 列</string>
+    <string name="edit_new_row_caption">應用程式列最多 %1$d 列、頻道最多 %2$d 列</string>
     <!-- R164 新的一列:頻道選擇卡 -->
     <string name="shelf_new_channel">頻道</string>
     <string name="shelf_new_channel_desc">其他應用程式推送的節目</string>

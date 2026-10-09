@@ -356,7 +356,7 @@
     <string name="edit_choice_app_row">App Row</string>
     <string name="edit_choice_app_row_desc">Apps you pick. Reorder, change icons.</string>
     <string name="edit_choice_full">Full (max %1$d rows)</string>
-    <string name="edit_new_row_caption">Up to %1$d app rows and %1$d channel rows</string>
+    <string name="edit_new_row_caption">Up to %1$d app rows and %2$d channel rows</string>
     <!-- R164 new row: channel choice -->
     <string name="shelf_new_channel">Channel</string>
     <string name="shelf_new_channel_desc">Shows and movies from your apps</string>
