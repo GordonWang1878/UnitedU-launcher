@@ -137,4 +137,22 @@ class CopyTest {
             assertEquals(setOf("%1\$s", "%2\$d"), placeholders(s.getValue("apps_row_names_more")))
         }
     }
+
+    /** R165 货架的新文案:三种语言都有;两条带行数上限的、两条 plurals 都带 %1$d。 */
+    @Test fun editShelfStringsExist() {
+        val keys = listOf(
+            "edit_summary_rows", "edit_apps_count", "edit_key_ok", "edit_key_back",
+            "edit_hint_pick", "edit_hint_row", "edit_hint_done", "edit_hint_choose", "edit_hint_add",
+            "edit_hint_move", "edit_hint_drop", "edit_hint_cancel",
+            "edit_chip_icon", "edit_chip_up", "edit_chip_down", "edit_chip_delete",
+            "edit_new_row", "edit_choice_app_row", "edit_choice_app_row_desc", "edit_choice_full", "edit_new_row_caption",
+        )
+        for (l in langs) {
+            val s = strings(l)
+            for (k in keys) assertNotNull("$l 缺 $k(R165)", s[k])
+            for (k in listOf("edit_choice_full", "edit_new_row_caption", "edit_summary_rows", "edit_apps_count")) {
+                assertEquals("$l 的 $k", setOf("%1\$d"), placeholders(s.getValue(k)))
+            }
+        }
+    }
 }

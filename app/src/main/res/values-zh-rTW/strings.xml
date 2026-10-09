@@ -334,6 +334,34 @@
         <item quantity="other">這一列的 %1$d 個應用程式會從桌面移除，不會解除安裝。</item>
     </plurals>
     <string name="edit_row_delete_ok">刪除</string>
+    <!-- edit_summary_* / edit_hint_* / edit_chip_* / edit_choice_* : 編輯桌面「貨架」(R165) -->
+    <plurals name="edit_summary_rows">
+        <item quantity="one">%1$d 列</item>
+        <item quantity="other">%1$d 列</item>
+    </plurals>
+    <plurals name="edit_apps_count">
+        <item quantity="one">%1$d 個應用程式</item>
+        <item quantity="other">%1$d 個應用程式</item>
+    </plurals>
+    <string name="edit_key_ok">確定</string>
+    <string name="edit_key_back">返回</string>
+    <string name="edit_hint_pick">拿起卡片</string>
+    <string name="edit_hint_row">列操作</string>
+    <string name="edit_hint_done">完成</string>
+    <string name="edit_hint_choose">選擇</string>
+    <string name="edit_hint_add">新增</string>
+    <string name="edit_hint_move">移動</string>
+    <string name="edit_hint_drop">放下</string>
+    <string name="edit_hint_cancel">取消</string>
+    <string name="edit_chip_icon">換圖示</string>
+    <string name="edit_chip_up">上移</string>
+    <string name="edit_chip_down">下移</string>
+    <string name="edit_chip_delete">刪除</string>
+    <string name="edit_new_row">新的一列</string>
+    <string name="edit_choice_app_row">應用程式列</string>
+    <string name="edit_choice_app_row_desc">放你自己挑的應用程式，可以排順序、換圖示</string>
+    <string name="edit_choice_full">已滿 %1$d 列</string>
+    <string name="edit_new_row_caption">應用程式列最多 %1$d 列</string>
     <string name="row_icon_movie">影片</string>
     <string name="row_icon_tv">電視</string>
     <string name="row_icon_live">直播</string>

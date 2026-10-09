@@ -342,6 +342,34 @@
         <item quantity="other">The %1$d apps in this row leave your home screen. They won\'t be uninstalled.</item>
     </plurals>
     <string name="edit_row_delete_ok">Delete</string>
+    <!-- edit_summary_* / edit_hint_* / edit_chip_* / edit_choice_* : Edit Home Screen shelves (R165) -->
+    <plurals name="edit_summary_rows">
+        <item quantity="one">%1$d row</item>
+        <item quantity="other">%1$d rows</item>
+    </plurals>
+    <plurals name="edit_apps_count">
+        <item quantity="one">%1$d app</item>
+        <item quantity="other">%1$d apps</item>
+    </plurals>
+    <string name="edit_key_ok">OK</string>
+    <string name="edit_key_back">Back</string>
+    <string name="edit_hint_pick">Pick up</string>
+    <string name="edit_hint_row">Row actions</string>
+    <string name="edit_hint_done">Done</string>
+    <string name="edit_hint_choose">Choose</string>
+    <string name="edit_hint_add">Add</string>
+    <string name="edit_hint_move">Move</string>
+    <string name="edit_hint_drop">Drop</string>
+    <string name="edit_hint_cancel">Cancel</string>
+    <string name="edit_chip_icon">Icon</string>
+    <string name="edit_chip_up">Move Up</string>
+    <string name="edit_chip_down">Move Down</string>
+    <string name="edit_chip_delete">Delete</string>
+    <string name="edit_new_row">New Row</string>
+    <string name="edit_choice_app_row">App Row</string>
+    <string name="edit_choice_app_row_desc">Apps you pick yourself. Reorder them and change the icon.</string>
+    <string name="edit_choice_full">Full · %1$d rows max</string>
+    <string name="edit_new_row_caption">Up to %1$d app rows</string>
     <string name="row_icon_movie">Movies</string>
     <string name="row_icon_tv">TV</string>
     <string name="row_icon_live">Live</string>
