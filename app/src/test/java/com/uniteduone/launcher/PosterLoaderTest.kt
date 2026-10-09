@@ -82,4 +82,36 @@ class PosterLoaderTest {
         assertTrue("超时后要放手,实际 $ms ms", ms < 2_000)
         server.close()
     }
+
+    @Test fun sizingBoundsWidthToo() {
+        assertTrue(posterAcceptable(550, 220))
+        assertFalse("太宽", posterAcceptable(120000, 220))
+        assertFalse("太窄", posterAcceptable(100, 400))
+        assertFalse("像素超限", posterAcceptable(4097, 4096))
+        assertTrue(posterSampleSize(100000, 220, 220) >= 128)
+        assertEquals(1, posterSampleSize(550, 220, 220))
+        assertEquals(440 to 176, posterScaledSize(550, 220, 220))
+        assertEquals(147 to 220, posterScaledSize(200, 300, 220))
+        assertEquals(100 to 100, posterScaledSize(100, 100, 220))
+    }
+
+    @Test fun readCappedHonorsHintAndDeadline() {
+        assertArrayEquals(ByteArray(10), readCapped(ByteArrayInputStream(ByteArray(10)), 100, 10))
+        assertNull("比声明长", readCapped(ByteArrayInputStream(ByteArray(11)), 100, 10))
+        assertNull("期限已过", readCapped(ByteArrayInputStream(ByteArray(10)), 100, -1, System.nanoTime() - 1))
+    }
+
+    @Test fun watchdogUnblocksAStuckRead() {
+        val inp = object : java.io.InputStream() {
+            @Volatile var closed = false
+            override fun read(): Int {
+                while (!closed) Thread.sleep(10)
+                throw java.io.IOException("closed")
+            }
+            override fun close() { closed = true }
+        }
+        val t0 = System.nanoTime()
+        assertNull(readWithWatchdog(300, { inp }, 1024))
+        assertTrue((System.nanoTime() - t0) / 1_000_000 < 2_000)
+    }
 }

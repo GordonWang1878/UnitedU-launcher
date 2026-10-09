@@ -31,16 +31,38 @@ internal fun posterSourceOf(uri: String): PosterSource = when (uri.substringBefo
     else -> PosterSource.NONE
 }
 
-/** 粗缩的 `inSampleSize`:取 2 的幂,采样后高度仍 ≥ [targetH](之后再精确缩到 [targetH])。 */
-internal fun posterSampleSize(srcW: Int, srcH: Int, targetH: Int): Int {
-    if (srcW <= 0 || srcH <= 0 || targetH <= 0) return 1
+/** 海报目标:高 220 px(卡高),宽最多 440 px。 */
+internal const val POSTER_MAX_W = 440
+internal const val POSTER_MAX_PIXELS = 4096L * 4096
+
+/** 宽高比在 [0.5, 2.5] 内、总像素不超过 4096×4096 才接受;否则当作没图(防 120000×220 这类解出巨大位图)。 */
+internal fun posterAcceptable(srcW: Int, srcH: Int): Boolean {
+    if (srcW <= 0 || srcH <= 0) return false
+    val aspect = srcW.toDouble() / srcH
+    return aspect in 0.5..2.5 && srcW.toLong() * srcH <= POSTER_MAX_PIXELS
+}
+
+/** 粗缩的 `inSampleSize`:取 2 的幂,同时约束高与宽——再翻倍时只要高仍 ≥ [targetH] 或宽仍 ≥ [maxW] 就翻。 */
+internal fun posterSampleSize(srcW: Int, srcH: Int, targetH: Int, maxW: Int = POSTER_MAX_W): Int {
+    if (srcW <= 0 || srcH <= 0 || targetH <= 0 || maxW <= 0) return 1
     var s = 1
-    while (srcH / (s * 2) >= targetH) s *= 2
+    while (srcH / (s * 2) >= targetH || srcW / (s * 2) >= maxW) {
+        s *= 2
+        if (s >= 1 shl 20) break
+    }
     return s
 }
 
+/** 采样后的位图再精确缩到的尺寸:高 ≤ [targetH]、宽 ≤ [maxW],保持比例,只缩不放。 */
+internal fun posterScaledSize(w: Int, h: Int, targetH: Int, maxW: Int = POSTER_MAX_W): Pair<Int, Int> {
+    if (w <= 0 || h <= 0) return 1 to 1
+    val f = minOf(1.0, targetH.toDouble() / h, maxW.toDouble() / w)
+    if (f >= 1.0) return w to h
+    return Math.round(w * f).toInt().coerceIn(1, maxW) to Math.round(h * f).toInt().coerceIn(1, targetH)
+}
+
 internal const val POSTER_TIMEOUT_MS = 5_000
-internal const val POSTER_MAX_BYTES = 8 * 1024 * 1024
+internal const val POSTER_MAX_BYTES = 2 * 1024 * 1024
 internal const val POSTER_RETRY_MS = 60_000L
 internal const val POSTER_CACHE_BYTES = 16 * 1024 * 1024
 
@@ -48,12 +70,28 @@ internal const val POSTER_CACHE_BYTES = 16 * 1024 * 1024
 internal fun posterRetryDue(failedAt: Long?, now: Long): Boolean =
     failedAt == null || now < failedAt || now - failedAt >= POSTER_RETRY_MS
 
-/** 读完整个流;超过 [maxBytes] → null(不让一张海报吃掉几十 MB)。 */
-internal fun readCapped(input: InputStream, maxBytes: Int): ByteArray? {
-    val out = ByteArrayOutputStream()
+/**
+ * 读完整个流;超过 [maxBytes] → null(不让一张海报吃掉几十 MB)。[sizeHint] 已知(1..maxBytes)时按它一次性开好缓冲、
+ * 不再拷贝;[deadlineNanos](System.nanoTime 口径,0 = 不限)到了 → null,是整体期限而不只是单次读取。
+ */
+internal fun readCapped(input: InputStream, maxBytes: Int, sizeHint: Long = -1, deadlineNanos: Long = 0): ByteArray? {
+    fun late() = deadlineNanos != 0L && System.nanoTime() - deadlineNanos > 0
+    if (sizeHint in 1..maxBytes.toLong()) {
+        val arr = ByteArray(sizeHint.toInt())
+        var total = 0
+        while (total < arr.size) {
+            if (late()) return null
+            val n = input.read(arr, total, arr.size - total)
+            if (n < 0) return if (total == arr.size) arr else arr.copyOf(total)
+            total += n
+        }
+        return if (input.read() >= 0) null else arr   // 比声明的长 → 不信
+    }
+    val out = ByteArrayOutputStream(16 * 1024)
     val buf = ByteArray(16 * 1024)
     var total = 0
     while (true) {
+        if (late()) return null
         val n = input.read(buf)
         if (n < 0) break
         total += n
@@ -63,20 +101,45 @@ internal fun readCapped(input: InputStream, maxBytes: Int): ByteArray? {
     return out.toByteArray()
 }
 
-/** 下载 [url]:连接 / 每次读取各 [timeoutMs];非 2xx、声明或实际超过 [maxBytes]、任何异常 → null。只用 java.net,JVM 可测。 */
+/** 下载 [url]:连接 / 每次读取各 [timeoutMs],整体也以 [timeoutMs] 为期限;非 2xx、声明或实际超过 [maxBytes]、任何异常 → null。只用 java.net,JVM 可测。 */
 internal fun fetchBytes(url: URL, timeoutMs: Int, maxBytes: Int): ByteArray? {
     val conn = (runCatching { url.openConnection() }.getOrNull() as? HttpURLConnection) ?: return null
+    val deadline = System.nanoTime() + timeoutMs * 1_000_000L
     return try {
         conn.connectTimeout = timeoutMs
         conn.readTimeout = timeoutMs
         conn.useCaches = false
         if (conn.responseCode !in 200..299) null
         else if (conn.contentLengthLong > maxBytes) null
-        else conn.inputStream.use { readCapped(it, maxBytes) }
+        else conn.inputStream.use { readCapped(it, maxBytes, conn.contentLengthLong, deadline) }
     } catch (e: Exception) {
         null
     } finally {
         conn.disconnect()
+    }
+}
+
+private val watchdog = java.util.concurrent.Executors.newSingleThreadScheduledExecutor { r ->
+    Thread(r, "poster-watchdog").apply { isDaemon = true }
+}
+
+/** 打开 + 读取都在 [timeoutMs] 内:到点从看门狗线程关掉流,让卡在 provider 管道上的 read 抛异常返回,IO 槽位随之释放。 */
+internal fun readWithWatchdog(timeoutMs: Int, open: () -> InputStream?, maxBytes: Int): ByteArray? {
+    val deadline = System.nanoTime() + timeoutMs * 1_000_000L
+    var stream: InputStream? = null
+    var expired = false
+    val lock = Any()
+    val task = watchdog.schedule({
+        synchronized(lock) { expired = true; runCatching { stream?.close() } }
+    }, timeoutMs.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
+    return try {
+        val st = open() ?: return null
+        synchronized(lock) { stream = st; if (expired) { runCatching { st.close() }; return null } }
+        st.use { readCapped(it, maxBytes, -1, deadline) }
+    } catch (e: Exception) {
+        null
+    } finally {
+        task.cancel(false)
     }
 }
 
@@ -93,6 +156,13 @@ object PosterCache {
     @OptIn(ExperimentalCoroutinesApi::class)
     private val io = Dispatchers.IO.limitedParallelism(4)
 
+    private fun pruneFailed(now: Long) { failed.entries.removeAll { posterRetryDue(it.value, now) } }
+
+    /** 日志只写 scheme + host,不带路径 / 查询串(可能含令牌)。 */
+    private fun logId(uri: String): String = runCatching {
+        val u = Uri.parse(uri); "${u.scheme}://${u.host ?: u.authority.orEmpty()}"
+    }.getOrDefault("?")
+
     fun peek(uri: String): Bitmap? = mem.get(uri)
 
     /** 读 + 解码到 [heightPx] 高;失败返回 null(调用方画深色底 + 标题)。 */
@@ -100,19 +170,20 @@ object PosterCache {
         mem.get(uri)?.let { return it }
         val now = SystemClock.elapsedRealtime()
         if (!posterRetryDue(failed[uri], now)) return null
+        pruneFailed(now)
         val bmp = withContext(io) { runCatching { decode(bytesOf(ctx, uri), heightPx) }.getOrNull() }
         if (bmp != null) {
             mem.put(uri, bmp)
             failed.remove(uri)
         } else {
             failed[uri] = SystemClock.elapsedRealtime()
-            Log.i("UnitedU", "海报读不到(${POSTER_RETRY_MS / 1000} s 内不再试): $uri")   // e2e j_channels 认这一行
+            Log.i("UnitedU", "海报读不到(${POSTER_RETRY_MS / 1000} s 内不再试): ${logId(uri)}")   // e2e j_channels 认这一行
         }
         return bmp
     }
 
     private fun bytesOf(ctx: Context, uri: String): ByteArray? = when (posterSourceOf(uri)) {
-        PosterSource.RESOLVER -> ctx.contentResolver.openInputStream(Uri.parse(uri))?.use { readCapped(it, POSTER_MAX_BYTES) }
+        PosterSource.RESOLVER -> readWithWatchdog(POSTER_TIMEOUT_MS, { ctx.contentResolver.openInputStream(Uri.parse(uri)) }, POSTER_MAX_BYTES)
         PosterSource.HTTPS -> fetchBytes(URL(uri), POSTER_TIMEOUT_MS, POSTER_MAX_BYTES)
         PosterSource.NONE -> null
     }
@@ -121,12 +192,12 @@ object PosterCache {
         if (bytes == null) return null
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        if (!posterAcceptable(bounds.outWidth, bounds.outHeight)) return null
         val opts = BitmapFactory.Options().apply { inSampleSize = posterSampleSize(bounds.outWidth, bounds.outHeight, heightPx) }
         val raw = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts) ?: return null
-        if (raw.height <= heightPx) return raw
-        val w = (raw.width.toLong() * heightPx / raw.height).toInt().coerceAtLeast(1)
-        val scaled = Bitmap.createScaledBitmap(raw, w, heightPx, true)
+        val (w, h) = posterScaledSize(raw.width, raw.height, heightPx)
+        if (w == raw.width && h == raw.height) return raw
+        val scaled = Bitmap.createScaledBitmap(raw, w, h, true)
         if (scaled !== raw) raw.recycle()
         return scaled
     }
