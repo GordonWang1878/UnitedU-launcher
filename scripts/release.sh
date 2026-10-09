@@ -141,22 +141,50 @@ check_signer() {
   echo "==> 签名证书 = release 证书(SHA-256 ${digests})"
 }
 
-# 已发布的三份清单里最大的 versionCode(取不到的当 0)。新包必须比它大,否则谁都收不到。
+# 取一份清单到 stdout。成功 = HTTP 200;404 返回 4(「还没发过」,调用方自己决定算不算正常);其它失败返回 1 并说明。
 # 只读网络(GET),dry-run 也照常查。
 MANIFEST_BASE="${R2_BASE_URL:-https://dl.uniteduone.com}"
+fetch_manifest() {
+  local name="$1" tmp http
+  tmp="$(mktemp)"
+  http="$(curl -sS --max-time 10 -o "$tmp" -w '%{http_code}' "${MANIFEST_BASE%/}/unitedu/${name}.json" 2>/dev/null)" || http="000"
+  if [[ "$http" == 200 ]]; then
+    cat "$tmp"; rm -f "$tmp"; return 0
+  fi
+  rm -f "$tmp"
+  [[ "$http" == 404 ]] && return 4
+  echo "读 ${MANIFEST_BASE%/}/unitedu/${name}.json 失败(HTTP ${http})" >&2
+  return 1
+}
+# 清单 JSON(stdin)里取一个字段;解析不了返回 1。
+manifest_field() {
+  python3 -c 'import json,sys; print(json.load(sys.stdin)[sys.argv[1]])' "$1" 2>/dev/null
+}
+
+# 已发布的三份清单里最大的 versionCode。新包必须比它大,否则谁都收不到。
+# latest.json 必须读成功(任何失败都算失败,不能当 0);beta.json / rollback.json 404 = 还没发过 = 0,其它失败也算失败。
+# 取不到时绝不静默当 0——否则网络一抖,单调检查就形同虚设。
 published_max_code() {
-  local max=0 c name
+  local max=0 c name body rc
   for name in latest beta rollback; do
-    c="$(curl -fsSL --max-time 10 "${MANIFEST_BASE%/}/unitedu/${name}.json" 2>/dev/null \
-      | python3 -c 'import json,sys; print(json.load(sys.stdin)["versionCode"])' 2>/dev/null || echo 0)"
-    [[ "$c" =~ ^[0-9]+$ ]] || c=0
+    rc=0
+    body="$(fetch_manifest "$name")" || rc=$?
+    if [[ "$rc" -eq 4 && "$name" != latest ]]; then
+      c=0
+    elif [[ "$rc" -ne 0 ]]; then
+      [[ "$rc" -eq 4 ]] && echo "${name}.json 不存在(HTTP 404),但它必须存在" >&2
+      return 1
+    else
+      c="$(printf '%s' "$body" | manifest_field versionCode)" || { echo "${name}.json 不是合法清单" >&2; return 1; }
+      [[ "$c" =~ ^[0-9]+$ ]] || { echo "${name}.json 的 versionCode 不是数字" >&2; return 1; }
+    fi
     (( c > max )) && max=$c
   done
   echo "$max"
 }
 check_code_monotonic() {
   local code="$1" max
-  max="$(published_max_code)"
+  max="$(published_max_code)" || { echo "取不到已发布的最大 versionCode,无法确认单调" >&2; return 1; }
   if (( code <= max )); then
     echo "versionCode ${code} 不比已发布的最大值 ${max} 大——用户收不到它。先在 app/build.gradle.kts 把 versionCode 改成 $((max + 1)) 或更大" >&2
     return 1
@@ -398,15 +426,33 @@ SHA256="$(shasum -a 256 "$APK_DIST" | awk '{print $1}')"
 # 在临时 git worktree 里构建,不动当前工作区;tag 里的 build.gradle.kts 须支持 -PversionCodeOverride
 # (v1.0.3 起有)。无论构建成败都清掉 worktree,不留残骸。
 if [[ "$CHANNEL" == beta ]]; then
+  # 取最新稳定 tag 之前先同步 tag(只读);取不到就可能漏掉别处已发的稳定版。
+  # 下面三项检查:正式发布失败即中止,dry-run 只警告。
+  beta_gate_fail() {
+    if [[ "$DRY_RUN" -eq 1 ]]; then echo "警告(dry-run 继续):$1" >&2; else echo "$1" >&2; exit 1; fi
+  }
+  git fetch --tags origin >/dev/null 2>&1 || beta_gate_fail "git fetch --tags origin 失败:本地 tag 可能不是最新,回退包可能选错稳定版"
   # 只认 vX.Y.Z(不带 -beta),按版本排序取最大。
   STABLE_TAG="$(git tag --list 'v[0-9]*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)"
   [[ -n "$STABLE_TAG" ]] || { echo "找不到稳定版 tag" >&2; exit 1; }
+  # 最新稳定 tag 必须就是线上 latest.json 的那一版,否则回退包会指向一个用户拿不到的稳定版。
+  LIVE_STABLE="$(fetch_manifest latest | manifest_field versionName || true)"
+  if [[ "$LIVE_STABLE" != "${STABLE_TAG#v}" ]]; then
+    beta_gate_fail "最新稳定 tag 是 ${STABLE_TAG#v},但线上 latest.json 的 versionName 是「${LIVE_STABLE:-读不到}」——两者必须一致"
+  else
+    echo "==> 最新稳定 tag ${STABLE_TAG} = 线上 latest.json"
+  fi
+  # 回退包是「稳定 tag 的源码」:这份源码得带通道开关(rollbackUrls),否则用户回退后拿不到后续的回退/Beta 清单。
+  if ! git show "${STABLE_TAG}:gradle.properties" 2>/dev/null | grep -q '^unitedu.rollbackUrls='; then
+    beta_gate_fail "最新稳定 tag ${STABLE_TAG} 的 gradle.properties 没有 unitedu.rollbackUrls——它还没有通道开关。带通道开关的这份代码必须先作为稳定版发一次,再发 Beta"
+  fi
   RB_CODE=$((APK_VERSION_CODE + 1))
   RB_TMP="$(mktemp -d)"
   RB_DIR="${RB_TMP}/rollback"
   # 中途被打断(Ctrl-C、kill)也要清掉临时 worktree 与目录,不在 git 里留残骸。
   rb_cleanup() { git worktree remove --force "$RB_DIR" 2>/dev/null || true; rm -rf "$RB_TMP"; }
-  trap rb_cleanup EXIT INT TERM
+  trap rb_cleanup EXIT
+  trap 'rb_cleanup; exit 130' INT TERM
   echo "==> 构建回退包:${STABLE_TAG} 源码,versionCode ${RB_CODE}"
   git worktree add --detach "$RB_DIR" "$STABLE_TAG"
   RB_OK=1

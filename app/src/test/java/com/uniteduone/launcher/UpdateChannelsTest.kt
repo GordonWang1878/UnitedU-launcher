@@ -43,6 +43,26 @@ class UpdateChannelsTest {
     }
     @Test fun betaTieGoesToStable() =
         assertEquals(UpdateKind.STABLE, run(UpdateChannel.BETA, 6, ok(9), beta = ok(9)).getOrThrow()!!.kind)
+    // I-5:装的是 Beta 时,版本名低于它基础版本的稳定版(急修)不推给 Beta 用户
+    @Test fun betaIgnoresHotfixBelowBase() =
+        assertNull(run(UpdateChannel.BETA, 11, { Result.success(info(13, "1.0.4")) }, beta = { Result.success(info(11, "1.1.0-beta.1")) }, name = "1.1.0-beta.1").getOrThrow())
+    @Test fun betaTakesStableAtBase() =
+        assertEquals(ChannelUpdate(info(14, "1.1.0"), UpdateKind.STABLE),
+            run(UpdateChannel.BETA, 12, { Result.success(info(14, "1.1.0")) }, beta = { Result.success(info(12, "1.1.0-beta.2")) }, name = "1.1.0-beta.2").getOrThrow())
+    @Test fun betaFromStableBuildIsNotFiltered() =
+        assertEquals(ChannelUpdate(info(13, "1.0.4"), UpdateKind.STABLE),
+            run(UpdateChannel.BETA, 6, { Result.success(info(13, "1.0.4")) }, beta = { Result.success(info(11, "1.1.0-beta.1")) }, name = "1.0.3").getOrThrow())
+
+    @Test fun compareSemverCases() {
+        assertEquals(0, compareSemver("1.1.0", "1.1.0"))
+        assertTrue(compareSemver("1.0.4", "1.1.0") < 0)
+        assertTrue(compareSemver("1.10.0", "1.9.9") > 0)
+        assertEquals(0, compareSemver("1.1", "1.1.0"))
+        assertEquals(0, compareSemver("1.1.0-beta.2", "1.1.0"))
+        assertEquals(0, compareSemver("junk", "0.0.0"))
+        assertTrue(compareSemver("2", "1.9.9") > 0)
+    }
+
     @Test fun betaBothFailedIsFailure() = assertTrue(run(UpdateChannel.BETA, 6, net, beta = net).isFailure)
     @Test fun betaUpToDate() = assertNull(run(UpdateChannel.BETA, 9, ok(6), beta = ok(9)).getOrThrow())
     @Test fun betaChannelNeverReadsRollback() { run(UpdateChannel.BETA, 9, ok(6), beta = ok(9)) }  // never 会抛

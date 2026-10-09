@@ -39,11 +39,18 @@ fun resolveChannel(
     val stable = fetchStable()
     if (channel == UpdateChannel.BETA) {
         val beta = fetchBeta()
+        // Gordon 2026-10-10:装的是 Beta 时,稳定版名字低于 Beta 的基础版本(如装 1.1.0-beta.2,稳定急修 1.0.4)不推。
+        val base = installedName.substringBefore("-beta").takeIf { installedName.contains("-beta") }
         val candidates = listOfNotNull(
-            stable.getOrNull()?.let { ChannelUpdate(it, UpdateKind.STABLE) },
+            stable.getOrNull()
+                ?.takeIf { base == null || compareSemver(it.versionName, base) >= 0 }
+                ?.let { ChannelUpdate(it, UpdateKind.STABLE) },
             beta.getOrNull()?.let { ChannelUpdate(it, UpdateKind.BETA) },
         )
-        if (candidates.isEmpty()) return Result.failure(stable.exceptionOrNull() ?: UpdateCheckException(CheckFailure.NETWORK))
+        if (candidates.isEmpty()) {
+            if (stable.isSuccess && beta.isFailure) return Result.success(null) // 稳定版被基础版本规则滤掉、Beta 又没发过:已是最新
+            return Result.failure(stable.exceptionOrNull() ?: UpdateCheckException(CheckFailure.NETWORK))
+        }
         if (beta.isFailure) log("beta manifest unavailable; using stable only")
         // 先滤「装得上且更新」再比大小:装不上的 Beta(minSdk 太高)不能把能装的稳定版挤掉;并列取列表里靠前的(稳定)
         val best = candidates.filter { isNewer(it.info, installedCode, sdk) }.maxByOrNull { it.info.versionCode }
@@ -65,4 +72,16 @@ fun resolveChannel(
         return Result.success(null)
     }
     return Result.success(ChannelUpdate(rb, UpdateKind.ROLLBACK))
+}
+
+/** 数字 x.y.z 比较:`-` 之后的后缀忽略,缺的段按 0,认不出的段按 0。 */
+fun compareSemver(a: String, b: String): Int {
+    fun parts(v: String) = v.substringBefore('-').split('.').map { it.trim().toIntOrNull() ?: 0 }
+    val pa = parts(a)
+    val pb = parts(b)
+    for (i in 0 until maxOf(pa.size, pb.size, 3)) {
+        val c = (pa.getOrElse(i) { 0 }).compareTo(pb.getOrElse(i) { 0 })
+        if (c != 0) return c
+    }
+    return 0
 }
