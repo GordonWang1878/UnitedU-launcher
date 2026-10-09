@@ -14,7 +14,8 @@ data class GalleryCatalogCache(val catalog: GalleryCatalog, val json: String, va
 /** Blocking disk I/O only; callers dispatch off the UI thread. Adoption belongs in Settings. */
 class GalleryStore(val root: File, val thumbs: File,
     private val onError: (String) -> Unit = {},
-    private val beforeWrite: (String) -> Unit = {}) {
+    private val beforeWrite: (String) -> Unit = {},
+    private val deleteOriginal: (File) -> Boolean = { it.delete() }) {
     private class Stores {
         val registry = LockedFile("registry.json")
         val catalog = LockedFile("catalog.json")
@@ -126,7 +127,9 @@ class GalleryStore(val root: File, val thumbs: File,
         if (protected.any { checkedHash(it) == hash }) return@locked false
         val entries = loadRegistry()
         val removed = entries.filter { it.original.blob.sha256 == hash }
-        if (removed.isEmpty()) return@locked false
+        // A previous removal may have committed membership deletion but failed before deleting bytes.
+        // The validated hash path remains retryable, with the same adoption protection as normal removal.
+        if (removed.isEmpty()) return@locked removeOriginalFile(hash)
         // Removing recovery metadata first prevents a removed download being resurrected after corruption.
         val backups = removed.map { metadata(it) to serializeGalleryCatalog(GalleryCatalog(0, listOf(it))) }
         try {
@@ -139,9 +142,15 @@ class GalleryStore(val root: File, val thumbs: File,
             backups.forEach { (store, text) -> if (!store.write(metadataDir, text)) throw IOException("Cannot restore gallery metadata", failure) }
             throw failure
         }
-        val dst = original(hash)
-        if (dst.exists() && !dst.delete()) throw IOException("Cannot delete gallery original")
+        removeOriginalFile(hash)
         true
+    }
+    private fun removeOriginalFile(hash: String): Boolean {
+        val dst = original(hash)
+        if (!dst.exists()) return false
+        beforeWrite("original-delete")
+        if (!deleteOriginal(dst)) throw IOException("Cannot delete gallery original")
+        return true
     }
     fun sweepParts(active: Set<File>) = files.registry.locked {
         val protected = active.map { it.canonicalFile }.toSet()

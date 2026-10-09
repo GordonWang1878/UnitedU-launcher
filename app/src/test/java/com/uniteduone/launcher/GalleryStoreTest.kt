@@ -98,4 +98,26 @@ class GalleryStoreTest {
         assertThrows(IllegalArgumentException::class.java) { s.writeCatalog(GalleryCatalog(2, emptyList()), serializeGalleryCatalog(GalleryCatalog(1, emptyList())), null) }
         assertTrue(s.downloaded().isEmpty()); assertNull(s.readCatalog())
     }
+    @Test fun retriesOriginalDeletionFailureAfterMembershipRemoval() {
+        val s = store(); val a = item(); val local = s.commitOriginal(a, part(s, "original"))
+        val failing = GalleryStore(s.root, s.thumbs, deleteOriginal = { false })
+        assertThrows(IOException::class.java) { failing.removeOriginal(a.original.blob.sha256, emptySet()) }
+        assertTrue(local.file.exists()); assertTrue(s.downloaded().isEmpty())
+        val restarted = GalleryStore(s.root, s.thumbs)
+        assertFalse(restarted.removeOriginal(a.original.blob.sha256, setOf(a.original.blob.sha256)))
+        assertTrue(local.file.exists())
+        assertTrue(restarted.removeOriginal(a.original.blob.sha256, emptySet()))
+        assertFalse(local.file.exists())
+        assertFalse(restarted.removeOriginal(a.original.blob.sha256, emptySet()))
+    }
+    @Test fun retriesInterruptedDeletionAfterMembershipRemoval() {
+        val s = store(); val a = item(); val local = s.commitOriginal(a, part(s, "original"))
+        val interrupted = GalleryStore(s.root, s.thumbs, beforeWrite = {
+            if (it == "original-delete") throw IOException("interrupted before binary deletion")
+        })
+        assertThrows(IOException::class.java) { interrupted.removeOriginal(a.original.blob.sha256, emptySet()) }
+        assertTrue(local.file.exists()); assertTrue(s.downloaded().isEmpty())
+        assertTrue(GalleryStore(s.root, s.thumbs).removeOriginal(a.original.blob.sha256, emptySet()))
+        assertFalse(local.file.exists())
+    }
 }
