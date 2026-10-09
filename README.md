@@ -165,6 +165,10 @@ Settings → About shows the current version (`versionName (versionCode)`). Unit
 
 The first time you install an update here, allow UnitedU under "Install unknown apps" on the TV (see [Install](#install)) and try again. Updates go through the system installer's session API and don't turn off Home Button Takeover (the service reconnects after the update; verified on an emulator). An APK of UnitedU itself sent from your phone takes the same session install. If an update fails (other than you pressing Cancel), the TV shows a message: "Update was not installed (status code). You can retry under "About"".
 
+### Stable and Beta channels
+
+By default UnitedU follows the **Stable** channel. If you want new features first, open Settings → About → **Update channel** and pick **Beta**; it checks for an update right away. Beta builds get features earlier and may be less stable. You can switch back to Stable at any time from the same place: UnitedU installs the current stable version over the Beta, and your layout and settings are kept.
+
 ## Going back to the old home screen
 
 You can switch back at any time without uninstalling UnitedU: Settings → General → Set Default Home App → "Change in Native TV Settings", and pick the previous home screen in the system's "Home app" chooser. This is handled entirely by Android; both the stock home screen and UnitedU stay installed, and you can pick UnitedU again later. If you turned on Home Button Takeover, also turn off "UnitedU Home Button" under "Accessibility" in Native TV Settings for HOME to be fully restored.

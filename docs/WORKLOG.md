@@ -1988,3 +1988,12 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 否掉的:独立 Beta 包名(数据不共享、要切默认桌面)、等稳定版追上(切回要等数周)、卸载重装(布局全丢)、长期双分支、功能开关。
 - 回退包带来硬约束:**Beta 只能新增数据字段**,旧代码要能读新数据;写进 CLAUDE.md + 读盘单测。
 - 设计稿:`docs/superpowers/specs/2026-10-09-release-channels-design.md`(R164)。代码一行未动。
+
+## 2026-10-09 · 稳定版 / Beta 双通道(R164)实施完成(分支 feature/release-channels,未合 main、未发布)
+
+- 做了(按设计稿 `docs/superpowers/specs/2026-10-09-release-channels-design.md`):`updateChannel` 设置字段(「恢复默认」不动它)→ 纯函数 `resolveChannel`(`UpdateChannels.kt`)→ 检查更新按通道读 `latest.json` / `beta.json` / `rollback.json`(`Update.checkChannel`、`UpdateKind`)→ 关于页胶囊 2 → 3 与二选一通道页 → `scripts/release.sh` Beta 模式(prerelease、回退包、versionCode 单调检查、`channel-beta` 固定 tag)→ 端到端脚本 `scripts/e2e/channels.sh`;CLAUDE.md 加「数据格式向下兼容铁律」,`ForwardCompatTest` 钉住读盘函数对未知字段宽容。R164 条目已写进 gtv 线 spec §12,设置清单、REVIEW-GUIDE、两份 README 已同步。
+- **验证**:单测全过(含 `UpdateChannelsTest`、`ForwardCompatTest`、`SettingsPageLimitTest` 数到关于页 3 / 通道页 2);模拟器 `unitedu-tv-2` 焦点验收(关于页三颗、进通道页焦点落当前项、Beta 说明跟光标、切换后自动检查、返回落回「更新通道」)截图在 `docs/screenshots/channels/`;e2e `scripts/e2e/channels.sh` 5 场景全过(35/35 断言):稳定查 latest;切 Beta 装 1.0.4-beta.1(关于页标 Beta);切回稳定装回退包,layout.json md5 与改过的设置前后相同;beta.json 404 不报失败;下载中切通道下载作废。
+- **未验证**:①**还没往真实 R2 / GitHub 发过任何 Beta**(`release.sh` Beta 模式只跑过 dry-run,稳定模式路径也是 dry-run);②`channel_beta_fail` 失败恢复提示与回退 worktree 的 trap 清理只做了语法检查,没造出失败去走;③首页焦点可见只有间接证据(空桌面 uiautomator 读不到透明节点);④没在 A95L 真机上看过。
+- **Gordon 2026-10-09 定:更新通道顺序沿用 R2 优先、GitHub 兜底、先到先得;清单读到后下载失败不换通道重试,不改。**
+- **发版顺序前提**:第一个带通道开关的版本必须先作为**稳定版**发出(1.0.3 及以前的用户没有开关,发了 Beta 他们也看不到);稳定版发出后才能发第一个 Beta。`release.sh` 的 versionCode 必须比已发布最大值大(三类包共用一个计数)。
+- 模拟器小坑已记 CLAUDE.md:自我更新要同时开 `REQUEST_INSTALL_PACKAGES` 与 `SYSTEM_ALERT_WINDOW` 两个 appop;系统确认页默认焦点在 Cancel、Update 在它左边。

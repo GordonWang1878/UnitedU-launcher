@@ -52,6 +52,7 @@
 **设置外壳**
 - `SettingsModel.kt`(四组、每行、写入函数,纯数据)、`ShellModel.kt`(导航栈、页 id、每页缺省焦点、`MAX_CAPSULES_PER_PAGE`、预览状态机,纯模型)、`SettingsShell.kt`(`CapsuleColumn`:外壳每一层的焦点账本)、`ShellCapsule.kt`(`MenuPill` 胶囊渲染)、`SettingsFade.kt`(淡入淡出 `FadeSwitch`、残影 `LocalPageGhost`、`ShellMotion`;R136 起所有浮层经 `OverlayStack` 走同一套)。
 - `AboutScreen.kt` + `Update.kt` + `UpdateChecker.kt`:关于页与手动检查更新(判定全在 `UpdateChecker.kt`,纯函数;装更新交给 `SelfUpdate.kt`);`ApkInstaller.kt`:传 APK 装**别的**应用的 `ACTION_VIEW` 安装器(扫码页上传 + FileProvider;传的恰是 UnitedU 自己时 `UploadServer` 按包名分流、改走 `SelfUpdate`);`SelfUpdate` 复用它的权限引导(`requestInstallPermission`)与 `Result`;`HomeSettingsCard.kt`:当前默认桌面;`SystemStatus.kt` + `SystemStatusReader.kt`:只读系统屏保 / 动画缩放 / `sleep_timeout` 快照;`TitleDialog.kt`(改名页:卡片改名、输入源改名;R163 起行没有名字,没有行改名)/ `ConfirmDialog.kt`(R135 起只是 `GearMenu` 的薄封装:两颗胶囊「取消 / 确定」)。
+- `UpdateChannels.kt`(R164):稳定版 / Beta 双通道的判定,纯函数 `resolveChannel`(Beta 读 `latest.json` + `beta.json` 取 versionCode 大的;稳定通道已装版本更大时改读 `rollback.json`);`Update.kt` 的 `checkChannel` 按设置里的 `updateChannel` 取清单,`scripts/release.sh` 的 Beta 模式负责发布与回退包。
 - `Onboarding.kt` + `OnboardingPure.kt`:首次引导三步(R135 起每步一份 `CapsuleColumn`,不再自带焦点账本)。
 
 **选图、导入、上传**
@@ -114,6 +115,8 @@
 - **测试轮留着没修的两处**(`docs/design/test-round-2026-09-30.md`):`standbyPlan(1, Long.MAX_VALUE)` 溢出成负数——设置只允许固定档位,实际走不到,单测里是 `@Ignore` 用例;`sanitizeUploadName` 不去 C1 控制字符(U+0080–009F),它们在 ext4 上是合法文件名,不影响落盘与删除。
 - **主页键接管(R162)的接受限制**:开机时服务连上之前(约 1.5 s)原厂桌面会先露面;开机后 30–60 s 服务连上时会把 UnitedU 拉到前面一次(开机 3 分钟内连上就拉),设成「开机进上次信号源」的电视上会盖住 HDMI 画面;待机唤醒那一下 HOME 截不到(屏幕关着时按键不送无障碍,只唤醒);服务刚连上时屏保若已在播放,`dreaming` 要等下一次广播才对(没有公开查询,那一次 HOME 被吃);Android 13+ 用系统安装器侧载的包受「受限设置」锁,电视设置里没有解锁入口,只能 adb(设置页直接写出命令;`adb install -r` 覆盖装不清已有的锁,要先卸载再装,2026-10-02 模拟器实测);Fire OS 不支持(Fire OS 8 的 HOME 在系统按键策略里先被吃掉,送不到无障碍过滤器)。依据与探针见 `research/2026-10-02-home-key-takeover-prior-art.md`。
 - **「这台电视不允许」是推断,不是读锁**:应用读不到那个 appop(要 `MANAGE_APPOPS`),按安装来源(`packageSource` 为本地 / 下载文件)加「见过一次」记号推断;会话更新会把来源归 0 而锁还在(靠记号);已用 adb 解锁但还没开过服务时仍报「不允许」(按钮照样带去无障碍页);安装来源仍是文件(3 / 4)时,关掉开关后记号会被重新点亮、小字回到「不允许」;`pm clear` 清记号而 appop 不清、Auto Backup 可能把记号带到别的机器——都只影响小字。**自我更新的 16 MB 拷贝 + fsync 在主线程**(`SelfUpdate.install`,确认前台与 `commit` 要在同一个主线程回合;电视上若有卡顿再挪到 IO;手机传来的恰是 UnitedU 自己时走同一处,上限是传 APK 的 100 MB,实际约 16 MB)。复审时登记、没修的两处:`HomeKeyService.launch()` 失败(厂商拦后台启动)时 HOME 照吃,成了死键;自我更新的非取消类失败(存储不足、签名不符、被策略拦下)只弹一条系统 Toast(带状态码),关于页仍停在「安装中」。
+- **数据格式向下兼容(R164,约束不是 bug)**:从 Beta 切回稳定版装的是旧代码(回退包),它要读 Beta 写下的 layout / titles / hidden-inputs / settings,所以 Beta 只能**新增**字段、不改既有字段的含义与类型(CLAUDE.md「数据格式向下兼容铁律」,`ForwardCompatTest` 逐个读盘函数钉住)。评审时看到“只加不改”的落盘改动别当过度设计。
+- **更新通道顺序(Gordon 2026-10-09 定)**:R2 优先、GitHub 兜底、先到先得;清单读到后下载失败不换通道重试,不改。
 - **更新通道未配置镜像**:缺省只查 GitHub Release,而仓库还没有 Release,「检查更新」现在只会显示「检查失败」(COS 地址在 `gradle.properties` 里仍是注释)。
 
 ## 7. 最有价值的评审方向
