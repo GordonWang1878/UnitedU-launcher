@@ -33,6 +33,12 @@ class GalleryHttp(
     private val connectionFactory: (URL) -> HttpURLConnection = { it.openConnection() as HttpURLConnection },
     private val monotonicMillis: () -> Long = { System.nanoTime() / 1_000_000 },
     private val allowLoopbackHttp: Boolean = false,
+    private val beforeCompletion: () -> Unit = {},
+    private val scheduleDeadline: (() -> Unit) -> (() -> Unit) = { expire ->
+        val timer = deadlines.schedule(expire,120,TimeUnit.SECONDS)
+        val cancel: () -> Unit = { timer.cancel(false); Unit }
+        cancel
+    },
 ) : GalleryTransport {
     private val root = URI(baseUrl).also {
         // Loopback is an explicit developer-test option; production catalog validation remains HTTPS-only.
@@ -54,12 +60,14 @@ class GalleryHttp(
     override suspend fun download(blob: GalleryBlob, part: File, onProgress: (Long) -> Unit) {
         require(blob.bytes in 1..GALLERY_MAX_ORIGINAL_BYTES)
         require(blob.sha256.matches(Regex("[a-fA-F0-9]{64}")))
-        request(blob.path, null) { connection, check ->
-            var owned = false
-            var success = false
-            try {
+        val owned = AtomicBoolean(false)
+        fun discard() { if (owned.compareAndSet(true,false)) part.delete() }
+        var received = false
+        try {
+            request(blob.path, null, ::discard) { connection, check ->
                 Files.newOutputStream(part.toPath(), StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE).use { output ->
-                    owned = true
+                    owned.set(true)
+                    check()
                     val hash = MessageDigest.getInstance("SHA-256")
                     val total = read(connection, blob.bytes, check) { bytes, count, total ->
                         output.write(bytes,0,count); hash.update(bytes,0,count); onProgress(total)
@@ -69,11 +77,11 @@ class GalleryHttp(
                     val actual = hash.digest().joinToString("") { "%02x".format(it) }
                     if (!actual.equals(blob.sha256,ignoreCase=true)) throw GalleryHttpException("Resource hash mismatch")
                 }
-                check()
-                success = true
-            } finally { if (owned && !success) part.delete() }
-        }
+            }
+            received = true
+        } finally { if (!received) discard() }
     }
+
     private fun read(connection: HttpURLConnection, limit: Long, check: () -> Unit, consume: (ByteArray,Int,Long) -> Unit): Long {
         var total = 0L
         connection.inputStream.use { input ->
@@ -90,18 +98,20 @@ class GalleryHttp(
         }
         return total
     }
-    private suspend fun <T> request(path: String, etag: String?, consume: (HttpURLConnection, () -> Unit) -> T): T = suspendCancellableCoroutine { continuation ->
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private suspend fun <T> request(path: String, etag: String?, onDiscard: () -> Unit = {}, consume: (HttpURLConnection, () -> Unit) -> T): T = suspendCancellableCoroutine { continuation ->
         val start = monotonicMillis()
         val active = AtomicReference<HttpURLConnection?>()
         val stopped = AtomicBoolean(false)
         val completed = AtomicBoolean(false)
         fun stop() { stopped.set(true); active.get()?.disconnect() }
         continuation.invokeOnCancellation { completed.set(true); stop() }
-        val timer = deadlines.schedule({
+        val cancelDeadline = scheduleDeadline {
             stop()
             if (completed.compareAndSet(false,true)) continuation.resumeWithException(GalleryHttpException("Gallery request timed out"))
-        },120,TimeUnit.SECONDS)
+        }
         workers.execute {
+            var handedOff = false
             try {
                 fun check() {
                     if (stopped.get() || !continuation.isActive) throw GalleryHttpException("Gallery request cancelled")
@@ -138,13 +148,20 @@ class GalleryHttp(
                         }
                         if (code != 200 && !(code == 304 && etag != null)) throw GalleryHttpException("Gallery HTTP $code")
                         val result = consume(connection,::check)
+                        beforeCompletion()
                         check()
-                        if (completed.compareAndSet(false,true)) continuation.resume(result)
+                        if (completed.compareAndSet(false,true)) {
+                            continuation.resume(result) { onDiscard() }
+                            handedOff = true
+                        }
                         break
                     } finally { connection.disconnect(); active.compareAndSet(connection,null) }
                 }
             } catch (failure: Throwable) { if (completed.compareAndSet(false,true)) continuation.resumeWithException(failure) }
-            finally { timer.cancel(false) }
+            finally {
+                if (!handedOff) onDiscard()
+                cancelDeadline()
+            }
         }
     }
     private companion object {

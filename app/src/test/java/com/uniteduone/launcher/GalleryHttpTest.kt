@@ -112,4 +112,53 @@ class GalleryHttpTest {
         assertTrue(runCatching { GalleryHttp(baseUrl="http://localhost/gallery/",allowLoopbackHttp=true) }.isFailure)
     }
 
+    @Test fun cancellationAfterValidationRemovesPartAndAllowsRetry() = runBlocking {
+        val dir=kotlin.io.path.createTempDirectory().toFile(); val part=File(dir,"handoff.part")
+        val entered=java.util.concurrent.CountDownLatch(1); val release=java.util.concurrent.CountDownLatch(1)
+        try {
+            val transport=GalleryHttp(connectionFactory={ Fake(body="a".toByteArray()) }, beforeCompletion={ entered.countDown(); release.await() })
+            val job=launch(Dispatchers.Default) { transport.download(blob("a".toByteArray()),part) {} }
+            assertTrue(entered.await(3,java.util.concurrent.TimeUnit.SECONDS)); assertTrue(part.exists())
+            job.cancelAndJoin(); release.countDown()
+            withTimeout(3000) { while(part.exists()) delay(10) }
+            http(Fake(body="a".toByteArray())).download(blob("a".toByteArray()),part) {}
+            assertEquals("a",part.readText())
+        } finally { release.countDown(); dir.deleteRecursively() }
+    }
+    @Test fun deadlineAfterValidationRemovesPart() = runBlocking {
+        val dir=kotlin.io.path.createTempDirectory().toFile(); val part=File(dir,"deadline.part"); var time=0L
+        try {
+            val transport=GalleryHttp(connectionFactory={ Fake(body="a".toByteArray()) },monotonicMillis={ time },beforeCompletion={ time=120001L })
+            assertTrue(runCatching { transport.download(blob("a".toByteArray()),part) {} }.isFailure)
+            assertFalse(part.exists())
+        } finally { dir.deleteRecursively() }
+    }
+
+    @Test fun watchdogWinsValidatedCompletionRace() = runBlocking {
+        val dir=kotlin.io.path.createTempDirectory().toFile(); val part=File(dir,"watchdog.part")
+        var expire: (() -> Unit)? = null
+        try {
+            val transport=GalleryHttp(connectionFactory={ Fake(body="a".toByteArray()) },
+                scheduleDeadline={ callback -> expire=callback; {} },beforeCompletion={ expire!!() })
+            assertTrue(runCatching { transport.download(blob("a".toByteArray()),part) {} }.exceptionOrNull() is GalleryHttpException)
+            withTimeout(3000) { while(part.exists()) delay(10) }
+        } finally { dir.deleteRecursively() }
+    }
+    @Test fun cancellationAfterResumeBeforeDeliveryDeletesPart() = runBlocking {
+        val queue=java.util.concurrent.LinkedBlockingQueue<Runnable>()
+        val dispatcher=object : CoroutineDispatcher() {
+            override fun dispatch(context: kotlin.coroutines.CoroutineContext, block: Runnable) { queue.add(block) }
+        }
+        val dir=kotlin.io.path.createTempDirectory().toFile(); val part=File(dir,"delivery.part")
+        try {
+            val transport=http(Fake(body="a".toByteArray()))
+            val job=launch(dispatcher) { transport.download(blob("a".toByteArray()),part) {} }
+            queue.poll(3,java.util.concurrent.TimeUnit.SECONDS)!!.run()
+            val delivery=queue.poll(3,java.util.concurrent.TimeUnit.SECONDS)!!
+            assertTrue(part.exists())
+            job.cancel(); delivery.run(); job.join()
+            assertFalse(part.exists())
+        } finally { dir.deleteRecursively() }
+    }
+
 }
