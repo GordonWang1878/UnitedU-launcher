@@ -34,7 +34,7 @@ cd /Users/gordonwang/orca/workspaces/UnitedU-launcher/频道推荐 && source scr
 - 焦点行每张卡下两行:标题 + 一行元数据(剧集「第 n 季 · 第 n 集」、电影 / 短片写时长;**不重复「应用 · 频道」**;没有元数据第二行留空);非焦点行不画字但预留同样高度。
 - 确定 = `Intent.parseUri(intent_uri, URI_INTENT_SCHEME)` + `FLAG_ACTIVITY_NEW_TASK` 启动;没有 `intent_uri`、解析失败、目标不是发布方自己的包或启动失败 → `Apps.launch(发布方包名)`;再失败 → 现有 Toast `toast_cant_open_app`。**长按频道卡不做任何事**(整下吞掉,不弹菜单、松开也不启动)。
 - 频道暂时没节目、频道被删、授权被收回 → **首页不画这一行**(与空应用行同一条过滤,焦点账本里不存在它)。
-- 清单加 `<uses-permission android:name="android.permission.READ_TV_LISTINGS" />`;`registerForActivityResult(ActivityResultContracts.RequestPermission())` 在 `MainActivity.onCreate` 注册(本应用第一处运行时权限)。
+- 清单加 `<uses-permission android:name="android.permission.READ_TV_LISTINGS" />` 与 `com.android.providers.tv.permission.READ_EPG_DATA`(normal,照研究 §6 探针原样;TvProvider 在权限层按清单 read/writePermission 拦人,只声明前者从没测过);`registerForActivityResult(ActivityResultContracts.RequestPermission())` 在 `MainActivity.onCreate` 注册(本应用第一处运行时权限)。
 - 选频道页进页(已授权)时,给声明了 `android.media.tv.action.INITIALIZE_PROGRAMS` 接收器、还没通知过的包发一次**显式**广播,按「包名 + versionCode」记在 `channel-init.json`(走 `LockedFile`)。
 - 选频道页文案:页名「添加频道」;说明「UnitedU 会读取电视上各应用提供的频道，只在本机显示，不上传。」;没有频道「暂时没有应用提供频道」+「打开过一次的视频应用才会提供」+「返回」;拒绝授权 → 说明 +「去系统设置开启」。
 - 编辑页频道架子:顶部 = 频道图标 +「应用名 · 频道名」+ 小标签「频道」+ 操作胶囊(上移、下移、删除);没内容写「暂无内容」;没授权写「需要重新授权」并多一颗「重新授权」;海报预览高 68.6 dp、**不可聚焦**、最多画到架子右缘。「新的一行」某类满 5 行:选择卡变暗、写「已满 5 行」、确定不响应(仍可聚焦)。频道行删除**不弹确认**。
@@ -1585,6 +1585,10 @@ internal object ChannelCache {
     <!-- R164 频道行:读其它应用发布的 TvProvider 预览频道与节目。dangerous,运行时在选频道页 / 「重新授权」申请
          (MainActivity.onCreate 注册的 RequestPermission)。查 INITIALIZE_PROGRAMS 接收器靠上面的 QUERY_ALL_PACKAGES。 -->
     <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
+    <!-- normal,装上即有。研究 §6 的探针读取方声明了它 + READ_TV_LISTINGS,「只声明 READ_TV_LISTINGS」从没测过;而 TvProvider
+         在权限层按清单的 read/writePermission 拦人(§6.5:写操作缺 WRITE_EPG_DATA 当场被拒)。读侧若同样要它,缺了 query /
+         registerContentObserver 就抛 SecurityException → 授权了也永远「需要重新授权」、收不到变化通知。声明它零代价,照探针原样。 -->
+    <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
 ```
 
 `Apps.kt` 的 `object Apps` 里(`isInstalled` 之后)加:
@@ -1599,8 +1603,8 @@ internal object ChannelCache {
 
 - [ ] **Step 6: 编译 + 核对权限进了清单**
 
-Run: `cd /Users/gordonwang/orca/workspaces/UnitedU-launcher/频道推荐 && source scripts/env.sh && gradle --no-daemon testReleaseUnitTest --tests '*ChannelContentsTest*' --tests '*ChannelCacheTest*' assembleRelease && "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump permissions app/build/outputs/apk/release/app-release.apk | grep READ_TV_LISTINGS`
-Expected: 两个测试类 PASS(Step 4 注释掉的 `ChannelCacheTest` 先放回来);BUILD SUCCESSFUL;输出 `uses-permission: name='android.permission.READ_TV_LISTINGS'`。
+Run: `cd /Users/gordonwang/orca/workspaces/UnitedU-launcher/频道推荐 && source scripts/env.sh && gradle --no-daemon testReleaseUnitTest --tests '*ChannelContentsTest*' --tests '*ChannelCacheTest*' assembleRelease && "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump permissions app/build/outputs/apk/release/app-release.apk | grep -E "READ_TV_LISTINGS|READ_EPG_DATA"`
+Expected: 两个测试类 PASS(Step 4 注释掉的 `ChannelCacheTest` 先放回来);BUILD SUCCESSFUL;输出 `uses-permission: name='android.permission.READ_TV_LISTINGS'` 与 `uses-permission: name='com.android.providers.tv.permission.READ_EPG_DATA'` 两行。
 
 - [ ] **Step 7: 提交**
 
@@ -2447,6 +2451,8 @@ EOF
   <uses-feature android:name="android.software.leanback" android:required="false"/>
   <!-- normal 级,装上即有;写自己包的频道 / 节目要它 -->
   <uses-permission android:name="com.android.providers.tv.permission.WRITE_EPG_DATA"/>
+  <!-- 同为 normal;channelId() 要查自己的频道,照研究 §6 的探针 / 哔哩哔哩云视听两个都声明 -->
+  <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA"/>
   <application android:label="E2E Channels">
     <activity android:name=".Play" android:exported="true" android:label="E2E Channels">
       <intent-filter>
@@ -4780,7 +4786,7 @@ EOF
 - Modify: `scripts/e2e/README.md`(覆盖表加一行)
 
 **Interfaces:**
-- Consumes: Task 11 夹具与命令;Task 12–15 的界面与文案 key(`channel_row_title`、`channel_meta_season_episode`、`shelf_new_channel_desc`、`shelf_channel_empty`、`shelf_channel_needs_permission`、`shelf_chip_reauthorize`、`edit_choice_app_row`、`edit_choice_full`、`channel_picker_title`、`channel_picker_denied`、`channel_picker_open_settings`);`lib.py` 的 `restart` / `move_to` / `long_ok` / `shot` / `check` / `pull_json`。
+- Consumes: Task 11 夹具与命令;Task 12–15 的界面与文案 key(`channel_row_title`、`channel_meta_season_episode`、`shelf_new_channel_desc`、`shelf_channel_empty`、`shelf_channel_needs_permission`、`shelf_chip_reauthorize`、`edit_choice_app_row`、`edit_choice_full`、`edit_chip_up`、`edit_chip_delete`、`edit_row_delete_confirm_title`、`channel_picker_title`、`channel_picker_denied`、`channel_picker_open_settings`);`lib.py` 的 `restart` / `move_to` / `long_ok` / `shot` / `check` / `pull_json`。
 - Produces: 截图 `E2E_OUT/ch-01…07-*.png`(Task 17 挑进仓库)。
 
 - [ ] **Step 1: 写旅程**
@@ -4789,7 +4795,7 @@ EOF
 
 ```python
 """频道行(R164 / R165):编辑页加频道 → 授权弹窗 → 首页出现 → 左右 / 长按 / 启动 → 节目变少 / 重建 / 清空
-→ 撤销授权 → 选频道页拒绝授权 → 满 5 行 → 卸载发布方。
+→ 撤销授权 → 选频道页拒绝授权 → 满 5 行 → 删频道架子 → 卸载发布方。
 
 夹具:带代码的发布方 test.channels(fixtures/channels/,fixtures.py 的 channels() 造;本旅程自己 `--user 0` 装,
 卸载才发 PACKAGE_FULLY_REMOVED,见 CLAUDE.md 模拟器坑)。只驱动模拟器;并行时用 unitedu-tv-2 / -3(DEV=emulator-5562 / 5564)。
@@ -4798,7 +4804,7 @@ EOF
 import json, os, re, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from lib import *
-from j_edit import open_edit
+from j_edit import open_edit, go_chip
 
 BASE = {"language": "en", "onboardingDone": True, "showTitles": False}
 PUB = "test.channels"
@@ -5030,6 +5036,14 @@ def run():
     shot("ch-07-new-row-full")
     key("ok"); time.sleep(1.5)
     check("确定不响应(没开选频道页)", not screen().has(S("channel_picker_title")))
+
+    journey("频道行:删频道架子(不弹确认)")
+    key("up")                                   # 「频道」卡 → 最后一层(频道架子 Many 4)的胶囊,按最近落「上移」
+    go_chip("edit_chip_delete"); key("ok"); time.sleep(1.5)
+    s = screen()
+    check("频道架子直接删、不弹确认", len(channel_rows()) == 4 and not s.has(S("edit_row_delete_confirm_title")), channel_rows())
+    check("删后焦点落上一层(Many 3)第一颗胶囊「上移」、恰好 1 个",
+          s.count_focused() == 1 and s.label() == S("edit_chip_up"), s.label())
     key("back"); time.sleep(1.5)
 
     journey("频道行:卸载发布方 → 布局里的频道行删掉")
@@ -5053,7 +5067,7 @@ if __name__ == "__main__":
 `scripts/e2e/README.md` 覆盖表在 `j_edit.py` 那一行后加:
 
 ```
-| `j_channels.py` | 频道行(R164):编辑页「新的一行 → 频道」→ 系统授权窗 → `INITIALIZE_PROGRAMS` 后列表冒出夹具频道 → 写盘格式;首页行头 / 季集 / 8 张按 weight / 行尾停住;https 海报超时;长按不做事、确定启动节目;焦点在末张时节目 8 → 3;频道重建 `_id` 变;清空不画、布局保留;撤销授权(杀进程)→「需要重新授权」→ 重新授权;拒绝授权的说明页;满 5 行变暗;卸载发布方删行。夹具 `test.channels` 由本脚本 `--user 0` 装 |
+| `j_channels.py` | 频道行(R164):编辑页「新的一行 → 频道」→ 系统授权窗 → `INITIALIZE_PROGRAMS` 后列表冒出夹具频道 → 写盘格式;首页行头 / 季集 / 8 张按 weight / 行尾停住;https 海报超时;长按不做事、确定启动节目;焦点在末张时节目 8 → 3;频道重建 `_id` 变;清空不画、布局保留;撤销授权(杀进程)→「需要重新授权」→ 重新授权;拒绝授权的说明页;满 5 行变暗;删频道架子不弹确认;卸载发布方删行。夹具 `test.channels` 由本脚本 `--user 0` 装 |
 ```
 
 并在「跑法」代码块下补一句:「频道夹具 `test.channels` 不在 `fixtures.py` 的默认安装里,`j_channels.py` 自己装。」
