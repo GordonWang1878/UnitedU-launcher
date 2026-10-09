@@ -104,4 +104,16 @@ class ChannelModelTest {
         assertEquals("42 分钟", programSubtitle(prog(1).copy(durationMs = 42 * 60_000L + 59_000), f))
         assertNull("不到一分钟、没有季集 → 第二行留空", programSubtitle(prog(1).copy(durationMs = 30_000), f))
     }
+
+    /** 列名字面量逐字钉住(对照 android-35 android.jar 的 TvContract 常量),符号式测试看不出写错的字面量。 */
+    @Test fun projectionLiteralsMatchTvContract() {
+        assertEquals(listOf("_id", "package_name", "type", "display_name", "internal_provider_id"), TvCols.CHANNEL_PROJECTION.toList())
+        assertEquals(
+            listOf(
+                "_id", "title", "episode_title", "season_display_number", "episode_display_number", "duration_millis",
+                "poster_art_uri", "poster_art_aspect_ratio", "thumbnail_uri", "poster_thumbnail_aspect_ratio", "intent_uri", "weight",
+            ),
+            TvCols.PROGRAM_PROJECTION.toList(),
+        )
+    }
 }

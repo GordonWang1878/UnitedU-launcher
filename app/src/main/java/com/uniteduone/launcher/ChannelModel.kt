@@ -26,7 +26,7 @@ internal object TvCols {
     const val POSTER = "poster_art_uri"
     const val POSTER_ASPECT = "poster_art_aspect_ratio"
     const val THUMB = "thumbnail_uri"
-    const val THUMB_ASPECT = "thumbnail_aspect_ratio"
+    const val THUMB_ASPECT = "poster_thumbnail_aspect_ratio"
     const val INTENT = "intent_uri"
     const val WEIGHT = "weight"
 
@@ -52,8 +52,9 @@ enum class PosterAspect(val widthDp: Float) {
 }
 
 /**
- * `poster_art_aspect_ratio` / `thumbnail_aspect_ratio` 的整数码 → [PosterAspect]。码值即 `TvContract.PreviewPrograms` 的
- * `ASPECT_RATIO_16_9` = 0、`3_2` = 1、`4_3` = 2、`1_1` = 3、`2_3` = 4、`MOVIE_POSTER` = 5、`3_4` = 6;缺省 / 不认识 → 16:9。
+ * `poster_art_aspect_ratio` / `poster_thumbnail_aspect_ratio` 的整数码 → [PosterAspect]。框架的 `TvContract.PreviewPrograms`
+ * 只定义 0–4:`ASPECT_RATIO_16_9` = 0、`3_2` = 1、`4_3` = 2、`1_1` = 3、`2_3` = 4;5(电影海报)与 6(3:4)来自
+ * androidx.tvprovider / 发布方的约定,不是框架常量。缺省 / 不认识的码 → 16:9。
  */
 internal fun posterAspectOf(code: Long?): PosterAspect = when (code?.toInt()) {
     0 -> PosterAspect.R16_9
@@ -150,11 +151,11 @@ internal data class MetaFormats(val seasonEpisode: String, val episode: String, 
  * 都没有 → null(第二行留空)。**不重复「应用 · 频道」**(行头已经写了)。
  */
 internal fun programSubtitle(p: Program, f: MetaFormats): String? = when {
-    p.season != null && p.episode != null -> String.format(f.seasonEpisode, p.season, p.episode)
-    p.episode != null -> String.format(f.episode, p.episode)
+    p.season != null && p.episode != null -> String.format(java.util.Locale.ROOT, f.seasonEpisode, p.season, p.episode)
+    p.episode != null -> String.format(java.util.Locale.ROOT, f.episode, p.episode)
     p.durationMs >= 60_000L -> {
         val total = (p.durationMs / 60_000L).toInt()
-        if (total >= 60) String.format(f.hoursMinutes, total / 60, total % 60) else String.format(f.minutes, total)
+        if (total >= 60) String.format(java.util.Locale.ROOT, f.hoursMinutes, total / 60, total % 60) else String.format(java.util.Locale.ROOT, f.minutes, total)
     }
     else -> null
 }
