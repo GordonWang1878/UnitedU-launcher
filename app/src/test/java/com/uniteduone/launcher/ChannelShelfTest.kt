@@ -40,10 +40,31 @@ class ChannelShelfTest {
         assertEquals("第一层没有上移", listOf(ShelfChip.DOWN, ShelfChip.DELETE), shelfChips(shelvesOf(listOf(view[1], view[0])), 0))
         assertEquals("最后一个内容层没有下移", listOf(ShelfChip.UP, ShelfChip.DELETE), shelfChips(shelvesOf(listOf(view[0], view[1])), 1))
         assertEquals(
-            "没授权多一颗「重新授权」,排最前",
-            listOf(ShelfChip.REAUTHORIZE, ShelfChip.UP, ShelfChip.DOWN, ShelfChip.DELETE),
+            "没授权多一颗「重新授权」,排最后",
+            listOf(ShelfChip.UP, ShelfChip.DOWN, ShelfChip.DELETE, ShelfChip.REAUTHORIZE),
             shelfChips(shelves(ChannelContent.NeedsPermission), 1),
         )
+    }
+
+    /** controller 裁定(Task 13 复审):「重新授权」出现 / 消失时,别的胶囊下标不变——焦点下面那颗不会换成另一颗。 */
+    @Test fun reauthorizeNeverShiftsTheOtherChips() {
+        val without = shelfChips(shelves(), 1)
+        val with = shelfChips(shelves(ChannelContent.NeedsPermission), 1)
+        without.forEachIndexed { i, chip -> assertEquals("第 $i 颗", chip, with[i]) }
+        assertEquals(without.size + 1, with.size)
+        // 授权回来:焦点在「上移」(0)上的目标仍是「上移」
+        assertEquals(ShelfSpot(1, CHIPS, 0), clampSpot(shelves(), ShelfSpot(1, CHIPS, 0)))
+    }
+
+    /** Task 13 复审:频道被删(Missing)、没授权时快照里没有应用名,行头仍写 PackageManager 查到的名字;都查不到(已卸载)才写包名。 */
+    @Test fun channelShelfLabelFallsBackToThePackageManagerLabel() {
+        val pm = mapOf("com.cibn.tv" to "CIBN酷喵")
+        val missing = shelvesOf(view, mergeChannelLabels(emptyMap(), pm), mapOf(ref to ChannelContent.Missing))
+        assertEquals(Shelf.ChannelShelf(1, ref, "CIBN酷喵", ChannelShelfState.Empty), missing[1])
+        assertEquals("快照有名字时用快照", "酷喵", mergeChannelLabels(mapOf("com.cibn.tv" to "酷喵"), pm)["com.cibn.tv"])
+        assertEquals("快照名字是包名 / 空:用 PackageManager", "CIBN酷喵", mergeChannelLabels(mapOf("com.cibn.tv" to " "), pm)["com.cibn.tv"])
+        val gone = mergeChannelLabels(emptyMap(), mapOf("com.cibn.tv" to "com.cibn.tv"))
+        assertEquals("已卸载(labelOf 回落包名):最后才写包名", "com.cibn.tv", (shelvesOf(view, gone)[1] as Shelf.ChannelShelf).appLabel)
     }
 
     @Test fun appShelfDeleteCountsAppShelvesOnly() {

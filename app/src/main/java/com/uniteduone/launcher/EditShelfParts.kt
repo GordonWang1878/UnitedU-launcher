@@ -427,10 +427,41 @@ internal fun Modifier.carryArrows(dirs: Set<MoveDir>, color: Color): Modifier = 
 }
 
 /**
+ * 一层架子顶部的胶囊行(应用架子 / 频道架子共用,Task 13 复审抽出)。焦点账本的接线只在这里写一份:每颗胶囊按
+ * `ShelfSpot(层, CHIPS, 下标)` 逐项挂 requester(铁律 3 的实现约束)、得失焦点都经 [report] 上报(铁律 4)、量水平中心给
+ * `verticalStep` 取最近([place])。左右到头由 [ShelfChipPill] 自己 Cancel。
+ */
+@Composable
+internal fun ShelfChipRow(
+    shelf: Int,
+    chips: List<ShelfChip>,
+    focus: () -> Float,
+    req: (ShelfSpot) -> FocusRequester,
+    report: (ShelfSpot, Boolean) -> Unit,
+    place: (ShelfSpot, Float) -> Unit,
+    onChip: (ShelfChip) -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(ShelfLayout.CHIP_GAP.dp), verticalAlignment = Alignment.CenterVertically) {
+        chips.forEachIndexed { ci, chip ->
+            val spot = ShelfSpot(shelf, ShelfZone.CHIPS, ci)
+            ShelfChipPill(
+                chip = chip,
+                visible = focus,
+                onClick = { onChip(chip) },
+                onFocusChange = { report(spot, it) },
+                isFirst = ci == 0,
+                isLast = ci == chips.lastIndex,
+                modifier = Modifier.focusRequester(req(spot)).onGloballyPositioned { place(spot, it.boundsInRoot().center.x) },
+            )
+        }
+    }
+}
+
+/**
  * 一层频道架子(R164 / R165 §2.1):顶行 = 频道图标 +「应用名 · 频道名」+ 小标签「频道」+ 胶囊;下面是海报预览或状态文字。
  * 高度同应用架子(海报预览高 = 应用卡高),纵向位移的累计不需要区分种类。
- * **焦点**:可聚焦的只有胶囊,写法与 `AppShelfView` 的胶囊行逐字相同——逐项 requester(按 `ShelfSpot` 取)、得失都上报(铁律 4)、
- * 量水平中心;不新增任何焦点状态,恢复由编辑页的账本(目标 / 持有者、看门狗、显式重定位)负责。
+ * **焦点**:可聚焦的只有胶囊,与 `AppShelfView` 共用 [ShelfChipRow];不新增任何焦点状态,恢复由编辑页的账本
+ * (目标 / 持有者、看门狗、显式重定位)负责。
  */
 @Composable
 internal fun ChannelShelfView(
@@ -457,36 +488,26 @@ internal fun ChannelShelfView(
         ) {
             RowIcon(CHANNEL_ROW_ICON, tint = { if (active) accent else Ink.Secondary }, boxSize = ShelfLayout.ICON.dp)
             Spacer(Modifier.width(ShelfLayout.ICON_GAP.dp))
-            BasicText(
-                stringResource(R.string.channel_row_title, shelf.appLabel, shelf.ref.name),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = Type.body.copy(color = Ink.Label),
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            Box(
-                Modifier
-                    .padding(start = 10.dp)
-                    .background(Color.White.copy(alpha = 0.10f), RoundedCornerShape(percent = 50))
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
-            ) {
-                BasicText(stringResource(R.string.shelf_channel_tag), style = Type.micro.copy(color = Ink.Label))
-            }
-            Spacer(Modifier.weight(1f))
-            Row(horizontalArrangement = Arrangement.spacedBy(ShelfLayout.CHIP_GAP.dp), verticalAlignment = Alignment.CenterVertically) {
-                chips.forEachIndexed { ci, chip ->
-                    val spot = ShelfSpot(si, ShelfZone.CHIPS, ci)
-                    ShelfChipPill(
-                        chip = chip,
-                        visible = focus,
-                        onClick = { onChip(chip) },
-                        onFocusChange = { report(spot, it) },
-                        isFirst = ci == 0,
-                        isLast = ci == chips.lastIndex,
-                        modifier = Modifier.focusRequester(req(spot)).onGloballyPositioned { place(spot, it.boundsInRoot().center.x) },
-                    )
+            // 标题 + 小标签占满胶囊左边的全部空位(weight(1f)),长的「应用名 · 频道名」不会在半宽处就被截;
+            // 标题在这一段里 fill = false,短标题时小标签紧跟在它后面
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                BasicText(
+                    stringResource(R.string.channel_row_title, shelf.appLabel, shelf.ref.name),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = Type.body.copy(color = Ink.Label),
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Box(
+                    Modifier
+                        .padding(start = 10.dp, end = ShelfLayout.CHIP_GAP.dp)
+                        .background(Color.White.copy(alpha = 0.10f), RoundedCornerShape(percent = 50))
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                ) {
+                    BasicText(stringResource(R.string.shelf_channel_tag), style = Type.micro.copy(color = Ink.Label))
                 }
             }
+            ShelfChipRow(si, chips, focus, req, report, place, onChip)
         }
         Box(Modifier.fillMaxWidth().padding(start = ShelfLayout.PAD_START.dp, end = ShelfLayout.PAD_END.dp, top = ShelfLayout.CARDS_TOP.dp)) {
             ChannelShelfBody(shelf.state, loadPosters)

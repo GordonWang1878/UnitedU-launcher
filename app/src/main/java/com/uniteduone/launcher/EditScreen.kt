@@ -179,7 +179,13 @@ fun EditScreen(
     val channelSnap by ChannelCache.data.collectAsState()
     val channelRefs = remember(rows) { rows.mapNotNull { it.channel } }
     val channelContentNow by rememberUpdatedState(remember(channelSnap, channelRefs) { channelContentsFrom(channelSnap, channelRefs) })
-    val channelLabelsNow by rememberUpdatedState(channelSnap?.labels.orEmpty())
+    // 快照里的应用名只覆盖此刻有频道的发布方:没授权、频道被删(Missing)时那里没有它,另从 PackageManager 查一次(Task 13 复审)
+    val publisherLabels by produceState(emptyMap<String, String>(), channelRefs) {
+        value = withContext(Dispatchers.IO) { channelRefs.map { it.pkg }.distinct().associateWith { Apps.labelOf(ctx, it) } }
+    }
+    val channelLabelsNow by rememberUpdatedState(
+        remember(channelSnap, publisherLabels) { mergeChannelLabels(channelSnap?.labels.orEmpty(), publisherLabels) },
+    )
     /**
      * 本页的货架一律经这里算(组合期、按键回调、重定位的 snapshotFlow、看门狗)。频道架子的胶囊表取决于授权状态(「重新授权」那颗),
      * 有一处漏传内容,那一处算出的胶囊下标就与画出来的对不上。读的是 State(rememberUpdatedState),回调与 snapshotFlow 读到的都是最新的。
@@ -773,20 +779,7 @@ private fun AppShelfView(
                 style = Type.body.copy(color = Ink.Label),
             )
             Spacer(Modifier.weight(1f))
-            Row(horizontalArrangement = Arrangement.spacedBy(ShelfLayout.CHIP_GAP.dp), verticalAlignment = Alignment.CenterVertically) {
-                chips.forEachIndexed { ci, chip ->
-                    val spot = ShelfSpot(si, ShelfZone.CHIPS, ci)
-                    ShelfChipPill(
-                        chip = chip,
-                        visible = focus,
-                        onClick = { onChip(chip) },
-                        onFocusChange = { report(spot, it) },
-                        isFirst = ci == 0,
-                        isLast = ci == chips.lastIndex,
-                        modifier = Modifier.focusRequester(req(spot)).onGloballyPositioned { place(spot, it.boundsInRoot().center.x) },
-                    )
-                }
-            }
+            ShelfChipRow(si, chips, focus, req, report, place, onChip)
         }
         // 当前那张夹到这一层的卡片数:卸载 / 移出让行变短时,不按过期的列号多滑一截
         val cur = col.coerceIn(0, (shelf.apps.size - 1).coerceAtLeast(0))

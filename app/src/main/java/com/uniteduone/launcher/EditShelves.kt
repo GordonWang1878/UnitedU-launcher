@@ -47,6 +47,16 @@ internal sealed interface ChannelShelfState {
     data object NeedsPermission : ChannelShelfState
 }
 
+/**
+ * 频道架子行头的应用名表:快照里的名字([snapshot],只覆盖此刻有频道的发布方)与 PackageManager 查到的([installed],
+ * `Apps.labelOf`,读不到时值就是包名)合并。每个包取一个**真名字**(非空、不等于包名):快照优先,其次 PackageManager;
+ * 都没有(应用已卸载)才落到包名——没授权、频道被删(Missing)时行头照样写应用名(Task 13 复审)。
+ */
+internal fun mergeChannelLabels(snapshot: Map<String, String>, installed: Map<String, String>): Map<String, String> =
+    (snapshot.keys + installed.keys).associateWith { pkg ->
+        listOfNotNull(snapshot[pkg], installed[pkg]).map { it.trim() }.firstOrNull { it.isNotEmpty() && it != pkg } ?: pkg
+    }
+
 /** 内容 → 架子状态;还没读到(null)按「暂无内容」画。 */
 internal fun channelShelfState(c: ChannelContent?): ChannelShelfState = when (c) {
     is ChannelContent.Ready -> ChannelShelfState.Posters(c.programs)
@@ -77,7 +87,8 @@ private fun lastContentShelf(shelves: List<Shelf>): Int = shelves.indexOfLast { 
 /**
  * 第 [shelf] 层顶部画哪几颗胶囊(spec §2.1):添加应用、换图标恒有;上移只在不是第一层时;下移只在不是最后一个内容层时;
  * 删除只在应用行多于 [MIN_ROWS] 行时(只数应用架子,[appShelfCount])。
- * 频道架子:上移 / 下移同应用架子;删除永远有、不弹确认;没授权时最前面多一颗「重新授权」——那是这一层此刻最该按的一颗。
+ * 频道架子:上移 / 下移同应用架子;删除永远有、不弹确认;没授权时**最后**多一颗「重新授权」——放在末尾,它出现 / 消失时
+ * 别的胶囊下标不变,焦点下面那颗不会换成另一颗(controller 裁定,Task 13 复审:放最前时焦点在「上移」上会变成「删除」)。
  * 「新的一行」与越界 → 空。
  */
 internal fun shelfChips(shelves: List<Shelf>, shelf: Int): List<ShelfChip> = when (val s = shelves.getOrNull(shelf)) {
@@ -89,10 +100,10 @@ internal fun shelfChips(shelves: List<Shelf>, shelf: Int): List<ShelfChip> = whe
         if (appShelfCount(shelves) > MIN_ROWS) add(ShelfChip.DELETE)
     }
     is Shelf.ChannelShelf -> buildList {
-        if (s.state == ChannelShelfState.NeedsPermission) add(ShelfChip.REAUTHORIZE)
         if (shelf > 0) add(ShelfChip.UP)
         if (shelf < lastContentShelf(shelves)) add(ShelfChip.DOWN)
         add(ShelfChip.DELETE)
+        if (s.state == ChannelShelfState.NeedsPermission) add(ShelfChip.REAUTHORIZE)
     }
     else -> emptyList()
 }
