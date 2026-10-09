@@ -185,4 +185,44 @@ class GalleryRepositoryTest {
         } finally { scope.cancel() }
     }
 
+    @Test fun cancelledSelectionReleasesOriginalWaiterAndNeverAdopts() = runBlocking {
+        val storage = store(); val transport = FakeTransport(bytes).apply { downloadGate = CompletableDeferred() }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val selection = GallerySelection(); var settings = Settings()
+        try {
+            val repository = repo(storage, transport, scope)
+            val token = selection.begin()
+            val job = launch {
+                val downloaded = repository.original(item()) {}
+                selection.commit(token) { settings = settings.copy(wallpaperFile = "gallery:wall", galleryWallpaper = GalleryAdoption(downloaded.item.id, downloaded.item.original.blob.sha256)) }
+            }
+            transport.downloadEntered.await()
+            selection.invalidate(); job.cancelAndJoin()
+            eventually { storage.root.listFiles().orEmpty().none { it.name.endsWith(".part") } }
+            assertNull(settings.galleryWallpaper)
+            assertTrue(settings.galleryScreensavers.isEmpty())
+        } finally { scope.cancel() }
+    }
+    @Test fun previewFailureAndCatalogChangesDoNotAdoptOrChangePinnedVersion() = runBlocking {
+        val storage = store(); val transport = FakeTransport(bytes)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        var settings = Settings()
+        try {
+            val repository = repo(storage, transport, scope)
+            transport.failure = java.io.IOException("offline")
+            assertTrue(runCatching { repository.original(item()) {} }.isFailure)
+            assertNull(settings.galleryWallpaper); assertTrue(settings.galleryScreensavers.isEmpty())
+            transport.failure = null
+            val preview = repository.original(item()) {}
+            assertTrue(preview.file.isFile); assertTrue(settings.galleryScreensavers.isEmpty())
+            val adopted = GalleryAdoption(preview.item.id, preview.item.original.blob.sha256)
+            settings = settings.copy(wallpaperFile = "gallery:wall", galleryWallpaper = adopted, galleryScreensavers = mapOf("wall" to adopted))
+            storage.writeCatalog(GalleryCatalog(99, emptyList()), serializeGalleryCatalog(GalleryCatalog(99, emptyList())), null)
+            assertEquals(preview.file, storage.resolve(settings.galleryWallpaper!!)?.file)
+            preview.file.writeText("corrupt")
+            assertNull(storage.resolve(adopted))
+            assertTrue(adoptedGalleryPlaylist(settings.galleryScreensavers) { storage.resolve(it)?.file }.isEmpty())
+            assertEquals(adopted, settings.galleryWallpaper)
+        } finally { scope.cancel() }
+    }
 }

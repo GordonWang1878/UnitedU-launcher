@@ -51,8 +51,9 @@ internal fun scanScreensaverLibrary(ctx: Context): List<File> {
  */
 internal fun scanScreensaverPlaylist(ctx: Context): List<File> {
     val builtins = BuiltinImages.list(ctx, BuiltinKind.SCREENSAVERS)
-    val excluded = if (builtins.isEmpty()) emptySet() else SettingsStore.read(ctx).excludedBuiltinScreensavers
-    return screensaverPlaylist(builtins.map { it.file }, { builtinIdOf(it.name) }, excluded, scanScreensaverLibrary(ctx))
+    val settings = SettingsStore.read(ctx)
+    val online = adoptedGalleryPlaylist(settings.galleryScreensavers) { GalleryAndroid.storeOnIo(ctx).resolve(it)?.takeIf { local -> local.item.kind == BuiltinKind.SCREENSAVERS }?.file }
+    return screensaverPlaylist(builtins.map { it.file }, { builtinIdOf(it.name) }, settings.excludedBuiltinScreensavers, online + scanScreensaverLibrary(ctx))
 }
 
 /**

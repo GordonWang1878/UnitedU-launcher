@@ -192,6 +192,7 @@ internal const val BUILTIN_CHOICE_PREFIX = "builtin:"
 sealed class ImageChoice {
     data class Builtin(val id: String) : ImageChoice()
     data class Mine(val fileName: String) : ImageChoice()
+    data class Gallery(val id: String) : ImageChoice()
 }
 
 internal fun encodeBuiltinChoice(id: String): String = BUILTIN_CHOICE_PREFIX + id
@@ -199,6 +200,7 @@ internal fun encodeBuiltinChoice(id: String): String = BUILTIN_CHOICE_PREFIX + i
 /** 空 → null(没选过);`builtin:<ID>` → 内置;其余 → 用户图库的文件名。 */
 internal fun decodeImageChoice(value: String): ImageChoice? = when {
     value.isEmpty() -> null
+    value.startsWith("gallery:") -> ImageChoice.Gallery(value.removePrefix("gallery:"))
     value.startsWith(BUILTIN_CHOICE_PREFIX) && value.length > BUILTIN_CHOICE_PREFIX.length ->
         ImageChoice.Builtin(value.removePrefix(BUILTIN_CHOICE_PREFIX))
     else -> ImageChoice.Mine(value)
@@ -223,6 +225,7 @@ internal fun resolveWallpaperChoice(
             if (c.id in builtinIds) return c
             if (mineExists(value)) return ImageChoice.Mine(value)
         }
+        is ImageChoice.Gallery -> return c
         is ImageChoice.Mine -> if (mineExists(c.fileName)) return c
         null -> Unit
     }

@@ -27,6 +27,11 @@ object GalleryAndroid {
         }
     }
     suspend fun store(ctx: Context): GalleryStore = storage(ctx).await()
+    /** Blocking accessor for existing IO-only wallpaper and playlist pipelines. Never call on main. */
+    fun storeOnIo(ctx: Context): GalleryStore {
+        check(android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) { "Gallery disk access on main" }
+        return kotlinx.coroutines.runBlocking { store(ctx) }
+    }
     fun repository(ctx: Context): GalleryRepository = synchronized(this) {
         val app = ctx.applicationContext
         instance ?: SharedGalleryRepository({ storage(app).await() },

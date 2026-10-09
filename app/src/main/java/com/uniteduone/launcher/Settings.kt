@@ -52,6 +52,8 @@ data class Settings(
      * 空 = 未指定 → 默认内置清单第一张(解析顺序见 [resolveWallpaperChoice] / Wallpapers.resolveSource)。
      */
     val wallpaperFile: String = "",
+    val galleryWallpaper: GalleryAdoption? = null,
+    val galleryScreensavers: Map<String, GalleryAdoption> = emptyMap(),
     // (「壁纸自动切换」wallpaperRotateMs / wallpaperRotatedAt 2026-09-23 删掉,gtv spec R61;旧文件里的键按未知键忽略。)
     /** 模糊 0–50,步 5(R119;见 [WALLPAPER_BLUR_MAX] / [WALLPAPER_BLUR_STEP])。 */
     val wallpaperBlur: Int = 0,
@@ -236,6 +238,8 @@ fun parseSettings(json: String): Settings {
             excludedBuiltinScreensavers = extractStringArray(json, "excludedBuiltinScreensavers")
                 ?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSet() ?: d.excludedBuiltinScreensavers,
             wallpaperFile = sanitizeWallpaperFileName(extractString(json, "wallpaperFile")),
+            galleryWallpaper = parseGallerySettings(json).first?.takeIf { extractString(json, "wallpaperFile") == "gallery:${it.id}" },
+            galleryScreensavers = parseGallerySettings(json).second,
             // 旧文件里可能还有 "wallpaperThemed"(2026-09-16 删掉的开关)、"themedCards"(R58)、
             // "wallpaperRotateMs" / "wallpaperRotatedAt"(R61)、"showInputRow"(R92):这里不读它们,扁平 tokenizer 只认列出的键,
             // 未知键自然被忽略(SettingsTest 的 legacy*KeyIsIgnored 钉住这一点)。
@@ -284,6 +288,8 @@ fun Settings.toJson(): String {
         append(excludedBuiltinScreensavers.sorted().joinToString(", ") { "\"${esc(it)}\"" })
         append("],\n")
         append("  \"wallpaperFile\": \"${esc(wallpaperFile)}\",\n")
+        append("  \"galleryWallpaper\": ${galleryWallpaper?.let(::galleryAdoptionJson) ?: "null"},\n")
+        append("  \"galleryScreensavers\": ${galleryScreensaversJson(galleryScreensavers)},\n")
         append("  \"wallpaperBlur\": $wallpaperBlur,\n")
         append("  \"wallpaperBrightness\": $wallpaperBrightness,\n")
         append("  \"cardSaturation\": $cardSaturation,\n")
@@ -307,6 +313,7 @@ fun restoredDefaults(current: Settings, nowMs: Long): Settings =
         newAppsSeenAt = nowMs,
         onboardingDone = current.onboardingDone,
         excludedBuiltinScreensavers = current.excludedBuiltinScreensavers,
+        galleryScreensavers = current.galleryScreensavers,
     )
 
 /**

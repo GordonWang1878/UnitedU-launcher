@@ -134,7 +134,17 @@ class MainActivity : ComponentActivity() {
     /** 内置图片选择器:null=隐藏, [PICK_WALLPAPER]=选壁纸, 其他=选该包的卡片图。
      *  X-plore 的 GET_CONTENT 不响应 D-pad(2026-09-11 真机确认),所以换壁纸/换图标
      *  改为用内置选择器,图片通过 adb push 到 files/library/ 预先放好。 */
-    private var pickerTarget by mutableStateOf<String?>(null)
+    private val gallerySelection = GallerySelection()
+    private var gallerySelectionJob: kotlinx.coroutines.Job? = null
+    private fun invalidateGallerySelection() {
+        gallerySelection.invalidate()
+        gallerySelectionJob?.cancel()
+        gallerySelectionJob = null
+    }
+    private var pickerTargetState by mutableStateOf<String?>(null)
+    private var pickerTarget: String?
+        get() = pickerTargetState
+        set(value) { invalidateGallerySelection(); pickerTargetState = value }
     /**
      * 扫码页是从哪个图片网格的「＋ 从手机添加」打开的(Ruling R63):关掉扫码页回到它(`pickerTarget` 换回
      * [ImportOrigin.returnTo]),而不是一路关回设置页 / 首页。null = 设置页「手机传输」总入口,关掉就是关掉。
@@ -523,7 +533,7 @@ class MainActivity : ComponentActivity() {
             // ③`wallpaperParams`——**只有防抖后的那一下**才 ++。滑到中途的那些档位一格都不会进管线。
             // 重算时读的是**当时最新的** homeSettings(逐格的 settingsRevision 已经把它更到了终值),
             // 所以防抖落地时拿到的就是用户松手时的那个值。
-            val wallpaperSpec = remember(revision, wallpaperParams, homeSettings.wallpaperFile) {
+            val wallpaperSpec = remember(revision, wallpaperParams, homeSettings.wallpaperFile, homeSettings.galleryWallpaper) {
                 wallpaperSpecOf(homeSettings)
             }
             // **Ruling R35**:首页整页位移的每帧动画值(HomeScreen.onPageShift 上报)。壁纸层住在这一层、
@@ -629,7 +639,7 @@ class MainActivity : ComponentActivity() {
             // R139:页面里的提示(编辑页写盘失败、首页打不开应用、设置页存储没就绪)经它走同一个应用内提示条。
             val showToast = remember { { text: String, long: Boolean -> toast(text, long) } }
             // R142:整屏页的氛围底——当前壁纸的一个影子(见 Ambient.kt)。选中的壁纸变了、或重扫(revision)才重算;算好之前是纯色。
-            val ambient by produceState(cachedAmbient(), homeSettings.wallpaperFile, revision) {
+            val ambient by produceState(cachedAmbient(), homeSettings.wallpaperFile, homeSettings.galleryWallpaper, revision) {
                 value = withContext(Dispatchers.IO) {
                     runCatching { buildAmbient(this@MainActivity, homeSettings.wallpaperFile) }.getOrNull()
                 }
@@ -1489,6 +1499,7 @@ class MainActivity : ComponentActivity() {
      * 引导期间其余浮层都打不开,下面这几个收尾调用全是空操作,也不碰 focusNonce。
      */
     override fun onNewIntent(intent: Intent) {
+        invalidateGallerySelection()
         super.onNewIntent(intent)
         // HOME = 移动态取消(M4b spec §0-9)。通常 onPause 已经先取消过,这里是同一件事的第二道。
         cancelMove()
@@ -1662,12 +1673,17 @@ class MainActivity : ComponentActivity() {
      * 现在调用它、之后 T8 落地不用改这里一行。
      */
     private fun confirmRestoreDefaults() {
+        invalidateGallerySelection()
+        val token = gallerySelection.begin()
         val now = System.currentTimeMillis()
         lifecycleScope.launch {
             withContext(Dispatchers.IO) {
-                SettingsStore.update(this@MainActivity) { restoredDefaults(it, now) }
-                Wallpapers.clearCache(this@MainActivity)
+                gallerySelection.commit(token) {
+                    SettingsStore.update(this@MainActivity) { restoredDefaults(it, now) }
+                    Wallpapers.clearCache(this@MainActivity)
+                }
             }
+            if (!gallerySelection.isCurrent(token)) return@launch
             settingsRevision++
             wallpaperParams++
             // 语言要改回跟随系统而重建的话,提示留给新实例(用新语言)发,见 toastAfterRecreate
@@ -1704,6 +1720,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+        invalidateGallerySelection()
         super.onPause()
         // 唤醒键的 UP 可能落不到本 Activity,离开时清掉,免得下次多吞一整下
         wakeDownTime = -1L
@@ -2001,35 +2018,132 @@ class MainActivity : ComponentActivity() {
     }
 
 
+    /** Task 6 callback. Only original download + validated bytes can adopt; preview uses repository.original directly. */
+    internal fun handleGalleryPick(item: GalleryItem, onProgress: (Long) -> Unit = {}, onResult: (Result<Unit>) -> Unit) {
+        val target = pickerTarget ?: return
+        val expected = when (target) {
+            PICK_WALLPAPER -> BuiltinKind.WALLPAPERS
+            VIEW_SCREENSAVER_POOL -> BuiltinKind.SCREENSAVERS
+            else -> BuiltinKind.CARDS
+        }
+        if (item.kind != expected || (expected == BuiltinKind.CARDS && target !in item.packages)) {
+            onResult(Result.failure(IllegalArgumentException("Gallery resource does not match picker"))); return
+        }
+        invalidateGallerySelection()
+        val token = gallerySelection.begin()
+        gallerySelectionJob = lifecycleScope.launch {
+            val result = runCatching {
+                GalleryAndroid.repository(this@MainActivity).original(item) { bytes ->
+                    if (gallerySelection.isCurrent(token)) lifecycleScope.launch {
+                        if (gallerySelection.isCurrent(token) && pickerTarget == target) onProgress(bytes)
+                    }
+                }
+                withContext(Dispatchers.IO) {
+                    val adoption = GalleryAdoption(item.id, item.original.blob.sha256)
+                    val verified = GalleryAndroid.store(this@MainActivity).resolve(adoption)
+                        ?: error("Gallery original is unavailable or corrupt")
+                    require(Apps.isDecodableImage(verified.file.absolutePath))
+                    var staged: java.io.File? = null
+                    try {
+                        if (expected == BuiltinKind.CARDS) {
+                            val dest = Paths.iconFor(this@MainActivity, target)
+                            staged = java.io.File.createTempFile("gallery-card-", ".part", dest.parentFile)
+                            check(writeFileAtomically(staged!!, verify = { Apps.isDecodableImage(it.absolutePath) }) { out ->
+                                verified.file.inputStream().use { it.copyTo(out) }
+                            }) { "Cannot stage card image" }
+                        }
+                        val committed = gallerySelection.commit(token) {
+                            when (expected) {
+                                BuiltinKind.WALLPAPERS -> check(SettingsStore.update(this@MainActivity) {
+                                    it.copy(wallpaperFile = "gallery:${item.id}", galleryWallpaper = adoption)
+                                } != null) { "Cannot save wallpaper adoption" }
+                                BuiltinKind.SCREENSAVERS -> check(SettingsStore.update(this@MainActivity) {
+                                    it.copy(galleryScreensavers = it.galleryScreensavers + (item.id to adoption))
+                                } != null) { "Cannot save screensaver adoption" }
+                                BuiltinKind.CARDS -> check(staged!!.renameTo(Paths.iconFor(this@MainActivity, target))) { "Cannot replace card image" }
+                            }
+                            true
+                        }
+                        check(committed == true) { "Gallery selection cancelled" }
+                    } finally { staged?.delete() }
+                }
+            }
+            result.exceptionOrNull()?.let { if (it is kotlinx.coroutines.CancellationException) throw it }
+            if (!gallerySelection.isCurrent(token) || pickerTarget != target) return@launch
+            gallerySelectionJob = null
+            if (result.isSuccess) {
+                when (expected) {
+                    BuiltinKind.WALLPAPERS -> { settingsRevision++; pickerTarget = null; focusNonce++ }
+                    BuiltinKind.CARDS -> { revision++; pickerTarget = null; focusNonce++ }
+                    BuiltinKind.SCREENSAVERS -> { ScreensaverPlayer.rescan(this@MainActivity); galleryVersion++ }
+                }
+            }
+            onResult(result)
+        }
+    }
+
+    internal fun cancelGallerySelection() { invalidateGallerySelection() }
+
+    /** Remove membership only; downloaded originals stay available offline. */
+    internal fun removeGalleryScreensaver(id: String, onResult: (Result<Unit>) -> Unit) {
+        if (pickerTarget != VIEW_SCREENSAVER_POOL) return
+        invalidateGallerySelection()
+        val token = gallerySelection.begin()
+        gallerySelectionJob = lifecycleScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    check(gallerySelection.commit(token) {
+                        check(SettingsStore.update(this@MainActivity) { it.copy(galleryScreensavers = it.galleryScreensavers - id) } != null)
+                        true
+                    } == true)
+                }
+            }
+            result.exceptionOrNull()?.let { if (it is kotlinx.coroutines.CancellationException) throw it }
+            if (!gallerySelection.isCurrent(token) || pickerTarget != VIEW_SCREENSAVER_POOL) return@launch
+            gallerySelectionJob = null
+            if (result.isSuccess) { ScreensaverPlayer.rescan(this@MainActivity); galleryVersion++ }
+            onResult(result)
+        }
+    }
+
     private fun handlePick(file: java.io.File) {
         val target = pickerTarget ?: return
         pickerTarget = null
-        if (target == PICK_WALLPAPER) {
-            // 只记文件名,不复制、不 recreate(recreate 会把焦点打回第一张卡、屏幕黑一下)
-            val ok = Wallpapers.select(this, file)
-            toast(getString(if (ok) R.string.toast_wallpaper_changed else R.string.toast_invalid_image))
-            if (ok) settingsRevision++
-        } else {
-            val dest = Paths.iconFor(this, target)
-            // 独立临时文件 → 校验可解码 → rename;rename 失败不删现有的自定义图(见 writeFileAtomically)。
-            // 内置装饰图(R118)是伪路径文件:BuiltinImages.open 从 assets 读,复制的是它的内容(不往卡片图库里铺一份)。
-            val ok = runCatching {
-                writeFileAtomically(dest, verify = { Apps.isDecodableImage(it.absolutePath) }) { out ->
-                    BuiltinImages.open(file).use { it.copyTo(out) }
+        val token = gallerySelection.begin()
+        gallerySelectionJob = lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                gallerySelection.commit(token) {
+                    if (target == PICK_WALLPAPER) Wallpapers.select(this@MainActivity, file)
+                    else runCatching {
+                        writeFileAtomically(Paths.iconFor(this@MainActivity, target), verify = { Apps.isDecodableImage(it.absolutePath) }) { out ->
+                            BuiltinImages.open(file).use { it.copyTo(out) }
+                        }
+                    }.getOrDefault(false)
                 }
-            }.getOrDefault(false)
-            toast(getString(if (ok) R.string.toast_card_image_changed else R.string.toast_invalid_image))
-            if (ok) revision++
+            } ?: return@launch
+            if (!gallerySelection.isCurrent(token)) return@launch
+            gallerySelectionJob = null
+            toast(getString(if (!ok) R.string.toast_invalid_image else if (target == PICK_WALLPAPER) R.string.toast_wallpaper_changed else R.string.toast_card_image_changed))
+            if (ok) { if (target == PICK_WALLPAPER) settingsRevision++ else revision++ }
         }
     }
 
     private fun restoreOriginalIcon(pkg: String) {
         pickerTarget = null
-        val custom = Paths.iconFor(this, pkg)
-        if (custom.exists()) custom.delete()
-        toast(getString(R.string.toast_icon_restored))
-        revision++
-        focusNonce++
+        val token = gallerySelection.begin()
+        gallerySelectionJob = lifecycleScope.launch {
+            withContext(Dispatchers.IO) {
+                gallerySelection.commit(token) {
+                    val custom = Paths.iconFor(this@MainActivity, pkg)
+                    if (custom.exists()) custom.delete()
+                }
+            }
+            if (!gallerySelection.isCurrent(token)) return@launch
+            gallerySelectionJob = null
+            toast(getString(R.string.toast_icon_restored))
+            revision++
+            focusNonce++
+        }
     }
 
     /**

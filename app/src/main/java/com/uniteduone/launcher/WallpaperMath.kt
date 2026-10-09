@@ -19,6 +19,7 @@ data class WallpaperSpec(
     val blur: Int,
     /** −50…+50:负压暗、正提亮、0 原片。 */
     val brightness: Int,
+    val galleryAdoption: GalleryAdoption? = null,
 ) {
     /** 参数全零:完全绕开管线,走原图 + F16 解码(零回归路径)。 */
     val isIdentity: Boolean get() = blur == 0 && brightness == 0
@@ -28,6 +29,7 @@ fun wallpaperSpecOf(s: Settings): WallpaperSpec = WallpaperSpec(
     file = s.wallpaperFile,
     blur = s.wallpaperBlur,
     brightness = s.wallpaperBrightness,
+    galleryAdoption = s.galleryWallpaper,
 )
 
 // (壁纸轮播的 nextWallpaper / rotationDelayMs 随「壁纸自动切换」一起删掉,2026-09-23 gtv spec R61。)

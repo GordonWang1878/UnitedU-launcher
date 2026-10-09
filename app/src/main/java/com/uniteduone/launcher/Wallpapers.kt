@@ -60,7 +60,13 @@ object Wallpapers {
      * 清单为空 → library 按名排序第一张;都没有 → null(调用方画纯深色底,R61)。
      * 内置那张返回伪路径文件(见 [BUILTIN_PSEUDO_ROOT]),解码经 [decodeImagePath] 读 assets。IO 线程。
      */
-    fun resolveSource(ctx: Context, value: String): File? {
+    fun resolveSource(ctx: Context, value: String, adopted: GalleryAdoption? = null): File? {
+        if (value.startsWith("gallery:")) {
+            val a = adopted ?: SettingsStore.read(ctx).galleryWallpaper
+            return a?.takeIf { value == "gallery:${it.id}" }?.let {
+                runCatching { GalleryAndroid.storeOnIo(ctx).resolve(it)?.takeIf { local -> local.item.kind == BuiltinKind.WALLPAPERS }?.file }.getOrNull()
+            }
+        }
         val builtins = BuiltinImages.list(ctx, BuiltinKind.WALLPAPERS)
         val lib = Paths.wallpaperLibrary(ctx)
         val choice = resolveWallpaperChoice(
@@ -72,6 +78,7 @@ object Wallpapers {
         return when (choice) {
             is ImageChoice.Builtin -> builtins.firstOrNull { it.id == choice.id }?.file
             is ImageChoice.Mine -> File(lib, choice.fileName)
+            is ImageChoice.Gallery -> null
             null -> null
         }
     }
@@ -147,7 +154,7 @@ object Wallpapers {
         val builtin = builtinImageOf(file)?.takeIf { it.kind == BuiltinKind.WALLPAPERS }
         val value = if (builtin != null) encodeBuiltinChoice(builtin.id) else sanitizeWallpaperFileName(file.name)
         if (value.isEmpty() || !Apps.isDecodableImage(file.absolutePath)) return false
-        return SettingsStore.update(ctx) { it.copy(wallpaperFile = value) } != null
+        return SettingsStore.update(ctx) { it.copy(wallpaperFile = value, galleryWallpaper = null) } != null
     }
 
     /**
@@ -402,8 +409,8 @@ object Wallpapers {
         val settingsChanged = prepare(ctx)
         // prepare 可能刚把 wallpaperFile 写进 settings(或 R61 清理时置空),而 spec 是拿旧 settings 组装的;补读一次。
         val name = if (settingsChanged) SettingsStore.read(ctx).wallpaperFile else spec.file.ifEmpty { SettingsStore.read(ctx).wallpaperFile }
-        val src = resolveSource(ctx, name)
-            ?: return Loaded(builtinDefault(ctx), settingsChanged, empty = builtinDefault(ctx) == null)
+        val src = resolveSource(ctx, name, spec.galleryAdoption)
+            ?: return Loaded(builtinDefault(ctx), settingsChanged, empty = !name.startsWith("gallery:") && builtinDefault(ctx) == null)
         // 参数全零完全绕开管线:不解码两次、不写缓存(零回归路径)。
         // 处理失败退回原图而不是黑屏。
         if (!spec.isIdentity) {

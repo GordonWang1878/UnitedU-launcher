@@ -18,7 +18,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun rememberThemeColors(ctx: Context, s: Settings, refresh: Int = 0): ThemeColors {
     val preset = remember(s.themePresetId) { ThemePresets.byId(s.themePresetId).colors() }
-    val fromWallpaper by produceState<ThemeColors?>(null, s.followWallpaperColor, s.wallpaperFile, refresh) {
+    val fromWallpaper by produceState<ThemeColors?>(null, s.followWallpaperColor, s.wallpaperFile, s.galleryWallpaper, refresh) {
         value = if (!s.followWallpaperColor) null
         else withContext(Dispatchers.IO) { wallpaperThemeColors(ctx, s.wallpaperFile) }
     }
