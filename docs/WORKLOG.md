@@ -2075,3 +2075,11 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 文档同步:CLAUDE.md(首页行补频道行与目标口径、新增「选频道页」行、编辑页补频道架子、模拟器坑)、REVIEW-GUIDE(文件地图 / 约束 / 已知限制 / 计数)、README 双语、DESIGN(「内容推荐行」注明 R164)、gtv 线 §12 R164 状态。`docs/design/settings-inventory.md` 未受影响(没有新设置项)。
 - 2026-10-09 夜间窗口收尾:计划 2 终审修复后 e2e 一度 67/72,诊断为环境(设备缺 fixtures.py 占位应用),HEAD 用新夹具连跑两次 72/72。建议 scripts/e2e/README 注明 j_channels 依赖 fixtures.py 的占位应用。
 - 晨间 Gordon 定:暂不发版、不合 main、不推。另一会话在做稳定版 / Beta 双轨;就绪后把本分支作为新 Beta 发出,他在 A95L 的 Beta 通道实测,通过后再谈合并与推送。
+
+## 2026-10-10 · 频道行分支变基到双轨 main,发 1.2.0-beta.1
+
+- 分支 `GordonWang1878/频道推荐` 变基到 origin/main 54b6d2d(含 R166 更新通道、1.1.0);冲突都是两边各自追加(WORKLOG、gtv spec §12、三份 strings.xml、CLAUDE.md),保留两边;裁定表去掉合并出的重复 R164 行,按 R164 / R165 / R166 排。变基前的头留在本地分支 `backup/频道推荐-pre-rebase`。
+- 单测 1032 个全过(1 个本来就跳过),assembleRelease 通过。
+- 发 Beta:versionCode 8 / `1.2.0-beta.1`;回退包 = v1.1.0 源码、versionCode 9。GitHub prerelease `v1.2.0-beta.1` + `channel-beta` 附件,R2 写了 beta.json / rollback.json 与两个 APK,latest.json 仍是 1.1.0(7)、GitHub releases/latest 仍指 v1.1.0。线上 APK 的 sha256 与 beta.json 一致。
+- 推上 origin 的只有 tag `v1.2.0-beta.1`(连带这条分支的提交);分支本身未推、未合 main。
+- 待办:Gordon 在 A95L 上切 Beta 通道「检查更新」实测(流畅度、国行真实频道数据、切回稳定拿到回退包 9)。
