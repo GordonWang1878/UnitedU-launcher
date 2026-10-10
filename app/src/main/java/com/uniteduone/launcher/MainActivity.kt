@@ -127,8 +127,14 @@ class MainActivity : ComponentActivity() {
      * 整页重组,模拟器 W 段实测放下后约 170 ms 那一下 34 ms 的重组);编辑页一关当场追上(见 setContent 里的效果与 [leaveEdit])。
      */
     private var homeLayoutRevision by mutableStateOf(0)
-    /** R167:进编辑页那一刻的 [layoutRevision];退出时比一下就知道这一轮写没写过盘。普通字段,只在主线程读写、不参与组合。 */
-    private var layoutRevisionAtEditEnter = 0
+    /**
+     * R167 复审:编辑页**发起**的写盘次数(EditScreen 的 onLayoutWriteIssued,排进 layoutWrites 之前同步 +1),只增不减。
+     * 退出时与 [layoutWritesIssuedAtEditEnter] 比:大了 = 这一轮改过布局,即使写盘还没落地(删 / 移一行后立刻返回)。
+     * 普通字段,只在主线程读写、不参与组合;比对不是闩(铁律 7)。
+     */
+    private var layoutWritesIssued = 0
+    /** R167:进编辑页那一刻的 [layoutWritesIssued]。 */
+    private var layoutWritesIssuedAtEditEnter = 0
     /**
      * R164:频道数据的版本号——TvProvider 有变化(ContentObserver,500 ms 去抖)、授权结果回来、onResume 时 ++。
      * 只重读频道内容,不重读 layout.json 与应用横幅(那是 [revision] 的事,spec §3.3)。
@@ -813,7 +819,7 @@ class MainActivity : ComponentActivity() {
             //
             // **R167(报告 perf-2026-10-10 #1)起编辑页也不例外**:编辑页开着时首页也留在组合里、编辑页盖在上面,不再包 FadeSwitch、不再有残影:
             // previewing 让路(不可聚焦、不收键、看门狗与还原效果让路、目标冻结——与选择器 / 设置外壳同一套),退出编辑页时不重建、不重读。
-            // 退出时这一轮没写过盘 → 按冻结的目标回到原来那张卡;写过盘 → 落第一行第一张(见 leaveEdit / homeLandingAfterEdit)。
+            // 退出时这一轮没发起过写盘 → 按冻结的目标回到原来那张卡;发起过(不等落地)→ 落第一行第一张(见 leaveEdit / homeLandingAfterEdit)。
             // 编辑页在它上面淡入 / 残影淡出,盖在上面的永远是编辑页。R147 的「首页残影在底下淡出」随之取消:首页始终不透明,
             // 编辑页的淡入就是一次标准的交叉淡化(少一个整屏离屏层,报告 #4)。
             // 编辑页开着时首页整棵退出无障碍树(clearAndSetSemantics):它被编辑页的不透明底整个盖住,TalkBack 不该念它;
@@ -892,6 +898,7 @@ class MainActivity : ComponentActivity() {
                         onPickIcon = { row, pkg -> pickIcon(pkg).also { if (it) { editTarget = row to pkg; editSeedRows = null } } },
                         onExit = ::leaveEdit,
                         onLayoutWritten = { layoutRevision++ },
+                        onLayoutWriteIssued = { layoutWritesIssued++ },
                         focusNonce = focusNonce,
                         revision = revision,
                         // R165:卡片固定中档、不画标题;模糊底按当前壁纸算
@@ -1618,7 +1625,7 @@ class MainActivity : ComponentActivity() {
                 cardMenu != null || renameTarget != null || moving != null
             if (!shouldEnterEdit(my, editEnterSeq, lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED), blocked)) return@launch
             editSeedRows = seed
-            layoutRevisionAtEditEnter = layoutRevision
+            layoutWritesIssuedAtEditEnter = layoutWritesIssued
             editing = true
         }
     }
@@ -1626,13 +1633,13 @@ class MainActivity : ComponentActivity() {
     /**
      * R167:不再 `revision++`。编辑页只改 layout.json,首页早已随每次写盘([layoutRevision])在底下重读好;换卡片图那条路
      * 自己会 revision++。首页与外壳都留在组合里,退出时不重建(报告 #1)。
-     * 这一轮写过盘(layoutRevision 比进页时大)→ 给首页一个落点「第一行第一张」([homeLandingAfterEdit]):目标按 layout.json
+     * 这一轮发起过写盘([layoutWritesIssued] 比进页时大,不等落地)→ 给首页一个落点「第一行第一张」([homeLandingAfterEdit]):目标按 layout.json
      * 下标认行,删 / 移了焦点行上面的一行会指到别的行(controller 裁定)。只在这里写一次,与 [endMove] 同形状。
      */
     private fun leaveEdit() {
         editEnterSeq++
         if (editing) {
-            homeLandingAfterEdit(layoutRevision != layoutRevisionAtEditEnter)?.let { moveLanding = it }
+            homeLandingAfterEdit(layoutWritesIssued > layoutWritesIssuedAtEditEnter)?.let { moveLanding = it }
             editing = false; editTarget = null; editSeedRows = null
         }
         // 退出那一帧就让首页按最新写盘重读,不等去抖效果下一帧重跑

@@ -143,6 +143,9 @@ fun EditScreen(
     initialRows: List<LayoutRow>? = null,
     /** R167:写盘落地一次回调一次(MainActivity 让底下常驻的首页按新布局重读,Task 3 接上)。 */
     onLayoutWritten: () -> Unit = {},
+    /** R167 复审:发起一次写盘就回调一次(在主线程上、排进 layoutWrites 之前,同步调)。MainActivity 据此判断「这一轮编辑改没改过布局」,
+     *  不等写盘落地——删 / 移一行后立刻按返回,写盘还在路上也算改过。 */
+    onLayoutWriteIssued: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val showToast = LocalToast.current
@@ -274,8 +277,10 @@ fun EditScreen(
     val scope = rememberCoroutineScope()
     val knownOnDisk = remember { java.util.concurrent.atomic.AtomicReference(layoutPackages(rows).toSet()) }
     val layoutWritten by rememberUpdatedState(onLayoutWritten)
+    val layoutWriteIssued by rememberUpdatedState(onLayoutWriteIssued)
     fun persist() {
         val snapshot = rows
+        layoutWriteIssued()
         scope.launch {
             // R167:NonCancellable——退出编辑页后本页残影 EDIT_SWAP_MS 就离开组合、scope 被取消;写盘与「首页重读」的通知不能跟着丢
             // (Review Focus 5)。回调在块内调:withContext 返回时若外层已取消会直接抛,块外的代码不一定跑得到。
