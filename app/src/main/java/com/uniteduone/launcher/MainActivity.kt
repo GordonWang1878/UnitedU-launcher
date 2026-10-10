@@ -1586,7 +1586,10 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             // 在 layoutWrites 上读:刚退出的上一轮编辑页还在途的写盘(NonCancellable,见 persist)一定先落地,种子不会是旧文件
             val seed = withContext(layoutWrites) { runCatching { Layout.read(this@MainActivity) }.getOrNull() }
-            val blocked = pickerTarget != null || about || appsPage || inputsPage || onboarding
+            // 首页自己的浮层(长按卡片菜单 / 改名页)与原地移动态也算:预读期间打开了它们,编辑页不能叠上去把它们吞掉
+            // (应用页 / 输入源页里的菜单、选图页里的确认页已随所在的整屏页一并挡住)
+            val blocked = pickerTarget != null || about || appsPage || inputsPage || onboarding ||
+                cardMenu != null || renameTarget != null || moving != null
             if (!shouldEnterEdit(my, editEnterSeq, lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED), blocked)) return@launch
             editSeedRows = seed
             editing = true

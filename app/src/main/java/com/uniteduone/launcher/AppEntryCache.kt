@@ -1,6 +1,7 @@
 package com.uniteduone.launcher
 
 import android.content.Context
+import android.graphics.Bitmap
 
 /**
  * R167(报告 perf-2026-10-10 #2):首页读好的卡片数据(含已缩到卡片尺寸的位图)在进程里留一份,编辑页进页第一帧直接用,
@@ -16,7 +17,13 @@ internal object AppEntryCache {
     /** 第几个 MainActivity 实例的缓存([clear] +1)。读取开始时记下,发布时对不上就丢(上一个实例在 IO 线程上没读完的那一趟)。 */
     @Volatile var epoch = 0
         private set
-    @Synchronized fun publish(s: AppEntrySnapshot, epoch: Int) { if (epoch == this.epoch) snap = s }
+    /**
+     * 只收本实例([epoch] 对得上)、且 revision 不比手上那份旧的快照:revision 在一个实例里只增不减,
+     * 晚回来的旧读取若盖掉新的一份,下一次同号查询就会没命中、整份重解码一遍。
+     */
+    @Synchronized fun publish(s: AppEntrySnapshot, epoch: Int) {
+        if (epoch == this.epoch && shouldReplace(snap, s)) snap = s
+    }
     fun lookup(revision: Int, needed: Set<String>): Map<String, AppEntry>? = appEntryHit(snap, revision, needed)
     /** 同一 revision 的那一份(不管覆不覆盖):[loadAppEntries] 只补查缺的包。 */
     fun sameRevision(revision: Int): AppEntrySnapshot? = snap?.takeIf { it.revision == revision }
@@ -26,6 +33,10 @@ internal object AppEntryCache {
      */
     @Synchronized fun clear() { snap = null; epoch++ }
 }
+
+/** 发布判据:手上没有,或新来的 revision 不比手上的旧(同号 = 同一 revision 补查后的合并结果,照收)。 */
+internal fun shouldReplace(current: AppEntrySnapshot?, incoming: AppEntrySnapshot): Boolean =
+    current == null || incoming.revision >= current.revision
 
 /** 命中 = 同一个 revision,且这份查过的包覆盖了 [needed]。 */
 internal fun appEntryHit(s: AppEntrySnapshot?, revision: Int, needed: Set<String>): Map<String, AppEntry>? =
@@ -51,7 +62,24 @@ internal fun loadAppEntries(ctx: Context, revision: Int, needed: Set<String>): M
     val base = AppEntryCache.sameRevision(revision)
     val missing = if (base == null) needed else needed - base.checked
     val fresh = Apps.load(ctx, missing, withBitmaps = missing, withLabels = missing)
+        .mapValues { (pkg, e) -> if (pkg in missing) e.withGpuCard() else e }
     val snap = if (base == null) AppEntrySnapshot(revision, needed, fresh) else mergeAppEntries(base, fresh, missing)
     AppEntryCache.publish(snap, epoch)
     snap.entries
+}
+
+/**
+ * R167 复审 1(trace 实证):卡片位图是 `Canvas` / `createScaledBitmap` 画出来的**可变**位图,HWUI 每次重录显示列表都给它一个
+ * 新的 SkImage ID(`kNeedNewImageUniqueID`),GPU 纹理缓存永远不命中——设置外壳收起、编辑页首帧这几帧里同一批卡片图每帧
+ * 重传一遍(A 段 `Texture upload(7808)` → `(7960)` → `(8092)`,同一张 144×144 三帧三个 ID)。转成 HARDWARE 位图:
+ * 解码时上传一次、之后首页与编辑页画的都是同一块显存,不再有逐帧上传。
+ * **只在这里转**:卡片图的像素(边缘色 / 横幅判据)在 [Apps.entryOf] 里已经读完;之后只被画(AppCardImage / GearMenu)。
+ * `entryOf` 的另两个调用方(添加应用列表的 pickerCard、「恢复原图」的 originalIcon——后者还要再 getPixels 取底色)不经过这里,保持软件位图。
+ * 转不成(显存不足等)就留原图,照样能画。
+ */
+private fun AppEntry.withGpuCard(): AppEntry {
+    val c = card ?: return this
+    if (c.config == Bitmap.Config.HARDWARE) return this
+    val hw = runCatching { c.copy(Bitmap.Config.HARDWARE, false) }.getOrNull() ?: return this
+    return copy(card = hw)
 }

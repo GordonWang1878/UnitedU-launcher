@@ -50,4 +50,21 @@ class AppEntryCacheTest {
         assertEquals(e("n"), m.entries["n"])
         assertEquals(entries + ("n" to e("n")), appEntryHit(m, 3, setOf("a", "n")).orEmpty().filterKeys { it != "other" })
     }
+    /** 复审 2:revision 5 的读取先发布,revision 4 的那一趟晚回来——不能盖掉新的(否则下一次查 5 没命中、整份重解码) */
+    @Test fun stalerRevisionDoesNotReplaceNewer() {
+        AppEntryCache.clear()
+        val ep = AppEntryCache.epoch
+        AppEntryCache.publish(AppEntrySnapshot(revision = 5, checked = setOf("a"), entries = entries), ep)
+        AppEntryCache.publish(AppEntrySnapshot(revision = 4, checked = setOf("a"), entries = entries), ep)
+        assertEquals(entries, AppEntryCache.lookup(5, setOf("a")))
+        assertNull(AppEntryCache.lookup(4, setOf("a")))
+    }
+    /** 同一 revision 补查后的合并结果照收(checked 变大) */
+    @Test fun sameRevisionMergeReplaces() {
+        AppEntryCache.clear()
+        val ep = AppEntryCache.epoch
+        AppEntryCache.publish(AppEntrySnapshot(revision = 2, checked = setOf("a"), entries = entries), ep)
+        AppEntryCache.publish(AppEntrySnapshot(revision = 2, checked = setOf("a", "b"), entries = entries), ep)
+        assertEquals(entries, AppEntryCache.lookup(2, setOf("a", "b")))
+    }
 }
