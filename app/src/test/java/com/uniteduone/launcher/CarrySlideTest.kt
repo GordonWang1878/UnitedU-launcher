@@ -190,3 +190,22 @@ class CarryNotCarryingTest {
         assertEquals(CarryFocusLook(shown = false, snap = false),
             carryFocusLook(focused = false, moving = false, focusedPkg = "gone", pkg = "next", carrying = false))
 }
+
+/** R167 Task 12:AppCard 只在 carryingMatters 为真时才读整页的「在搬运中」——短路之后结果与直接传入逐一相同。 */
+class CarryingMattersTest {
+    @Test fun shortCircuitNeverChangesTheLook() {
+        val pkgs = listOf(null, "a", "b")
+        for (focused in listOf(false, true)) for (moving in listOf(false, true)) for (settling in listOf(false, true))
+            for (fp in pkgs) for (carrying in listOf(false, true)) {
+                val direct = carryFocusLook(focused, moving, fp, "a", settling, carrying)
+                val lazy = carryFocusLook(focused, moving, fp, "a", settling, carryingMatters(fp, "a") && carrying)
+                assertEquals("focused=$focused moving=$moving settling=$settling fp=$fp carrying=$carrying", direct, lazy)
+            }
+    }
+
+    @Test fun mattersOnlyWhenTheCellRememberedAnotherApp() {
+        assertEquals(false, carryingMatters(null, "a"))
+        assertEquals(false, carryingMatters("a", "a"))
+        assertEquals(true, carryingMatters("b", "a"))
+    }
+}

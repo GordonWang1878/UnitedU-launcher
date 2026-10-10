@@ -195,6 +195,10 @@ fun EditScreen(
      * 焦点真的落回出发格(holder 自报)就清掉。只是绘制,不进任何焦点账本(下面的效果只读 holder)。
      */
     var settling by remember { mutableStateOf<Pair<Int, String>?>(null) }
+    // R167 Task 12:整页「在搬运 / 滑回中」以一个稳定的 lambda 往下传,只有真的读到它的卡(焦点格、或记下的应用已不是现在这个)才在它翻转时重组。
+    // 原来是 Boolean 参数:拿起 / 放下 / 取消那一下所有应用架子、每一张卡都重组、离屏层全部重画(D 段 trace:47 个卡片图层一帧重画、新建 26 张纹理)。
+    val carryingState = remember { derivedStateOf { carry != null || settling != null } }
+    val carryingNow: () -> Boolean = remember { { carryingState.value } }
     val needed = remember(rows) { rows.flatMap { it.apps }.toSet() }
     // 与旧编辑页同一做法:null 区分「还在加载」与「加载失败」;连同「这份数据是给哪套 needed 算的」一起存(R67,见 editCardShown)
     // R167(报告 #2 / #9):首页那份卡片数据(同一 revision、覆盖本页所需)直接当初值——进页第一帧就是真卡,
@@ -749,7 +753,7 @@ fun EditScreen(
                             col = { shelfCol[si] ?: 0 },
                             carriedCol = carry?.pos?.takeIf { it.row == si }?.col,
                             settlingPkg = settling?.takeIf { it.first == si }?.second,
-                            carrying = carry != null || settling != null,
+                            carrying = carryingNow,
                             // 箭头只给被搬的卡所在那一层;别的层拿同一个空集合,搬一步时不因它重组(Task 7)
                             arrows = if (carry?.pos?.row == si) arrows else emptySet(),
                             arrival = arrival?.takeIf { it.row == si },
@@ -931,7 +935,7 @@ private fun AppShelfView(
     col: () -> Int,
     carriedCol: Int?,
     settlingPkg: String?,
-    carrying: Boolean,
+    carrying: () -> Boolean,
     arrows: Set<MoveDir>,
     arrival: CarryArrival?,
     arrowColor: Color,

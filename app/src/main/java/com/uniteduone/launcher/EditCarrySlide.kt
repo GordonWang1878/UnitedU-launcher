@@ -111,6 +111,13 @@ internal data class CarryFocusLook(val shown: Boolean, val snap: Boolean)
  *   焦点格里换上了下一张)一律照 [focused] 画——焦点真的在这一格,画成没焦点等于遥控器失灵(R167 复审 3);
  * - 其余情况与 [focused] 相同、照常动画(平常浏览的 400 ms 淡出不变)。
  */
+/**
+ * R167 Task 12:[carryFocusLook] 的 `carrying` 只在这一格记下的应用([focusedPkg])已不是现在这个([pkg])时才起作用。
+ * AppCard 先判它、为真才去读整页的「在搬运中」——拿起 / 放下那一下只有这几张卡重组(原来所有卡都重组、离屏层全部重画)。
+ * `carryFocusLook(…, carrying = carryingMatters(f, p) && c)` 与 `carryFocusLook(…, carrying = c)` 恒相等(CarrySlideTest)。
+ */
+internal fun carryingMatters(focusedPkg: String?, pkg: String): Boolean = focusedPkg != null && focusedPkg != pkg
+
 internal fun carryFocusLook(
     focused: Boolean,
     moving: Boolean,

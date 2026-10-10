@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.MotionDurationScale
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -734,7 +735,14 @@ class MainActivity : ComponentActivity() {
             val shellVisible = rememberShellVisible(shellMotion, shellShown)
             // 外壳的底色铺在首页那一层**之下**(R73):外壳内容透明,有预览的页里预览框之外露出的就是这块 MenuBg,
             // 预览框里是缩小进去的真首页;没有预览的页首页那一层整层透明,只剩这块底色。
-            if (shellVisible) Box(Modifier.fillMaxSize().graphicsLayer { alpha = shellMotion.a.value }.pageBackdrop())
+            // R167 Task 12:底色只是一张位图(或一块纯色),一次绘制,透明度直接乘在这一次绘制上(ModulateAlpha)与整层淡化逐像素相同;
+            // 默认的 Auto 会在淡入淡出的每一帧把它提升成一张 1920×1080 的离屏层(8 MB 显存 + 一遍整屏渲染)。
+            if (shellVisible) Box(
+                Modifier.fillMaxSize().graphicsLayer {
+                    alpha = shellMotion.a.value
+                    compositingStrategy = CompositingStrategy.ModulateAlpha
+                }.pageBackdrop(),
+            )
             // **首页那一层**:壁纸 + 自定义屏保 + 全黑待机层 + 首页(或编辑页)。外壳开在带预览的页时整层按比例缩进
             // 预览框(R73:预览就是常驻的这一份首页本身,不另画一份;它在 previewing 下本来就不可聚焦、看门狗让路、
             // 不收按键,焦点账本零新增)。几何读 previewRect,与外壳画描边的是同一个函数。
@@ -780,6 +788,27 @@ class MainActivity : ComponentActivity() {
                         !screensaverActive && blackAlpha.value == 0f
                 }
             }
+            var editSettled by remember { mutableStateOf(false) }
+            LaunchedEffect(editing) {
+                editSettled = false
+                if (!editing) return@LaunchedEffect
+                // FadeSwitch 的淡入吃系统「动画时长缩放」(设置里的「动画缩放」行读的就是它;CLAUDE.md:animator_duration_scale
+                // 对我们的 Compose 动画生效),帧时钟的墙钟时间不吃:不折算的话缩放 > 1 时淡入才走一半首页就不画了,
+                // 半透明的编辑页底下卡片整排消失。按同一个缩放把墙钟换算成「动画时间」;缩放为 0(动画关)时当场算盖满。
+                val scale = coroutineContext[MotionDurationScale]?.scaleFactor ?: 1f
+                val t0 = withFrameNanos { it }
+                while (true) {
+                    val wallMs = (withFrameNanos { it } - t0) / 1_000_000
+                    val animMs = if (scale <= 0f) Long.MAX_VALUE else (wallMs / scale).toLong()
+                    if (editCoversHome(true, animMs)) break
+                }
+                editSettled = true
+            }
+            // R167 Task 12:编辑页盖满后壁纸与首页「不画」改用透明度 0,不再把它们从显示列表里拿掉:拿掉 = HWUI 把这些节点移出渲染树、
+            // 连同离屏层(壁纸两张 R110 缓存层、每张卡的淡化层)一起销毁,退出编辑页的第一帧要全部重建、重画(E 段 trace:一帧新建 44 张纹理)。
+            // 透明度 0 的节点 HWUI 跳过绘制,图层留着、内容不变就不重画。只有 0 / 1 两档,不会触发 R129f 的离屏裁切。
+            val homeHidden = remember { { editing && editSettled } }
+            Box(Modifier.fillMaxSize().graphicsLayer { alpha = if (homeHidden()) 0f else 1f }) {
             Wallpaper(
                 this@MainActivity,
                 wallpaperSpec,
@@ -792,6 +821,7 @@ class MainActivity : ComponentActivity() {
                 bridge = backdrop,
                 gradientBaked = gradientBaked,
             )
+            }
             // 自定义屏保层(M5 spec §1.4 第 2 层):只看 screensaverActive。不再因「不淡出」不组合——
             // 待机显示只管待机,「不淡出」时屏保照样会来(spec §0);没进屏保时 alpha 为 0,一张图都不画。
             // 不再传 showDate(Ruling R23,终审 2026-09-20):这一层不叠时钟了,没有时钟就没有
@@ -833,27 +863,11 @@ class MainActivity : ComponentActivity() {
             // 不清的话 Compose 的「未被遮挡区域」裁剪会把它的节点叠进编辑页的节点框里(模拟器 uiautomator 实测:编辑页胶囊的框被裁成 20 px、
             // 首页的卡片名混进编辑页的读数)。只动语义,不碰焦点(首页此时本就 previewing、不可聚焦)。
             // R167(报告 #4):编辑页淡入走完(整屏不透明)之后首页不画——只在绘制阶段读,不重组首页;editing 一假当场恢复。
-            var editSettled by remember { mutableStateOf(false) }
-            LaunchedEffect(editing) {
-                editSettled = false
-                if (!editing) return@LaunchedEffect
-                // FadeSwitch 的淡入吃系统「动画时长缩放」(设置里的「动画缩放」行读的就是它;CLAUDE.md:animator_duration_scale
-                // 对我们的 Compose 动画生效),帧时钟的墙钟时间不吃:不折算的话缩放 > 1 时淡入才走一半首页就不画了,
-                // 半透明的编辑页底下卡片整排消失。按同一个缩放把墙钟换算成「动画时间」;缩放为 0(动画关)时当场算盖满。
-                val scale = coroutineContext[MotionDurationScale]?.scaleFactor ?: 1f
-                val t0 = withFrameNanos { it }
-                while (true) {
-                    val wallMs = (withFrameNanos { it } - t0) / 1_000_000
-                    val animMs = if (scale <= 0f) Long.MAX_VALUE else (wallMs / scale).toLong()
-                    if (editCoversHome(true, animMs)) break
-                }
-                editSettled = true
-            }
             Box(
                 Modifier
                     .fillMaxSize()
                     .then(if (editing) Modifier.clearAndSetSemantics {} else Modifier)
-                    .drawWithContent { if (!(editing && editSettled)) drawContent() },
+                    .graphicsLayer { alpha = if (homeHidden()) 0f else 1f },
                 propagateMinConstraints = true,
             ) {
                 HomeScreen(
@@ -907,7 +921,9 @@ class MainActivity : ComponentActivity() {
                 // 就定下,重建期间 Compose 抢先给出的焦点事件改写不了它;见 onPickIcon)。
                 // R136:编辑态下这一层自己垫一块 MenuBg——选择器淡入 / 淡出的那几百毫秒里,它后面不是壁纸而是同一个底色
                 // (编辑页与选择器都是 MenuBg 的整屏页,深对深地换,不闪一下壁纸)。
-                Box(Modifier.fillMaxSize().pageBackdrop())
+                // R167 Task 12:编辑页自己整屏不透明(模糊底或纯 MenuBg),这块底只在选择器开着 / 编辑页残影淡出给选择器时才露得出来;
+                // 其余时候是被整个盖住的一遍整屏位图(进出编辑页的每一帧都画、显存吃紧时每帧重传 960×540)。
+                if (pt != null) Box(Modifier.fillMaxSize().pageBackdrop())
                 // **R138:选择器打开时,编辑页以残影多留一个淡入时长、跟着淡出**(FadeSwitch:活着的那一份在 pt == null 时,
                 // pt 一有值它就变成残影——不可聚焦、看门狗让路、不收返回键,见 EditScreen 的 ghost)。编辑页的卡片菜单
                 // 在残影里原样开着,选择器在它上面淡入:菜单 → 选择器是一次交叉淡化,不再是「先切到深色底、再淡入」。
