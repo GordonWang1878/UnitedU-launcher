@@ -2005,3 +2005,10 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - `release.sh` Beta 模式:先 `git fetch --tags`,稳定 tag 须等于线上 `latest.json` 的 versionName,且该 tag 的 `gradle.properties` 已有 `unitedu.rollbackUrls`(第一个带通道开关的版本必须先发稳定版);`published_max_code` 网络失败不再当 0(404 只对 beta/rollback 算 0);dry-run 只警告。回退包 trap 的 INT/TERM 现会退出。
 - 关于页:`offerKind` 记当前更新来路,回退包在下载失败 / 校验失败等态也不叫「新版本」。
 - 2026-10-10 编号冲突:双通道原用 R164,但分支 `GordonWang1878/频道推荐`(2026-10-08 起)已占 R164(频道行)/ R165(编辑桌面货架)。双通道改号 **R166**(代码注释与文档同步替换),频道推荐分支合入时保持原号。已本地合入 main(fast-forward 至 8cc23a3,861 单测通过),未推送。
+
+## 2026-10-10 · 发布 1.1.0(versionCode 7):带「更新通道」开关的首个稳定版
+
+- Gordon 定版本号 1.1.0。`R2_BUCKET=unitedu R2_BASE_URL=https://dl.uniteduone.com scripts/release.sh 1.1.0`:先 dry-run 后正式;单调检查 7 > 已发布最大值 6,签名 = release 证书。
+- 读回:R2 `latest.json` = 7 / 1.1.0,APK 200(16065698 字节);GitHub `releases/latest/download/latest.json` = 7 / 1.1.0。说明 `dist/notes-1.1.0.txt` + `.app.txt`(双语)。
+- 这是发 Beta 的前提:此后 `release.sh x.y.z-beta.N` 的「最新稳定 tag 必须带 unitedu.rollbackUrls」检查可通过。下一步:`频道推荐` 分支 rebase 到 main 后以 Beta 发出(见记忆 channels-branch-awaits-beta-track)。
+- 未验证:A95L 上「检查更新」到 1.1.0 并切换通道,待 Gordon 电视上看。main 的 16 个提交只随 tag 推了对象,origin/main 仍是 d3ca166。
