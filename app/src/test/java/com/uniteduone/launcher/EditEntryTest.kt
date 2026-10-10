@@ -13,4 +13,10 @@ class EditEntryTest {
     @Test fun backgroundDoesNotEnter() = assertFalse(shouldEnterEdit(requested = 5, current = 5, resumed = false, blocked = false))
     /** 预读期间别的整屏页(选图页 / 关于页 / 应用页 / 输入源页 / 引导)开了:不进,否则编辑页会把那一页吞进自己那一层 */
     @Test fun otherOverlayDoesNotEnter() = assertFalse(shouldEnterEdit(requested = 5, current = 5, resumed = true, blocked = true))
+
+    // R167 报告 #4:编辑页淡入走完(再多等 EDIT_COVER_SLACK_MS)之后首页才停画
+    @Test fun homeStillDrawnWhileEditFadesIn() = assertFalse(editCoversHome(editing = true, elapsedMs = GtvLayout.EDIT_SWAP_MS.toLong()))
+    @Test fun homeHiddenAfterFadeInPlusSlack() = assertTrue(editCoversHome(editing = true, elapsedMs = GtvLayout.EDIT_SWAP_MS + EDIT_COVER_SLACK_MS))
+    /** 退出编辑页当场就画:编辑页残影从 1 开始淡出,底下的首页必须已经在 */
+    @Test fun notEditingAlwaysDrawsHome() = assertFalse(editCoversHome(editing = false, elapsedMs = 10_000))
 }

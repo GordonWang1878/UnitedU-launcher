@@ -2099,3 +2099,14 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 焦点落点模拟器实测(final 构建):MENU 开设置 → 编辑页 → 返回 ×3 回到原来那张卡(Kodi,第 4 行第 2 张);顶栏药丸开的回「设置」药丸;焦点所在行(Music)在编辑页里删掉 → 落补位行第一张(Settings);放下后 0.1 s 内返回,退出动画里预览框中的首页已是新顺序;空桌面进的加一个应用回来落第一张。**未覆盖的边界(交复审)**:删掉 / 上下移动的是焦点行**上面**的一行时,目标按 layout.json 下标认行,会落到下标相同的另一行(实测焦点在 Settings 行、删掉上面的 Music 行 → 回来落 Games 行第一张);改前一律落 (0,0),不算回归,但不是「回到原来那张卡」。
 - e2e(unitedu-tv-2):j_edit 52/52、j_home 39/39、j_pkg 79/79、j_overlays 298/298、j_persist 133/133、j_recreate 77/77;j_settings 80/82,两条失败是脚本过期(关于页 R166 起多了「更新通道」一颗,脚本按一下下键就当到了「恢复默认」),与本任务无关。
 - 复审修复(controller 裁定):上面那条「删 / 移焦点行上面的一行落到别的行」改为——退出编辑页时这一轮写过盘(`layoutRevision` 比进页时大)就给首页一个落点「第一行第一张」(`homeLandingAfterEdit`,走 `MoveLanding` 那条一次写入的路,`leaveEdit` 里赋值一次);没写过盘就按冻结的目标回到原来那张卡。模拟器实测:不改动退出 → 回 Kodi;焦点在 Settings 行、删掉上面的 Music 行 → 落 YouTube(第一行第一张)。复审第 2 轮:「改过没有」按编辑页**发起**的写盘算(EditScreen `onLayoutWriteIssued`,排进 layoutWrites 之前同步回调;MainActivity 计数,退出时与进页时比),不等落地——实测删掉上面那一行后 0.1 s 内按返回,仍落第一行第一张。
+
+## 2026-10-10 · 编辑页顺滑度 Task 4:编辑页盖满后首页与透明外壳不画(R167 / 报告 #4)
+
+- 改动:`editCoversHome(editing, elapsedMs)`(EditEntry.kt,单测 3 条)= 编辑页淡入走完 `EDIT_SWAP_MS` 再加 `EDIT_COVER_SLACK_MS` 50 ms;MainActivity 按帧计时(墙钟按 `MotionDurationScale` 折算成动画时间,缩放 0 当场算盖满),首页外包一层 `drawWithContent`,`editing && editSettled` 时不画;外壳内容透明度为 0 且不是活的那份时也不画。只动绘制:首页照旧在组合里、焦点账本不动、语义(Task 3 的 `clearAndSetSemantics`)不动;`editing` 一假当场恢复绘制。
+- 根因证据:t3 里首页在不透明的编辑页底下每帧照画,页内 B / C / D 段每帧渲染遍数 p50 8 / 8 / 9(before 1 / 1 / 2),每帧还要 `glGenTextures`(B / C / D 段合计 140–320 ms)——首页自己的离屏图层每帧重画。
+- 取舍闸门(unitedu-tv-2,`-gpu host`,speed-profile,宿主负载 11–16;t3 对照包 = 本任务代码去掉两处让路,交替跑 3 + 4 轮):
+  - 页内:渲染遍数 p50 B / C / D 8 / 8 / 9 → 1 / 1 / 2(4 轮都是),`glGenTextures` 页内 ≈0;RT 线程 CPU 运行时间 p50 均值 B 10.8 → 8.2 ms、C 9.2 → 7.4、D 10.5 → 9.0(改善 1.5–2.6 ms,> 1 ms)。整帧 RT 墙钟 p50 受宿主负载摆动(同一包两轮差 10 ms 以上),不拿它判。
+  - 退出 E / E2:`flush layers` t3 均值 122 ms(6 次)、t4 均值 121 ms(8 次),没多 30 ms;没有 1920×1080 纹理上传(两边都只有 960×540 / 480×270 小纹理);退出那一帧渲染遍数最多 274(t3 106)——首页的图层要重新画一次,但 E 段 RT CPU 合计 t3 均值 440 ms、t4 432 ms,没变重。→ **保留**让路。
+- R129f / 缩放折算(慢放 10 倍录屏):进页途中第 1 层焦点卡柔光四边完整,半透明编辑页底下仍是首页的卡片;淡入走完后逐帧差 < 0.1(停画首页那一下看不出来)。1× 录像进页亮度曲线与 t3 / before 同形(开头那下变暗是外壳 → 预览缩放,改前就有)。截图 `docs/screenshots/edit-smooth/t4-mid-enter.jpg`、`t4-settled.jpg`。
+- 没做:壁纸 / 屏保层仍在编辑页底下画(本任务只按计划停首页);Ambient / EditBackdrop 的 960×540 位图用 `createBitmap(int[], …)` 生成,本来就不可变,不属 Task 2 说的「可变位图逐帧重传」;壁纸 1920×1080 是可变位图,但 E 段 trace 里没有它的上传,没证据就不动。E 段每帧的 960×540 / 480×270 新 id 上传 t3 / t4 都有,来源未查明,留给后续任务。
+- e2e(unitedu-tv-2,本任务构建):j_edit 52/52、j_home 39/39。

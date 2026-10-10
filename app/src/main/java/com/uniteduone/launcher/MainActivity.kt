@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -825,8 +827,28 @@ class MainActivity : ComponentActivity() {
             // 编辑页开着时首页整棵退出无障碍树(clearAndSetSemantics):它被编辑页的不透明底整个盖住,TalkBack 不该念它;
             // 不清的话 Compose 的「未被遮挡区域」裁剪会把它的节点叠进编辑页的节点框里(模拟器 uiautomator 实测:编辑页胶囊的框被裁成 20 px、
             // 首页的卡片名混进编辑页的读数)。只动语义,不碰焦点(首页此时本就 previewing、不可聚焦)。
+            // R167(报告 #4):编辑页淡入走完(整屏不透明)之后首页不画——只在绘制阶段读,不重组首页;editing 一假当场恢复。
+            var editSettled by remember { mutableStateOf(false) }
+            LaunchedEffect(editing) {
+                editSettled = false
+                if (!editing) return@LaunchedEffect
+                // FadeSwitch 的淡入吃系统「动画时长缩放」(设置里的「动画缩放」行读的就是它;CLAUDE.md:animator_duration_scale
+                // 对我们的 Compose 动画生效),帧时钟的墙钟时间不吃:不折算的话缩放 > 1 时淡入才走一半首页就不画了,
+                // 半透明的编辑页底下卡片整排消失。按同一个缩放把墙钟换算成「动画时间」;缩放为 0(动画关)时当场算盖满。
+                val scale = coroutineContext[MotionDurationScale]?.scaleFactor ?: 1f
+                val t0 = withFrameNanos { it }
+                while (true) {
+                    val wallMs = (withFrameNanos { it } - t0) / 1_000_000
+                    val animMs = if (scale <= 0f) Long.MAX_VALUE else (wallMs / scale).toLong()
+                    if (editCoversHome(true, animMs)) break
+                }
+                editSettled = true
+            }
             Box(
-                Modifier.fillMaxSize().then(if (editing) Modifier.clearAndSetSemantics {} else Modifier),
+                Modifier
+                    .fillMaxSize()
+                    .then(if (editing) Modifier.clearAndSetSemantics {} else Modifier)
+                    .drawWithContent { if (!(editing && editSettled)) drawContent() },
                 propagateMinConstraints = true,
             ) {
                 HomeScreen(
@@ -938,7 +960,9 @@ class MainActivity : ComponentActivity() {
                         alpha = if (contentPreview) t * shellContentZoomAlpha(shellMotion.zNow) else t
                         val sc = GtvLayout.SETTINGS_ENTER_SCALE + (1f - GtvLayout.SETTINGS_ENTER_SCALE) * t
                         scaleX = sc; scaleY = sc
-                    }.then(if (editing) Modifier.clearAndSetSemantics {} else Modifier),
+                    }.then(if (editing) Modifier.clearAndSetSemantics {} else Modifier)
+                        // R167(报告 #4):编辑页期间外壳留在组合里、透明度走到 0——透明到 0 时不画
+                        .drawWithContent { if (live || shellMotion.a.value > 0f) drawContent() },
                 ) {
                     CompositionLocalProvider(LocalPageGhost provides !live) {
                         SettingsShell(

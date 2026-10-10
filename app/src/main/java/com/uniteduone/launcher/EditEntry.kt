@@ -9,3 +9,13 @@ package com.uniteduone.launcher
  */
 internal fun shouldEnterEdit(requested: Int, current: Int, resumed: Boolean, blocked: Boolean): Boolean =
     requested == current && resumed && !blocked
+
+/** 编辑页淡入走完之后再多等这么久才停画首页:FadeSwitch 的淡入跑在帧时钟上,宿主卡顿时最后一帧可能比 EDIT_SWAP_MS 晚一点。 */
+internal const val EDIT_COVER_SLACK_MS = 50L
+
+/**
+ * 编辑页已经整屏不透明地盖住首页那一层([editing] 且淡入已走完)→ 首页不必再画(R167,报告 #4)。只影响绘制:首页照旧在组合里、
+ * 焦点账本照旧冻结。退出编辑页(editing = false)当场恢复绘制——编辑页残影从不透明开始淡出,底下必须已经是首页。
+ */
+internal fun editCoversHome(editing: Boolean, elapsedMs: Long): Boolean =
+    editing && elapsedMs >= GtvLayout.EDIT_SWAP_MS + EDIT_COVER_SLACK_MS
