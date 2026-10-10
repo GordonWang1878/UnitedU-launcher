@@ -1717,6 +1717,7 @@ class MainActivity : ComponentActivity() {
 
     /** 打开设置外壳第一层(顶栏「设置」药丸、首页上的 MENU 键)。焦点落「布局」。 */
     private fun openSettings() {
+        editEnterSeq++ // 空桌面「立即前往」预读在途时按 MENU:作废那次进编辑页,别压在刚开的外壳上([shouldEnterEdit])
         if (shellStack.isEmpty()) shellStack = shellOpened()
     }
 

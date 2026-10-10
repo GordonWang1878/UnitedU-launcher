@@ -139,6 +139,8 @@ dependencies {
     // M6 上传页:应用内 HTTP 服务(BSD-3-Clause)与二维码生成(Apache-2.0),都从 mavenCentral 解析。
     implementation("org.nanohttpd:nanohttpd:2.3.1")
     implementation("com.google.zxing:core:3.5.3")
+    // 基线配置(baseline profile)靠它在安装时落盘;显式声明,免得依赖升级后悄悄不再带入(当前传递解析版本 1.3.1)
+    implementation("androidx.profileinstaller:profileinstaller:1.3.1")
     testImplementation("junit:junit:4.13.2")
     // R163:`Layout.parse` / `Layout.toJson` 用 Android 自带的 org.json,而 Android 单测桩 jar 里它的每个方法都抛「not mocked」
     // (Settings / Titles / UploadPure 干脆不用 org.json,见各自注释)。layout.json 是嵌套结构、读盘是持久化的关键路径,

@@ -2098,7 +2098,7 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - E 段(退出):按键帧组合 15 ms 以内(before 37 ms / t2 73 ms),没有 1920×1080 纹理上传,mp4 13 帧(before 10)。截图 `docs/screenshots/edit-smooth/t3-*.jpg`。
 - 焦点落点模拟器实测(final 构建):MENU 开设置 → 编辑页 → 返回 ×3 回到原来那张卡(Kodi,第 4 行第 2 张);顶栏药丸开的回「设置」药丸;焦点所在行(Music)在编辑页里删掉 → 落补位行第一张(Settings);放下后 0.1 s 内返回,退出动画里预览框中的首页已是新顺序;空桌面进的加一个应用回来落第一张。**未覆盖的边界(交复审)**:删掉 / 上下移动的是焦点行**上面**的一行时,目标按 layout.json 下标认行,会落到下标相同的另一行(实测焦点在 Settings 行、删掉上面的 Music 行 → 回来落 Games 行第一张);改前一律落 (0,0),不算回归,但不是「回到原来那张卡」。
 - e2e(unitedu-tv-2):j_edit 52/52、j_home 39/39、j_pkg 79/79、j_overlays 298/298、j_persist 133/133、j_recreate 77/77;j_settings 80/82,两条失败是脚本过期(关于页 R166 起多了「更新通道」一颗,脚本按一下下键就当到了「恢复默认」),与本任务无关。
-- 复审修复(controller 裁定):上面那条「删 / 移焦点行上面的一行落到别的行」改为——退出编辑页时这一轮写过盘(`layoutRevision` 比进页时大)就给首页一个落点「第一行第一张」(`homeLandingAfterEdit`,走 `MoveLanding` 那条一次写入的路,`leaveEdit` 里赋值一次);没写过盘就按冻结的目标回到原来那张卡。模拟器实测:不改动退出 → 回 Kodi;焦点在 Settings 行、删掉上面的 Music 行 → 落 YouTube(第一行第一张)。复审第 2 轮:「改过没有」按编辑页**发起**的写盘算(EditScreen `onLayoutWriteIssued`,排进 layoutWrites 之前同步回调;MainActivity 计数,退出时与进页时比),不等落地——实测删掉上面那一行后 0.1 s 内按返回,仍落第一行第一张。
+- 复审修复(controller 裁定):上面那条「删 / 移焦点行上面的一行落到别的行」改为——退出编辑页时这一轮写过盘(`layoutRevision` 比进页时大)就给首页一个落点「第 0 行第一张(画出来的第一行,可能是频道行)」(`homeLandingAfterEdit`,走 `MoveLanding` 那条一次写入的路,`leaveEdit` 里赋值一次);没写过盘就按冻结的目标回到原来那张卡。模拟器实测:不改动退出 → 回 Kodi;焦点在 Settings 行、删掉上面的 Music 行 → 落 YouTube(第 0 行第一张(画出来的第一行,可能是频道行))。复审第 2 轮:「改过没有」按编辑页**发起**的写盘算(EditScreen `onLayoutWriteIssued`,排进 layoutWrites 之前同步回调;MainActivity 计数,退出时与进页时比),不等落地——实测删掉上面那一行后 0.1 s 内按返回,仍落第 0 行第一张(画出来的第一行,可能是频道行)。
 
 ## 2026-10-10 · 编辑页顺滑度 Task 4:编辑页盖满后首页与透明外壳不画(R167 / 报告 #4)
 
