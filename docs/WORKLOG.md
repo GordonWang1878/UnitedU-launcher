@@ -2214,3 +2214,14 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 单测 1088 个(1 个本来就跳过)全过,assembleRelease 通过;e2e 整套(`run_all.py`,unitedu-tv-2)1225 / 1227:两条失败都在 `j_settings` 的 settings-about——断言写死了 R166 之前关于页只有两颗胶囊(按一下下键就到「恢复默认」),R166 加了「更新通道」后那一下进的是通道页;改成 `move_to(恢复默认)` 后 `j_settings` 单跑 82 / 82。不是 R167 的回归。
 - 未验证(电视):转场帧率、纹理是否同样重传、编译状态(会话安装后仍是 verify,要等夜里后台编译);仍开着的模拟器观察:退出时新 id 的 960×540 / 480×270 纹理上传(来源未查明)、拿起后第一帧的着色器编译 + GPU 同步、拿起 / 放下时页面级 `carrying` 让所有应用架子重组一次。
 - 需要 Gordon 定:①是否发 1.2.0-beta.2 上电视看顺滑度(带 R167 全部改动);②`.dm` 要不要走「构建期 `.dm` 随包发、自我更新时写进会话」的方案(只在下一次应用内更新时生效,电视 ART 认不认要先发一个 Beta 读 `dumpsys` 才知道)。
+
+## 2026-10-11 · 编辑页顺滑度 Task 12:退出 / 搬运 / 进页的显存与离屏层(R167 补)
+
+- 结论:Task 11 留下的三处——E 每次退出新 id 的 960×540 / 480×270 纹理上传、D 的 `glGenTextures` 0 → 63、A 的 RT p90 65.5 → 94.7——是同一个根因:转场里 HWUI 的 GPU 资源缓存顶到上限(`gfxinfo` 的 `Max resource usage` 99.53 MB = 1920×1080×48),Skia 每帧清缓存、下一帧重建纹理 / 顶点缓冲 / saveLayer 临时层。trace 的 `HWUI All Memory` 在 E 段 88 → 100 MB、可清部分掉到 0。`Texture upload(<id>)` 的数字是新建 GPU 纹理 id,不是位图 id——那两张底图本身不可变,别被「id 每帧变」带去查位图。D 段另有我们自己的放大器:拿起 / 取消那一帧页面级 `carrying` 参数翻转,45 张卡的离屏层一帧重画(Task 7 记下的小项)。
+- 查法:`dumpsys gfxinfo` 看 `GPU Caches`(编辑页上 RenderTarget 74.8 MB / 119 项,不可清 ≈ 60 MB);临时加 `log.tag` 开关逐个关掉壁纸 / 架子淡化量差值:壁纸 ≈ 26 MB(R110 两张缓存层 + P_B 里那张 alpha < 1 的图又被提升出一张 8 MB 层)、架子淡化层 ≈ 23 MB、其余 ≈ 11 MB。开关只在实验构建里,没提交。
+- 改动(只动绘制):①壁纸 P_B 里那张图、②外壳底色那一层改 `ModulateAlpha`;③编辑页底下的氛围底只在选择器开着时画;④编辑页盖满后首页与壁纸改透明度 0(不拿出显示列表,离屏层留着,退出第一帧不再重建 44 张纹理);⑤`carrying` 改惰性 lambda,AppCard 经 `carryingMatters` 短路才读(单测 `CarryingMattersTest` 穷举证明结果不变)。
+- 试过又撤掉的:残影里冻结 AppCard 的焦点画法(想让退出时编辑页残影不再每帧重画)——没止住每帧重画,反而因为所有卡都读 `LocalPageGhost`,退出第一帧 45 个卡片层全部重画;已撤。重画的来源仍未查明:Compose 侧整段只重组 / 重录 2 次(`UnitedUPerf` 探针),把预览框缩放钉住后照样每帧重画。
+- 复测(unitedu-tv-2,`-gpu host` 开窗口,speed-profile,宿主负载 1.5–2.7——远低于 Task 11 的 ≈ 12,所以改前 617a63e 在同一时段交替重跑,各三遍取中位数):E 纹理上传 59 → 20、`glGenTextures` 126 → 16 次(82 → 9 ms)、渲染遍数 / 帧 max 93 → 11、gfxinfo p50 77 → 61 ms、RT p50 35.0 → 29.7 ms;**E 的 RT p90 52.5 → 58.4、最大帧间隔 68 → 81 ms 没变好**(剩下的是退出头三帧的模拟器 GPU 同步 + 外壳底色 960×540 第一次上传)。D 上传 11 → 5、gen 53 → 4、渲染遍数 max 73 → 22,拿起 / 取消帧不再重画全部卡;gfxinfo p90 46 → 53 ms(噪声内)。A RT p90 76 → 46 ms、gfxinfo p90 150 → 105 ms。表与读法在 `design/perf-2026-10-10-edit-page.md`「Task 12」。
+- 静止画面闸门:首页首行 / 第 3 行、布局页、编辑页、卡片菜单,与 617a63e 逐像素比,除时钟数字外 `max 0`;编辑页里打开 / 关掉「换卡片图」的录像与改前一致。关键帧 `docs/screenshots/edit-smooth/t12-{E,D}-{before,after}.jpg`。
+- 文档:perf 报告 R167 一节改正 D「持平」的说法(写出 p90 / 上传 / gen 变差的数字)、补 A 的 RT p90;gtv spec R167 一行改为「e2e 1225 / 1227,两条为 j_settings 旧断言、已改」并补 ⑨;删掉与 `e2e-3c.jpg` 字节相同、无人引用的 `docs/screenshots/channels/e2e-4-r167.jpg`;CLAUDE.md「模拟器验证的坑」加显存上限一条、焦点表首页一行改「透明度 0」;REVIEW-GUIDE、货架设计稿同步。
+- 测试:单测 1090 个(1 个本来就跳过)全过(`--rerun-tasks`),assembleRelease 通过;e2e `j_edit,j_home,j_persist,j_recreate,j_settings`(unitedu-tv-2)383 / 383。
