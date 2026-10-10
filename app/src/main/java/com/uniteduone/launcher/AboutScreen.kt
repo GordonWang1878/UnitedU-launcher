@@ -32,12 +32,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -475,13 +477,18 @@ fun AboutScreen(
                     path = stringResource(R.string.menu_settings_title),
                     title = stringResource(R.string.about_title),
                 ) {
+                    // 2026-10-10 Gordon:「发现新版本」时整块往上跑。ShellTitle 把整列垂直居中,列一变高居中点就跟着变——
+                    // 所以这一列每一段都定高:版本号、结果胶囊各一行(不换行),结局 + 更新说明按最高情况留位(结局 2 行 + 说明 4 行),
+                    // 无论检查结果是什么,总高不变、每一行都停在原处。
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         BasicText(
                             text = stringResource(R.string.about_version, versionName, versionCode) +
                                 if (versionName.contains("-beta")) " · " + stringResource(R.string.about_beta_badge) else "",
                             style = Type.body.copy(color = Ink.Primary),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
-                        // 结果区。第一行始终占位(空白态也留一行高),下面的许可声明不会因为「检查中 → 已是最新」上下跳。
+                        // 结果区。第一行始终占位(空白态也留一行高)。
                         Spacer(Modifier.height(10.dp))
                         val info = state.info
                         val headline = headline(state, offerKind)
@@ -498,6 +505,8 @@ fun AboutScreen(
                                         color = contrastingTextColor(fill),
                                         textAlign = TextAlign.Center,
                                     ),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(50))
                                         .background(fill)
@@ -505,37 +514,46 @@ fun AboutScreen(
                                 )
                             }
                         }
+                        // 结局 + 更新说明:先画一份不可见的「最高情况」占位(结局 2 行 + 说明 4 行)把高度撑定,真实内容从顶上叠上去。
                         val outcome = outcome(state)
-                        if (outcome != null) {
-                            Spacer(Modifier.height(4.dp))
-                            BasicText(
-                                text = outcome.first,
-                                style = Type.body.copy(color = outcome.second.color(highlight), textAlign = TextAlign.Center, lineBreak = Type.Balanced),
-                            )
+                        val outcomeStyle = Type.body.copy(textAlign = TextAlign.Center, lineBreak = Type.Balanced)
+                        val notesStyle = Type.caption.copy(textAlign = TextAlign.Center)
+                        Box(contentAlignment = Alignment.TopCenter) {
+                            Column(Modifier.alpha(0f).clearAndSetSemantics {}, horizontalAlignment = Alignment.CenterHorizontally) {
+                                Spacer(Modifier.height(4.dp))
+                                BasicText("", style = outcomeStyle, minLines = 2)
+                                Spacer(Modifier.height(6.dp))
+                                BasicText("", style = notesStyle, minLines = 4)
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                if (outcome != null) {
+                                    Spacer(Modifier.height(4.dp))
+                                    BasicText(
+                                        text = outcome.first,
+                                        style = outcomeStyle.copy(color = outcome.second.color(highlight)),
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                                if (info != null && info.notes.isNotBlank()) {
+                                    Spacer(Modifier.height(6.dp))
+                                    BasicText(
+                                        text = info.notes,
+                                        style = notesStyle.copy(color = Ink.Secondary),
+                                        maxLines = 4,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
                         }
-                        if (info != null && info.notes.isNotBlank()) {
-                            Spacer(Modifier.height(6.dp))
-                            BasicText(
-                                text = info.notes,
-                                style = Type.caption.copy(color = Ink.Secondary, textAlign = TextAlign.Center),
-                                maxLines = 4,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
+                        // 2026-10-10 Gordon:许可只留一行。第三方声明(NOTICE、LICENSE、OFL 全文)随 APK 附带在 assets/licenses/,
+                        // 满足 BSD-3 / Apache-2.0 / OFL「随发行物附带」的要求(app/build.gradle.kts 的 copyNotices)。
                         Spacer(Modifier.height(18.dp))
                         BasicText(
-                            text = stringResource(R.string.about_license_title),
-                            style = Type.micro.copy(fontWeight = FontWeight.Medium),
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        BasicText(
-                            text = stringResource(R.string.about_license),
-                            style = Type.micro.copy(textAlign = TextAlign.Center, lineBreak = Type.Balanced),
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        BasicText(
-                            text = stringResource(R.string.about_repo),
+                            text = stringResource(R.string.about_footer),
                             style = Type.micro,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }

@@ -2018,3 +2018,10 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - Gordon 在 A95L:1.1.0 → Beta 1.2.0-beta.1(code 8)→ 切回稳定装回退包 1.1.0(code 9)→ 再切 Beta,装不上。
 - 机制:回退包的 versionCode 必须大于 Beta 才能覆盖安装(Android 禁止降级);于是回退后已装 9,线上 Beta 仍是 8,`resolveChannel` 判「已是最新」。同一个 Beta 想再装回来需要一个比 9 更大的新包——来回切换每一次都需要新构建,无法预先备好。下一个 Beta(code ≥ 10)发出后自动能进。
 - 界面只显示「已是最新」、不说明原因:Gordon 2026-10-10 定**保持现状**,不加提示。
+
+## 2026-10-10 · 关于页:许可收成一行 + 左侧排版不再随检查结果抖动
+
+- Gordon:许可字太多;「发现新版本」时整块文字往上跑。
+- 根因(抖动):`ShellTitle` 把左列整体垂直居中,结局 / 更新说明(最多 4 行)出现时列变高、居中点上移,版本号与页名跟着动。修法:左列每段定高——版本号、结果胶囊单行不换行;结局 + 说明先画一份不可见的「最高情况」占位(结局 2 行 + 说明 4 行)撑定高度,真实内容从顶上叠。模拟器四态(空白 / 已是最新 / 发现新版本带 4 行说明 / 下载失败)截图比对:页名、版本号、页脚位置逐像素一致,`docs/screenshots/about-layout/`。
+- 许可(Gordon 选「一行 + 打包进 APK」):页面只留 `about_footer`「Apache-2.0 · github.com/GordonWang1878/UnitedU-launcher」(删 `about_license_title` / `about_license` / `about_repo`)。原来那行只列组件名、并不含 NanoHTTPD(BSD-3)要求的版权声明原文;现在 `app/build.gradle.kts` 的 `copyNotices` 把仓库根的 `NOTICE`、`LICENSE` 构建时拷进 APK 的 `assets/licenses/`(与 OFL 全文同目录,单一来源),合规比之前更完整。
+- 未验证:A95L 上的观感(需发版后电视上看)。

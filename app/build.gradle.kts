@@ -116,6 +116,18 @@ android {
     }
 }
 
+/**
+ * 第三方许可随 APK 附带(2026-10-10:关于页许可只留一行,声明全文不再显示在界面上)。
+ * BSD-3(NanoHTTPD)要求二进制发行物附带版权声明,Apache-2.0 / OFL 要求附带许可——把仓库根的 NOTICE、LICENSE
+ * 原样拷进 APK 的 assets/licenses/(与已有的 OFL-GoogleSansFlex.txt 同目录),单一来源、不在 assets 里复制一份会漂移的副本。
+ */
+val copyNotices = tasks.register<Copy>("copyNotices") {
+    from(rootProject.file("NOTICE"), rootProject.file("LICENSE"))
+    into(layout.buildDirectory.dir("generated/notices/licenses"))
+}
+android.sourceSets.getByName("main").assets.srcDir(layout.buildDirectory.dir("generated/notices"))
+tasks.named("preBuild") { dependsOn(copyNotices) }
+
 dependencies {
     // tv-material 只用叶子组件与 token(Card / IconButton / MaterialTheme);滚动容器一律不用(铁律 1)。
     // 钉 1.0.0:1.1.0 依赖 Compose 1.10,超出本 BOM。M8 2026-09-17。
