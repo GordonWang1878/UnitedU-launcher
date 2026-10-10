@@ -2139,3 +2139,15 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
   - 新的一行:6 / 0.404。
   - 拿起后静止:4 / **0.549**。
 - 仍有两项不过,已撤回这两层,保持 `DIM_BY_MODULATE = false`(提交里的状态没变)。mean 超限的来源是海报整片压在玻璃底上:逐个乘透明度时玻璃会透出来,这一带平均 +1.9/255。这与卡片压玻璃底是同一种本质差异,只是海报面积大,把整屏均值推过了 0.5;想消掉只能把玻璃和海报放进同一组,那就等于回到整层离屏。所以 B 段的收益没有再测。截图:`docs/screenshots/edit-smooth/t6c-*`。
+
+## 2026-10-10 · 编辑页顺滑度 Task 7:拿起搬运补位置过渡(R167 / 报告 #8)
+
+- 做法:卡片仍按位置组合(不包 `key(pkg)`,焦点账本不动),换位只是绘制平移。`EditCarrySlide.kt` 的 `carrySlideStarts` 只认搬运造成的三种变化(换顺序 / 少一张 / 多一张),每格从「旧位置 − 新位置 + 旧格此刻还没走完的位移」滑回 0,200 ms `FastOutSlowIn`(= `SHIFT_MS`)。跨层搬入的卡另从来的方向竖直滑入:非焦点架子仍是离屏层(Task 6 没过),从上方 40 dp、从下方按 `carryArriveDp` 收短到约 12 dp,柔光不出撑大后的图层(R129f)。`clipPastShelfEnd` 加 `shiftPx`:「整张不画」按卡此刻画在哪判。
+- brief 之外两处:① `ShelfSlide.begin`:竖直滑入还没走完又左右搬一步时,那张卡带着剩下的竖直位移去新格接着滑(单测 `ShelfSlideTest`);② 让一步搬运只重组受影响的那一两层。`reuseEqual` 让内容没变的层沿用旧的 `Shelf` / 胶囊表实例;箭头集合只传给被搬的卡所在那一层。探针(unitedu-tv-2):拿起 = 整页 2 次 + 第 0 层 1 次;同层左右 = 整页 2 次 + 本层 1 次;跨层 = 整页 2 次 + 两层各 1 次。改前每一步所有层都要重组。
+- 动效实测(1×,mp4 pts,追踪 YouTube 图标的 x):三次右移各滑一个卡距,用时约 180–200 ms,中间分别有 7 / 6 / 8 帧在中途。两键零间隔连发(`input keyevent 22 22`)时 x 单调前进,没有回跳(Review Focus 2)。取消时 YouTube 从第 3 格滑回第 0 格,三张邻卡同时右移让位。跨层(`animator_duration_scale 10` 慢放):下移时从上方滑入,上移时从下方短距离滑入。目视卡身、描边和柔光都没有被直线截断。截图 `docs/screenshots/edit-smooth/t7-{D,step,double,cancel,up-mid,down-mid}.jpg`。
+- 观众视角:被搬的卡在前(zIndex)。让位的邻卡带着原焦点格还在淡出的描边一起滑走,所以换位途中看起来像两张有框的卡交叉而过,约 150 ms 后邻卡的框淡掉。原因:焦点描边动画属于格子,不属于应用。改前这个淡出框留在原地;卡片焦点动画不在本任务范围,没有动。宿主负载高时,步后头一两帧会卡在等 RenderThread 上(`postAndWait`),200 ms 的滑动可能只剩首尾两帧(`dbl` 录像第一步就是这样)。
+- 性能(unitedu-tv-2,负载 ≈13,suite t7):D 段动画帧 RT p50 21.2 ms(t5 19.9 / t5b 28.0 / t6r 21.3),掉帧 39.7%(t5 33.6 / t5b 61.2 / t6r 38.7),与之前持平。W 段(拿起 → 右移 → 放下):
+  - 拿起那一帧:重组 21.0 → 9.8 ms,RT 101.9 → 55.4 ms,flush layers 33 ms 降为 0。
+  - 整段 UI 最长帧 94 / 143 → 52.3 ms,闸门(D p90 36.0 + 4 = 40)**仍不过**。最长那帧是拿起后一帧的 `postAndWait` 42 ms,对应的 RT 帧 55 ms,构成是首次 `shader_compile` 17.8 ms(抬起阴影的 AAConvexPathOp,每进程一次)加 `eglSwapBuffers` / `rcCreateSyncKHR` 21 ms(模拟器 GPU 管道同步)。
+  - 右移后一帧有一条 21.5 ms 的 `Recomposer:recompose`,其中只有 5.6 ms 在跑,15.8 ms 是 Runnable(被宿主抢占)。
+- 测试:单测 1071(1 跳过)全过;j_edit 52/52;j_channels 72/72。

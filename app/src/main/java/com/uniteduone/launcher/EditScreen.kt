@@ -2,6 +2,7 @@ package com.uniteduone.launcher
 
 import android.view.KeyEvent as AKey
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
@@ -35,6 +36,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.boundsInRoot
@@ -113,12 +115,14 @@ private fun isOkKey(code: Int): Boolean =
  * 卡片条的横向裁切(owner 裁定,R165 计划复审):**只裁越过架子右端的卡**——行多于一屏时右边露出的那一截不画到架子外。
  * 焦点卡(放大 + 描边 + 60 dp 柔光)整张进了架子就不裁,柔光可以画出架子(还在滑入时照样裁,见 [shelfCardClipRight]);**左边一律不裁**(第 1 张卡的柔光画到架子外,默认焦点就落在那里),
  * 滑出左边的卡只由屏幕边缘裁(同首页)。上下不裁。[rightDp] 在绘制阶段读:这张卡左缘到架子右边缘的距离(dp,随横向位移每帧变),
- * ≤ 0 时整张不画,null 时不裁。只是绘制:不改布局、不影响可聚焦性。
+ * ≤ 0 时整张不画,null 时不裁。只是绘制:不改布局、不影响可聚焦性。[shiftPx] = 裁切之内的绘制平移(R167 拿起换位的滑动),
+ * 「整张不画」按内容此刻画在哪判;缺省 0 = 改前行为。
  */
-private fun Modifier.clipPastShelfEnd(rightDp: () -> Float?): Modifier = drawWithContent {
+private fun Modifier.clipPastShelfEnd(shiftPx: () -> Float = { 0f }, rightDp: () -> Float?): Modifier = drawWithContent {
     val rd = rightDp() ?: return@drawWithContent drawContent()
     val r = rd.dp.toPx()
-    if (r <= 0f) return@drawWithContent
+    // 内容此刻画在本地 x ∈ [shiftPx, shiftPx + 宽](R167 拿起换位的平移在裁切之内);左缘都过了裁切线才整张不画
+    if (r <= shiftPx()) return@drawWithContent
     clipRect(left = -size.width * 4f, top = -size.height * 4f, right = r, bottom = size.height * 5f) { this@drawWithContent.drawContent() }
 }
 
@@ -183,6 +187,8 @@ fun EditScreen(
     var overlay by remember { mutableStateOf<EditOverlay?>(null) }
     val overlayOpen = overlay != null
     var carry by remember { mutableStateOf<EditCarry?>(null) }
+    /** R167:最近一次跨层搬入 / 跨层取消放回(只给滑入方向用,不进任何焦点账本;下一次跨层时整个换掉)。 */
+    var arrival by remember { mutableStateOf<CarryArrival?>(null) }
     val needed = remember(rows) { rows.flatMap { it.apps }.toSet() }
     // 与旧编辑页同一做法:null 区分「还在加载」与「加载失败」;连同「这份数据是给哪套 needed 算的」一起存(R67,见 editCardShown)
     // R167(报告 #2 / #9):首页那份卡片数据(同一 revision、覆盖本页所需)直接当初值——进页第一帧就是真卡,
@@ -226,9 +232,17 @@ fun EditScreen(
         rows = withVisibleEdits(base, edited, shownNow())
     }
     val viewRows = remember(rows, loadedFor) { view() }
-    val shelves = remember(viewRows, channelLabelsNow, channelContentNow) { shelvesFor(viewRows) }
-    /** 每层的胶囊表(组合期一份,同一份 shelves 下是同一个实例,传给各层不会让它们不可跳过)。 */
-    val chipsByShelf = remember(shelves) { shelves.indices.map { shelfChips(shelves, it) } }
+    // R167(Task 7):内容没变的那一层沿用上一份的实例——参数按实例比(strong skipping),拿起搬一步 / 数据重读时
+    // 没变的层整个跳过重组,只有真的换了卡的一两层重组。只在组合阶段读写的普通数组,不是状态
+    val shelfMemo = remember { arrayOfNulls<List<Shelf>>(1) }
+    val shelves = remember(viewRows, channelLabelsNow, channelContentNow) {
+        reuseEqual(shelfMemo[0], shelvesFor(viewRows)).also { shelfMemo[0] = it }
+    }
+    /** 每层的胶囊表(组合期一份,同一份 shelves 下是同一个实例,传给各层不会让它们不可跳过;内容没变的层沿用上一份的实例)。 */
+    val chipsMemo = remember { arrayOfNulls<List<List<ShelfChip>>>(1) }
+    val chipsByShelf = remember(shelves) {
+        reuseEqual(chipsMemo[0], shelves.indices.map { shelfChips(shelves, it) }).also { chipsMemo[0] = it }
+    }
 
     // ---------------- 焦点账本 ----------------
     /** 目标:回来落哪一格。三个分量在一个不可变值里一起写,与 [holder] 永远是两个量(铁律 5)。带种子进页时第一帧就在种子那一层。 */
@@ -341,6 +355,8 @@ fun EditScreen(
         val v = view()
         val (next, pos) = moveInLayout(v, c.pos, dir)
         if (next === v) return
+        // R167:跨层时记下被搬的卡从哪边来,目标层据此竖直滑入(EditCarrySlide.kt);只是绘制,不进焦点账本
+        if (pos.row != c.pos.row) v.getOrNull(c.pos.row)?.apps?.getOrNull(c.pos.col)?.let { arrival = CarryArrival(pos.row, it, arrivalSign(c.pos.row, pos.row)) }
         applyView(next, base = c.original)
         carry = c.copy(pos = pos)
         retarget(ShelfSpot(pos.row, ShelfZone.CARDS, pos.col))
@@ -356,6 +372,8 @@ fun EditScreen(
     fun cancelCarry() {
         val c = carry ?: return
         carry = null
+        // R167:跨层搬过的卡放回出发那一层时,从它此刻所在的那一层的方向滑入
+        if (c.pos.row != c.from.row) view().getOrNull(c.pos.row)?.apps?.getOrNull(c.pos.col)?.let { arrival = CarryArrival(c.from.row, it, arrivalSign(c.pos.row, c.from.row)) }
         rows = c.original
         retarget(ShelfSpot(c.from.row, ShelfZone.CARDS, c.from.col))
     }
@@ -709,7 +727,9 @@ fun EditScreen(
                             metrics = metrics,
                             col = { shelfCol[si] ?: 0 },
                             carriedCol = carry?.pos?.takeIf { it.row == si }?.col,
-                            arrows = arrows,
+                            // 箭头只给被搬的卡所在那一层;别的层拿同一个空集合,搬一步时不因它重组(Task 7)
+                            arrows = if (carry?.pos?.row == si) arrows else emptySet(),
+                            arrival = arrival?.takeIf { it.row == si },
                             arrowColor = highlight,
                             accent = accent,
                             screenW = screenW,
@@ -888,6 +908,7 @@ private fun AppShelfView(
     col: () -> Int,
     carriedCol: Int?,
     arrows: Set<MoveDir>,
+    arrival: CarryArrival?,
     arrowColor: Color,
     accent: Color,
     screenW: Float,
@@ -901,6 +922,24 @@ private fun AppShelfView(
 ) {
     SideEffect { EditPerf.log("shelf ${shelf.row}") }
     val si = shelf.row
+    // R167 拿起换位的滑动(见 EditCarrySlide.kt)。SideEffect 在本帧绘制之前跑:第一帧就画在起点,不会先闪到终点再滑
+    val slide = remember { ShelfSlide() }
+    val slideScope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val pitchPx = with(density) { (metrics.cardWidth.value + ShelfLayout.CARD_GAP).dp.toPx() }
+    val apps = shelf.apps
+    SideEffect {
+        val sign = arrival?.sign ?: 0
+        val arriveDyPx = sign * with(density) { carryArriveDp(sign).dp.toPx() }
+        // 卡没变(含内容相同的新实例):不打断正在跑的滑动
+        if (slide.lastApps == apps) { slide.lastApps = apps; return@SideEffect }
+        slide.job?.cancel()
+        if (slide.begin(apps, arrival, pitchPx, arriveDyPx)) {
+            slide.job = slideScope.launch {
+                animate(0f, 1f, animationSpec = tween(ShelfLayout.SHIFT_MS, easing = FastOutSlowInEasing)) { v, _ -> slide.progress.floatValue = v }
+            }
+        }
+    }
     ShelfFrame(focus = focus, dashed = false, modifier = modifier.fillMaxWidth().height(ShelfLayout.APP_SHELF_HEIGHT.dp)) {
         Row(
             Modifier
@@ -955,12 +994,17 @@ private fun AppShelfView(
                     val cell = Modifier.focusRequester(req(spot)).onGloballyPositioned { place(spot, it.boundsInRoot().center.x) }
                     Box(
                         Modifier
-                            .zIndex(if (ci == cur) 1f else 0f)
+                            // 被搬的卡在滑动途中也盖住邻卡(R167)
+                            .zIndex(if (ci == cur || carried) 1f else 0f)
                             // rowShiftX 保证当前那张(焦点卡 / 被拿起的卡)停下时完整落在架子里:那时不裁,柔光照常画出架子(owner 裁定);
-                            // 横向位移还在动、它还没整张进架子时照样裁在架子右端(Task 10:否则新焦点卡会整张画进架子外的留白)
-                            .clipPastShelfEnd {
+                            // 横向位移还在动、它还没整张进架子时照样裁在架子右端(Task 10:否则新焦点卡会整张画进架子外的留白)。
+                            // 裁切边界仍按布局位置算——R167 的滑动平移放在裁切之内,裁切线停在架子右端、不跟着卡走;
+                            // 「整张都在架子外就不画」那条捷径按**画在哪**判(被挤出架子的卡滑动途中还画在架子里)
+                            .clipPastShelfEnd(shiftPx = { slide.dx(ci) }) {
                                 shelfCardClipRight(shelfW - (ShelfLayout.PAD_START + ci * pitch + dx.value.value), metrics.cardWidth.value, ci == cur)
                             }
+                            // R167:拿起换位的滑动,只在绘制阶段平移(不改布局、不改 onGloballyPositioned 量到的位置 → centers 不受影响)
+                            .drawWithContent { translate(slide.dx(ci), slide.dy(ci)) { this@drawWithContent.drawContent() } }
                             .graphicsLayer {
                                 shadowElevation = lift.value * ShelfLayout.CARRY_SHADOW.dp.toPx()
                                 shape = RoundedCornerShape(metrics.cardCorner)

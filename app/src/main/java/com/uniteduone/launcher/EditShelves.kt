@@ -315,7 +315,16 @@ internal object ShelfLayout {
     /** 换层(架子亮度 + 整页位移)200 ms、拿起 / 放下 150 ms,曲线 FastOutSlowIn(spec §2.5)。 */
     const val SHIFT_MS = 200
     const val LIFT_MS = 150
+    /** R167:从相邻架子搬进来的卡从来的方向滑入这么远(dp)——上限;非焦点架子仍是离屏层时由 [carryArriveDp] 收短(R129f)。 */
+    const val CARRY_ARRIVE_DP = 40f
 }
+
+/**
+ * R167(Task 7):[fresh] 里与 [prev] 同一位置内容相等的元素换成 [prev] 里那个实例。Compose 按实例比参数(strong skipping),
+ * 这样内容没变的那一层拿到的是同一个对象、整层跳过重组;只是换实例,值完全相同。
+ */
+internal fun <T> reuseEqual(prev: List<T>?, fresh: List<T>): List<T> =
+    if (prev == null) fresh else fresh.mapIndexed { i, x -> prev.getOrNull(i)?.takeIf { it == x } ?: x }
 
 /** 落在第 [shelf] 层的 [chip] 那颗;那颗此刻不在(比如删除已不允许)→ 第一颗。 */
 internal fun landingOnChip(shelves: List<Shelf>, shelf: Int, chip: ShelfChip): ShelfSpot =
