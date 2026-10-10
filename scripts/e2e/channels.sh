@@ -29,7 +29,7 @@ if [[ "${1:-}" == build ]] && ! git diff --quiet -- app/build.gradle.kts; then
 fi
 
 build_one() {  # <versionCode> <versionName> <输出名>
-  if [[ "$2" != "1.0.3" ]]; then sed -i '' "s/versionName = \"1.0.3\"/versionName = \"$2\"/" app/build.gradle.kts; fi
+  sed -i '' -E "s/versionName = \"[^\"]+\"/versionName = \"$2\"/" app/build.gradle.kts
   gradle --no-daemon assembleRelease -PversionCodeOverride="$1" "${URLS[@]}" >/dev/null || { git checkout app/build.gradle.kts; return 1; }
   git checkout app/build.gradle.kts
   cp app/build/outputs/apk/release/app-release.apk "$WORK/$3"
@@ -235,6 +235,18 @@ check("通道已是 stable", '"updateChannel": "stable"' in sh(f"cat {F}/setting
 sh(f"am start -n {PKG}/.MainActivity"); time.sleep(3); key("down"); open_about(); time.sleep(2)
 show("about-after-C"); print("  ", shot_jpg("3b"))
 print("  3 前:", vcb, "后:", vc(), "layout md5", l1, "→", md5(), set_before, "→", set_after)
+
+journey("3c 回退包上再切 Beta:两份清单都比它旧 → 说明在等下一个 Beta(R167)")
+pick_channel("beta")
+s = wait_for(lambda s: s.has("rollback-to-stable") or s.has("New version"), 30); show("rollback-on-beta")
+check("显示回退包说明", s.has("rollback-to-stable"), s.texts())
+check("仍算已是最新(没有新版提示)", s.has("up to date") and not s.has("New version"), s.texts())
+print("  ", shot_jpg("3c"))
+# 还原场景 4 的前提(从稳定切到 Beta):不切回去的话场景 4 的 pick_channel("beta") 是「同通道再选一次」,
+# 它的 wait_for 可能直接读到 3c 留在屏幕上的「up to date」,检查不到真正那次重检的结果
+pick_channel("stable")
+s = wait_for(lambda s: s.has("up to date") and not s.has("rollback-to-stable"), 30); show("back-to-stable")
+check("切回稳定:普通的已是最新(稳定通道不报回退说明)", s.has("up to date") and not s.has("rollback-to-stable"), s.texts())
 
 evidence()
 journey("4 beta.json 不存在时切 Beta:按稳定版判断,不报检查失败")

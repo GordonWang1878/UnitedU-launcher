@@ -90,6 +90,11 @@ sealed class AboutState {
         override val action get() = AboutAction.CHECK
     }
 
+    /** R167:Beta 通道上装着回退包、两份清单都比它旧——仍是「已是最新」,但说明要等下一个 Beta(见 [upToDateNote])。 */
+    data object LatestRollback : AboutState() {
+        override val action get() = AboutAction.CHECK
+    }
+
     data class Failed(val reason: CheckFailure) : AboutState() {
         override val action get() = AboutAction.CHECK
     }
@@ -196,15 +201,19 @@ class AboutController(
         checkJob = activity.lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
                 val ch = channel() // 每次检查只读一次,日志与请求用同一个值
-                ch to Update.checkChannel(ch, currentVersionCode, BuildConfig.VERSION_NAME, Build.VERSION.SDK_INT)
+                var note = UpToDateNote.PLAIN
+                val r = Update.checkChannel(ch, currentVersionCode, BuildConfig.VERSION_NAME, Build.VERSION.SDK_INT) { note = it }
+                Triple(ch, r, note)
             }
             if (my != session) return@launch
-            val (ch, outcome) = result
+            val (ch, outcome, note) = result
             state = outcome.fold(
                 onSuccess = { up ->
                     Log.i(TAG, "update check (${ch.id}): current $currentVersionCode, found=${up?.info?.versionCode} kind=${up?.kind}")
                     if (up != null) offerKind = up.kind
-                    if (up != null) AboutState.Found(up.info, up.kind) else AboutState.Latest
+                    if (up != null) AboutState.Found(up.info, up.kind)
+                    else if (note == UpToDateNote.ROLLBACK_AWAITING_BETA) AboutState.LatestRollback
+                    else AboutState.Latest
                 },
                 onFailure = { e ->
                     val reason = (e as? UpdateCheckException)?.reason ?: CheckFailure.NETWORK
@@ -579,6 +588,7 @@ private fun headline(state: AboutState, offerKind: UpdateKind): Pair<String, Ton
     }
     return when (state) {
         AboutState.Latest -> stringResource(R.string.about_latest) to Tone.GOOD
+        AboutState.LatestRollback -> stringResource(R.string.about_latest_rollback_beta) to Tone.GOOD
         is AboutState.Failed -> {
             val text = when (state.reason) {
                 CheckFailure.NETWORK -> stringResource(R.string.about_net_failed)

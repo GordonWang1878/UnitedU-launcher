@@ -255,6 +255,7 @@
     <string name="about_check">检查更新</string>
     <string name="about_checking">检查中…</string>
     <string name="about_latest">已是最新版本</string>
+    <string name="about_latest_rollback_beta">已是最新：这是回退到稳定版的包，下一个 Beta 发布后在这里检查更新即可装上</string>
     <string name="about_found">发现新版本 %1$s</string>
     <string name="about_found_rollback">可回到稳定版 %1$s（布局与设置保留）</string>
     <string name="about_download">下载并安装</string>

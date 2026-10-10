@@ -41,8 +41,10 @@ class AboutStateTest {
         assertEquals(info, ready.info)
     }
 
+    @Test fun latestRollbackOffersAnotherCheck() = assertEquals(AboutAction.CHECK, AboutState.LatestRollback.action)
+
     @Test fun checkStatesCarryNoUpdate() {
-        listOf(AboutState.Idle, AboutState.Checking, AboutState.Latest, AboutState.Failed(CheckFailure.NETWORK))
+        listOf(AboutState.Idle, AboutState.Checking, AboutState.Latest, AboutState.LatestRollback, AboutState.Failed(CheckFailure.NETWORK))
             .forEach { assertNull(it.toString(), it.info) }
     }
 
@@ -50,7 +52,7 @@ class AboutStateTest {
         assertEquals(true, AboutState.Downloading(info, 1).cancellable)
         assertEquals(true, AboutState.Verifying(info).cancellable)
         listOf(
-            AboutState.Idle, AboutState.Checking, AboutState.Latest, AboutState.Failed(CheckFailure.NETWORK),
+            AboutState.Idle, AboutState.Checking, AboutState.Latest, AboutState.LatestRollback, AboutState.Failed(CheckFailure.NETWORK),
             AboutState.Found(info), AboutState.VerifyFailed(info), AboutState.DownloadFailed(info),
             AboutState.NeedsPermission(info), AboutState.Installing(info), AboutState.InstallFailed(info),
         ).forEach { assertEquals(it.toString(), false, it.cancellable) }

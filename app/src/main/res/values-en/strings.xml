@@ -263,6 +263,7 @@
     <string name="about_check">Check for Updates</string>
     <string name="about_checking">Checking…</string>
     <string name="about_latest">You\'re up to date</string>
+    <string name="about_latest_rollback_beta">You\'re up to date — this is the rollback-to-stable build. Check again here after the next Beta is out.</string>
     <string name="about_found">New version %1$s available</string>
     <string name="about_found_rollback">Back to stable %1$s (layout and settings kept)</string>
     <string name="about_download">Download and Install</string>
