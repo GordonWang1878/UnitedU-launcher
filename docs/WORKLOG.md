@@ -2011,4 +2011,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - Gordon 定版本号 1.1.0。`R2_BUCKET=unitedu R2_BASE_URL=https://dl.uniteduone.com scripts/release.sh 1.1.0`:先 dry-run 后正式;单调检查 7 > 已发布最大值 6,签名 = release 证书。
 - 读回:R2 `latest.json` = 7 / 1.1.0,APK 200(16065698 字节);GitHub `releases/latest/download/latest.json` = 7 / 1.1.0。说明 `dist/notes-1.1.0.txt` + `.app.txt`(双语)。
 - 这是发 Beta 的前提:此后 `release.sh x.y.z-beta.N` 的「最新稳定 tag 必须带 unitedu.rollbackUrls」检查可通过。下一步:`频道推荐` 分支 rebase 到 main 后以 Beta 发出(见记忆 channels-branch-awaits-beta-track)。
-- 未验证:A95L 上「检查更新」到 1.1.0 并切换通道,待 Gordon 电视上看。Gordon 选「推」:main 17 个提交已推到 origin/main(`3895102`)。
+- 电视实测(Gordon 2026-10-10):A95L 经「检查更新」装上 1.1.0,「更新通道」切换正常。Gordon 选「推」:main 17 个提交已推到 origin/main(`3895102`)。
