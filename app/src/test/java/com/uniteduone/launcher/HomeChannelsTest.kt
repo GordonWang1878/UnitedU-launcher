@@ -113,4 +113,15 @@ class HomeChannelsTest {
     /** R167:R161 空桌面进的编辑页(目标是按钮的负行号)加了应用回来:落第一行第一张 */
     @Test fun emptyDesktopTargetLandsOnFirstCardAfterEdit() =
         assertEquals(0 to 0, homeTargetCell(listOf(appRow(0, "a")), tgtLayoutRow = EMPTY_EDIT_ROW, tgtCol = 0))
+
+    /** R167 裁定:这一轮编辑页一次都没写盘 → 没有落点,冻结的目标原样还原(回到原来那张卡) */
+    @Test fun noLandingWhenEditDidNotWrite() = assertEquals(null, homeLandingAfterEdit(changed = false))
+
+    /** R167 裁定:写过盘 → 落第一行第一张(画出来的第 0 行第 0 列,= R167 前首页重建后的落点);每次都是新落点,不是闩 */
+    @Test fun landingOnFirstCardWhenEditWrote() {
+        val a = homeLandingAfterEdit(changed = true)!!
+        assertEquals(MovePos(0, 0), a.pos)
+        assertEquals(false, a.wrote)
+        assert(a !== homeLandingAfterEdit(changed = true))
+    }
 }

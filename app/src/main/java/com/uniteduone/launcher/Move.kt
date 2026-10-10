@@ -87,6 +87,16 @@ data class MoveState(
 class MoveLanding(val pos: MovePos, val wrote: Boolean)
 
 /**
+ * R167(controller 裁定,Task 3 复审):退出编辑页时首页焦点该落哪。首页在编辑页底下留在组合里、目标冻结,但目标按
+ * layout.json 下标认行——编辑页里删掉 / 上下移动了焦点行**上面**的一行,下标就指到别的行。所以:
+ * 这一轮编辑真的写过盘([changed])→ 给一个落点「第一行第一张」(= R167 之前首页重建后的落点,画出来的第 0 行、第 0 列),
+ * 由还原效果按 [MoveLanding] 那条路一次写进目标格;一次都没写过 → null,目标原样留着,回到原来那张卡。
+ * 新对象 = 新落点(按身份比对),不是闩。
+ */
+internal fun homeLandingAfterEdit(changed: Boolean): MoveLanding? =
+    if (changed) MoveLanding(MovePos(0, 0), wrote = false) else null
+
+/**
  * 编辑页搬卡一步(M4b spec §0-18,Gordon 2026-09-20):与首页 [moveCard] 同一套键位,对象是 layout.json 的行——
  * 空行也是合法落点(编辑页显示空行),源行被移空照样保留。左右:与同行邻卡换位,到头不动。
  * 上下:落到相邻行的同一列,越过行尾放行尾;相邻行已有同一个包 → 不动(同首页 Ruling M4b-R16);那个方向没有行 → 不动。

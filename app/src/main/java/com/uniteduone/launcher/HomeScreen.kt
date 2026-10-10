@@ -131,7 +131,8 @@ internal fun HomeScreen(
      * 只是目标换成了它。期间焦点上报不改 `tgtLayoutRow`/`tgtCol`(首页自己的记忆冻结,结束时由 [moveLanding] 一次写入)。
      */
     moving: MoveState? = null,
-    /** 移动态结束时焦点该落的那一格(见 [MoveLanding]):还原效果把它写进 `tgtLayoutRow`/`tgtCol`,每个落点只写一次。 */
+    /** 移动态结束时焦点该落的那一格(见 [MoveLanding]):还原效果把它写进 `tgtLayoutRow`/`tgtCol`,每个落点只写一次。
+     *  R167 起退出编辑页且这一轮写过盘时也走这条路(落第一行第一张,见 [homeLandingAfterEdit])。 */
     moveLanding: MoveLanding? = null,
     /** 这一次组合画出来的行。MainActivity 进移动态时拿最近一份当工作副本。 */
     onRowsShown: (List<Row>) -> Unit = {},
@@ -261,8 +262,9 @@ internal fun HomeScreen(
      * 画在第几行由 [homeTargetCell] 现算(行不在了 → 补上它位置的那一行)。上下键「同列落点」规则只读目标行的列,
      * 所以一个 [tgtCol] 就够(原来的 tgtIdx 每行一格,实际只读过 `tgtIdx[tgtRow]`)。
      * 已知边界:发布方被卸载、它的频道行从 layout.json 删掉时,下面各行的 layoutRow 会少 1;那一刻目标落到同一 layout 下标上
-     * 的那一行(卸载是罕见操作,且焦点仍在首页、不丢)。
-     * 这棵树只在冷启动时重建(R167 起编辑页开着时也留在组合里,回来按冻结的目标还原),冷启动本来就该落在第一张卡(-1 → 第一行);M7 T4 起记忆由 [previewing]
+     * 的那一行(卸载是罕见操作,且焦点仍在首页、不丢)。编辑页里删行 / 移行同理会挪下标,所以 R167 起退出编辑页时:这一轮写过盘
+     * → 目标改成第一行第一张(经 [moveLanding] 一次写入,[homeLandingAfterEdit]),没写过 → 冻结的目标原样还原。
+     * 这棵树只在冷启动时重建(R167 起编辑页开着时也留在组合里),冷启动本来就该落在第一张卡(-1 → 第一行);M7 T4 起记忆由 [previewing]
      * 的冻结保住,不再有种子(少一份状态,就少一条会过期的路,铁律 7)。
      */
     var tgtLayoutRow by remember { mutableStateOf(-1) }
