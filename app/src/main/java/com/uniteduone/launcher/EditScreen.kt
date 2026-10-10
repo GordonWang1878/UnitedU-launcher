@@ -25,6 +25,7 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -84,6 +85,18 @@ private sealed interface EditOverlay {
         override val layer get() = "channels"
     }
 }
+
+/** R167:编辑页传给各层的回调,整页只建一份;字段都转调「最新那一份」实现(rememberUpdatedState),组合多少次都是同一个实例(报告 #5)。 */
+@Stable
+private class EditShelfCallbacks(
+    val req: (ShelfSpot) -> FocusRequester,
+    val report: (ShelfSpot, Boolean) -> Unit,
+    val place: (ShelfSpot, Float) -> Unit,
+    val onChip: (Int, ShelfChip) -> Unit,
+    val onChoice: (NewRowChoice) -> Unit,
+    val onAddTile: (Int) -> Unit,
+    val onCardClick: (Int, Int) -> Unit,
+)
 
 private fun dirOf(code: Int): MoveDir? = when (code) {
     AKey.KEYCODE_DPAD_LEFT -> MoveDir.LEFT
@@ -148,6 +161,7 @@ fun EditScreen(
     onLayoutWriteIssued: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
+    SideEffect { EditPerf.log("page") }
     val showToast = LocalToast.current
     /** R138 / R147:本页也会以残影出现(打开换卡片图、退出编辑页时)。残影里不可聚焦、两个效果让路、返回键不收、不回调。 */
     val ghost = LocalPageGhost.current
@@ -211,8 +225,10 @@ fun EditScreen(
     fun applyView(edited: List<LayoutRow>, base: List<LayoutRow> = rows) {
         rows = withVisibleEdits(base, edited, shownNow())
     }
-    val viewRows = view()
-    val shelves = shelvesFor(viewRows)
+    val viewRows = remember(rows, loadedFor) { view() }
+    val shelves = remember(viewRows, channelLabelsNow, channelContentNow) { shelvesFor(viewRows) }
+    /** 每层的胶囊表(组合期一份,同一份 shelves 下是同一个实例,传给各层不会让它们不可跳过)。 */
+    val chipsByShelf = remember(shelves) { shelves.indices.map { shelfChips(shelves, it) } }
 
     // ---------------- 焦点账本 ----------------
     /** 目标:回来落哪一格。三个分量在一个不可变值里一起写,与 [holder] 永远是两个量(铁律 5)。带种子进页时第一帧就在种子那一层。 */
@@ -258,20 +274,32 @@ fun EditScreen(
         } else if (holder == s) holder = null
     }
 
+    // R167:三个只在「换了层 / 换了区域 / 有无持有者」时才变的派生值;层内左右移动焦点时它们不变,整页不重组(报告 #5)
+    val activeShelfRaw by remember { derivedStateOf { (if (retargetTick != retargetDone || paused) target else holder ?: target).shelf } }
+    val noHolder by remember { derivedStateOf { holder == null } }
+    val hintZone by remember { derivedStateOf { holder?.zone ?: target.zone } }
+
     // **组合阶段发现目标那一层的胶囊表变了 → 同步冻结并按身份重定位**(Task 13 复审 2;SettingsShell 条件行同一手法)。
     // 授权回来 ChannelCache 重读,「重新授权」那颗被摘掉的那一帧,Compose 当场把焦点派给左上角那张卡(模拟器实测 5 ms 内),
     // 那次上报若看到「没在重定位」就把目标改写成第一张卡、看门狗也看不到「没人持有」。所以必须在**组合阶段**(节点被摘之前)
     // 就置上重定位;落点由 resolveEditTarget 按身份算(那颗还在 → 跟着它;是「重新授权」→ 这一层第一颗,不落到「删除」)。
     // 显式落点(删行 / 上下移等)在同一个快照里连 targetChip 一起写好,这里按身份解析出的是同一格,只是多一次无害的重定位。
     // 普通数组,只在组合阶段读写,不引起重组。拿起中不动(目标是被搬的卡,不在胶囊条上)。
-    val lastTargetChips = remember { arrayOfNulls<Pair<Int, List<ShelfChip>>>(1) }
-    val targetLaneChips = if (target.zone == ShelfZone.CHIPS) shelfChips(shelves, target.shelf) else null
-    val prevChips = lastTargetChips[0]
-    if (targetLaneChips != null && carry == null && prevChips != null && prevChips.first == target.shelf && prevChips.second != targetLaneChips) {
-        val to = resolveEditTarget(shelves, target, targetChip)
-        retarget(to, shelfChips(shelves, to.shelf).getOrNull(to.index))
+    // R167:按层记上一份胶囊表,只在胶囊表真的换了一份(= shelves 变了)时比对;读 target / carry 不登记依赖——
+    // 否则每次焦点移动(report → setTarget)都会让整页重组(报告 #5)。
+    val lastChips = remember { arrayOfNulls<List<List<ShelfChip>>>(1) }
+    val prevAll = lastChips[0]
+    if (prevAll !== chipsByShelf) {
+        lastChips[0] = chipsByShelf
+        if (prevAll != null) Snapshot.withoutReadObservation {
+            val t = target
+            val before = prevAll.getOrNull(t.shelf)
+            if (t.zone == ShelfZone.CHIPS && carry == null && before != null && before != chipsByShelf.getOrNull(t.shelf)) {
+                val to = resolveEditTarget(shelves, t, targetChip)
+                retarget(to, shelfChips(shelves, to.shelf).getOrNull(to.index))
+            }
+        }
     }
-    lastTargetChips[0] = targetLaneChips?.let { target.shelf to it }
 
     // ---------------- 写盘 ----------------
     val scope = rememberCoroutineScope()
@@ -487,7 +515,7 @@ fun EditScreen(
     }
 
     // ---------------- 看门狗(铁律 3 / 6):守卫里的每个量都在 key 里 ----------------
-    val noHolder = holder == null
+    // noHolder 是上面的派生值(R167),仍是 key 也是守卫
     LaunchedEffect(focusNonce, all, rows, noHolder, overlayOpen, retargeting, paused, ghost) {
         if (ghost || retargeting || overlayOpen || paused || !noHolder) return@LaunchedEffect
         if (all == null && rows.any { it.apps.isNotEmpty() }) return@LaunchedEffect
@@ -593,6 +621,25 @@ fun EditScreen(
         return ok && e.action == AKey.ACTION_DOWN && e.repeatCount > 0
     }
 
+    val ghostNow by rememberUpdatedState(ghost)
+    val onChipNow by rememberUpdatedState<(Int, ShelfChip) -> Unit>(::onChip)
+    val onChoiceNow by rememberUpdatedState<(NewRowChoice) -> Unit>(::onChoice)
+    val reportNow by rememberUpdatedState<(ShelfSpot, Boolean) -> Unit>(::report)
+    val openPickerNow by rememberUpdatedState<(Int, ShelfSpot) -> Unit>(::openPicker)
+    val openCardMenuNow by rememberUpdatedState<(Int, Int) -> Unit>(::openCardMenu)
+    val cb = remember {
+        EditShelfCallbacks(
+            req = { s -> requesters.getOrPut(s) { FocusRequester() } },
+            report = { s, got -> reportNow(s, got) },
+            place = { s, x -> centers[s] = x },
+            onChip = { si, chip -> onChipNow(si, chip) },
+            onChoice = { c -> onChoiceNow(c) },
+            onAddTile = { si -> if (!ghostNow && carry == null && overlay == null) openPickerNow(si, ShelfSpot(si, ShelfZone.CARDS, 0)) },
+            // 卡片的 onClick 只可能来自指针 / 无障碍(确定键在根上就被截走):给卡片菜单
+            onCardClick = { si, ci -> if (!ghostNow && carry == null && overlay == null) openCardMenuNow(si, ci) },
+        )
+    }
+
     // ---------------- 纵向位移(焦点线,spec §2.1)----------------
     var viewportPx by remember { mutableStateOf(0) }
     val heights = remember { mutableStateMapOf<Int, Int>() }
@@ -600,7 +647,7 @@ fun EditScreen(
     // (拿起中 report 不改目标也一样)这一层同一帧就变成焦点层、胶囊随之淡入。**重定位中 / 暂停时只看目标**:那几帧 Compose
     // 会把焦点短暂派给别处(ON_RESUME、焦点节点被删行 / 卸载 / 拿起离开源行摘掉,铁律 5),跟着持有者走整页会朝错的层动一下;
     // 重定位到 60 帧上限放弃后 retargeting 即为假,回到跟着持有者走
-    val activeShelf = (if (retargeting || paused) target else holder ?: target).shelf.coerceIn(0, shelves.lastIndex)
+    val activeShelf = activeShelfRaw.coerceIn(0, shelves.lastIndex)
     val shiftPx = with(density) {
         shelfScroll(
             heights = shelves.indices.map { heights[it] ?: 0 },
@@ -625,7 +672,7 @@ fun EditScreen(
         animationSpec = if (shiftSettled) tween(ShelfLayout.SHIFT_MS, easing = FastOutSlowInEasing) else snap(),
         label = "shelfShift",
     )
-    val arrows = carry?.let { carryArrows(viewRows, it.pos) } ?: emptySet()
+    val arrows = remember(viewRows, carry) { carry?.let { carryArrows(viewRows, it.pos) } ?: emptySet() }
 
     Box(
         Modifier
@@ -651,42 +698,40 @@ fun EditScreen(
                         animationSpec = tween(ShelfLayout.SHIFT_MS, easing = FastOutSlowInEasing),
                         label = "shelfFocus",
                     )
-                    val measure = Modifier.onSizeChanged { heights[si] = it.height }
-                    val place: (ShelfSpot, Float) -> Unit = { s, x -> centers[s] = x }
+                    val measure = remember(si) { Modifier.onSizeChanged { heights[si] = it.height } }
                     when (shelf) {
                         is Shelf.AppShelf -> AppShelfView(
                             shelf = shelf,
-                            chips = shelfChips(shelves, si),
+                            chips = chipsByShelf[si],
                             focus = { focusAnim.value },
                             active = si == activeShelf,
                             all = all,
                             metrics = metrics,
-                            col = shelfCol[si] ?: 0,
+                            col = { shelfCol[si] ?: 0 },
                             carriedCol = carry?.pos?.takeIf { it.row == si }?.col,
                             arrows = arrows,
                             arrowColor = highlight,
                             accent = accent,
                             screenW = screenW,
-                            req = ::req,
-                            report = ::report,
-                            place = place,
-                            onChip = { onChip(si, it) },
-                            onAddTile = { if (!ghost && carry == null && overlay == null) openPicker(si, ShelfSpot(si, ShelfZone.CARDS, 0)) },
-                            // 卡片的 onClick 只可能来自指针 / 无障碍(确定键在根上就被截走):给卡片菜单
-                            onCardClick = { ci -> if (!ghost && carry == null && overlay == null) openCardMenu(si, ci) },
+                            req = cb.req,
+                            report = cb.report,
+                            place = cb.place,
+                            onChip = { cb.onChip(si, it) },
+                            onAddTile = { cb.onAddTile(si) },
+                            onCardClick = { ci -> cb.onCardClick(si, ci) },
                             modifier = measure,
                         )
                         is Shelf.ChannelShelf -> ChannelShelfView(
                             shelf = shelf,
-                            chips = shelfChips(shelves, si),
+                            chips = chipsByShelf[si],
                             focus = { focusAnim.value },
                             active = si == activeShelf,
                             accent = accent,
                             loadPosters = loadsPosters(si, activeShelf),
-                            req = ::req,
-                            report = ::report,
-                            place = place,
-                            onChip = { onChip(si, it) },
+                            req = cb.req,
+                            report = cb.report,
+                            place = cb.place,
+                            onChip = { cb.onChip(si, it) },
                             modifier = measure,
                         )
                         Shelf.NewRowShelf -> NewRowShelfView(
@@ -695,10 +740,10 @@ fun EditScreen(
                             focus = { focusAnim.value },
                             active = si == activeShelf,
                             accent = accent,
-                            req = ::req,
-                            report = ::report,
-                            place = place,
-                            onChoice = ::onChoice,
+                            req = cb.req,
+                            report = cb.report,
+                            place = cb.place,
+                            onChoice = cb.onChoice,
                             modifier = measure,
                         )
                     }
@@ -706,7 +751,7 @@ fun EditScreen(
             }
         }
 
-        EditTopBar(counts = editCounts(viewRows), hints = editHintSet(holder?.zone ?: target.zone, carry != null))
+        EditTopBar(counts = remember(viewRows) { editCounts(viewRows) }, hints = editHintSet(hintZone, carry != null))
 
         // **R136:编辑页的浮层是一摞,淡入淡出**(OverlayStack)。残影画关掉前那一份,回调只有活着的那一层会调到(`overlay === ov` 判一次)
         OverlayStack(state = overlay?.takeIf { !staleOverlay }, layerKey = { it.layer }) { ov ->
@@ -840,7 +885,7 @@ private fun AppShelfView(
     active: Boolean,
     all: Map<String, AppEntry>?,
     metrics: CardMetrics,
-    col: Int,
+    col: () -> Int,
     carriedCol: Int?,
     arrows: Set<MoveDir>,
     arrowColor: Color,
@@ -854,6 +899,7 @@ private fun AppShelfView(
     onCardClick: (Int) -> Unit,
     modifier: Modifier,
 ) {
+    SideEffect { EditPerf.log("shelf ${shelf.row}") }
     val si = shelf.row
     ShelfFrame(focus = focus, dashed = false, modifier = modifier.fillMaxWidth().height(ShelfLayout.APP_SHELF_HEIGHT.dp)) {
         Row(
@@ -873,7 +919,7 @@ private fun AppShelfView(
             ShelfChipRow(si, chips, focus, req, report, place, onChip)
         }
         // 当前那张夹到这一层的卡片数:卸载 / 移出让行变短时,不按过期的列号多滑一截
-        val cur = col.coerceIn(0, (shelf.apps.size - 1).coerceAtLeast(0))
+        val cur = col().coerceIn(0, (shelf.apps.size - 1).coerceAtLeast(0))
         val dx = animateDpAsState(
             targetValue = GtvLayout.rowShiftX(cur, GtvCardSize.MEDIUM, screenW).dp,
             animationSpec = Theme.browseShiftSpec(),
@@ -1000,4 +1046,14 @@ private fun NewRowShelfView(
             modifier = Modifier.padding(start = ShelfLayout.PAD_START.dp, top = ShelfLayout.NEW_ROW_CAPTION_GAP.dp),
         )
     }
+}
+
+/**
+ * R167:编辑页重组探针。`adb shell setprop log.tag.UnitedUPerf D` 后冷启动,每次整页 / 每层重组在 logcat 打一行;平时 isLoggable 为假,不打。
+ * 量「焦点移动时谁在重组」用(报告 #5 的验收),不影响任何行为。
+ */
+internal object EditPerf {
+    const val TAG = "UnitedUPerf"
+    private val on: Boolean by lazy { android.util.Log.isLoggable(TAG, android.util.Log.DEBUG) }
+    fun log(what: String) { if (on) android.util.Log.d(TAG, what) }
 }

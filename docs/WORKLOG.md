@@ -2110,3 +2110,12 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - R129f / 缩放折算(慢放 10 倍录屏):进页途中第 1 层焦点卡柔光四边完整,半透明编辑页底下仍是首页的卡片;淡入走完后逐帧差 < 0.1(停画首页那一下看不出来)。1× 录像进页亮度曲线与 t3 / before 同形(开头那下变暗是外壳 → 预览缩放,改前就有)。截图 `docs/screenshots/edit-smooth/t4-mid-enter.jpg`、`t4-settled.jpg`。
 - 没做:壁纸 / 屏保层仍在编辑页底下画(本任务只按计划停首页);Ambient / EditBackdrop 的 960×540 位图用 `createBitmap(int[], …)` 生成,本来就不可变,不属 Task 2 说的「可变位图逐帧重传」;壁纸 1920×1080 是可变位图,但 E 段 trace 里没有它的上传,没证据就不动。E 段每帧的 960×540 / 480×270 新 id 上传 t3 / t4 都有,来源未查明,留给后续任务。
 - e2e(unitedu-tv-2,本任务构建):j_edit 52/52、j_home 39/39。
+
+## 2026-10-10 · 编辑页顺滑度 Task 5:焦点移动只重组焦点所在那一层(R167 / 报告 #5)
+
+- 改动(EditScreen.kt):重组探针 `EditPerf`(`setprop log.tag.UnitedUPerf D` 才打);顶层不再直接读 `holder` / `target` / `shelfCol`——焦点层、有无持有者、按键提示区域改成三个 `derivedStateOf`;胶囊表比对改成「胶囊表换了一份才比」并在 `Snapshot.withoutReadObservation` 里读目标;`viewRows` / `shelves` / 每层胶囊表 `remember`;传给各层的回调整页一份(`EditShelfCallbacks`);`AppShelfView` 的列号改成 lambda,只在那一层里读。焦点账本的读写点一个没动。
+- **brief 以外的一处(MainActivity)**:探针显示只改 EditScreen 后层内右键仍每下 1 次整页重组、各层不再重组——根因是 setContent 根作用域读了 `lastInput`(待机计时的 key),每按一下键整个根重组,编辑页跟着重跑(把这一读临时换成常量后右键 0 次整页重组,确认)。改为效果里 `snapshotFlow { lastInput }.collectLatest { … }`,其余守卫仍是 key,语义同「lastInput 变了就重启」。首页按键也因此不再每下整根重组。
+- 探针(unitedu-tv-2,5 次右键 / 5 次下键):改前 page 5 + 每层各 5 / page 5 + 每层各 5;改后 page 0 + 各层 0 / page 5 + 每次至多新旧两层(合计 6 次层重组)。
+- suite(t5 / t5b,负载 12–16)按键帧 recomp p50:B 1.8 / 1.5(before 2.9)、C 3.0 / 2.4(before 1.7,t4d 6.7)、D 1.6 / 11.2(before 3.7;D 是拿起搬运,carry 一变整页仍重组,属 Task 7)。C 未低于 before:before 时首页不在组合里、整页重组多落在动画帧,按键帧这一指标噪声大;探针说明层内左右已不重组页和层。
+- W 段(拿起 → 右移 → 放下,两轮):放下那一帧重组 14.8 / 5.8 ms(Task 3 时 20.3),放下后 300 ms 内无 > 16 ms 重组,放下后 UI 最长帧 46.6 / 36.5 ms ≤ D p90(47.9 / 44.5)+ 4 → 放下这一段通过。整段最长帧 94 / 143 ms 出在拿起那一下之后的一帧,其中 `postAndWait` 88.5 / 136.1 ms(等 RenderThread,上一帧 RT 101.9 ms),重组只有 5.6 / 0.9 ms——是 RT 瓶颈,不是重组;拿起 / 右移那两帧整页重组 ≈ 21 ms(carry 变化),交 Task 7。
+- e2e(unitedu-tv-2,本任务构建):j_edit 52/52、j_channels 72/72、j_idle 10/10(待机计时改写的回归)、j_home 39/39。

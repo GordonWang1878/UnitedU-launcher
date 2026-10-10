@@ -32,6 +32,7 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.withContext
@@ -606,7 +607,6 @@ class MainActivity : ComponentActivity() {
             val homePitch = GtvLayout.rowPitch(cardsPerRowToGtvSize(homeSettings.cardsPerRow), homeSettings.showTitles)
             // R164:首页交上来的逐行累计几何(HomeVertical);null = 首页不在组合里,退回按统一行距。只在下面的 alpha lambda(绘制阶段)里读。
             var homeVertical by remember { mutableStateOf<HomeVertical?>(null) }
-            val touched = lastInput
             // **编辑界面和菜单开着时不进入待机。**淡出只做在首页那一层,而吞掉唤醒键是
             // Activity 级的 —— 两头不占的结果是:编辑界面画面全亮(看着醒着),
             // 第一下按键却被当唤醒吃掉,症状就是「按了没反应」。
@@ -627,27 +627,32 @@ class MainActivity : ComponentActivity() {
             // M5:screensaverAfterMs 同理(铁律 6)——两个时刻都由 standbyPlan 从同一次按键起算(spec §1.1)。
             val idleAfterMs = homeSettings.idleAfterMs
             val screensaverAfterMs = homeSettings.screensaverAfterMs
-            LaunchedEffect(touched, editing, overlay, homeOverlay, idleAfterMs, screensaverAfterMs) {
-                standby = StandbyFlags.NORMAL
-                if (editing || overlay || homeOverlay) return@LaunchedEffect
-                val plan = standbyPlan(idleAfterMs, screensaverAfterMs)
-                var waited = 0L
-                val standbyAt = plan.standbyAt
-                if (standbyAt != null) {
-                    delay(standbyAt)
-                    waited = standbyAt
-                    // 只升不降:屏保按钮可能已经把状态推到了屏保,这一拍不能把它拉回待机
-                    // (spec 的写法是「只写 idle = true」;打包成一个值之后,等价写法就是 atLeastStandby()——
-                    // 已经 idle 就原样不动,只有 NORMAL 才被抬到 STANDBY)。判断抽到 StandbySchedule.kt,
-                    // 与屏保按钮效果共用同一份逻辑,JVM 单测覆盖(终审 Important 2)。
-                    standby = standby.atLeastStandby()
-                }
-                // 屏保「关」:停在待机(待机也「关」就是什么都不发生)。
-                val screensaverAt = plan.screensaverAt ?: return@LaunchedEffect
-                delay(screensaverAt - waited)
-                // 到点才查图库(spec §1.1):空 → 停在待机,下一个键照常只负责唤醒;非空 → 进屏保。
-                if (withContext(Dispatchers.IO) { hasScreensaverImages(this@MainActivity) }) {
-                    standby = StandbyFlags.SCREENSAVER
+            // R167(报告 #5):按键时间 lastInput 不在组合里读——在这里读,每按一下键 setContent 整个根作用域都要重组一次
+            // (编辑页、首页跟着整页重跑)。改由 snapshotFlow 在效果里收:每来一个新的按键时间,collectLatest 取消上一轮、
+            // 从头再跑一遍,与原来「lastInput 是 key、变了就重启」逐字同一语义;其余守卫仍是 key(铁律 6)。
+            LaunchedEffect(editing, overlay, homeOverlay, idleAfterMs, screensaverAfterMs) {
+                snapshotFlow { lastInput }.collectLatest {
+                    standby = StandbyFlags.NORMAL
+                    if (editing || overlay || homeOverlay) return@collectLatest
+                    val plan = standbyPlan(idleAfterMs, screensaverAfterMs)
+                    var waited = 0L
+                    val standbyAt = plan.standbyAt
+                    if (standbyAt != null) {
+                        delay(standbyAt)
+                        waited = standbyAt
+                        // 只升不降:屏保按钮可能已经把状态推到了屏保,这一拍不能把它拉回待机
+                        // (spec 的写法是「只写 idle = true」;打包成一个值之后,等价写法就是 atLeastStandby()——
+                        // 已经 idle 就原样不动,只有 NORMAL 才被抬到 STANDBY)。判断抽到 StandbySchedule.kt,
+                        // 与屏保按钮效果共用同一份逻辑,JVM 单测覆盖(终审 Important 2)。
+                        standby = standby.atLeastStandby()
+                    }
+                    // 屏保「关」:停在待机(待机也「关」就是什么都不发生)。
+                    val screensaverAt = plan.screensaverAt ?: return@collectLatest
+                    delay(screensaverAt - waited)
+                    // 到点才查图库(spec §1.1):空 → 停在待机,下一个键照常只负责唤醒;非空 → 进屏保。
+                    if (withContext(Dispatchers.IO) { hasScreensaverImages(this@MainActivity) }) {
+                        standby = StandbyFlags.SCREENSAVER
+                    }
                 }
             }
             // **首页被盖住 = 移动态取消**(M4b spec §0-9「进待机、任何浮层要打开 → 等同取消」)。移动态下按键全被
