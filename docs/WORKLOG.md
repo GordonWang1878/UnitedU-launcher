@@ -2177,3 +2177,27 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
   - 单测 `CarryNotCarryingTest`。
   - 模拟器实测:焦点停在第 3 张时 `pm uninstall test.dummy.app01`,行变成 9 张,焦点格换成下一张,仍是完整的放大 + 描边 + 柔光。截图 `t7-fix-uninstall.jpg`。
   - 单测 1080(1 跳过)全过,j_edit 52/52,j_pkg 79/79;复录一次搬运加取消,仍只有一张有框。
+
+## 2026-10-10 · 编辑页顺滑度 Task 8:本应用自己的 baseline profile;会话安装带 `.dm` 闸门没过,未接进代码(R167 / 报告 #10)
+
+- 结论:APK 现在带上了覆盖本包全部代码的画像,ProfileInstaller 首启写入、后台编译后是 `speed-profile`。`.dm` 实验里 E1 没过(APK 里那份画像 ART 安装时不认),按闸门**不改 `SelfUpdate`**,下一步待 Gordon 定(见本条末)。
+- `app/src/main/baseline-prof.txt` 两条通配(`HSPLcom/uniteduone/launcher/**;->**(**)**` + `Lcom/uniteduone/launcher/**;`)。AGP 8.7.3 先展开通配(`expandReleaseArtProfileWildcards` 输出 7456 行本包规则),R8 再按 mapping 改写成混淆名(合并后的文本画像 12463 行,其中 3424 行是本包,`x1/…`);没有任何 invalid rule 警告。
+- 画像大小:`assets/dexopt/baseline.prof` 3958 → 4133 字节。**压缩后几乎不变不代表没进去**:二进制画像是 zlib 压缩的,方法按下标差分存、连续下标压得极小;解压后 34862 → 48896 字节(+14 KB)。计划里「应到数十 KB」是按未压缩估的。
+- 模拟器(unitedu-tv-3,`-gpu host`):`adb install` 读回 `verify / install`;启动后 logcat `ProfileInstaller: Installing profile for com.uniteduone.launcher`;`pm compile -r bg-dexopt` 后 `speed-profile / bg-dexopt`,odex 109 KB → 8.68 MB。
+- `suite.sh t8prof`(bg-dexopt 状态,不跑 setup 的 `compile -m speed`;宿主负载 ≈ 13):H 段按键帧 UI 主线程 p50 7.9 ms(p90 32.1)。对照:同模拟器 before 基线(`compile -m speed`,负载 ≈ 12)12.9 ms;报告里 verify 8.1 / speed 3.1 ms 是另一组条件。模拟器噪声大,只能说「bg-dexopt 后的画像状态不比全量 speed 差」,真机差异要电视上量。原始数据 `/tmp/edit-jank/summary_t8prof.txt`。
+- `.dm` 实验(`adb install-multiple app.apk app.dm`,读 `dumpsys package dexopt` 与 ArtService 日志):
+
+  | 组 | dm 内容 | 安装 | 编译状态 | 说明 |
+  |---|---|---|---|---|
+  | E1 | APK 里的 `assets/dexopt/baseline.prof` 原样当 `primary.prof` | 成功 | `verify / install-dm` | ArtService `Failed to initialize profile from DexMetadata`,`profman returned code 24`:APK 里那份是 `pro\0` + `010\0`(P 版格式),Android 14 ART 不认;ProfileInstaller 首启会按 `baseline.profm` 转码成本机格式,所以首启路径不受影响 |
+  | E2 | 本机 `snapshot-profile` 快照(`pro\0` + `015\0`) | 成功 | `speed-profile / install-dm` | dm 机制在这版 ART 上可用 |
+  | E3 | zip 里 `primary.prof` 是乱码 | 成功 | `verify / install-dm` | 坏画像只是被忽略 |
+  | E3b(加测) | dm 本身不是 zip | **整个安装失败** | — | `INSTALL_FAILED_BAD_DEX_METADATA … base.dm: Invalid file` |
+  | E1b(加测) | AGP 构建产物 `intermediates/dex_metadata_directory/release/compileReleaseArtProfile/0/.dm`(`primary.prof` 015 格式 + `primary.profm`,`dex-metadata-map.properties` 里 API 31+ 用它) | 成功 | `speed-profile / install-dm` | 构建时就能产出电视 ART 认的 dm,但它不在 APK 里 |
+
+- 闸门判定:E1 失败、E2 成功 → 按计划「E1 失败、E2 成功」那一支:**不改代码**,`DexMetadata.kt` / `SelfUpdate.kt` 都没动;`channels.sh` 的版本名修复留给 Task 9。
+- E3b 是新发现的风险:dm 坏到「不是合法 zip」时**整次安装失败**。将来若接 dm,「同步失败当场不带 dm 重试 + 异步失败后本进程不再带」两条兜底必须一起上;而这一条在会话路径上是同步还是异步(确认页前还是后)还没测。
+- 待 Gordon 定的下一步(二选一或都不做):
+  1. **把 AGP 的 `0/.dm` 随 APK 带上**(例如构建后拷成 `assets/dexopt/base.dm` 再打包;dm 只依赖 dex 校验和,加 asset 不改 dex),自我更新时已装版本从新包里取它写进会话。E1b 证明这份文件在 Android 14 模拟器上直接 `speed-profile`。要改构建脚本(任务顺序),外加上面两条兜底。
+  2. 在应用里把 010 画像按 `.profm` 转成本机格式再写 dm(ProfileInstaller 首启做的就是这件事),代码量与风险都比 1 大。
+  - 两条都只在**下一次**应用内更新时生效,电视上的首版 Android 14 ART 认不认,要先发一个只读 `dumpsys` 的 Beta 才知道。
