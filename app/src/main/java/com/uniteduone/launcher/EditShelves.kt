@@ -301,6 +301,11 @@ internal object ShelfLayout {
     const val IDLE_SHELF_ALPHA = 0.62f
     /** 整层淡化用的离屏层四边各撑大这么多(R129f:焦点卡的 60 dp 柔光画在架子外)。 */
     const val LAYER_PAD = GtvLayout.APP_FOCUS_GLOW_DP
+    /**
+     * R167(报告 #7):非焦点架子的 0.62 用 `CompositingStrategy.ModulateAlpha`(HWUI 逐个绘制乘透明度,不开每帧重画的整层离屏)。
+     * 与整层淡化只在卡片压着玻璃底处差约 1%;闸门见计划 2026-10-10-edit-page-smoothness Task 6。false = 回到整层离屏(改前)。
+     */
+    const val DIM_BY_MODULATE = true
     /** 拿起时的方向箭头:离卡边 12(在放大溢出之外)、三角半宽 5;抬起的阴影 12。 */
     const val ARROW_GAP = 12f
     const val ARROW_SIZE = 5f

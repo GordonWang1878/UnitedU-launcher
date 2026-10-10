@@ -63,6 +63,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -88,7 +89,7 @@ import androidx.compose.ui.unit.offset
 /**
  * 一层架子的外壳(spec §2.5):玻璃底 + 细边(新的一行是虚线)+ 焦点层的阴影,整层不透明度 [shelfAlpha]。[focus] 在绘制阶段读
  * (0 = 非焦点层,1 = 焦点层,调用方 200 ms 过渡),不改布局、不影响可聚焦性。
- * **整层淡化的离屏层四边各撑大 [ShelfLayout.LAYER_PAD](= 60 dp 柔光)**,外层 `layout` 按原尺寸上报(CLAUDE.md R129f):
+ * `DIM_BY_MODULATE` 为假时**整层淡化的离屏层四边各撑大 [ShelfLayout.LAYER_PAD](= 60 dp 柔光)**,外层 `layout` 按原尺寸上报(CLAUDE.md R129f):
  * 换层那 200 ms 新焦点层从 0.62 淡到 1,焦点卡的放大 + 描边 + 柔光画在架子外,不撑大会被离屏层裁掉一截。
  * 不可聚焦、不进任何焦点账本。
  */
@@ -107,7 +108,11 @@ internal fun ShelfFrame(
                 val p = measurable.measure(constraints.offset(horizontal = 2 * e, vertical = 2 * e))
                 layout((p.width - 2 * e).coerceAtLeast(0), (p.height - 2 * e).coerceAtLeast(0)) { p.place(-e, -e) }
             }
-            .graphicsLayer { alpha = shelfAlpha(focus()) }
+            .graphicsLayer {
+                alpha = shelfAlpha(focus())
+                // R167:见 ShelfLayout.DIM_BY_MODULATE。不开离屏层也就没有 R129f 的裁切;外层 layout 撑大的 LAYER_PAD 保留(回退时还要用)
+                compositingStrategy = if (ShelfLayout.DIM_BY_MODULATE) CompositingStrategy.ModulateAlpha else CompositingStrategy.Auto
+            }
             .padding(pad)
             .drawBehind { drawShelfGlass(focus(), dashed) },
         content = content,
