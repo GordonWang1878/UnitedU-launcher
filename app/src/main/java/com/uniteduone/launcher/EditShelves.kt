@@ -302,10 +302,12 @@ internal object ShelfLayout {
     /** 整层淡化用的离屏层四边各撑大这么多(R129f:焦点卡的 60 dp 柔光画在架子外)。 */
     const val LAYER_PAD = GtvLayout.APP_FOCUS_GLOW_DP
     /**
-     * R167(报告 #7):非焦点架子的 0.62 用 `CompositingStrategy.ModulateAlpha`(HWUI 逐个绘制乘透明度,不开每帧重画的整层离屏)。
-     * 与整层淡化只在卡片压着玻璃底处差约 1%;闸门见计划 2026-10-10-edit-page-smoothness Task 6。false = 回到整层离屏(改前)。
+     * R167(报告 #7):true = 非焦点架子的 0.62 用 `CompositingStrategy.ModulateAlpha`(HWUI 逐个绘制乘透明度,不开整层离屏);
+     * false = 整层离屏(现行)。**闸门没过,保持 false**:默认应用架子差 max 5 / mean 0.43(过),但频道海报架子 max 12 / mean 0.68、
+     * 空架子「添加应用」方块 max 12、拿起后静止 mean 0.73(阈值 8 / 0.5)——叠在一起的半透明绘制逐个乘透明度后与整层淡化不一致。
+     * 闸门与截图见计划 2026-10-10-edit-page-smoothness Task 6、`docs/screenshots/edit-smooth/t6b-*`。代码路径保留。
      */
-    const val DIM_BY_MODULATE = true
+    const val DIM_BY_MODULATE = false
     /** 拿起时的方向箭头:离卡边 12(在放大溢出之外)、三角半宽 5;抬起的阴影 12。 */
     const val ARROW_GAP = 12f
     const val ARROW_SIZE = 5f

@@ -2119,3 +2119,17 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - suite(t5 / t5b,负载 12–16)按键帧 recomp p50:B 1.8 / 1.5(before 2.9)、C 3.0 / 2.4(before 1.7,t4d 6.7)、D 1.6 / 11.2(before 3.7;D 是拿起搬运,carry 一变整页仍重组,属 Task 7)。C 未低于 before:before 时首页不在组合里、整页重组多落在动画帧,按键帧这一指标噪声大;探针说明层内左右已不重组页和层。
 - W 段(拿起 → 右移 → 放下,两轮):放下那一帧重组 14.8 / 5.8 ms(Task 3 时 20.3),放下后 300 ms 内无 > 16 ms 重组,放下后 UI 最长帧 46.6 / 36.5 ms ≤ D p90(47.9 / 44.5)+ 4 → 放下这一段通过。整段最长帧 94 / 143 ms 出在拿起那一下之后的一帧,其中 `postAndWait` 88.5 / 136.1 ms(等 RenderThread,上一帧 RT 101.9 ms),重组只有 5.6 / 0.9 ms——是 RT 瓶颈,不是重组;拿起 / 右移那两帧整页重组 ≈ 21 ms(carry 变化),交 Task 7。
 - e2e(unitedu-tv-2,本任务构建):j_edit 52/52、j_channels 72/72、j_idle 10/10(待机计时改写的回归)、j_home 39/39。
+
+## 2026-10-10 · 编辑页顺滑度 Task 6:非焦点架子改 ModulateAlpha —— 闸门没过,报告 #7 未做(R167)
+
+- 结论:`ShelfLayout.DIM_BY_MODULATE = false`,非焦点架子仍是整层离屏淡化。代码路径(`ShelfFrame` 的 `compositingStrategy` 二选一)保留。
+- 第一轮只比了默认应用架子:进页静止 max 4 / mean 0.434,下移两次 max 5 / mean 0.394,都在阈值内(8 / 0.5)。卡片约 +2/255,说明 HWUI 确实把父层透明度乘进了卡片的子 RenderNode。
+- 复审要求补测其他内容(unitedu-tv-3,同一剧本分别装 false / true 两个 APK,静止截图逐像素比):
+  - 频道海报架子 + 空应用行(进页、焦点在第 1 层):max 12 / mean 0.683,**不过**。海报那一带 mean ≈ 5,「添加应用」方块 max 12。
+  - 虚线「新的一行」架子 + 空行(焦点在第 4 层):max 12 / mean 0.407,**不过**。超限的是「添加应用」方块。
+  - 拿起 YouTube 下移、越过频道架子落到空行后静止:max 8 / mean 0.732,**不过**。超的是海报那一带。
+  - 拿起中途帧:两边按过渡起点 +0.75 s 取帧,max 204 / mean 9.4。这个数主要来自整页位移的时刻差,不能当闸门;目视两边都没有裁切或闪烁。
+- 原因:这些子元素里有叠在一起的半透明绘制(海报上的标题与底、方块的底色与「＋」文字)。ModulateAlpha 是逐个绘制乘 0.62,整层淡化是先合成再乘,两者在重叠处结果不同。代码里没有找到依赖离屏组合成的 `BlendMode.Dst*`:卡片淡化(R49)自带 `saveLayer`,`clipPastShelfEnd` 只是 clipRect。
+- 第一轮同机 A/B 量到的收益(B 段 flush layers 264 → 90 ms、drawLayer 大降)随之放弃。E 段的 flush layers 不来自架子图层(false 44 ms、true 71–75 ms)。
+- 截图:`docs/screenshots/edit-smooth/t6-*`(第一轮)、`t6b-{auto,mod}-{1,2,3}`、`t6b-diff-{1,2,3}-x30`、`t6b-{auto,mod}-carry-mid`。
+
