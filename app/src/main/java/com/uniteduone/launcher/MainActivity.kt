@@ -239,6 +239,10 @@ class MainActivity : ComponentActivity() {
      *  编辑页按包名在它看得见的那份里查列号。行号两边一致(编辑页连空行都画)。
      *  只有 `leaveEdit()` 清它;编辑期间留着无害(编辑页按「已应用的目标」比对,同一个实例只应用一次)。 */
     private var editTarget by mutableStateOf<Pair<Int, String>?>(null)
+    /** R167:进编辑页前在 IO 线程读好的 layout.json(EditScreen 首帧用,不在组合阶段读盘)。只给这一次进入用:换卡片图回来重建时置 null,照旧当场读。 */
+    private var editSeedRows by mutableStateOf<List<LayoutRow>?>(null)
+    /** R167:进编辑页的请求号。HOME / 离开编辑页 / 设置外壳返回或关掉(popShell、leaveSettings)+1;预读回来号对不上就不进([shouldEnterEdit],铁律 7)。只在主线程读写,不参与组合。 */
+    private var editEnterSeq = 0
     /**
      * **首页原地移动态**(M4b spec §3)。唯一的一份:按键([dispatchKeyEvent] 里最先截获)改它,HomeScreen 照它画、
      * 以它的 `pos` 为焦点目标。null = 不在移动态。进入只有 [startMove] 一条路;结束只有 [endMove] 一条路
@@ -427,6 +431,8 @@ class MainActivity : ComponentActivity() {
             },
         )
         warmAppsPage()
+        // R167:revision 每个新实例从 0 数起,上一个实例留下的卡片缓存不能按号命中(见 AppEntryCache.clear 的 KDoc)
+        AppEntryCache.clear()
         // 内置图(R115):记下 AssetManager,IO 线程把三个分类的清单预热进进程内缓存——打开选图页时同一帧就有,
         // 网格不用等;壁纸管线第一次解析默认壁纸时也不必现列目录。
         BuiltinImages.init(this)
@@ -496,7 +502,7 @@ class MainActivity : ComponentActivity() {
                 SettingsActions(
                     // R69:外壳「布局 → 编辑分栏」。外壳的栈留着:编辑页开着时外壳不在组合里,退出编辑页后
                     // 外壳按栈重建、焦点落回「编辑分栏」那颗胶囊。
-                    openEdit = { editing = true },
+                    openEdit = { enterEdit() },
                     pickWallpaper = { pickWallpaper() },
                     openImport = { openImport() },
                     // R74:默认桌面与恢复默认确认都是外壳里的一层(取代 HomeSettingsCard 浮层与 ConfirmDialog)。
@@ -802,7 +808,7 @@ class MainActivity : ComponentActivity() {
                     // 残影(进编辑页那 EDIT_SWAP_MS)也当作被盖住:不可聚焦、不收键、看门狗让路
                     previewing = overlayOpen || LocalPageGhost.current,
                     // R161:空桌面的「编辑桌面」按钮。外壳栈是空的,退出编辑页直接回首页。
-                    onEditHome = { editing = true },
+                    onEditHome = ::enterEdit,
                     idle = idle,
                     screensaver = screensaverActive,
                     idleContent = homeSettings.idleContent,
@@ -863,13 +869,14 @@ class MainActivity : ComponentActivity() {
                     EditScreen(
                         // 选择器真的打开了(存储就绪)才记种子:打不开时编辑页留在原地,
                         // 它自己收菜单、把焦点放回这张卡。
-                        onPickIcon = { row, pkg -> pickIcon(pkg).also { if (it) editTarget = row to pkg } },
+                        onPickIcon = { row, pkg -> pickIcon(pkg).also { if (it) { editTarget = row to pkg; editSeedRows = null } } },
                         onExit = ::leaveEdit,
                         focusNonce = focusNonce,
                         revision = revision,
                         // R165:卡片固定中档、不画标题;模糊底按当前壁纸算
                         wallpaperFile = homeSettings.wallpaperFile,
                         initialTarget = editTarget,
+                        initialRows = editSeedRows,
                     )
                 }
                 // 编辑页里能打开的只有「换卡片图」(pt = 包名);其余几种选择器只能从首页 / 设置页
@@ -1572,8 +1579,23 @@ class MainActivity : ComponentActivity() {
     }
 
 
+    /** 进编辑页**只有这一条路**(设置「编辑桌面」胶囊、R161 空桌面按钮)。layout.json 先在 IO 线程读好(报告 #2),回来再置 editing。 */
+    private fun enterEdit() {
+        if (editing) return
+        val my = ++editEnterSeq
+        lifecycleScope.launch {
+            // 在 layoutWrites 上读:刚退出的上一轮编辑页还在途的写盘(NonCancellable,见 persist)一定先落地,种子不会是旧文件
+            val seed = withContext(layoutWrites) { runCatching { Layout.read(this@MainActivity) }.getOrNull() }
+            val blocked = pickerTarget != null || about || appsPage || inputsPage || onboarding
+            if (!shouldEnterEdit(my, editEnterSeq, lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED), blocked)) return@launch
+            editSeedRows = seed
+            editing = true
+        }
+    }
+
     private fun leaveEdit() {
-        if (editing) { editing = false; revision++; editTarget = null }
+        editEnterSeq++
+        if (editing) { editing = false; revision++; editTarget = null; editSeedRows = null }
     }
 
     /**
@@ -1612,6 +1634,7 @@ class MainActivity : ComponentActivity() {
 
     /** 外壳的返回键:回上一层;第一层再按 = 关掉设置。 */
     private fun popShell() {
+        editEnterSeq++
         val next = shellPop(shellStack)
         if (next.isEmpty()) leaveSettings() else shellStack = next
     }
@@ -1623,6 +1646,7 @@ class MainActivity : ComponentActivity() {
      * **不 `revision++`**:设置每改一下就 `settingsRevision++`,首页早就读到新值了。
      */
     private fun leaveSettings() {
+        editEnterSeq++
         if (shellStack.isEmpty()) return
         shellStack = emptyList()
         focusNonce++

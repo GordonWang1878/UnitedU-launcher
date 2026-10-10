@@ -183,7 +183,7 @@ internal fun HomeScreen(
     // ~~「新应用」计数~~(R157 随首页的「有 N 个新应用」提示一起删掉;「添加应用」列表里的「新」标记照旧,见 AppPicker)。
     val loaded by produceState<Pair<List<Row>, Map<String, String>>?>(initialValue = null, ctx, revision) {
         value = withContext(Dispatchers.IO) {
-            val rows = runCatching { buildRows(ctx) }.getOrDefault(emptyList())
+            val rows = runCatching { buildRows(ctx, revision) }.getOrDefault(emptyList())
             val titles = runCatching { Titles.read(ctx) }.getOrDefault(emptyMap())
             rows to titles
         }
@@ -1197,10 +1197,11 @@ private fun CategoryRow(
     }
 }
 
-private fun buildRows(ctx: Context): List<Row> {
+private fun buildRows(ctx: Context, revision: Int): List<Row> {
     val layout = Layout.read(ctx)
     val needed = layout.flatMap { it.apps }.toSet()
-    val all = Apps.load(ctx, needed, withBitmaps = needed, withLabels = needed)
+    // R167:经进程级缓存读(同一 revision 已读过就直接用),读到的同时发布给编辑页,进页第一帧就有图
+    val all = loadAppEntries(ctx, revision, needed)
     // **layoutRow 必须在过滤之前定下来**:withChannelContent 会整行丢掉空行 / 没内容的频道行,
     // 丢掉之后剩下行的下标就不再等于它们在 layout.json 里的下标。「移除 / 移动位置」写的是 layout.json。
     // R164:频道行这里只带标识与应用名,节目由 HomeScreen 另外从 ChannelCache 取、在 withChannelContent 里合进来。

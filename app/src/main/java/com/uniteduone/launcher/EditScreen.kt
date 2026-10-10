@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -138,6 +139,10 @@ fun EditScreen(
     wallpaperFile: String = "",
     /** 「换卡片图」的选择器关掉之后带进来的 (layout.json 行号, 包名);null = 正常进入,落第 1 层第 1 张卡(空架子落「添加应用」方块)。 */
     initialTarget: Pair<Int, String>? = null,
+    /** R167:MainActivity 进页前在 IO 线程读好的 layout.json;null(换卡片图回来重建)时照旧当场读。 */
+    initialRows: List<LayoutRow>? = null,
+    /** R167:写盘落地一次回调一次(MainActivity 让底下常驻的首页按新布局重读,Task 3 接上)。 */
+    onLayoutWritten: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val showToast = LocalToast.current
@@ -157,17 +162,21 @@ fun EditScreen(
     val backdrop by produceState(cachedEditBackdrop(), wallpaperFile) {
         value = withContext(Dispatchers.IO) { runCatching { buildEditBackdrop(ctx, wallpaperFile) }.getOrNull() }
     }
-    var rows by remember { mutableStateOf(Layout.read(ctx)) }
+    var rows by remember { mutableStateOf(initialRows ?: Layout.read(ctx)) }
     var overlay by remember { mutableStateOf<EditOverlay?>(null) }
     val overlayOpen = overlay != null
     var carry by remember { mutableStateOf<EditCarry?>(null) }
     val needed = remember(rows) { rows.flatMap { it.apps }.toSet() }
     // 与旧编辑页同一做法:null 区分「还在加载」与「加载失败」;连同「这份数据是给哪套 needed 算的」一起存(R67,见 editCardShown)
-    val loadedFor by produceState<Pair<Set<String>, Map<String, AppEntry>>?>(initialValue = null, needed, revision) {
-        value = needed to withContext(Dispatchers.IO) {
+    // R167(报告 #2 / #9):首页那份卡片数据(同一 revision、覆盖本页所需)直接当初值——进页第一帧就是真卡,
+    // 重定位效果不必等「占位换真卡」,焦点放大与页面淡入同时开始。没命中(进页前刚 revision++)照旧在 IO 线程读,读完发布。
+    val cachedAtEntry = remember { AppEntryCache.lookup(revision, needed)?.let { needed to it } }
+    val loadedFor by produceState<Pair<Set<String>, Map<String, AppEntry>>?>(initialValue = cachedAtEntry, needed, revision) {
+        val hit = AppEntryCache.lookup(revision, needed)
+        value = needed to (hit ?: withContext(Dispatchers.IO) {
             // 必须兜底:produceState 里抛出会终结 Recomposer,应用当场崩溃
-            runCatching { Apps.load(ctx, needed, withBitmaps = needed, withLabels = needed) }.getOrDefault(emptyMap())
-        }
+            runCatching { loadAppEntries(ctx, revision, needed) }.getOrDefault(emptyMap())
+        })
     }
     val all = loadedFor?.second
     fun shownNow(): (String) -> Boolean {
@@ -264,16 +273,23 @@ fun EditScreen(
     // ---------------- 写盘 ----------------
     val scope = rememberCoroutineScope()
     val knownOnDisk = remember { java.util.concurrent.atomic.AtomicReference(layoutPackages(rows).toSet()) }
+    val layoutWritten by rememberUpdatedState(onLayoutWritten)
     fun persist() {
         val snapshot = rows
         scope.launch {
-            // layoutWrites 串行:较早的快照不会后落盘;rewrite 整段在 Layout 的锁里(落盘铁律)
-            val ok = withContext(layoutWrites) {
-                var written: List<LayoutRow>? = null
-                val landed = Layout.rewrite(ctx) { disk ->
-                    dropRemovedElsewhere(snapshot, disk, knownOnDisk.get()) { Apps.isInstalled(ctx, it) }.also { written = it }
+            // R167:NonCancellable——退出编辑页后本页残影 EDIT_SWAP_MS 就离开组合、scope 被取消;写盘与「首页重读」的通知不能跟着丢
+            // (Review Focus 5)。回调在块内调:withContext 返回时若外层已取消会直接抛,块外的代码不一定跑得到。
+            val ok = withContext(NonCancellable) {
+                // layoutWrites 串行:较早的快照不会后落盘;rewrite 整段在 Layout 的锁里(落盘铁律)
+                val landed = withContext(layoutWrites) {
+                    var written: List<LayoutRow>? = null
+                    val l = Layout.rewrite(ctx) { disk ->
+                        dropRemovedElsewhere(snapshot, disk, knownOnDisk.get()) { Apps.isInstalled(ctx, it) }.also { written = it }
+                    }
+                    if (l) written?.let { w -> knownOnDisk.set(knownAfterWrite(knownOnDisk.get(), w)) }
+                    l
                 }
-                if (landed) written?.let { w -> knownOnDisk.set(knownAfterWrite(knownOnDisk.get(), w)) }
+                if (landed) layoutWritten()
                 landed
             }
             if (!ok) showToast(ctx.getString(R.string.edit_toast_order_not_saved), true)
