@@ -2165,3 +2165,9 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
     - 取消时没有残框,YouTube 滑回第 0 格后照常淡入焦点。
     - 搬运之外的左右移动,旧焦点卡照常缩回淡出。
     - 截图 `t7-fix-{step,cancel,down,browse}.jpg`。单测 1075(1 跳过)全过,j_edit 52/52,j_channels 72/72。
+- 复审修复 2(controller 裁定:取消时那张卡焦点一直在它身上,滑回途中不能丢框再重放进焦)。
+  - `cancelCarry` 记下 `settling = (出发层, 包)`。那张卡传 `settling = true`,`carryFocusLook` 把它与被搬的卡同样处理,恒画成聚焦、当场到位。
+  - 一个效果在 snapshotFlow 里等 holder 自报落回那张卡(最多 2 s),然后清掉。在效果里读 holder,不让整页随焦点重组。
+  - 单测 `CarryCancelLookTest`。
+  - 1× 录像:取消后 YouTube 一路带着完整焦点画法滑回第 0 格,全程只有它一张有框。随后右移,它照常缩回淡出。截图 `t7-fix-cancel2.jpg`。
+  - 单测 1078(1 跳过)全过,j_edit 52/52。

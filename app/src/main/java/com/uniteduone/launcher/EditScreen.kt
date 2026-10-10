@@ -56,6 +56,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * 拿起(搬运)的状态(spec §2.3,沿用 M4b §0-18 的 carry):被搬的卡此刻在哪一格(同时就是焦点目标)、出发那一格(取消后回这里)、
@@ -189,6 +190,11 @@ fun EditScreen(
     var carry by remember { mutableStateOf<EditCarry?>(null) }
     /** R167:最近一次跨层搬入 / 跨层取消放回(只给滑入方向用,不进任何焦点账本;下一次跨层时整个换掉)。 */
     var arrival by remember { mutableStateOf<CarryArrival?>(null) }
+    /**
+     * R167:取消搬运后正滑回出发格的那张卡(层、包)。焦点一直在它身上,所以滑回途中照样画成聚焦、不重放进焦动画;
+     * 焦点真的落回出发格(holder 自报)就清掉。只是绘制,不进任何焦点账本(下面的效果只读 holder)。
+     */
+    var settling by remember { mutableStateOf<Pair<Int, String>?>(null) }
     val needed = remember(rows) { rows.flatMap { it.apps }.toSet() }
     // 与旧编辑页同一做法:null 区分「还在加载」与「加载失败」;连同「这份数据是给哪套 needed 算的」一起存(R67,见 editCardShown)
     // R167(报告 #2 / #9):首页那份卡片数据(同一 revision、覆盖本页所需)直接当初值——进页第一帧就是真卡,
@@ -345,6 +351,7 @@ fun EditScreen(
 
     // ---------------- 拿起 ----------------
     fun startCarry(row: Int, col: Int) {
+        settling = null
         val at = MovePos(row, col)
         carry = EditCarry(pos = at, from = at, original = rows)
         retarget(ShelfSpot(row, ShelfZone.CARDS, col))
@@ -375,6 +382,7 @@ fun EditScreen(
         carry = null
         // R167:跨层搬过的卡放回出发那一层时,从它此刻所在的那一层的方向滑入
         if (c.pos.row != c.from.row) view().getOrNull(c.pos.row)?.apps?.getOrNull(c.pos.col)?.let { arrival = CarryArrival(c.from.row, it, arrivalSign(c.pos.row, c.from.row)) }
+        view().getOrNull(c.pos.row)?.apps?.getOrNull(c.pos.col)?.let { settling = c.from.row to it }
         rows = c.original
         retarget(ShelfSpot(c.from.row, ShelfZone.CARDS, c.from.col))
     }
@@ -548,6 +556,18 @@ fun EditScreen(
         }
     }
 
+    // R167:焦点落回出发格(或 2 s 还没落回)就收掉「滑回中」的画法;在效果里读 holder,不让整页随焦点重组(报告 #5)
+    val settlingNow = settling
+    LaunchedEffect(settlingNow) {
+        val s = settlingNow ?: return@LaunchedEffect
+        withTimeoutOrNull(2000) {
+            snapshotFlow { holder }.first { h ->
+                h != null && h.zone == ShelfZone.CARDS && h.shelf == s.first &&
+                    (shelvesNow().getOrNull(h.shelf) as? Shelf.AppShelf)?.apps?.getOrNull(h.index) == s.second
+            }
+        }
+        if (settling === s) settling = null
+    }
     // 任何浮层要打开 = 拿起取消(结构上的兜底;按键路径上开不出浮层)。守卫的两个量都是 key(铁律 6)
     val carrying = carry != null
     LaunchedEffect(overlayOpen, carrying) {
@@ -728,6 +748,7 @@ fun EditScreen(
                             metrics = metrics,
                             col = { shelfCol[si] ?: 0 },
                             carriedCol = carry?.pos?.takeIf { it.row == si }?.col,
+                            settlingPkg = settling?.takeIf { it.first == si }?.second,
                             // 箭头只给被搬的卡所在那一层;别的层拿同一个空集合,搬一步时不因它重组(Task 7)
                             arrows = if (carry?.pos?.row == si) arrows else emptySet(),
                             arrival = arrival?.takeIf { it.row == si },
@@ -908,6 +929,7 @@ private fun AppShelfView(
     metrics: CardMetrics,
     col: () -> Int,
     carriedCol: Int?,
+    settlingPkg: String?,
     arrows: Set<MoveDir>,
     arrival: CarryArrival?,
     arrowColor: Color,
@@ -1025,6 +1047,7 @@ private fun AppShelfView(
                                 fallbackColor = app.fallbackColor?.let { Color(it) },
                                 moving = carried,
                                 focusFollowsApp = true,
+                                settling = pkg == settlingPkg,
                             )
                         } else {
                             ShelfPendingCard(

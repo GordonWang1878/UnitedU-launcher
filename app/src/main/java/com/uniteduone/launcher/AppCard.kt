@@ -113,11 +113,13 @@ fun AppCard(
      * 被搬的卡([moving])恒画成聚焦、当场到位。只是绘制,焦点事件与上报照旧。见 [carryFocusLook]。首页不传。
      */
     focusFollowsApp: Boolean = false,
+    /** R167:取消搬运后正滑回出发格的那张卡,焦点落回它之前照样画成聚焦(见 [carryFocusLook] 的 settling)。只与 [focusFollowsApp] 一起用。 */
+    settling: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
     /** 这一格最近一次得到焦点时放的是哪个应用(只给 [focusFollowsApp] 用)。 */
     var focusedPkg by remember { mutableStateOf<String?>(null) }
-    val look = if (focusFollowsApp) carryFocusLook(focused, moving, focusedPkg, app.packageName) else CarryFocusLook(focused, snap = false)
+    val look = if (focusFollowsApp) carryFocusLook(focused, moving, focusedPkg, app.packageName, settling) else CarryFocusLook(focused, snap = false)
     val accent = LocalThemeColors.current.accent
     // R70:淡化参数来自设置(R120 起在布局组的卡片滑块),含设置页的实时预览。
     val fade = LocalCardFade.current

@@ -105,12 +105,13 @@ internal data class CarryFocusLook(val shown: Boolean, val snap: Boolean)
 /**
  * 编辑页的焦点画法跟着应用走(R167 拿起搬运)。卡片按位置组合,搬一步时第 ci 格换上了别的应用,而焦点要晚一两帧才追到新格:
  * - 被搬的卡([moving])恒画成聚焦,当场到位——焦点画法属于它,不在每一格重放进焦动画;
+ * - 取消搬运后正滑回出发格的那张([settling],焦点一直在它身上)同样恒画成聚焦,直到焦点真的落回它;
  * - 这一格得到焦点时放的应用([focusedPkg])已经不是现在这个([pkg]):原来的焦点画法当场收掉、不淡出
  *   (淡出的框会跟着让位的邻卡滑走,看起来像两张有框的卡交叉而过);
  * - 其余情况与 [focused] 相同、照常动画(平常浏览的 400 ms 淡出不变)。
  */
-internal fun carryFocusLook(focused: Boolean, moving: Boolean, focusedPkg: String?, pkg: String): CarryFocusLook {
-    if (moving) return CarryFocusLook(shown = true, snap = true)
+internal fun carryFocusLook(focused: Boolean, moving: Boolean, focusedPkg: String?, pkg: String, settling: Boolean = false): CarryFocusLook {
+    if (moving || settling) return CarryFocusLook(shown = true, snap = true)
     val appChanged = focusedPkg != null && focusedPkg != pkg
     return if (appChanged) CarryFocusLook(shown = false, snap = true) else CarryFocusLook(shown = focused, snap = false)
 }

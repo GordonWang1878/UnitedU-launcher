@@ -161,3 +161,21 @@ class CarryFixTest {
         assertEquals(CarryFocusLook(false, false), carryFocusLook(focused = false, moving = false, focusedPkg = null, pkg = "a"))
     }
 }
+
+/** R167 复审 2:取消搬运时那张卡一直有焦点,滑回途中照样画成聚焦、当场到位,不重放进焦动画。 */
+class CarryCancelLookTest {
+    /** 取消那一刻:卡已不在搬运中(moving = false)、焦点还没落回出发格(focused = false),出发格先前记的是别的包 */
+    @Test fun cancelledCardKeepsFocusedLookWhileSliding() =
+        assertEquals(CarryFocusLook(shown = true, snap = true),
+            carryFocusLook(focused = false, moving = false, focusedPkg = "other", pkg = "yt", settling = true))
+
+    /** 焦点落回之后(settling 清掉):仍是聚焦,不再 snap——目标值不变,动画值早已在终点 */
+    @Test fun afterFocusLandsItIsPlainFocused() =
+        assertEquals(CarryFocusLook(shown = true, snap = false),
+            carryFocusLook(focused = true, moving = false, focusedPkg = "yt", pkg = "yt", settling = false))
+
+    /** 原来搬运停的那一格(换回了别的应用):照样当场收掉 */
+    @Test fun slotItLeftStillDropsAtOnce() =
+        assertEquals(CarryFocusLook(shown = false, snap = true),
+            carryFocusLook(focused = true, moving = false, focusedPkg = "yt", pkg = "a3", settling = false))
+}
