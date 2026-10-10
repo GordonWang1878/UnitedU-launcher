@@ -170,4 +170,16 @@ class CopyTest {
             for (k in gone) assertTrue("$l 里还有 $k(R165 行菜单取消)", k !in s)
         }
     }
+
+    /** R167(研究 2026-10-10 §3.2):频道相关文案不把频道叫「推荐」;选频道页说明写明内容与更新时机由提供它的应用决定。 */
+    @Test fun channelCopySaysTheAppDecidesAndNeverRecommends() {
+        val bad = Regex("推荐|推薦|[Rr]ecommend")
+        val decides = mapOf("values" to "应用决定", "values-en" to "decided by the app", "values-zh-rTW" to "應用程式決定")
+        for (l in langs) {
+            val s = strings(l)
+            val offenders = s.filter { (k, v) -> (k.startsWith("channel_picker") || k.startsWith("shelf_")) && bad.containsMatchIn(v) }
+            assertTrue("$l 频道文案里出现「推荐」:$offenders", offenders.isEmpty())
+            assertTrue("$l 的 channel_picker_hint 没写明由应用决定:${s["channel_picker_hint"]}", s["channel_picker_hint"].orEmpty().contains(decides.getValue(l)))
+        }
+    }
 }

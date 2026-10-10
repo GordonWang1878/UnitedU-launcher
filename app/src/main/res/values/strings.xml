@@ -461,10 +461,10 @@
     </plurals>
     <!-- R164 选频道页 -->
     <string name="channel_picker_title">添加频道</string>
-    <string name="channel_picker_hint">UnitedU 会读取电视上各应用提供的频道，只在本机显示，不上传。</string>
+    <string name="channel_picker_hint">频道里放什么、什么时候更新，都由提供它的应用决定；有的应用只在你打开它、按返回退出后才更新。UnitedU 只在本机读取和显示，不上传。</string>
     <string name="channel_picker_loading">正在读取频道…</string>
     <string name="channel_picker_empty">暂时没有应用提供频道</string>
-    <string name="channel_picker_empty_hint">打开过一次的视频应用才会提供</string>
+    <string name="channel_picker_empty_hint">打开过的视频应用才可能提供；有的还要在应用里按返回退出一次</string>
     <string name="channel_picker_denied">没有读取频道的权限，可以在系统设置里开启。</string>
     <string name="channel_picker_open_settings">去系统设置开启</string>
     <string name="channel_picker_back">返回</string>
