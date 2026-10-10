@@ -2171,3 +2171,9 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
   - 单测 `CarryCancelLookTest`。
   - 1× 录像:取消后 YouTube 一路带着完整焦点画法滑回第 0 格,全程只有它一张有框。随后右移,它照常缩回淡出。截图 `t7-fix-cancel2.jpg`。
   - 单测 1078(1 跳过)全过,j_edit 52/52。
+- 复审修复 3:焦点格里的应用在后台换了,焦点卡不能画成没焦点。
+  - 原因:`focusedPkg` 只在焦点事件里更新,卡片又按位置组合。编辑页开着时卸载一个应用,行变短、焦点格里换上下一张;修复 1 的「格子换了应用 → 收掉画法」把真正有焦点的卡画成没焦点,看起来像遥控器失灵。
+  - 修法:这条只在搬运或滑回中生效(整页一个量,`carrying = carry != null || settling != null`)。不在搬运中时照 `focused` 画,并在 SideEffect 里把 `focusedPkg` 跟上。
+  - 单测 `CarryNotCarryingTest`。
+  - 模拟器实测:焦点停在第 3 张时 `pm uninstall test.dummy.app01`,行变成 9 张,焦点格换成下一张,仍是完整的放大 + 描边 + 柔光。截图 `t7-fix-uninstall.jpg`。
+  - 单测 1080(1 跳过)全过,j_edit 52/52,j_pkg 79/79;复录一次搬运加取消,仍只有一张有框。

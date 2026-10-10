@@ -14,6 +14,7 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -115,11 +116,15 @@ fun AppCard(
     focusFollowsApp: Boolean = false,
     /** R167:取消搬运后正滑回出发格的那张卡,焦点落回它之前照样画成聚焦(见 [carryFocusLook] 的 settling)。只与 [focusFollowsApp] 一起用。 */
     settling: Boolean = false,
+    /** R167 复审 3:编辑页此刻是否在搬运或滑回中(整页一个量)。只有这时「格子换了应用」才当场收掉焦点画法。 */
+    carrying: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
     /** 这一格最近一次得到焦点时放的是哪个应用(只给 [focusFollowsApp] 用)。 */
     var focusedPkg by remember { mutableStateOf<String?>(null) }
-    val look = if (focusFollowsApp) carryFocusLook(focused, moving, focusedPkg, app.packageName, settling) else CarryFocusLook(focused, snap = false)
+    val look = if (focusFollowsApp) carryFocusLook(focused, moving, focusedPkg, app.packageName, settling, carrying) else CarryFocusLook(focused, snap = false)
+    // 不在搬运中时焦点格里换了应用(后台卸载让行变短):把记下的包跟上,下一次搬运时这一格不会被当成「换了应用」
+    if (focusFollowsApp && focused && !carrying && focusedPkg != app.packageName) SideEffect { focusedPkg = app.packageName }
     val accent = LocalThemeColors.current.accent
     // R70:淡化参数来自设置(R120 起在布局组的卡片滑块),含设置页的实时预览。
     val fade = LocalCardFade.current

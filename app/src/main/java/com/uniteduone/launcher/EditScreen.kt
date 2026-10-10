@@ -749,6 +749,7 @@ fun EditScreen(
                             col = { shelfCol[si] ?: 0 },
                             carriedCol = carry?.pos?.takeIf { it.row == si }?.col,
                             settlingPkg = settling?.takeIf { it.first == si }?.second,
+                            carrying = carry != null || settling != null,
                             // 箭头只给被搬的卡所在那一层;别的层拿同一个空集合,搬一步时不因它重组(Task 7)
                             arrows = if (carry?.pos?.row == si) arrows else emptySet(),
                             arrival = arrival?.takeIf { it.row == si },
@@ -930,6 +931,7 @@ private fun AppShelfView(
     col: () -> Int,
     carriedCol: Int?,
     settlingPkg: String?,
+    carrying: Boolean,
     arrows: Set<MoveDir>,
     arrival: CarryArrival?,
     arrowColor: Color,
@@ -1048,6 +1050,7 @@ private fun AppShelfView(
                                 moving = carried,
                                 focusFollowsApp = true,
                                 settling = pkg == settlingPkg,
+                                carrying = carrying,
                             )
                         } else {
                             ShelfPendingCard(

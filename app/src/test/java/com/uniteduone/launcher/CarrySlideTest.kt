@@ -150,8 +150,8 @@ class CarryFixTest {
 
     /** 格子换了应用(还没失焦的那一两帧也算):当场收掉,不淡出 */
     @Test fun slotThatChangedAppDropsFocusAtOnce() {
-        assertEquals(CarryFocusLook(false, true), carryFocusLook(focused = true, moving = false, focusedPkg = "a", pkg = "b"))
-        assertEquals(CarryFocusLook(false, true), carryFocusLook(focused = false, moving = false, focusedPkg = "a", pkg = "b"))
+        assertEquals(CarryFocusLook(false, true), carryFocusLook(focused = true, moving = false, focusedPkg = "a", pkg = "b", carrying = true))
+        assertEquals(CarryFocusLook(false, true), carryFocusLook(focused = false, moving = false, focusedPkg = "a", pkg = "b", carrying = true))
     }
 
     /** 平常浏览:与 focused 相同,照常动画 */
@@ -177,5 +177,16 @@ class CarryCancelLookTest {
     /** 原来搬运停的那一格(换回了别的应用):照样当场收掉 */
     @Test fun slotItLeftStillDropsAtOnce() =
         assertEquals(CarryFocusLook(shown = false, snap = true),
-            carryFocusLook(focused = true, moving = false, focusedPkg = "yt", pkg = "a3", settling = false))
+            carryFocusLook(focused = true, moving = false, focusedPkg = "yt", pkg = "a3", settling = false, carrying = true))
+}
+
+/** R167 复审 3:不在搬运中时焦点格里换了应用(后台卸载让行变短)——焦点真的在这一格,照样画成聚焦。 */
+class CarryNotCarryingTest {
+    @Test fun appChangesUnderFocusedCellWhileNotCarryingStaysFocused() =
+        assertEquals(CarryFocusLook(shown = true, snap = false),
+            carryFocusLook(focused = true, moving = false, focusedPkg = "gone", pkg = "next", carrying = false))
+
+    @Test fun unfocusedStaleCellIsPlainUnfocused() =
+        assertEquals(CarryFocusLook(shown = false, snap = false),
+            carryFocusLook(focused = false, moving = false, focusedPkg = "gone", pkg = "next", carrying = false))
 }
