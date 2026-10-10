@@ -123,3 +123,41 @@ class ReuseEqualTest {
         assertTrue(reuseEqual(null, f) === f)
     }
 }
+
+/** R167 复审:跨层搬入只滑一次;焦点画法跟着应用走。 */
+class CarryFixTest {
+    private val p = 100f
+
+    /** 同一次搬入用过之后,同一个包移出再加回(没有新的跨层)不再竖直滑入 */
+    @Test fun arrivalIsConsumedOnce() {
+        val s = ShelfSlide()
+        val arr = CarryArrival(row = 1, pkg = "x", sign = -1)
+        s.begin(listOf("a", "c"), null, p, 0f)
+        s.begin(listOf("a", "x", "c"), arr, p, -40f)
+        assertEquals(-40f, s.dy(1), 0f)
+        s.progress.floatValue = 1f
+        s.begin(listOf("a", "c"), arr, p, -40f)        // 移出
+        s.begin(listOf("a", "x", "c"), arr, p, -40f)   // 加回,arrival 还是那一个实例
+        assertEquals(0f, s.dy(1), 0f)
+        // 新的一次跨层(内容相同的新实例)照常滑入
+        s.begin(listOf("a", "c"), null, p, 0f)
+        s.begin(listOf("a", "x", "c"), CarryArrival(row = 1, pkg = "x", sign = -1), p, -40f)
+        assertEquals(-40f, s.dy(1), 0f)
+    }
+
+    @Test fun carriedCardIsAlwaysFocusedAndSnaps() =
+        assertEquals(CarryFocusLook(shown = true, snap = true), carryFocusLook(focused = false, moving = true, focusedPkg = null, pkg = "a"))
+
+    /** 格子换了应用(还没失焦的那一两帧也算):当场收掉,不淡出 */
+    @Test fun slotThatChangedAppDropsFocusAtOnce() {
+        assertEquals(CarryFocusLook(false, true), carryFocusLook(focused = true, moving = false, focusedPkg = "a", pkg = "b"))
+        assertEquals(CarryFocusLook(false, true), carryFocusLook(focused = false, moving = false, focusedPkg = "a", pkg = "b"))
+    }
+
+    /** 平常浏览:与 focused 相同,照常动画 */
+    @Test fun normalBrowsingAnimatesAsBefore() {
+        assertEquals(CarryFocusLook(true, false), carryFocusLook(focused = true, moving = false, focusedPkg = "a", pkg = "a"))
+        assertEquals(CarryFocusLook(false, false), carryFocusLook(focused = false, moving = false, focusedPkg = "a", pkg = "a"))
+        assertEquals(CarryFocusLook(false, false), carryFocusLook(focused = false, moving = false, focusedPkg = null, pkg = "a"))
+    }
+}

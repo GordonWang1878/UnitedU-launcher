@@ -365,6 +365,7 @@ fun EditScreen(
     fun dropCarry() {
         val c = carry ?: return
         carry = null
+        arrival = null   // R167:这次搬运的跨层来向到此作废
         if (rows != c.original) persist()
         retarget(ShelfSpot(c.pos.row, ShelfZone.CARDS, c.pos.col))
     }
@@ -1023,6 +1024,7 @@ private fun AppShelfView(
                                 isRowEnd = ci == shelf.apps.lastIndex,
                                 fallbackColor = app.fallbackColor?.let { Color(it) },
                                 moving = carried,
+                                focusFollowsApp = true,
                             )
                         } else {
                             ShelfPendingCard(

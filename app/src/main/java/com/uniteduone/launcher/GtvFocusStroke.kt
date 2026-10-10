@@ -223,10 +223,14 @@ fun Modifier.gtvAppFocusFrame(
     movingColor: Color = Color.Unspecified,
     afterShift: Boolean = false,
     restAlpha: Float = 1f,
+    /** R167:true = 这次焦点画法的变化当场到位、不走进焦 / 失焦动画(编辑页拿起搬运,见 `carryFocusLook`)。缺省 false = 改前行为。 */
+    snap: Boolean = false,
 ): Modifier = composed {
     // R34:进焦 / 失焦不对称——进焦 FOCUS_SCALE_IN_MS 减速曲线(R34 1200 = focused_frame_animator_duration_ms,R37 起 600),
     // 失焦 R79 起 400 ms AccelerateDecelerate(原 card_unfocus 150)。缩放、描边、柔光三者共用这一份 spec。
-    val motionSpec = if (focused) {
+    val motionSpec: androidx.compose.animation.core.AnimationSpec<Float> = if (snap) {
+        androidx.compose.animation.core.snap()
+    } else if (focused) {
         tween<Float>(
             durationMillis = GtvLayout.FOCUS_SCALE_IN_MS,
             // R30:这次焦点变化带着行位移 → 等位移走到约 80% 再开始放大。
@@ -237,18 +241,17 @@ fun Modifier.gtvAppFocusFrame(
         // R79:失焦也要「淡出」——原 150 ms(card_unfocus)被 owner 实测为突兀的一下缩回
         tween(durationMillis = GtvLayout.APP_FOCUS_OUT_MS, easing = Theme.AppFocusEasing)
     }
-    val scale by animateFloatAsState(
-        targetValue = if (focused) GtvLayout.APP_FOCUS_SCALE else 1f,
-        animationSpec = motionSpec,
-        label = "gtvAppFocusScale",
-    )
-    val ringAlpha by animateFloatAsState(
-        targetValue = if (focused) 1f else 0f,
-        animationSpec = motionSpec,
-        label = "gtvAppFocusRingAlpha",
-    )
+    val scaleTarget = if (focused) GtvLayout.APP_FOCUS_SCALE else 1f
+    val ringTarget = if (focused) 1f else 0f
+    val scaleAnim = animateFloatAsState(targetValue = scaleTarget, animationSpec = motionSpec, label = "gtvAppFocusScale")
+    val ringAnim = animateFloatAsState(targetValue = ringTarget, animationSpec = motionSpec, label = "gtvAppFocusRingAlpha")
+    // R167:snap 时直接画目标值——动画值要等下一帧才跟上(animateFloatAsState 在协程里改值),那一帧旧画法还会露一下
+    fun scaleNow() = if (snap) scaleTarget else scaleAnim.value
+    fun ringNow() = if (snap) ringTarget else ringAnim.value
     this
         .drawBehind {
+            val scale = scaleNow()
+            val ringAlpha = ringNow()
             if (ringAlpha > 0f) {
                 val growX = size.width * (scale - 1f) / 2f
                 val growY = size.height * (scale - 1f) / 2f
@@ -310,8 +313,9 @@ fun Modifier.gtvAppFocusFrame(
         // 搬运中的卡恒 1(焦点每步晚一两帧才追到新位置,那几帧 ringAlpha 可能不是 1)。
         // 这一层在 drawBehind 之内(链上更靠后),描边与柔光不受 alpha 影响。
         .graphicsLayer {
+            val scale = scaleNow()
             scaleX = scale
             scaleY = scale
-            alpha = if (moving) 1f else GtvLayout.cardFocusAlpha(restAlpha, ringAlpha)
+            alpha = if (moving) 1f else GtvLayout.cardFocusAlpha(restAlpha, ringNow())
         }
 }

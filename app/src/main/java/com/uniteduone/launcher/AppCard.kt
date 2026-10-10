@@ -107,8 +107,17 @@ fun AppCard(
      * 编辑页不传,立即放大。
      */
     focusAfterShift: Boolean = false,
+    /**
+     * R167(编辑页拿起搬运):焦点画法(缩放 + 描边 + 柔光)跟着**应用**走,不跟格子走。卡片按位置组合,搬一步时
+     * 格子里换了别的应用;为 true 时:格子换了应用 → 原来的焦点画法当场收掉(不淡出,否则淡出的框会跟着让位的邻卡滑走);
+     * 被搬的卡([moving])恒画成聚焦、当场到位。只是绘制,焦点事件与上报照旧。见 [carryFocusLook]。首页不传。
+     */
+    focusFollowsApp: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
+    /** 这一格最近一次得到焦点时放的是哪个应用(只给 [focusFollowsApp] 用)。 */
+    var focusedPkg by remember { mutableStateOf<String?>(null) }
+    val look = if (focusFollowsApp) carryFocusLook(focused, moving, focusedPkg, app.packageName) else CarryFocusLook(focused, snap = false)
     val accent = LocalThemeColors.current.accent
     // R70:淡化参数来自设置(R120 起在布局组的卡片滑块),含设置页的实时预览。
     val fade = LocalCardFade.current
@@ -145,8 +154,8 @@ fun AppCard(
                 // gtvAppFocusFrame 里(见其 KDoc 里的绘制顺序说明);R49 的淡化只包卡片内容(容器底色 +
                 // banner / 图标 / 文字回落),挂在它**之内**——顺序由 gtvFocusFrameOverFade 一处固定。
                 .gtvFocusFrameOverFade(
-                    focused, accent, metrics.cardCorner, moving, movingColor,
-                    afterShift = focusAfterShift, fade = fade,
+                    look.shown, accent, metrics.cardCorner, moving, movingColor,
+                    afterShift = focusAfterShift, fade = fade, snap = look.snap,
                     // R86:未聚焦的卡按设置的不透明度画,焦点卡 / 被搬的卡恒 1(在 gtvAppFocusFrame 里插值)
                     restAlpha = fade.restAlpha,
                 )
@@ -157,7 +166,11 @@ fun AppCard(
                     if (isLastRow) down = FocusRequester.Cancel else downTarget?.let { down = it }
                     if (isFirstRow) up = FocusRequester.Cancel else upTarget?.let { up = it }
                 }
-                .onFocusChanged { focused = it.isFocused; onFocusChange(it.isFocused) },
+                .onFocusChanged {
+                    if (it.isFocused) focusedPkg = app.packageName
+                    focused = it.isFocused
+                    onFocusChange(it.isFocused)
+                },
             shape = CardDefaults.shape(shape),
             colors = CardDefaults.colors(
                 containerColor = container,
@@ -344,7 +357,8 @@ internal fun Modifier.gtvFocusFrameOverFade(
     afterShift: Boolean = false,
     fade: CardFade = CardFade.DEFAULT,
     restAlpha: Float = 1f,
-): Modifier = gtvAppFocusFrame(focused, accentColor, corner, moving, movingColor, afterShift, restAlpha).gtvCardFade(fade)
+    snap: Boolean = false,
+): Modifier = gtvAppFocusFrame(focused, accentColor, corner, moving, movingColor, afterShift, restAlpha, snap).gtvCardFade(fade)
 
 /**
  * 卡片 / 缩略图边缘一圈极细的亮边(R141):宽 [GtvLayout.CARD_HAIRLINE_DP]、白 [GtvLayout.CARD_HAIRLINE_ALPHA],画在圆角里面、

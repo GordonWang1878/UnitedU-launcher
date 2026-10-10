@@ -2151,3 +2151,17 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
   - 整段 UI 最长帧 94 / 143 → 52.3 ms,闸门(D p90 36.0 + 4 = 40)**仍不过**。最长那帧是拿起后一帧的 `postAndWait` 42 ms,对应的 RT 帧 55 ms,构成是首次 `shader_compile` 17.8 ms(抬起阴影的 AAConvexPathOp,每进程一次)加 `eglSwapBuffers` / `rcCreateSyncKHR` 21 ms(模拟器 GPU 管道同步)。
   - 右移后一帧有一条 21.5 ms 的 `Recomposer:recompose`,其中只有 5.6 ms 在跑,15.8 ms 是 Runnable(被宿主抢占)。
 - 测试:单测 1071(1 跳过)全过;j_edit 52/52;j_channels 72/72。
+- 复审修复 1(controller 裁定:交叉而过的双框必须修)。
+  - 编辑页的 `AppCard` 传 `focusFollowsApp = true`,焦点画法跟着应用走(`carryFocusLook`,单测 `CarryFixTest`):
+    - 被搬的卡恒画成聚焦,当场到位。
+    - 某一格得到焦点时放的应用后来被换掉了,原来的焦点画法当场收掉,不淡出。
+    - 其余与改前相同。
+  - `gtvAppFocusFrame` 加 `snap`:为真时直接画目标值,不走进焦 / 失焦动画,也不等动画值下一帧才跟上。第一次只换了动画规格(snap 规格),录像里邻卡上还露了一帧旧框,所以改成直接画目标值。
+  - 首页与其余调用点不传,行为不变。
+  - `arrival` 放下时清掉,`ShelfSlide` 按实例记下已用过的那一次跨层搬入:同一个包被移出再加回时,不再重放竖直滑入。
+  - 1× 录像(unitedu-tv-2)的结果:
+    - 换位全程只有被搬的卡一张有框,而且一直是完整的放大 + 柔光。
+    - 跨层搬运时,源层不留残框。
+    - 取消时没有残框,YouTube 滑回第 0 格后照常淡入焦点。
+    - 搬运之外的左右移动,旧焦点卡照常缩回淡出。
+    - 截图 `t7-fix-{step,cancel,down,browse}.jpg`。单测 1075(1 跳过)全过,j_edit 52/52,j_channels 72/72。

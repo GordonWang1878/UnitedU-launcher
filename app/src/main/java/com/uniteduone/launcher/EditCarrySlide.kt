@@ -61,6 +61,8 @@ internal class ShelfSlide {
     var arriveSlot = -1
     var arriveDy = 0f
     var job: Job? = null
+    /** 已经用掉的那一次跨层搬入(见 [begin])。 */
+    var consumedArrival: CarryArrival? = null
     val progress = mutableFloatStateOf(1f)
     fun dx(ci: Int): Float = startX.getOrElse(ci) { 0f } * (1f - progress.floatValue)
     fun dy(ci: Int): Float = if (ci == arriveSlot) arriveDy * (1f - progress.floatValue) else 0f
@@ -84,7 +86,9 @@ internal class ShelfSlide {
         }
         startX = starts
         val inserted = apps.indexOfFirst { it !in prev }
-        if (inserted >= 0 && arrival != null && apps[inserted] == arrival.pkg) {
+        // 每次跨层搬入只用一次(按实例认,同样内容的新一次跨层是新实例):之后同一个包被移出再加回不会重放竖直滑入
+        if (inserted >= 0 && arrival != null && arrival !== consumedArrival && apps[inserted] == arrival.pkg) {
+            consumedArrival = arrival
             arriveSlot = inserted; arriveDy = arriveDyPx
         } else {
             val k = if (flyingDy != 0f && flyingPkg != null) apps.indexOf(flyingPkg) else -1
@@ -93,4 +97,20 @@ internal class ShelfSlide {
         progress.floatValue = 0f
         return true
     }
+}
+
+/** R167:一张应用卡此刻该不该画成聚焦([shown]),以及这次变化要不要当场到位([snap])。 */
+internal data class CarryFocusLook(val shown: Boolean, val snap: Boolean)
+
+/**
+ * 编辑页的焦点画法跟着应用走(R167 拿起搬运)。卡片按位置组合,搬一步时第 ci 格换上了别的应用,而焦点要晚一两帧才追到新格:
+ * - 被搬的卡([moving])恒画成聚焦,当场到位——焦点画法属于它,不在每一格重放进焦动画;
+ * - 这一格得到焦点时放的应用([focusedPkg])已经不是现在这个([pkg]):原来的焦点画法当场收掉、不淡出
+ *   (淡出的框会跟着让位的邻卡滑走,看起来像两张有框的卡交叉而过);
+ * - 其余情况与 [focused] 相同、照常动画(平常浏览的 400 ms 淡出不变)。
+ */
+internal fun carryFocusLook(focused: Boolean, moving: Boolean, focusedPkg: String?, pkg: String): CarryFocusLook {
+    if (moving) return CarryFocusLook(shown = true, snap = true)
+    val appChanged = focusedPkg != null && focusedPkg != pkg
+    return if (appChanged) CarryFocusLook(shown = false, snap = true) else CarryFocusLook(shown = focused, snap = false)
 }
