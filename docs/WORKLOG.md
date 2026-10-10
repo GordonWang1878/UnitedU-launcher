@@ -2201,3 +2201,16 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
   1. **把 AGP 的 `0/.dm` 随 APK 带上**(例如构建后拷成 `assets/dexopt/base.dm` 再打包;dm 只依赖 dex 校验和,加 asset 不改 dex),自我更新时已装版本从新包里取它写进会话。E1b 证明这份文件在 Android 14 模拟器上直接 `speed-profile`。要改构建脚本(任务顺序),外加上面两条兜底。
   2. 在应用里把 010 画像按 `.profm` 转成本机格式再写 dm(ProfileInstaller 首启做的就是这件事),代码量与风险都比 1 大。
   - 两条都只在**下一次**应用内更新时生效,电视上的首版 Android 14 ART 认不认,要先发一个只读 `dumpsys` 的 Beta 才知道。
+
+## 2026-10-10 · R167 编辑桌面顺滑度(收口:复测对照表、裁定、文档同步)
+
+- 做了什么(计划 `docs/superpowers/plans/2026-10-10-edit-page-smoothness.md`,11 个任务):①测量剧本 `scripts/perf/edit-jank/` 与基线;②编辑页首帧用进程级 `AppEntryCache`、layout 进页前在 `layoutWrites` 上预读,卡片位图改存 HARDWARE 副本(根因:可变位图每次重录显示列表都换新纹理 id,HWUI 每帧重传);③首页与外壳在编辑页期间留在组合里,退出不重建、不重读;④编辑页盖满后首页与透明外壳不画;⑤焦点移动只重组焦点所在那一层,待机计时改 `snapshotFlow`;⑥非焦点架子 `ModulateAlpha`——闸门没过,未做;⑦拿起换位滑动 + 搬运中的焦点画法;⑧本应用 baseline profile,`.dm` 闸门没过、未接;⑨关于页回退包说明;⑩选频道页文案;⑪本条。
+- 三个闸门:Task 4(盖满停画)保留——页内渲染遍数 / 帧 8–9 → 1–2,E 段 flush layers 未变差(122 vs 121 ms);Task 6(`ModulateAlpha`)不通过——逐像素差在频道海报带 / 空架子方块上最大 9–12,逐元素离屏层再试仍不过,`DIM_BY_MODULATE = false`;Task 8(`.dm`)不通过——APK 内嵌画像 010 格式被 Android 14 profman 拒(E1),AGP 构建期 `.dm` 可用(E1b),要改发版流程,本计划不做。
+- 重组探针(5 次右键 / 5 次下键):改前右键整页 5 次 + 每层各 5 次、下键同;R167 右键整页 0 次 + 各层 0 次,下键整页 5 次、每次只重组新旧两层。
+- 复测(unitedu-tv-2,`-gpu host` 开窗口,speed-profile,负载 11.2–13.6,三遍取中位数;表在 `design/perf-2026-10-10-edit-page.md`「R167 之后复测」):A 进页由「两段 + 0.33 s 空档、首尾 1.35 s」变成一段 0.79 s,纹理上传 126 → 64 次、flush layers 259 → 156 ms,gfxinfo 分位没降(帧少一半,剩下的都是重帧);E 退出 17 → 22 fps、RT p50 66 → 50 ms、flush layers 180 → 81 ms,纹理上传几乎没降(56 → 49);D 每步变成约 0.25 s 的滑动(录屏 38.5 fps),帧时间与改前持平;B / C 的改善与对照组 H 同量级(H 也好了 10–15%,复测时宿主略松),只能说不比改前差。
+- 1× 观感(关键帧 `docs/screenshots/edit-smooth/after-{A,E,D}.jpg`):进页第一帧就是真图标、焦点放大与淡入同时走完,没有「占位 → 停顿 → 换图 → 再跳」;退出时设置预览里一开始就有首页卡片,不再先空后冒;搬运每步看得到中间帧。仍能看出的顿:进页按下后头三帧约 100 ms 一帧,退出中段两个约 85 ms 的间隔。
+- 测量坑:刚 `adb install` 完、包还是 stopped 时 `compile -m speed -f` 连跑 7 次都读回 verify(dex2oat 收到 `--compiler-filter=verify`),把应用拉起来跑几秒再编,第一次就是 speed-profile;`setup.sh` 已改成先拉起再编。模拟器上原来装着 channels.sh 留下的 versionCode 100 测试包,先 `uninstall` 才装得上。
+- 顺手:Task 9 落在 `docs/screenshots/edit-smooth/` 的关于页 e2e 截图挪回 `docs/screenshots/channels/`——与已有同名文件 md5 相同的 6 张直接删,`e2e-3c` 挪过去,内容不同的 `e2e-4` / `e2e-5a` 改名 `*-r167.jpg`;计划里那一处路径同步。
+- 单测 1088 个(1 个本来就跳过)全过,assembleRelease 通过;e2e 整套(`run_all.py`,unitedu-tv-2)1225 / 1227:两条失败都在 `j_settings` 的 settings-about——断言写死了 R166 之前关于页只有两颗胶囊(按一下下键就到「恢复默认」),R166 加了「更新通道」后那一下进的是通道页;改成 `move_to(恢复默认)` 后 `j_settings` 单跑 82 / 82。不是 R167 的回归。
+- 未验证(电视):转场帧率、纹理是否同样重传、编译状态(会话安装后仍是 verify,要等夜里后台编译);仍开着的模拟器观察:退出时新 id 的 960×540 / 480×270 纹理上传(来源未查明)、拿起后第一帧的着色器编译 + GPU 同步、拿起 / 放下时页面级 `carrying` 让所有应用架子重组一次。
+- 需要 Gordon 定:①是否发 1.2.0-beta.2 上电视看顺滑度(带 R167 全部改动);②`.dm` 要不要走「构建期 `.dm` 随包发、自我更新时写进会话」的方案(只在下一次应用内更新时生效,电视 ART 认不认要先发一个 Beta 读 `dumpsys` 才知道)。

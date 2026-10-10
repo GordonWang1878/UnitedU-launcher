@@ -2074,7 +2074,7 @@ emulator -avd unitedu-tv-2 -port 5570 -no-snapshot -no-audio -gpu host &   # 已
 DEV=emulator-5570 SHOTS=docs/screenshots/edit-smooth scripts/e2e/channels.sh build
 ```
 
-Expected:场景 1–5 与新场景 3c 全过;截图 `docs/screenshots/edit-smooth/e2e-3c.jpg` 上关于页第一行是新说明(英文界面)。场景 4(beta.json 404)此时装的仍是回退包,判定同样是 `ROLLBACK_AWAITING_BETA`——它的断言 `s.has("up to date")` 因英文文案里含「up to date」照样成立。
+Expected:场景 1–5 与新场景 3c 全过;截图 `docs/screenshots/channels/e2e-3c.jpg`(Task 11 从 `edit-smooth/` 挪来)上关于页第一行是新说明(英文界面)。场景 4(beta.json 404)此时装的仍是回退包,判定同样是 `ROLLBACK_AWAITING_BETA`——它的断言 `s.has("up to date")` 因英文文案里含「up to date」照样成立。
 
 - [ ] **Step 7: Commit**
 

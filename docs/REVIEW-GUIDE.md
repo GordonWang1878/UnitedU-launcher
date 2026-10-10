@@ -13,7 +13,7 @@
 ## 2. 怎么构建、测试
 
 - 需要 JDK 17、Android SDK(compileSdk 35、build-tools **35.0.0**,`app/build.gradle.kts` 里显式钉了)、Gradle 8.14.x。**仓库里没有 Gradle Wrapper**。作者机器上工具链刻意不进 PATH,用 `source scripts/env.sh` 注入(路径是作者本机的,仅供参考)。
-- 构建:`gradle --no-daemon assembleRelease`;单测:`gradle --no-daemon testReleaseUnitTest`(`app/src/test/`,96 个文件;**没有仪器测试**,界面行为靠模拟器端到端脚本 `scripts/e2e/`(16 段旅程,跑法见那里的 README)+ 真机验收,记录在 `WORKLOG.md`)。
+- 构建:`gradle --no-daemon assembleRelease`;单测:`gradle --no-daemon testReleaseUnitTest`(`app/src/test/`,101 个文件;**没有仪器测试**,界面行为靠模拟器端到端脚本 `scripts/e2e/`(16 段旅程,跑法见那里的 README)+ 真机验收,记录在 `WORKLOG.md`)。
 - 没有 `~/.unitedu/release.jks` 时 release 自动用 debug keystore 签名(`-PrequireReleaseKey=true` 时改为构建失败,`scripts/release.sh` 总带这个参数)。R8 开着(`proguard-rules.pro`),资源裁剪关着(理由见 `build.gradle.kts` 注释)。
 - lint:`lintVitalRelease` 通过;完整 `lintRelease` 报 22 个 error,其中 21 个是误报(`ProduceStateDoesNotAssignValue` ×16、`dispatchKeyEvent` 上的 `RestrictedApi` ×5),1 个是刻意的(`QUERY_ALL_PACKAGES`,桌面必须列出全部应用)。详见同日体检报告 [`design/health-check-2026-09-29.md`](design/health-check-2026-09-29.md)。
 - 内置壁纸 / 屏保图有一道构建前置:`app/src/main/assets/builtin/{wallpapers,screensavers}/` 里的图必须先经 `scripts/hdr-assets.py --in-place` 转成双写法 HDR JPEG,否则单测 `BuiltinHdrAssetsTest` 失败(见 §5)。
@@ -25,7 +25,7 @@
 - **进程模型**:除 `:homekey` 外所有组件(`MainActivity`、清单里的 `PackageRemovedReceiver` / `RelaunchAfterUpdate` / `SelfUpdateResult`、系统屏保 `UnitedUDream`、上传服务的请求线程)同一进程,所以文件锁用进程内锁就够(`LockedFile`)。**主页键接管的无障碍服务 `HomeKeyService` 跑在独立进程 `:homekey`**(R162:每一下按键都先经过它,不与首页抢主线程;桌面进程照常可回收),它**不碰任何状态文件**——`LockedFile` 的锁不跨进程——只写自己的心跳文件 `homekey.state`(单写者、原子写),主进程只读。
 - **纯函数 / Android 分文件**:凡是能在 JVM 上测的规则都拆成不碰 Android 的文件(`*Pure.kt`、`*Model.kt`、`*Math.kt`、`PickerCells.kt`、`StandbySchedule.kt`、`UpdateChecker.kt`……),Compose / IO 那一半只接线。评审「规则对不对」看纯函数和它的单测,评审「接线 / 生命周期对不对」看 Compose 文件。
 
-## 4. 文件地图(`app/src/main/java/com/uniteduone/launcher/`,100 个文件)
+## 4. 文件地图(`app/src/main/java/com/uniteduone/launcher/`,104 个文件)
 
 **入口与全局状态**
 - `MainActivity.kt`(2100+ 行):浮层状态机、按键分发、待机计时、Bundle 保存 / 还原、包变动广播、语言切换 `recreate()`。评审重点文件。
@@ -46,7 +46,7 @@
 - `AppsPage.kt`:所有应用页;`Inputs.kt` + `InputPrefs.kt` + `InputsPage.kt`:输入源枚举、CEC 去重、调谐器合并、改名 / 隐藏、输入源页。
 
 **编辑与数据**
-- 编辑桌面(R165「货架」):`EditScreen.kt`(焦点账本、按键截获、浮层摞、写盘、拿起)、`EditShelves.kt`(纯逻辑:货架模型、上下键固定顺序、落点、焦点线位移,单测)、`EditShelfParts.kt`(架子 / 胶囊 / 选择卡等零件)、`EditPress.kt`(确定键长短判定)、`EditBackdrop.kt`(壁纸模糊底,算一次缓存位图)、`AppPicker.kt`(添加应用列表);`LayoutOps.kt`:行的增删改纯函数;`RowIcons.kt` / `RowIcon.kt` / `RowIconPicker.kt`:行图标。
+- 编辑桌面(R165「货架」):`EditScreen.kt`(焦点账本、按键截获、浮层摞、写盘、拿起)、`EditShelves.kt`(纯逻辑:货架模型、上下键固定顺序、落点、焦点线位移,单测)、`EditShelfParts.kt`(架子 / 胶囊 / 选择卡等零件)、`EditPress.kt`(确定键长短判定)、`EditBackdrop.kt`(壁纸模糊底,算一次缓存位图)、`AppPicker.kt`(添加应用列表);R167 起另有 `AppEntryCache.kt`(进程级卡片数据缓存:首页读好的 `AppEntry` 含 HARDWARE 位图留一份,编辑页进页第一帧直接用;按 MainActivity 的 revision 失效,`epoch` 挡住上一个实例迟到的发布)、`EditEntry.kt`(进出编辑页的纯判据:预读回来能不能进 `shouldEnterEdit`、编辑页盖满首页没有 `editCoversHome`)、`EditCarrySlide.kt`(拿起换位的绘制位移 `ShelfSlide`、跨层滑入距离 `carryArriveDp`、搬运中的焦点画法 `carryFocusLook`,单测 `CarrySlideTest`);`LayoutOps.kt`:行的增删改纯函数;`RowIcons.kt` / `RowIcon.kt` / `RowIconPicker.kt`:行图标。
 - `Layout.kt`(`layout.json` 读写、`layoutWrites` 串行调度器)、`Titles.kt`、`Settings.kt`(`Settings` 数据类、合法值表、`SettingsStore`)、`LockedFile.kt`(多写者文件锁 + 原子写)、`Paths.kt`。
 - `PackagePruning.kt`(卸载后清理 + `PackageRemovedReceiver`)、`PrunePure.kt`(回到前台清理未安装包的判据,含「缺得太多就不清」的保护)。
 
@@ -72,6 +72,8 @@
 - `HomeKeyState.kt`:状态合成与读写——心跳文件(服务写、主进程读)、「开关开着」(系统已启用服务列表含本包)、「在运行」(心跳 + 系统此刻真的绑定着)、「受限」(Android 13+,按安装来源推断,加一个「见过一次」的记号 `restrictedSeen`,主进程的 SharedPreferences `homekey`);`HomeKeyStatus` 四态与设置页 / 引导的文案取用函数。单测 `HomeKeyStateTest`。
 - `SelfUpdate.kt`:自我更新走 PackageInstaller **会话** API + 结果接收器 `SelfUpdateResult`(替系统打开确认页;非取消的会话失败弹一条系统 Toast,带状态码)。两个调用方:关于页「下载并安装」,和手机传 APK 时传的恰是 UnitedU 自己(`UploadServer.serveApk` 按包名分流;此时字节在会话里,文件立即释放)。不是 `ApkInstaller` 的 `ACTION_VIEW`:那会把本包标成受限、把正在跑的接管服务当场停掉(调研 §2.2 #11 / #12)。
 
+**性能**:`app/src/main/baseline-prof.txt`(R167:本应用自己的 baseline profile,覆盖首页 / 编辑页 / 设置的常用路径,AGP 合进 APK 的 `assets/dexopt/baseline.prof`);`scripts/perf/edit-jank/`(编辑页转场 / 页内帧的模拟器测量剧本与汇总脚本,用法见仓库 CLAUDE.md「模拟器验证的坑」)。
+
 **更新后自启**:`RelaunchAfterUpdate.kt` + `RelaunchPolicy.kt`(`MY_PACKAGE_REPLACED` 后在满足条件时把自己拉回前台)。
 
 ## 5. 报 bug 之前必须知道的约束(看起来怪、但是刻意的)
@@ -89,6 +91,8 @@
 其他:
 - **落盘**:有多个写者的状态文件(layout / titles / hidden-inputs / settings)一律经 `LockedFile`;读 → 改 → 写整段在锁里(`update`);整份快照写盘还要走串行调度器 `layoutWrites`;rename 失败不删正式文件(先有 `.prev`)。排查表 [`design/persistence-audit.md`](design/persistence-audit.md)。起因是一次真机事故:卸载一个应用,整个首页被换成默认布局。
 - **外置存储没挂时不写盘**(`Paths.baseOrNull` 为 null → 内存默认值、不落盘),不是漏写。
+- **编辑页开着时首页与设置外壳仍在组合里**(R167):首页 `previewing`、整棵退出无障碍树、编辑页盖满后不画;外壳按残影语义让路。这是刻意的(退出编辑页不重建、不重读、焦点回原处),不是泄漏;首页在编辑页底下随写盘重读也是刻意的。
+- **拿起换位的卡片不包 `key(pkg)`**(R167):焦点节点要留在原位置(焦点账本按位置认格),换位的观感只靠 `ShelfSlide` 的绘制平移补;包了 key 会让焦点节点跟着卡片挪走。
 - **没有 `ModulateAlpha`、行图层四边撑大 `APP_FOCUS_GLOW_DP`**:alpha < 1 的 `graphicsLayer` 会把内容画进以图层尺寸为界的离屏层,焦点卡的放大 / 描边 / 柔光越界会被裁(R129f)。
 - **字号与文字色只有 `Type.kt` 一处**(R134):界面代码里出现 `fontSize = 数字.sp`、Bold、`Theme.Sans` 以外的字体都会被单测 `TypeScaleTest` 拦下(它扫源码)。字重只用 Normal / Medium 是刻意的:中文回落到系统 Noto Sans CJK(只有 Regular),Bold 会被合成加粗。
 - **放进 `OverlayStack` / `FadeSwitch` 的页面必须照 `LocalPageGhost` 让路**(R108 / R136):关掉后同一棵子树还要画一个淡出时长,这期间它不可聚焦、不请求焦点、不收返回键、不回调;状态对象把要显示的内容带在身上(残影不按下标现查)。看到 `if (ghost) …` 到处都是,不是重复代码。
@@ -111,7 +115,7 @@
 - **「自动关屏」行(R132 前叫「关闭屏幕」)确定键只能开系统设置首页**:那一页(TvSettings 的 `EnergySaverFragment`)在 AOSP 与索尼上都没有外部 intent 入口;行下小字从电视自己的设置应用里读真实菜单名(R127c)。
 - **R129 换行淡入按几何只在下键触发**:我们的焦点线在屏幕下部,上一行静止时全亮,单按上键不满足「换行前看不见」的条件(连按时才会);这是规则的结果,不是漏写。
 - **A95L 界面层显示不了 HDR**(见 §5),内置 HDR 图在它上面等于 SDR。
-- **主线程 / 组合期的文件 IO**:有几处小文件读取在主线程或组合期里(`MainActivity.kt` 约 468 / 1449 / 1498 / 1822 行、`EditScreen.kt` 里 `rows` 的初值 `Layout.read`),体检报告里列了;目前文件都很小,未改。
+- **主线程 / 组合期的文件 IO**:有几处小文件读取在主线程或组合期里(`MainActivity.kt` 约 468 / 1449 / 1498 / 1822 行),体检报告里列了;目前文件都很小,未改。编辑页 `rows` 的初值 R167 起改由 MainActivity 在 `layoutWrites` 上预读,不再在组合期读盘。
 - **超大 composable**:`EditScreen.kt` 约 890 行,其中 `EditScreen` 这个 composable 约 550 行(R165 已拆出纯逻辑与零件)、`HomeScreen` 约 800 行、`MainActivity.onCreate` 约 580 行。拆分是已知的技术债,不是本轮目标。
 - **遗留代码**:`Theme.cardMetrics` / `HomeLayout` 是旧 main 线几何,只剩测试与少量常量引用;`GtvLayout.SETTINGS_TYPE_STEP` / `settingsSp` 是 R109 的记录,界面代码不再读(`Clock.kt` 的 `HeroClock` 已在 R134 删掉)。
 - **代码注释里的少量过时描述**:例如 `GtvLayout.kt` 约 981 行 `ROW_ENTER_*` 的 KDoc 仍写 `FastOutSlowIn`(R129e 起实际是 `LinearEasing`,见 `Theme.homeRowEnterSpec` 与同处 R129e 注释);`Settings.kt` 里 `wallpaperBlur` 注释写「0–100,步 10」(R119 起 0–50、步 5,以 `WALLPAPER_BLUR_MAX` / `_STEP` 为准);`MainActivity` 顶部 KDoc 仍提「齿轮菜单入口」(R69 起是设置外壳)。以代码为准。
@@ -119,6 +123,7 @@
 - **主页键接管(R162)的接受限制**:开机时服务连上之前(约 1.5 s)原厂桌面会先露面;开机后 30–60 s 服务连上时会把 UnitedU 拉到前面一次(开机 3 分钟内连上就拉),设成「开机进上次信号源」的电视上会盖住 HDMI 画面;待机唤醒那一下 HOME 截不到(屏幕关着时按键不送无障碍,只唤醒);服务刚连上时屏保若已在播放,`dreaming` 要等下一次广播才对(没有公开查询,那一次 HOME 被吃);Android 13+ 用系统安装器侧载的包受「受限设置」锁,电视设置里没有解锁入口,只能 adb(设置页直接写出命令;`adb install -r` 覆盖装不清已有的锁,要先卸载再装,2026-10-02 模拟器实测);Fire OS 不支持(Fire OS 8 的 HOME 在系统按键策略里先被吃掉,送不到无障碍过滤器)。依据与探针见 `research/2026-10-02-home-key-takeover-prior-art.md`。
 - **「这台电视不允许」是推断,不是读锁**:应用读不到那个 appop(要 `MANAGE_APPOPS`),按安装来源(`packageSource` 为本地 / 下载文件)加「见过一次」记号推断;会话更新会把来源归 0 而锁还在(靠记号);已用 adb 解锁但还没开过服务时仍报「不允许」(按钮照样带去无障碍页);安装来源仍是文件(3 / 4)时,关掉开关后记号会被重新点亮、小字回到「不允许」;`pm clear` 清记号而 appop 不清、Auto Backup 可能把记号带到别的机器——都只影响小字。**自我更新的 16 MB 拷贝 + fsync 在主线程**(`SelfUpdate.install`,确认前台与 `commit` 要在同一个主线程回合;电视上若有卡顿再挪到 IO;手机传来的恰是 UnitedU 自己时走同一处,上限是传 APK 的 100 MB,实际约 16 MB)。复审时登记、没修的两处:`HomeKeyService.launch()` 失败(厂商拦后台启动)时 HOME 照吃,成了死键;自我更新的非取消类失败(存储不足、签名不符、被策略拦下)只弹一条系统 Toast(带状态码),关于页仍停在「安装中」。
 - **数据格式向下兼容(R166,约束不是 bug)**:从 Beta 切回稳定版装的是旧代码(回退包),它要读 Beta 写下的 layout / titles / hidden-inputs / settings,所以 Beta 只能**新增**字段、不改既有字段的含义与类型(CLAUDE.md「数据格式向下兼容铁律」,`ForwardCompatTest` 逐个读盘函数钉住)。评审时看到“只加不改”的落盘改动别当过度设计。
+- **编辑桌面顺滑度(R167)留着的**:诊断报告 `design/perf-2026-10-10-edit-page.md` 的 #3(位图 `prepareToDraw` / 预上传)与 #6(电视上的重绘消融)要在电视上量,未做;#7 非焦点架子改 `ModulateAlpha` 未做(逐像素比对在频道海报带与空架子方块上观感不一致,`DIM_BY_MODULATE = false`);会话安装(自我更新)装完仍是 `verify`,要等电视夜里后台编译(构建期 `.dm` 可行但要改发版流程,未做)。模拟器复测里仍有的:退出编辑页的离屏层 flush 与每次退出新 id 的 960×540 / 480×270 纹理上传(来源未查明)、拿起后第一帧的着色器编译 + GPU 同步、拿起 / 放下时页面级 `carrying` 让所有应用架子重组一次。
 - **更新通道顺序(Gordon 2026-10-09 定)**:R2 优先、GitHub 兜底、先到先得;清单读到后下载失败不换通道重试,不改。
 
 - 频道海报是 https 时会联网下载(除「检查更新」「上传资料」外唯一的联网点,只在用户自己加了频道行时);`http://` 明文海报按网络安全配置画成无图卡。
