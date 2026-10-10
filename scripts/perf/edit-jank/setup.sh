@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # 在 unitedu-tv-2 / -3 上搭测量环境:装当前构建、设 HOME、装 19 个占位应用、推测试布局(5 行 10/5/4/4/4 张)与设置、编译成 speed。
+# 基线(before)于 2026-10-10 在 dexopt=speed-profile、宿主负载 ≈12 下录;Task 11 复测要在同样的编译状态与相近负载下跑。
 # 只对模拟器用。S 默认 emulator-5570(unitedu-tv-2)。
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/../../.." && pwd)"
@@ -14,8 +15,14 @@ adb -s "$S" shell am force-stop $P
 adb -s "$S" push "$HERE/layout.json" "$F/layout.json"
 adb -s "$S" push "$HERE/settings.json" "$F/settings.json"
 adb -s "$S" shell settings put global animator_duration_scale 1.0
+# 判据:读回 status=speed 或 status=speed-profile 都算编好(这台 ART 上 -m speed 常读回 speed-profile,见仓库 CLAUDE.md);status=verify 才是没编上。
+compiled=0
 for _ in 1 2 3 4 5; do
   adb -s "$S" shell cmd package compile -m speed -f $P >/dev/null; sleep 3
-  adb -s "$S" shell dumpsys package dexopt | grep -A3 "\[$P\]" | grep -q "status=speed" && break
+  if adb -s "$S" shell dumpsys package dexopt | grep -A3 "\[$P\]" | grep -Eq "status=(speed|speed-profile)\]"; then compiled=1; break; fi
 done
 adb -s "$S" shell dumpsys package dexopt | grep -A3 "\[$P\]"
+if [ "$compiled" != 1 ]; then
+  echo "WARNING: $P 仍是 verify(未编译),测量数据不可用;隔几秒重跑 setup.sh" >&2
+  exit 1
+fi
