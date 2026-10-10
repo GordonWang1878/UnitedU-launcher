@@ -30,7 +30,7 @@ object ShellPages {
     const val HOME = "home"
     /** 「恢复默认」确认页(取代 `ConfirmDialog` 那一处用法)。 */
     const val RESTORE = "restore"
-    /** 「更新通道」二选一页(R164):从关于页的「更新通道」进来,与 [RESTORE] 同属关于页让开的那类层。 */
+    /** 「更新通道」二选一页(R166):从关于页的「更新通道」进来,与 [RESTORE] 同属关于页让开的那类层。 */
     const val CHANNEL = "channel"
     /** 第一层的两颗不进下一层的胶囊:跳系统设置、打开关于页。 */
     const val SYSTEM_SETTINGS = "systemSettings"
@@ -72,13 +72,13 @@ val HOME_CAPSULES: List<String> = listOf(SHELL_CHANGE_HOME, SHELL_HOME_TAKEOVER)
  */
 const val ABOUT_RESTORE = "restoreDefaults"
 
-/** R164:关于页的第二颗「更新通道 稳定版 ›」,按下去推外壳的通道页([ShellPages.CHANNEL])。 */
+/** R166:关于页的第二颗「更新通道 稳定版 ›」,按下去推外壳的通道页([ShellPages.CHANNEL])。 */
 const val ABOUT_CHANNEL = "updateChannel"
 
 /** 关于页的胶囊,自上而下:检查更新(id 沿用 [ShellPages.ABOUT])、更新通道、恢复默认(界面按这张表画)。 */
 val ABOUT_CAPSULES: List<String> = listOf(ShellPages.ABOUT, ABOUT_CHANNEL, ABOUT_RESTORE)
 
-/** 通道页的两颗胶囊 id(R164)。 */
+/** 通道页的两颗胶囊 id(R166)。 */
 const val CHANNEL_STABLE = "channel:stable"
 const val CHANNEL_BETA = "channel:beta"
 val CHANNEL_CAPSULES: List<String> = listOf(CHANNEL_STABLE, CHANNEL_BETA)
@@ -89,7 +89,7 @@ fun channelCapsuleId(c: UpdateChannel): String = if (c == UpdateChannel.BETA) CH
 /**
  * 关于页此刻画不画(R128)。关于页是叠在外壳第一层之上的整屏页;从它的「恢复默认」进确认层时,确认层是外壳栈上的一层,
  * 关于页让开(淡出、外壳不再 covered),确认层返回 / 确定弹栈后关于页重新出现、落回「恢复默认」。
- * R164 起通道页([ShellPages.CHANNEL])同理。
+ * R166 起通道页([ShellPages.CHANNEL])同理。
  * 只有「确认层 / 通道页在栈顶」这两种情况让开——[about] 为真时其余任何栈形状都照常画关于页(不会出现「开着却看不见」的黑洞)。
  */
 fun aboutPageShown(about: Boolean, stack: List<ShellFrame>): Boolean =

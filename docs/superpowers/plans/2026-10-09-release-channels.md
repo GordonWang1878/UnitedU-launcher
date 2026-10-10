@@ -431,7 +431,7 @@ git commit -m "feat(update): 检查更新按通道读清单;回退包文案"
 
 ---
 
-### Task 5: 关于页「更新通道」胶囊 + 二选一页(R164)
+### Task 5: 关于页「更新通道」胶囊 + 二选一页(R166)
 
 **Files:**
 - Modify: `app/src/main/java/com/uniteduone/launcher/ShellModel.kt`(页 id、胶囊表、`aboutPageShown`、`defaultFocus`、`pageCapsuleIds`、`shellPages`)
@@ -485,7 +485,7 @@ Run: `source scripts/env.sh && gradle --no-daemon :app:testReleaseUnitTest --tes
 在 `top.page == ShellPages.RESTORE -> { … }` 分支之后加(参数 `channel: UpdateChannel`、`onPickChannel: (UpdateChannel) -> Unit` 顺着 `onConfirmRestore` 的路子加到 `SettingsShell` 的参数表):
 ```kotlin
             top.page == ShellPages.CHANNEL -> {
-                // 双通道(2026-10-09,R164):从关于页「更新通道」进来,关于页此时让开(aboutPageShown)。
+                // 双通道(2026-10-09,R166):从关于页「更新通道」进来,关于页此时让开(aboutPageShown)。
                 // 选中即写盘、弹栈,关于页重新出现并按新通道检查一次;返回 = 不改。✓ 标在已保存的那一颗。
                 val items = CHANNEL_CAPSULES.map { id ->
                     val c = if (id == CHANNEL_BETA) UpdateChannel.BETA else UpdateChannel.STABLE
@@ -559,7 +559,7 @@ Expected: 全部 PASS、构建成功(`SettingsPageLimitTest` 数到通道页 2 �
 
 ```bash
 git add app/src/main/java/com/uniteduone/launcher/{ShellModel,SettingsShell,AboutScreen,MainActivity}.kt app/src/main/res/values*/strings.xml app/src/test/java/com/uniteduone/launcher/ShellModelTest.kt docs/screenshots/channels/
-git commit -m "feat(about): 更新通道胶囊与二选一页(R164)"
+git commit -m "feat(about): 更新通道胶囊与二选一页(R166)"
 ```
 
 ---
@@ -704,7 +704,7 @@ git commit -m "test(e2e): 双通道端到端脚本与截图"
 ### Task 8: 文档同步
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-09-20-gtv-line-design.md`(§12 续写 R164:关于页更新通道胶囊 + 通道页)
+- Modify: `docs/superpowers/specs/2026-09-20-gtv-line-design.md`(§12 续写 R166:关于页更新通道胶囊 + 通道页)
 - Modify: `docs/design/settings-inventory.md`(关于页 3 颗、通道页 2 颗)
 - Modify: `docs/REVIEW-GUIDE.md`(文件地图加 `UpdateChannels.kt`;约束加「数据格式向下兼容」)
 - Modify: `README.md` / `README.zh-CN.md`(「更新」一节加一段:稳定版 / Beta 两条通道,在 关于 → 更新通道 切换,切回稳定不丢布局)
@@ -716,5 +716,5 @@ git commit -m "test(e2e): 双通道端到端脚本与截图"
 
 ```bash
 git add docs CLAUDE.md README.md README.zh-CN.md
-git commit -m "docs: 双通道(R164)同步设计索引、设置清单、评审入口、README"
+git commit -m "docs: 双通道(R166)同步设计索引、设置清单、评审入口、README"
 ```

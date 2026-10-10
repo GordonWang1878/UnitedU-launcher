@@ -872,7 +872,7 @@ class MainActivity : ComponentActivity() {
                             // R128:每次打开关于页都从「检查更新」开始(目标清空);恢复默认确认层回来时不经这里,目标留着。
                             onOpenAbout = { if (live) { aboutFocus = null; about = true } },
                             onConfirmRestore = { if (live) confirmRestoreDefaults() },
-                            // R164:先写盘、再 switchChannel()(它在 IO 线程读 SettingsStore,写必须先完成)。
+                            // R166:先写盘、再 switchChannel()(它在 IO 线程读 SettingsStore,写必须先完成)。
                             onPickChannel = { c ->
                                 if (live) {
                                     SettingsStore.update(this@MainActivity) { it.copy(updateChannel = c) }

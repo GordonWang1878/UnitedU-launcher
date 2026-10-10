@@ -34,7 +34,7 @@ Gordon 定的三条(grilling,2026-10-09):
 - GitHub 兜底:`latest.json` 仍是 `releases/latest/download/latest.json`;`beta.json` / `rollback.json` 挂在固定 tag `channel-beta` 的 prerelease 上(每次 `--clobber` 覆盖),地址 `releases/download/channel-beta/<名>.json`。
 - `release.sh` 增加模式:`release.sh <版本>`(稳定,同现在)、`release.sh <x.y.z-beta.N>`(Beta:构建 Beta + 从上一个稳定 tag 构建回退包,两份清单一起发)、晋级就是对同一提交跑稳定模式。
 
-## 4. 界面(R164)
+## 4. 界面(R166)
 
 - 关于页加一颗胶囊「更新通道:稳定版 / Beta」,进选项层二选一(关于页胶囊 2 → 3,仍 ≤ 6)。左侧说明:Beta 先拿到新功能、可能不稳定、随时可切回且不丢布局。
 - 选完立即检查一次更新:切到 Beta → 有 Beta 就提示下载;从 Beta 切回稳定 → 提示「可回到稳定版 1.0.3（布局与设置保留）」。
