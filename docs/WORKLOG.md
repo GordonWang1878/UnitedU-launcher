@@ -2025,3 +2025,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 根因(抖动):`ShellTitle` 把左列整体垂直居中,结局 / 更新说明(最多 4 行)出现时列变高、居中点上移,版本号与页名跟着动。修法:左列每段定高——版本号、结果胶囊单行不换行;结局 + 说明先画一份不可见的「最高情况」占位(结局 2 行 + 说明 4 行)撑定高度,真实内容从顶上叠。模拟器四态(空白 / 已是最新 / 发现新版本带 4 行说明 / 下载失败)截图比对:页名、版本号、页脚位置逐像素一致,`docs/screenshots/about-layout/`。
 - 许可(Gordon 选「一行 + 打包进 APK」):页面只留 `about_footer`「Apache-2.0 · github.com/GordonWang1878/UnitedU-launcher」(删 `about_license_title` / `about_license` / `about_repo`)。原来那行只列组件名、并不含 NanoHTTPD(BSD-3)要求的版权声明原文;现在 `app/build.gradle.kts` 的 `copyNotices` 把仓库根的 `NOTICE`、`LICENSE` 构建时拷进 APK 的 `assets/licenses/`(与 OFL 全文同目录,单一来源),合规比之前更完整。
 - 未验证:A95L 上的观感(需发版后电视上看)。
+- 2026-10-10 发布 **1.1.1(versionCode 10)**:线上已有 Beta 8(1.2.0-beta.1,频道推荐会话发的)+ 回退包 9,单调检查取 10。R2 / GitHub `latest.json` 读回 10 / 1.1.1,APK 200。Beta 1.2.0-beta.1 的用户按基础版本规则收不到 1.1.1(1.1.1 < 1.2.0),符合设计;稳定通道的人(含装了回退包 9 的)收到 1.1.1。**下一个 Beta 的 versionCode 至少 11**。
