@@ -1,0 +1,176 @@
+# 编辑桌面卡顿诊断(2026-10-10,模拟器实测 + 代码排查)
+
+分支 `GordonWang1878/频道推荐`(1.2.0-beta.1,versionCode 8)。只测量、不改产品代码。设备:AVD `unitedu-tv-2`(Android 14 TV,arm64,`-gpu host`,ART mainline 340090000),
+宿主负载约 11。测试布局:5 行应用(10 / 5 / 4 / 4 / 4 张,19 个占位应用 + YouTube / Play 商店 / 设置等系统应用),默认内置壁纸。
+原始数据(mp4、perfetto trace、framestats)在 `~/.claude/jobs/612c4907/tmp/edit-jank/`,不入库。
+
+## 结论
+
+1. **最卡的是进、出编辑页这两段转场,不是页内移动。**进页(A)约 0.75–0.9 s 只出 27–38 帧(37–42 fps),帧耗时 p90 100 ms 以上;
+   退出(E)约 0.48 s 只出 14 帧(**29 fps**,71% 的帧算掉帧)。编译与否几乎不改变这两组数字(下表),所以瓶颈主要在 RenderThread / GPU,不在 JIT。
+2. **页内上下 / 左右 / 拿起(B / C / D)在模拟器上与首页导航同一水平**(RenderThread p50 14–16 ms 对首页 16–17 ms,掉帧比例 15–22% 对首页 13–19%),
+   按键帧 UI 线程 p50 只有 2–5 ms。页内的「一卡一卡」更多是**动效设计缺口**:拿起的卡换位是瞬移(一帧到位,只有焦点环交叉淡化),
+   进页时卡片先画成纯文字占位、约 0.4 s 后(模拟器)整排换成图片,焦点放大要等这一下之后才开始。
+3. **转场为什么重**(四个叠在一起的根因,按影响排):
+   - **(a) 转场中途整页重建**:首页在编辑页期间离开组合,退出时整棵 HomeScreen 在第一帧重新组合,`leaveEdit()` 还 `revision++`,
+     首页、外壳的数据全部重读;进页时 EditScreen 第一帧整页组合,还在组合阶段同步读盘 `Layout.read(ctx)`(主线程 IO,带文件锁)。
+   - **(b) 图标数据重载**:编辑页自己再 `Apps.load(withBitmaps)` 一遍首页已经在内存里的同一批应用,数据到之前卡片是文字占位,
+     数据到的那一帧重组全部卡片 + 上传全部位图(进页 trace 里一帧 UI 47 ms、RT 93 ms,紧跟一个 100 ms 的空档)。
+   - **(c) 转场期间位图纹理被反复重传**:每次进 / 出编辑页约 0.5–0.8 s 里有 **520–760 次纹理上传**(约 25–30 次 / 帧,同一批卡片图标、
+     横幅、矢量图标缓存、模糊底、壁纸每帧换一个新纹理),页内导航和首页导航几乎为 0。RenderThread 时间的 40–55% 花在这上面。
+     最可能的机制:转场时同时活着的全屏离屏层太多(见 d),Skia GPU 资源缓存(模拟器预算 99.5 MB,静止时已用 85 MB,其中 76 MB 是离屏渲染目标)
+     被挤爆,未锁定的位图纹理每帧被清掉再重传。
+   - **(d) 离屏层叠得太深**:转场那几百毫秒同时有——首页那一层(缩放 + 圆角裁切 + 投影)、首页残影的整屏 alpha 层、编辑页 FadeSwitch 的整屏 alpha 层、
+     外壳 alpha 层;编辑页内部每个非焦点架子是一个约 2000×520 px 的 alpha 离屏层(0.62,R129f 四边撑大 60 dp),每张卡再套两层(R49 颜色矩阵 saveLayer + R86 alpha 0.8)。
+     这些 alpha 层不缓存,只要有任何东西在动(焦点柔光进焦就要 1.2 s)每帧都要重画。A95L 是 Mali 平铺式 GPU,渲染目标切换贵,首页在 R110 之前就已经卡在 16.6 ms 线上。
+4. **会话安装(应用内自我更新)装完是 `verify`(解释 + JIT),不会立即 AOT**:模拟器上用手机传 APK 的会话路径实测
+   `actualCompilerFilter=verify`、`reason=install`,尽管 `pm.dexopt.install=speed-profile`、APK 里带 `assets/dexopt/baseline.prof`。
+   这份 baseline.prof 只有 3.9 KB,是 androidx 库自带的规则,**本应用没有自己的 baseline profile**;Android 14 首版 ART 安装时不读 APK 内嵌画像
+   (与 2026-09-28 报告在 A95L 上的结论一致)。ProfileInstaller 只在首次启动时写一份当前画像,要等电视空闲 + 充电时的后台 dexopt(`pm.dexopt.bg-dexopt=speed-profile`,通常夜里)才编译。
+   **Gordon 每装一个新 Beta,当天用的都是未编译状态。**模拟器上未编译让首页按键帧 UI 线程 p50 从 3.1 ms 变成 8.1 ms、进页首帧从 26 ms 变成 44 ms,
+   但转场的帧率两种状态下差不多,所以编译解决不了转场卡顿,只能让按键响应更快。
+
+## 汇总表(模拟器,同一套脚本;「按键帧」= 按键后第一帧,「动画帧」= 其余帧)
+
+| 交互 | 状态 | 帧数 / 时长 | 录屏 fps | gfxinfo p50 / p90 | 按键帧 UI p50 | 动画帧 UI p50 / p90 | RT p50 / p90 | RT 帧间隔 > 20 ms |
+|---|---|---|---|---|---|---|---|---|
+| H 首页导航(对照) | verify | 629 帧 | 58–60 | 19 / 25 ms | 8.1 ms | 6.1 / 12.1 | 16.1 / 21.4 | 19% |
+| H 首页导航(对照) | speed | 627 帧 | 57–60 | 19 / 23 ms | 3.1 ms | 5.6 / 9.6 | 16.9 / 20.2 | 13% |
+| A 进编辑页 | verify | 38 帧 / 0.91 s | **42** | 28 / 105 ms | **44.1 ms** | 18.3 / 62.3 | 18.7 / 52.0 | 38% |
+| A 进编辑页 | speed | 27–33 帧 / 0.73–0.85 s | **37–39** | 28–29 / 101–109 ms | 24–26 ms | 18 / 54 | 18.5 / 52–54 | 41–50% |
+| B 上下换层 | verify | 379 帧 | 48 | 20 / 27 ms | 4.5 ms | 5.9 / 17.1 | 16.0 / 21.7 | 22% |
+| B 上下换层 | speed | 383 帧 | 49 | 18 / 23 ms | 4.4 ms | 4.5 / 8.3 | 14.5 / 20.0 | 16% |
+| C 层内左右(含整排横移) | verify | 493 帧 | 57–58 | 16 / 22 ms | 2.9 ms | 4.2 / 8.0 | 13.7 / 20.0 | 14% |
+| C 层内左右 | speed | 492 帧 | 57–58 | 18 / 24 ms | 2.4 ms | 4.6 / 10.2 | 14.9 / 20.6 | 18% |
+| D 拿起搬运 | verify | 334 帧 | 58 | 19 / 26 ms | 5.4 ms | 6.4 / 15.3 | 16.2 / 21.0 | 20% |
+| D 拿起搬运 | speed | 334 帧 | 58 | 19 / 23 ms | 4.5 ms | 5.4 / 9.0 | 15.6 / 20.1 | 15% |
+| E 退出编辑页 | verify | 14 帧 / 0.47–0.48 s | **29–30** | **77 / 101–117 ms** | 21–27 ms | 31–40 / 56–62 | 25–28 / 54–59 | **85%** |
+| E 退出编辑页 | speed | 14 帧 / 0.48–0.49 s | **29** | **77–81 / 93–101 ms** | 16–24 ms | 38–41 / 50–58 | 25–26 / 54–70 | **85–92%** |
+
+转场的 RenderThread 拆分(speed,perfetto):
+
+| 交互 | RT 帧 | RT 总时长 | 纹理上传 | glGenTextures | flush layers |
+|---|---|---|---|---|---|
+| A 进页 | 27 | 760 ms | 762 次 / 55 ms | 828 次 / 308 ms | 44 ms |
+| A 进页(第二次) | 33 | 861 ms | 717 次 / 62 ms | 783 次 / 327 ms | 45 ms |
+| E 退出 | 14 | 525 ms | 520 次 / 46 ms | 693 次 / 223 ms | 113 ms |
+| E 退出(第二次) | 14 | 508 ms | 535 次 / 39 ms | 677 次 / 277 ms | 77 ms |
+| B 页内上下 | 384 | 5184 ms | 1 次 | 18 次 | 191 ms |
+| H 首页导航 | 627 | 10181 ms | 2 次 | 13 次 | 317 ms |
+
+**模拟器数字怎么读**:宿主负载高,模拟器的 CPU 数字恰好与 2026-09-28 报告里 A95L 的首页数字同一量级(首页按键帧 UI p50:模拟器 verify 8.1 / speed 3.1 ms,
+电视 verify 11.2 / speed-profile 4.7 ms),UI 线程的结论可以直接参考;**RenderThread / GPU 的绝对值不能搬到电视上**——模拟器的 GL 走 gfxstream 编码,
+单次 `glGenTextures` 约 0.3 ms(真机是微秒级),静止页面的 RT 时间大半是 `dequeueBuffer` 等待。所以 RT 只做「编辑页对首页」「转场对页内」的相对比较,
+纹理重传次数是真实行为,单次代价在电视上小得多;反过来,离屏层的填充代价在 Mali 上比模拟器贵。
+
+## A. 设置 → 布局 → 「编辑桌面」→ 编辑页
+
+**现象**(`docs/screenshots/perf-edit/A-enter-contact.jpg`,首轮布局、未编译,标注为 mp4 pts):
+
+- 0–80 ms 胶囊按下填色;80 ms 起外壳内容淡出、预览框从布局页的小框放大到整屏(z,400 ms FastOutSlowIn),编辑页在上面淡入(`EDIT_SWAP_MS` = 400 ms,对称缓入缓出,不缩放)。
+- **约 320–380 ms 卡片是纯文字占位**(只有应用名),约 480 ms 时**一帧之内整排换成图片**,前面是一个 **102 ms 的空档**(录屏帧间隔)。
+- 焦点卡(第 1 层第 1 张)的放大 + 柔光等图片到了才开始(重定位效果要等目标格不再是占位),于是进页后第二个「跳一下」又晚 0.5 s。
+- 整段 0.9 s 里录屏帧间隔反复是 35–66 ms,没有一段连续 60 fps。
+
+**根因与证据**:
+
+1. **第一帧整页组合 + 主线程读盘**。按键帧 UI 44 ms(verify)/ 24–26 ms(speed),其中组合 22 ms、测量布局 9 ms、记录 18 ms。
+   `EditScreen.kt` 第 160 行 `var rows by remember { mutableStateOf(Layout.read(ctx)) }` 在组合阶段同步读 `/sdcard/Android/data/...`(FUSE)并持文件锁;
+   5 层、27 张卡、所有胶囊、`onGloballyPositioned` 全部在这一帧建好(铁律 1 决定了不能懒组合,但读盘可以挪走)。
+2. **图标重载 + 占位整排替换**。第 167–169 行 `produceState(... needed, revision) { Apps.load(ctx, needed, withBitmaps = needed, ...) }` 进页才开始解码。
+   首页此刻内存里正有同一批 `AppEntry`(同样的位图),却没有交给编辑页。数据到的那一帧:trace 里 UI 47.5 ms + RT 93.5 ms,然后 100 ms 没出帧。
+   模拟器 CPU 下要约 0.4 s;A95L 上(32 位 A73、刚装完未编译)只会更久,大概率是**淡入已经结束、用户已经看清文字占位之后**才整排换图。
+3. **转场期间纹理重传**(见上表):A 一次 717–762 次上传,集中在缩放 + 淡入那 0.4 s,每帧 38 张 144×144 图标 + 横幅 + 30–56 px 矢量图标缓存 + 480×270 模糊底 + 壁纸,
+   每次都是新纹理号(trace 里纹理号全不重复),页内与首页没有。`dumpsys gfxinfo`:Skia GPU 缓存预算 99.53 MB,静止的编辑页已用 84.7 MB(离屏渲染目标 76 MB / 75 个),
+   转场再多出几个整屏层就超预算、未锁定的图片纹理被淘汰。
+4. **同时活着的整屏层**:`MainActivity.kt` 第 704–723 行首页那一层(`scale` + `shape` + `clip = true` + `shadowElevation`,编辑页也在这一层里,跟着一起被缩放裁切),
+   第 795 / 838 行两个 `FadeSwitch`(首页残影整屏 alpha、编辑页整屏 alpha),外壳的 alpha 层,外加编辑页内 4 个非焦点架子的 alpha 层和每张卡两层。
+   R110 的两张壁纸缓存层在编辑页里不用(「编辑页 … 仍由首页画」),首页残影淡出时又要按非缓存路径画。
+5. 动效本身:有,时长对得上(400 ms),曲线是 R113 的对称缓入缓出;问题是帧率掉到 37–42 fps 并在 0.48 s 处多一次硬切换(占位 → 图片)。
+
+## B. 编辑页里上下移动焦点
+
+**现象**:每按一下:整页纵向位移 `shelfScroll` 200 ms FastOutSlowIn、新旧焦点层 0.62 ↔ 1 同步渐变、焦点卡 / 胶囊进焦动画;录屏 48–49 fps,
+帧间隔多在 25–37 ms 之间零星出现,没有长卡顿(> 200 ms 的空档是两次按键之间画面静止,不是卡)。
+
+**数据**:按键帧 UI p50 4.4–4.5 ms(组合 1.7 ms),动画帧 UI p50 4.5–5.9 ms;RT p50 14.5–16 ms,与首页导航(16–17 ms)相当。纹理上传 0–31 次。
+
+**根因(代码)**:
+
+- **每次焦点变化整页重组**:`holder`(第 209 行)在 EditScreen 顶层被读(`activeShelf`、`editHintSet(holder?.zone …)`),它一变整个 EditScreen 重组;
+  `shelves = shelvesFor(viewRows)` 每次重组都新建列表,`AppShelfView` 的参数里每次都有新 lambda(`onChip = { onChip(si, it) }`、`place`、`onAddTile`、`onCardClick`),
+  所以 5 层 + 全部卡片都不可跳过、每次按键都重组。模拟器上组合只占 1.7 ms,A95L 未编译时会放大数倍(首页 R111 当时就是为同一类问题把每键重组的卡从 10–11 张降到 2–6 张)。
+- **GPU 侧**:非焦点架子 `ShelfFrame` 的 `graphicsLayer { alpha = shelfAlpha(focus()) }`(`EditShelfParts.kt` 第 110 行)在 alpha < 1 时是每帧重画的离屏层,
+  每层约 2000×520 px(撑大的 60 dp 柔光边),4 层合计约 4.2 Mpx ≈ 2 个整屏;焦点层的玻璃阴影是 6 圈 `drawRoundRect` + `clipPath(Difference)`(路径裁切)。
+  焦点柔光进焦动画 1.2 s,这段时间每帧都要把这些层全画一遍。模拟器量不出 Mali 上的代价,需要在电视上做消融(修复清单第 6 条)。
+- 位移本身做得对:`offset {}` 在布局阶段读,不触发重组(R111 同一手法)。
+
+## C. 层内左右移动
+
+**现象**:6 张以内的层焦点只是在卡间换(卡不动,焦点环交叉淡化 + 新卡放大);第 1 层 10 张,走到第 6 张以后整排用 browse 弹簧(`Theme.browseShiftSpec`)横移。录屏 57–58 fps。
+
+**数据**:按键帧 UI p50 2.4–2.9 ms,动画帧 UI p50 4.2–4.6 ms,RT p50 13.7–14.9 ms(略好于首页);基本无纹理上传。
+
+**根因**:模拟器上没有超出首页的问题。代码上:每张卡挂了 `onGloballyPositioned { place(...) }`(第 888 行)与 `clipPastShelfEnd`,
+横移的弹簧每一帧都会让这一层所有卡的 `onGloballyPositioned` 回调跑一遍(写 `centers` 普通 HashMap,不引起重组),代价小;重组同 B(整页)。
+
+## D. 拿起卡片并左右 / 上下搬运
+
+**现象**(`docs/screenshots/perf-edit/D-carry-contact.jpg`):拿起有 150 ms 抬起阴影;**每搬一步,被搬的卡与邻卡在一帧内换位**,只有旧位置的焦点环在约 300 ms 里淡掉,
+看起来是「啪」地跳一格。录屏 58 fps,帧率本身没问题。
+
+**数据**:按键帧 UI p50 4.5–5.4 ms(组合 2.0–2.8 ms,略高于 B / C:每一步都改 `rows`,整页重组 + `retarget`),RT 与 B 相当。
+
+**根因**:**动效设计缺失,不是性能**。`stepCarry` 直接改 `rows`,`Row` 里的卡按新顺序重新排,没有位置过渡(铁律 1 不能用 Lazy 的 `animateItem`,需要自己按旧 / 新下标算 `offset` 动画)。
+上下搬到相邻层同样是一帧换层(整页位移有 200 ms,卡本身没有飞过去的过程)。
+
+## E. 退出编辑页回到设置「布局」
+
+**现象**(`docs/screenshots/perf-edit/E-exit-contact.jpg`):编辑页残影在缩小回预览框的那一层上淡出、外壳在周围淡入(400–500 ms)。
+整段只出 **14 帧(29 fps)**,缩放那 ~160 ms 只有 6 帧,外壳内容(页名、胶囊列)最后一帧直接出现。
+
+**数据**:动画帧 UI p50 31–41 ms、RT p50 25–28 ms / p90 54–70 ms,85–92% 的帧间隔超过 20 ms;纹理上传 520–535 次;flush layers 77–113 ms(硬件层重画)。
+
+**根因**:
+
+1. **首页整棵重建**:编辑页期间首页 `FadeSwitch(state = if (!editing) Unit else null …)` 的残影淡完就离开组合;退出时 HomeScreen 全新组合(按键帧组合 11–20 ms),
+   中途还有一帧组合 20 ms(其中 applyChanges 12.8 ms、测量布局 11.6 ms、`TextLayout` 4.8 ms)——外壳的「布局」页与首页数据一起在动画中间落地。
+2. **`leaveEdit()` 里的 `revision++`**(`MainActivity.kt` 第 1576 行)让首页的 `Apps.load`、标题等全部重读,位图重新解码、重新上传。
+3. **R110 壁纸缓存层要重画**:trace 第一帧 `drawLayer [graphicsLayer] 1920×1080` → `DrawGainmapBitmap` + 1920×1080 纹理上传,flush layers 77–113 ms——
+   两张整屏 Offscreen 层随首页重建重新生成。
+4. 叠层与纹理重传同 A。
+
+## 修复清单(按 预计收益 / 改动风险 排)
+
+| # | 改什么 | 针对 | 预计收益 | 风险 | 类别 |
+|---|---|---|---|---|---|
+| 1 | 编辑页期间**首页留在组合里**(不可见、`previewing`),退出时不重建;`leaveEdit()` 只在布局真的改过时才 `revision++` | E(及 A 的首页残影) | 高:去掉退出第一帧的整页组合、数据重读、壁纸缓存层重画 | 中:首页常驻多占内存,首页的焦点账本 / 看门狗在编辑页期间要继续让路(现有 `previewing` 机制) | 性能 |
+| 2 | 编辑页**直接用首页已加载的 `AppEntry`**(进程级缓存,同 `AppsPageCache` 的做法),进页即有图;`Layout.read` 挪出组合阶段(或也取首页那份) | A | 高:去掉文字占位 → 图片的整排硬切与 100 ms 空档,焦点放大与淡入同时开始;首帧少一次主线程 IO | 低–中:缓存失效时机(装 / 卸 / 换卡片图)要与首页一致 | 性能 + 观感 |
+| 3 | 卡片位图生成后 `setImmutable()` + `prepareToDraw()`(`Apps.drawableOf` / `shrink` 的 `createBitmap` / `createScaledBitmap` 产物) | A / E 纹理重传 | 中:位图可以被安全缓存 / 预上传;**先在电视上用 `dumpsys gfxinfo` 看 GPU 缓存预算与转场时是否同样重传**再决定 | 低 | 性能(待验证) |
+| 4 | 转场期间减少同时存在的整屏离屏层:编辑页淡入改成只淡底色 / 内容不进整屏 alpha 层(或转场那几百毫秒把架子 0.62 改为直接按颜色 alpha 画、不开离屏层) | A / E | 中–高(Mali 上渲染目标切换贵) | 中:R129f 那类「离屏层裁掉柔光」的观感回归要逐项比对截图 | 性能 |
+| 5 | 焦点变化不再整页重组:`holder` / `activeShelf` 改成只在用到的子树读(派生状态 / lambda 传入),`shelves` 用 `remember`,给 `AppShelfView` 的回调做稳定化 | B / C / D 按键帧 UI | 中(未编译时更明显) | 低–中:焦点账本的读写点不变,只是读的位置下沉 | 性能 |
+| 6 | 在电视上做一次 4× 重绘消融(方法同 2026-09-28 报告):去掉非焦点架子 alpha 层 / 卡片 R49+R86 双层 / 架子阴影的 `clipPath` 各量一次 | B / C / D 的 GPU 余量 | 决定 #4、#7 值不值得做 | 无(临时构建) | 测量 |
+| 7 | 非焦点架子的「暗」改成颜色层面的 alpha(底、边、卡片 alpha 乘系数),去掉整层离屏;架子阴影改为预渲染的九宫格位图 | B / C / D GPU | 视 #6 结果 | 中:要逐像素对比 0.62 的观感 | 性能 |
+| 8 | **拿起搬运补位置过渡**:被搬的卡与邻卡按旧 → 新下标做 `offset` 动画(150–200 ms,同 browse 弹簧),跨层时卡片从原位置飞到新层 | D | 高(观感上「一跳一跳」的主要来源) | 低–中:焦点账本不动,只是绘制位移;注意 `centers` 用的是布局位置 | **动效设计缺失** |
+| 9 | 进页时焦点卡的放大与卡片淡入同时开始(依赖 #2),不要等数据到了才第二次「跳」 | A | 中 | 低 | **动效设计缺失** |
+| 10 | 安装后的编译:给应用生成真正覆盖首页 / 编辑页 / 设置的 baseline profile,并在自我更新的会话里带 `.dm`(`PackageInstaller.Session` 写入 `base.dm`)或在装好后提示;至少让 Gordon 知道新 Beta 装完当天是未编译状态 | 所有按键帧 | 中(按键帧 UI 约 2–2.5 倍) | 中:Android 14 首版 ART 对 `.dm` 的支持要先在电视上验证 | 性能 |
+
+## 会话安装后的编译状态(实测记录)
+
+| 步骤 | `dumpsys package dexopt` |
+|---|---|
+| `adb install`(首装) | `status=verify` `reason=install` |
+| 应用内手机传 APK → `SelfUpdate` 会话安装(`installerPackageName=com.uniteduone.launcher`,`packageSource=0`) | ArtService:`actualCompilerFilter=verify`,`status=verify` `reason=install`(dex2oat 1.4 s,只做校验) |
+| 启动后 | logcat `ProfileInstaller: Installing profile for com.uniteduone.launcher`(写当前画像,不编译) |
+| `cmd package compile -m speed -f` | 读回 `status=speed-profile` `reason=cmdline` |
+
+系统属性:`pm.dexopt.install=speed-profile`、`pm.dexopt.bg-dexopt=speed-profile`;安装时没有可用画像,所以退化成 verify。APK 里的
+`assets/dexopt/baseline.prof`(3954 字节)+ `baseline.profm` 来自 androidx 依赖,本仓库没有 `baseline-prof.txt`。
+
+## 没做到 / 局限
+
+- 全部在模拟器上量:RT / GPU 的绝对值不代表 A95L(见「模拟器数字怎么读」)。纹理重传的机制(缓存预算被挤爆)是推断,依据是缓存用量与重传只在转场出现;
+  电视上的 HWUI 缓存预算按显示模式算,4K 面板上可能更宽,要用 `dumpsys gfxinfo com.uniteduone.launcher`(只读,不按键)看 `Max resource usage` 与 `GPU Caches`。
+- 没有 Compose 逐个组件的重组计数(release 构建没开 composition tracing),B / C / D「整页重组」是按代码推出来的,数值依据是 trace 里 `Recomposer:recompose` 的时长。
+- 模拟器 `unitedu-tv-2` 收尾:占位应用已全部卸载、模拟器已关;装着本分支的 1.2.0-beta.1(原来是一个 versionCode 100 的 1.0.3 测试包)、HOME 角色设为 UnitedU、
+  `REQUEST_INSTALL_PACKAGES` / `SYSTEM_ALERT_WINDOW` 两个 appop 为 allow,`/sdcard` 根目录留了几段测试录屏(`*.mp4`),下次用前可清。

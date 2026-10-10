@@ -2083,3 +2083,9 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 发 Beta:versionCode 8 / `1.2.0-beta.1`;回退包 = v1.1.0 源码、versionCode 9。GitHub prerelease `v1.2.0-beta.1` + `channel-beta` 附件,R2 写了 beta.json / rollback.json 与两个 APK,latest.json 仍是 1.1.0(7)、GitHub releases/latest 仍指 v1.1.0。线上 APK 的 sha256 与 beta.json 一致。
 - 推上 origin 的只有 tag `v1.2.0-beta.1`(连带这条分支的提交);分支本身未推、未合 main。
 - 待办:Gordon 在 A95L 上切 Beta 通道「检查更新」实测(流畅度、国行真实频道数据、切回稳定拿到回退包 9)。
+
+## 2026-10-10 · 1.2.0-beta.1 电视反馈:编辑桌面卡顿诊断、国行频道调研
+
+- Gordon 实测:Beta → 稳定(装上回退包 9)→ 再切 Beta 收不到 8。机制:Android 禁止降级,Beta 通道取 max(latest 7, beta 8) = 8 < 已装 9,要等下一个 Beta(versionCode 10)。待办:这一状态下关于页文案说明「下一个 Beta 发布后会收到」,随 beta.2 发。
+- 编辑桌面「一卡一卡」:模拟器诊断报告 `docs/design/perf-2026-10-10-edit-page.md`。主因在进 / 出编辑页两段转场(进页 37–42 fps、退出 29 fps:组合期读盘 + 重复解码图、首页离开组合后退出整棵重建 + `revision++` 全量重读、转场期整屏离屏层多导致纹理反复上传);页内按键帧正常,但拿起搬运与进页焦点放大缺动效。另实测:自我更新会话装完是 `verify`(未编译),本应用没有自己的 baseline profile。
+- 国行应用频道调研 `docs/research/2026-10-10-cn-apps-tv-channels.md`:小电视写的是播放历史前 20 条、只在首页按返回退出时刷新,所以停在几个月前;极光 / 酷喵写服务端推荐,央视频只有索尼构建写。选频道页文案要写明「内容与更新由应用决定」。
