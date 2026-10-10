@@ -261,7 +261,7 @@ data class PreviewMotion(
 fun previewMotion(shown: Boolean, preview: Boolean, fresh: Boolean, vNow: Float): PreviewMotion = when {
     !shown -> PreviewMotion(zTarget = 0f, zMs = GtvLayout.SETTINGS_FADE_OUT_MS)
     // 编辑页回来(外壳重新打开、落在有预览的页):R136 起首页当场落在预览框里——整屏缩进去会先露一帧整屏亮壁纸。
-    // R147 起那一层上还盖着编辑页的残影(MainActivity 首页 / 编辑页各一个 FadeSwitch),一开始整屏仍是深色的编辑页,
+    // R147 起那一层上还盖着编辑页的残影(R167 起首页常驻、只有编辑页一个 FadeSwitch),一开始整屏仍是深色的编辑页,
     // 整层从整屏缩回预览框、编辑页在缩小的框里淡出:亮壁纸只在越来越小的框里渐渐露出来,不闪;z 从现在的值(整屏 = 0)动过去
     fresh && preview -> PreviewMotion(vSnap = 1f, zTarget = 1f, zMs = GtvLayout.SETTINGS_FADE_IN_MS)
     fresh -> PreviewMotion(vSnap = 0f, zSnapFirst = 0f)

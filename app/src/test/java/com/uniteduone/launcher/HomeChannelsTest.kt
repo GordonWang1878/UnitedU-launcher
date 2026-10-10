@@ -98,4 +98,19 @@ class HomeChannelsTest {
         assertEquals(1 to 2, want)
         assertEquals("行变短夹到第 3 张后,目标列就是 2(上下键同列落点从这里算)", 1 to 2, homeLandingTarget(after, want, true, true, false))
     }
+
+    // 删行后 layout.json 下标整体前移:原第 3 行(layoutRow 3)变成 layoutRow 2。
+    private val afterDelete = listOf(appRow(0, "a", "b"), appRow(1, "c"), appRow(2, "d"))
+
+    /** R167:编辑页里删掉了首页焦点所在的中间那一行(原 layoutRow 2):补位的是下一行(下标前移后同为 2),列夹到它的格数(Review Focus 4) */
+    @Test fun deletedMiddleTargetRowAfterEditLandsOnNextRow() =
+        assertEquals(2 to 0, homeTargetCell(afterDelete, tgtLayoutRow = 2, tgtCol = 3))
+
+    /** R167:删掉的是最后一行(原 layoutRow 3,已不存在):落到现在的最后一行 */
+    @Test fun deletedLastTargetRowAfterEditLandsOnLastRow() =
+        assertEquals(2 to 0, homeTargetCell(afterDelete, tgtLayoutRow = 3, tgtCol = 1))
+
+    /** R167:R161 空桌面进的编辑页(目标是按钮的负行号)加了应用回来:落第一行第一张 */
+    @Test fun emptyDesktopTargetLandsOnFirstCardAfterEdit() =
+        assertEquals(0 to 0, homeTargetCell(listOf(appRow(0, "a")), tgtLayoutRow = EMPTY_EDIT_ROW, tgtCol = 0))
 }

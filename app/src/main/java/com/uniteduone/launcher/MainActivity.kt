@@ -14,6 +14,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
@@ -116,6 +117,16 @@ class MainActivity : ComponentActivity() {
     private var selfTriggeredRecreate = false
     /** 换过图/改过布局后 +1,用来强制界面重新读取 */
     private var revision by mutableStateOf(0)
+    /**
+     * R167:编辑页写盘落地一次 +1。只喂首页([HomeScreen] 的 layoutRevision),首页在编辑页底下按新 layout.json 重读;
+     * **不碰 revision**——那会让编辑页自己、壁纸 / 主题色、氛围底、应用页缓存跟着全部重读(报告 E 的根因 2)。
+     */
+    private var layoutRevision by mutableStateOf(0)
+    /**
+     * R167 复审 3:真正喂给首页的那一份 [layoutRevision]。编辑页开着时去抖 600 ms 才跟上(放下的抬起动画里不让底下的首页
+     * 整页重组,模拟器 W 段实测放下后约 170 ms 那一下 34 ms 的重组);编辑页一关当场追上(见 setContent 里的效果与 [leaveEdit])。
+     */
+    private var homeLayoutRevision by mutableStateOf(0)
     /**
      * R164:频道数据的版本号——TvProvider 有变化(ContentObserver,500 ms 去抖)、授权结果回来、onResume 时 ++。
      * 只重读频道内容,不重读 layout.json 与应用横幅(那是 [revision] 的事,spec §3.3)。
@@ -500,8 +511,8 @@ class MainActivity : ComponentActivity() {
             // 于是选择器叠在设置页之上(`covered = pickerTarget != null`),关掉后焦点由设置页接回同一行。
             val settingsActions = remember {
                 SettingsActions(
-                    // R69:外壳「布局 → 编辑分栏」。外壳的栈留着:编辑页开着时外壳不在组合里,退出编辑页后
-                    // 外壳按栈重建、焦点落回「编辑分栏」那颗胶囊。
+                    // R69:外壳「布局 → 编辑分栏」。外壳的栈留着:编辑页开着时外壳以残影语义留在组合里(R167),退出编辑页后
+                    // 同一份组合变回活的、焦点落回「编辑分栏」那颗胶囊。
                     openEdit = { enterEdit() },
                     pickWallpaper = { pickWallpaper() },
                     openImport = { openImport() },
@@ -533,6 +544,13 @@ class MainActivity : ComponentActivity() {
             // 这里不能显式写 Settings 类型名,本文件已经 `import android.provider.Settings`,
             // 裸写 Settings 会撞上那个系统类;靠类型推断绕开,只取用到的字段(showDate)。
             val homeSaved = remember(revision, settingsRevision) { SettingsStore.read(this@MainActivity) }
+            // R167 复审 3:只在编辑页开着时去抖(放下的抬起动画里不让底下的首页整页重组);编辑页一关,
+            // editing 进了 key、效果当场重跑、不等——退出后才落地的写盘(Review Focus 5,NonCancellable)也立即追上。
+            // 没有 return 守卫,读到的 editing 本身就是 key(铁律 6);不是闩,每次两个量变化都重新比(铁律 7)。
+            LaunchedEffect(layoutRevision, editing) {
+                if (editing) delay(600)
+                homeLayoutRevision = layoutRevision
+            }
             // **R71 实时预览**:外壳的选项层里光标停在哪一档,首页 / 主题色 / 卡片淡化就按那一档画——不落盘
             // (纯函数 effectiveSettings;返回键弹栈后自然回到已保存值,确定键落盘后 homeSaved 本身就变成这一档)。
             // 外壳关着 / 不在带预览的选项层时就是 homeSaved。
@@ -568,9 +586,9 @@ class MainActivity : ComponentActivity() {
             }
             // **Ruling R35**:首页整页位移的每帧动画值(HomeScreen.onPageShift 上报)。壁纸层住在这一层、
             // 不在首页被位移的 Column 里(刻意的:进出编辑页不重解 1920×1080、不闪黑),要让它跟着行走
-            // 同一根曲线,只能把动画值举到这里再喂给 Wallpaper。编辑页替换首页时首页不在组合里、没人
-            // 上报,这里归 0——编辑页本来就该看到完整壁纸(静止态)。
-            // R111:首页交上来的位移动画 State(不再是每帧组合后报一次的值);null = 首页不在组合里(编辑页),按 0 算。
+            // 同一根曲线,只能把动画值举到这里再喂给 Wallpaper。R167 起编辑页期间首页照常上报
+            // (被编辑页的不透明底盖住,不影响画面)。
+            // R111:首页交上来的位移动画 State(不再是每帧组合后报一次的值);null = 首页还没上报过(R167 起编辑页期间首页也在组合里),按 0 算。
             var pageShiftState by remember { mutableStateOf<androidx.compose.runtime.State<androidx.compose.ui.unit.Dp>?>(null) }
             // R110:壁纸缓存图层与首页之间「渐变这一帧归谁画」的共享状态(见 HomeBackdropBridge)。
             val backdrop = remember { HomeBackdropBridge() }
@@ -692,7 +710,7 @@ class MainActivity : ComponentActivity() {
                     .background(androidx.compose.ui.graphics.Color.Black)
             ) {
             val pt = pickerTarget
-            // **设置页外壳**(R69)。编辑页开着时外壳不在组合里(编辑页独占整屏;外壳的栈留着,退出编辑页后按栈重建)。
+            // **设置页外壳**(R69)。编辑页开着时外壳以残影语义留在组合里(R167;编辑页独占整屏,外壳不可聚焦、不画;退出编辑页后同一份组合变回活的)。
             val shellShown = shellStack.isNotEmpty() && !editing
             val shellPreview = shellShown && pageHasPreview(shellStack.last().page)
             // **R108 淡入淡出**:底色、首页那一层(透明 / 缩进预览框)、外壳内容三样一起动,由 ShellMotion 的 a / v / z
@@ -791,23 +809,22 @@ class MainActivity : ComponentActivity() {
             // 代价:底下那棵树继续被组合,所以它必须彻底让路 —— `previewing = overlayOpen`
             // 让首页不可聚焦、不收按键、冻结焦点记忆(见 HomeScreen.previewing 的 KDoc)。
             //
-            // 唯一的例外:**编辑页仍然独占那一层** —— 它是首页的编辑态(同一批卡片的另一种摆法),
-            // 不是盖在首页上的浮层。
-            // **R147(2026-09-30 Gordon:「弹出的动效卡断,突兀,很廉价;退出时……直接跳回」)**:首页 ↔ 编辑页不再在同一帧硬换。
-            // 两份各包一个 FadeSwitch:打开时编辑页在放大的预览框里淡入、首页残影在它底下淡出(z 的放大照旧是外壳关掉那一轮);
-            // 退出时新的一份首页当场在底下、编辑页残影盖在上面淡出,同时整层从整屏缩回预览框(previewMotion 的 fresh && preview)。
-            // 残影照 LocalPageGhost 让路:首页残影 previewing(不可聚焦、不收键、看门狗让路),编辑页残影见 EditScreen 的 ghost(R138)。
-            // 编辑页画在首页之后:两种方向上盖在上面的都是编辑页(淡入的新页 / 淡出的残影)。
-            FadeSwitch(
-                state = if (!editing) Unit else null,
-                enterMs = 0,
-                exitMs = GtvLayout.EDIT_SWAP_MS,
-                scaleFrom = 1f,
+            // R167 起编辑页也不例外:首页留在组合里,编辑页盖在上面。
+            // **R167(报告 perf-2026-10-10 #1)**:编辑页开着时首页**也留在组合里**,不再包 FadeSwitch、不再有残影:
+            // previewing 让路(不可聚焦、不收键、看门狗与还原效果让路、目标冻结——与选择器 / 设置外壳同一套),退出编辑页时不重建、不重读。
+            // 编辑页在它上面淡入 / 残影淡出,盖在上面的永远是编辑页。R147 的「首页残影在底下淡出」随之取消:首页始终不透明,
+            // 编辑页的淡入就是一次标准的交叉淡化(少一个整屏离屏层,报告 #4)。
+            // 编辑页开着时首页整棵退出无障碍树(clearAndSetSemantics):它被编辑页的不透明底整个盖住,TalkBack 不该念它;
+            // 不清的话 Compose 的「未被遮挡区域」裁剪会把它的节点叠进编辑页的节点框里(模拟器 uiautomator 实测:编辑页胶囊的框被裁成 20 px、
+            // 首页的卡片名混进编辑页的读数)。只动语义,不碰焦点(首页此时本就 previewing、不可聚焦)。
+            Box(
+                Modifier.fillMaxSize().then(if (editing) Modifier.clearAndSetSemantics {} else Modifier),
+                propagateMinConstraints = true,
             ) {
                 HomeScreen(
-                    // 残影(进编辑页那 EDIT_SWAP_MS)也当作被盖住:不可聚焦、不收键、看门狗让路
-                    previewing = overlayOpen || LocalPageGhost.current,
-                    // R161:空桌面的「编辑桌面」按钮。外壳栈是空的,退出编辑页直接回首页。
+                    // R167:编辑页开着时也当作被盖住:不可聚焦、不收键、看门狗与还原效果让路、目标冻结
+                    previewing = overlayOpen || editing,
+                    // R161:空桌面的「编辑桌面」按钮。外壳栈是空的,退出编辑页直接回首页、按冻结的目标还原。
                     onEditHome = ::enterEdit,
                     idle = idle,
                     screensaver = screensaverActive,
@@ -820,6 +837,7 @@ class MainActivity : ComponentActivity() {
                     onInputs = ::openInputs,
                     focusNonce = focusNonce,
                     revision = revision,
+                    layoutRevision = homeLayoutRevision,
                     showDate = homeSettings.showDate,
                     showWeekday = homeSettings.showWeekday,
                     cardsPerRow = homeSettings.cardsPerRow,
@@ -871,6 +889,7 @@ class MainActivity : ComponentActivity() {
                         // 它自己收菜单、把焦点放回这张卡。
                         onPickIcon = { row, pkg -> pickIcon(pkg).also { if (it) { editTarget = row to pkg; editSeedRows = null } } },
                         onExit = ::leaveEdit,
+                        onLayoutWritten = { layoutRevision++ },
                         focusNonce = focusNonce,
                         revision = revision,
                         // R165:卡片固定中档、不画标题;模糊底按当前壁纸算
@@ -892,20 +911,25 @@ class MainActivity : ComponentActivity() {
             // LocalPageGhost 让它不可聚焦、不收返回键,回调一律不接(见 SettingsFade.kt)。
             val shellLast = remember { arrayOf<List<ShellFrame>>(emptyList()) }
             if (shellShown) shellLast[0] = shellStack
-            if (shellVisible && shellLast[0].isNotEmpty()) {
+            // R167:编辑页开着时外壳也留在组合里(透明度随 shellMotion.a 走到 0,残影语义让路),退出编辑页时同一份组合变回活的,
+            // 「布局」页不在动画中间重新组合落地(报告 E 的根因 1)。
+            val shellKept = editing && shellStack.isNotEmpty()
+            if ((shellVisible || shellKept) && shellLast[0].isNotEmpty()) {
                 val live = shellShown
                 // R147:这一份(活着的或残影)停在有预览的页时,外壳内容的不透明度还要乘 [shellContentZoomAlpha]——
                 // 预览框放大到整屏(进编辑页、从预览页直接关掉)或从整屏缩回来(编辑页回来)的途中,框会盖过页名和胶囊列,
                 // 两套界面叠在一起(模拟器 1× 录像:「布局」与「编辑桌面」两个标题、胶囊字压在编辑页的卡片上约 300 ms)。
                 val contentPreview = pageHasPreview((if (live) shellStack else shellLast[0]).last().page)
                 // R113:外壳内容淡入同时从 SETTINGS_ENTER_SCALE 放大到 1(底色、首页 / 预览那一层不缩放)
+                // R167:编辑页开着时外壳整棵退出无障碍树——它叠在编辑页之上(透明度 0),不清的话它的胶囊节点会把编辑页
+                // 胶囊的节点框裁掉(模拟器 uiautomator 实测:「换图标」「下移」被裁成 20 px 高、读不到字)。只动语义,不碰焦点。
                 Box(
                     Modifier.fillMaxSize().graphicsLayer {
                         val t = shellMotion.a.value
                         alpha = if (contentPreview) t * shellContentZoomAlpha(shellMotion.zNow) else t
                         val sc = GtvLayout.SETTINGS_ENTER_SCALE + (1f - GtvLayout.SETTINGS_ENTER_SCALE) * t
                         scaleX = sc; scaleY = sc
-                    },
+                    }.then(if (editing) Modifier.clearAndSetSemantics {} else Modifier),
                 ) {
                     CompositionLocalProvider(LocalPageGhost provides !live) {
                         SettingsShell(
@@ -1596,9 +1620,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * R167:不再 `revision++`。编辑页只改 layout.json,首页早已随每次写盘([layoutRevision])在底下重读好;换卡片图那条路
+     * 自己会 revision++。首页与外壳都留在组合里,退出时不重建(报告 #1)。
+     */
     private fun leaveEdit() {
         editEnterSeq++
-        if (editing) { editing = false; revision++; editTarget = null; editSeedRows = null }
+        if (editing) { editing = false; editTarget = null; editSeedRows = null }
+        // 退出那一帧就让首页按最新写盘重读,不等去抖效果下一帧重跑
+        homeLayoutRevision = layoutRevision
     }
 
     /**

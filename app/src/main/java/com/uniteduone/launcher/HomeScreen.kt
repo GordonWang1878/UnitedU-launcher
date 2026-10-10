@@ -85,6 +85,9 @@ internal fun HomeScreen(
     onEditHome: () -> Unit = {},
     focusNonce: Int,
     revision: Int = 0,
+    /** R167:编辑页写盘落地一次 +1(MainActivity.layoutRevision)。首页在编辑页底下(留在组合里、不画)按新 layout.json 重读;
+     *  卡片数据经 [AppEntryCache] 按 revision 复用,不重新解码。与 [revision] 一起决定数据新不新鲜。 */
+    layoutRevision: Int = 0,
     showDate: Boolean = true,
     /** R149:时钟的日期前面带不带星期。 */
     showWeekday: Boolean = false,
@@ -174,14 +177,15 @@ internal fun HomeScreen(
     // 新数据到达前**旧画面原样留着**——不会像 key(revision) 那样先黑一下再重建。
     // titles.json 与 rows 同一趟 IO 读出,配成一对:标题开关关着时 titles 仍会被读到但不渲染
     // (显示与否只由 showTitles 决定,不进 key——开关切换不必重读数据,只是换一种渲不渲染)。
-    // 「手上这份数据是为哪个 revision 算的」。**移除 / 卸载后焦点能不能留在同一行,全靠它**:
+    // 「手上这份数据是为哪一对 (revision, layoutRevision) 算的」(R167 起编辑页写盘也触发重读)。**移除 / 卸载后焦点能不能留在同一行,全靠它**:
     // revision++ 之后新的行数据要过几百毫秒才到,数据落地的那一帧焦点卡的节点被销毁,
     // Compose 会立刻把焦点塞给整棵树第一个可聚焦节点 (0,0) —— 那次上报若不冻结就会把
     // tgtLayoutRow/tgtCol 改写成 0,记忆在被用到之前就没了(铁律 5),焦点静默跳到第一行。
     // 与 EditScreen 的 allFresh 同构:数据不新鲜时冻结目标,新鲜之后再由还原效果送回去。
-    var loadedRevision by remember { mutableStateOf(-1) }
+    var loadedKey by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     // ~~「新应用」计数~~(R157 随首页的「有 N 个新应用」提示一起删掉;「添加应用」列表里的「新」标记照旧,见 AppPicker)。
-    val loaded by produceState<Pair<List<Row>, Map<String, String>>?>(initialValue = null, ctx, revision) {
+    val loaded by produceState<Pair<List<Row>, Map<String, String>>?>(initialValue = null, ctx, revision, layoutRevision) {
+        val key = revision to layoutRevision
         value = withContext(Dispatchers.IO) {
             val rows = runCatching { buildRows(ctx, revision) }.getOrDefault(emptyList())
             val titles = runCatching { Titles.read(ctx) }.getOrDefault(emptyMap())
@@ -189,7 +193,7 @@ internal fun HomeScreen(
         }
         // **紧跟在 value 之后、同一次恢复里写**:中间没有挂起点,两次快照写入会被同一帧的
         // 重组一起看到,不会出现「新数据已到但还标着不新鲜」的中间态。
-        loadedRevision = revision
+        loadedKey = key
     }
     var restoring by remember { mutableStateOf(false) }
     val titles = loaded?.second.orEmpty()
@@ -215,8 +219,8 @@ internal fun HomeScreen(
             }
         }
     }
-    /** 数据还没跟上当前 revision(重读在途)。冻结目标用,见 loadedRevision 的注释。 */
-    val stale = loadedRevision != revision
+    /** 数据还没跟上当前 revision / layoutRevision(重读在途)。冻结目标用,见 loadedKey 的注释。 */
+    val stale = loadedKey != (revision to layoutRevision)
     /** 上一次组合画出来的行。普通引用、不是快照状态:只在下面 `rows` 的第二支里读,而那一支的两个条件翻转本身就会触发重组。 */
     val onScreen = remember { arrayOf<List<Row>>(emptyList()) }
     val rows = when {
@@ -258,7 +262,7 @@ internal fun HomeScreen(
      * 所以一个 [tgtCol] 就够(原来的 tgtIdx 每行一格,实际只读过 `tgtIdx[tgtRow]`)。
      * 已知边界:发布方被卸载、它的频道行从 layout.json 删掉时,下面各行的 layoutRow 会少 1;那一刻目标落到同一 layout 下标上
      * 的那一行(卸载是罕见操作,且焦点仍在首页、不丢)。
-     * 这棵树只在冷启动 / 进出编辑页时才重建,那两条路本来就该落在第一张卡(-1 → 第一行);M7 T4 起记忆由 [previewing]
+     * 这棵树只在冷启动时重建(R167 起编辑页开着时也留在组合里,回来按冻结的目标还原),冷启动本来就该落在第一张卡(-1 → 第一行);M7 T4 起记忆由 [previewing]
      * 的冻结保住,不再有种子(少一份状态,就少一条会过期的路,铁律 7)。
      */
     var tgtLayoutRow by remember { mutableStateOf(-1) }
@@ -457,7 +461,7 @@ internal fun HomeScreen(
     // 而那一刻不在任何一张「猜得到的时刻」清单里,遥控器就此全死、按 HOME 也回不来。
     /**
      * 最近一次已经写进目标格的落点(按对象身份比对)。初值取**本页创建那一刻**已有的落点:那是上一个首页实例的,
-     * 这一个不该再应用它(首页只在冷启动 / 进出编辑页时重建,那两条路本来就该落在第一张卡)。
+     * 这一个不该再应用它(首页只在冷启动时重建,冷启动本来就该落在第一张卡)。
      * 不是闩(铁律 7):每次移动态结束 MainActivity 都给一个新对象,比对自然不成立,不需要任何人清。
      */
     var appliedLanding by remember { mutableStateOf(moveLanding) }
