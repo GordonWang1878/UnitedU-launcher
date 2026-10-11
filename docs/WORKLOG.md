@@ -2244,3 +2244,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 
 - R167 第 9 项(Beta 通道装着回退包时关于页说明「下一个 Beta 发布后可装」)撤回:另一会话里 Gordon 2026-10-10 已定**保持现状、不加提示**(见上文「回退后无法立即重进同一 Beta」一节),本分支只是晚一步没看到。撤的是 `AboutScreen` / `Update` / `UpdateChannels` 的改动、三语字符串、两处单测与 `channels.sh` 场景 3c;`channels.sh` 的 `build_one` 版本名替换修复保留。
 - 期间 main 发了稳定版 1.1.1(versionCode 10,关于页许可收成一行、各段定高),本分支变基并入;beta.2 取 versionCode 11,回退包 = v1.1.1 源码、versionCode 12。
+- 已发:GitHub prerelease `v1.2.0-beta.2` + `channel-beta`(回退包 `unitedu-1.1.1-rollback-12.apk`),R2 beta.json = 11 / rollback.json = 12,latest.json 仍是 1.1.1(10)、releases/latest 仍指 v1.1.1;线上 APK sha256 与 beta.json 一致。待 Gordon 在 A95L Beta 通道实测编辑桌面手感(退出停顿、拿起卡片、次日预编译后的手感)。
