@@ -2245,3 +2245,9 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - R167 第 9 项(Beta 通道装着回退包时关于页说明「下一个 Beta 发布后可装」)撤回:另一会话里 Gordon 2026-10-10 已定**保持现状、不加提示**(见上文「回退后无法立即重进同一 Beta」一节),本分支只是晚一步没看到。撤的是 `AboutScreen` / `Update` / `UpdateChannels` 的改动、三语字符串、两处单测与 `channels.sh` 场景 3c;`channels.sh` 的 `build_one` 版本名替换修复保留。
 - 期间 main 发了稳定版 1.1.1(versionCode 10,关于页许可收成一行、各段定高),本分支变基并入;beta.2 取 versionCode 11,回退包 = v1.1.1 源码、versionCode 12。
 - 已发:GitHub prerelease `v1.2.0-beta.2` + `channel-beta`(回退包 `unitedu-1.1.1-rollback-12.apk`),R2 beta.json = 11 / rollback.json = 12,latest.json 仍是 1.1.1(10)、releases/latest 仍指 v1.1.1;线上 APK sha256 与 beta.json 一致。待 Gordon 在 A95L Beta 通道实测编辑桌面手感(退出停顿、拿起卡片、次日预编译后的手感)。
+
+## 2026-10-11 · 编辑页动画放慢一点(R168),发 1.2.0-beta.3
+
+- Gordon 电视实测 beta.2:编辑桌面连贯不卡了,但想慢一点点。选卡定:换层 / 移卡 + 进出编辑页,约 1.25 倍;拿起 / 放下不动。
+- `SHIFT_MS` 200 → 250(与首页换行同长);`EDIT_SWAP_MS` 400 → 500,并让进页时预览框放大跟它走(原来跟 `SETTINGS_FADE_OUT_MS` 400,脱钩后用 `previewMotion(toEdit)`);退出缩回原本就是 500,现在进出对称。新增单测一条。
+- 发 1.2.0-beta.3(versionCode 13,回退包 14 = v1.1.1)。下次 Beta 从 15 起。待电视上看快慢是否合适。

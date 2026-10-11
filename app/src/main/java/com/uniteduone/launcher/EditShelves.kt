@@ -312,8 +312,9 @@ internal object ShelfLayout {
     const val ARROW_GAP = 12f
     const val ARROW_SIZE = 5f
     const val CARRY_SHADOW = 12f
-    /** 换层(架子亮度 + 整页位移)200 ms、拿起 / 放下 150 ms,曲线 FastOutSlowIn(spec §2.5)。 */
-    const val SHIFT_MS = 200
+    /** 换层(架子亮度 + 整页位移、行内横移、搬运滑动)250 ms、拿起 / 放下 150 ms,曲线 FastOutSlowIn(spec §2.5)。
+     *  R168(2026-10-11 Gordon:「可不可改慢一点点」)200 → 250,与首页的 [GtvLayout.BROWSE_SHIFT_MS] 同长。 */
+    const val SHIFT_MS = 250
     const val LIFT_MS = 150
     /** R167:从相邻架子搬进来的卡从来的方向滑入这么远(dp)——上限;非焦点架子仍是离屏层时由 [carryArriveDp] 收短(R129f)。 */
     const val CARRY_ARRIVE_DP = 40f

@@ -731,7 +731,7 @@ class MainActivity : ComponentActivity() {
             val shellPreview = shellShown && pageHasPreview(shellStack.last().page)
             // **R108 淡入淡出**:底色、首页那一层(透明 / 缩进预览框)、外壳内容三样一起动,由 ShellMotion 的 a / v / z
             // 三个量驱动(见 SettingsFade.kt 的推导);逻辑状态(shellStack)照旧当场变,画面另外淡出。
-            val shellMotion = rememberShellMotion(shellShown, shellPreview)
+            val shellMotion = rememberShellMotion(shellShown, shellPreview, toEdit = editing)
             val shellVisible = rememberShellVisible(shellMotion, shellShown)
             // 外壳的底色铺在首页那一层**之下**(R73):外壳内容透明,有预览的页里预览框之外露出的就是这块 MenuBg,
             // 预览框里是缩小进去的真首页;没有预览的页首页那一层整层透明,只剩这块底色。
