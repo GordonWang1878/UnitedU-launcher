@@ -2262,3 +2262,5 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 
 - 本分支 merge main(977bb81):带进「更新说明按界面语言只显示一种」(30176ef);WORKLOG 两边各追加一节,冲突按两节都留解决。
 - 发 1.2.0-beta.4(versionCode 15,回退包 16 = v1.1.1)。下次 Beta 从 17 起。按语言显示要从 beta.4 起再看下一次更新提示才看得到(beta.3 上看到的 beta.4 说明仍是两行)。
+- 电视验收(beta.4):Gordon「看过了,可以了」——R168 快慢定稿。
+- 同时 Gordon 问:频道里为什么没有 YouTube 和 Netflix。代码侧已查:两者清单里都有导出、不带权限的 `INITIALIZE_PROGRAMS` 接收器(APKMirror 包 aapt2 实测:Netflix `.InitializeProgramsReceiver`;YouTube 7.24.300 也有),`ChannelInit` 按接收器逐个显式发送并带 `FLAG_INCLUDE_STOPPED_PACKAGES`,发送路径没看出问题。剩下两种可能要在电视上分辨:① 应用收到了但自己决定不写频道;② 写了但 `searchable = 0`(无 `ACCESS_ALL_EPG_DATA` 的读者看不到)。当时电视不在线(`Host is down`),未实测。
