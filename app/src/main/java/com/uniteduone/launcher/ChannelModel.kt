@@ -233,6 +233,16 @@ internal fun snapshotFrom(
     return ChannelSnapshot(true, all, progs, all.map { it.pkg }.distinct().associateWith(labelOf))
 }
 
+/**
+ * 行头 / 选频道页的标题「应用名 · 频道名」;频道名为空或与应用名相同(忽略空白与大小写)时只写一个——
+ * 央视频 TV 把频道也叫「央视频TV」,原样拼成「央视频TV · 央视频TV」(Gordon 2026-10-11 电视上看到)。
+ * [join] 是 `channel_row_title` 的格式化,模型层不认识 Context。
+ */
+internal fun channelTitle(appLabel: String, name: String, join: (String, String) -> String): String {
+    fun norm(s: String) = s.filterNot { it.isWhitespace() }.lowercase()
+    return if (name.isBlank() || norm(name) == norm(appLabel)) appLabel else join(appLabel, name)
+}
+
 /** 选频道页的一项:频道 + 发布方应用名(显示「应用名 · 频道名」)。 */
 internal data class ChannelCandidate(val channel: TvChannel, val appLabel: String)
 

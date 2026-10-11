@@ -538,7 +538,9 @@ internal fun ChannelShelfView(
             // 标题在这一段里 fill = false,短标题时小标签紧跟在它后面
             Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                 BasicText(
-                    stringResource(R.string.channel_row_title, shelf.appLabel, shelf.ref.name),
+                    stringResource(R.string.channel_row_title, shelf.appLabel, shelf.ref.name).let { joined ->
+                        channelTitle(shelf.appLabel, shelf.ref.name) { _, _ -> joined }
+                    },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = Type.body.copy(color = Ink.Label),

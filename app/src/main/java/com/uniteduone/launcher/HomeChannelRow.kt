@@ -77,7 +77,7 @@ internal fun ChannelRow(
     val ctx = LocalContext.current
     val showToast = LocalToast.current
     val appLabel = row.channelAppLabel.ifBlank { ref.pkg }
-    val title = stringResource(R.string.channel_row_title, appLabel, ref.name)
+    val title = channelTitle(appLabel, ref.name) { a, n -> ctx.getString(R.string.channel_row_title, a, n) }
     val formats = MetaFormats(
         seasonEpisode = stringResource(R.string.channel_meta_season_episode),
         episode = stringResource(R.string.channel_meta_episode),

@@ -212,7 +212,7 @@ internal fun ChannelPicker(
                             PickerRow(
                                 app = AppEntry(
                                     packageName = c.channel.pkg,
-                                    label = ctx.getString(R.string.channel_row_title, c.appLabel, c.channel.name),
+                                    label = channelTitle(c.appLabel, c.channel.name) { a, n -> ctx.getString(R.string.channel_row_title, a, n) },
                                     card = null,
                                     isWide = false,
                                 ),

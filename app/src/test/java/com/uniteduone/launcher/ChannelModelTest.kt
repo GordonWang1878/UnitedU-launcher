@@ -12,6 +12,14 @@ class ChannelModelTest {
     private fun prog(id: Long, weight: Int = 0, title: String = "t$id") =
         Program(id, title, null, null, null, 0L, null, PosterAspect.R16_9, null, weight)
 
+    @Test fun channelTitleDropsDuplicateName() {
+        val join = { a: String, n: String -> "$a · $n" }
+        assertEquals("央视频TV", channelTitle("央视频TV", "央视频TV", join))
+        assertEquals("央视频TV", channelTitle("央视频TV", "央视频 tv", join))
+        assertEquals("CIBN酷喵", channelTitle("CIBN酷喵", " ", join))
+        assertEquals("CIBN酷喵 · 酷喵推荐", channelTitle("CIBN酷喵", "酷喵推荐", join))
+    }
+
     @Test fun channelRowsParse() {
         assertEquals(TvChannel(7, "com.cibn.tv", CHANNEL_TYPE_PREVIEW, "酷喵推荐", "k1"), channelFromRow(chRow(7)))
         assertNull("没有 _id 的行丢掉", channelFromRow(chRow(7) - TvCols.ID))
