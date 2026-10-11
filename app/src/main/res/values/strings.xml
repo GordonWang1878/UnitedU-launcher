@@ -270,6 +270,8 @@
     <string name="about_net_failed">连不上更新服务器，请检查网络后再试</string>
     <string name="about_bad_json">暂时拿不到更新信息，请稍后再试</string>
     <string name="about_footer">Apache-2.0 · github.com/GordonWang1878/UnitedU-launcher</string>
+    <!-- 更新说明挑哪种语言的行(notesForLanguage),不是给人看的文字 -->
+    <string name="notes_lang" translatable="false">zh</string>
     <!-- onb_* : 首次启动引导(T10,spec §8);第 1 步的语言按钮复用 settings_lang_* -->
     <string name="onb_step1_title">选择语言</string>
     <string name="onb_step2_title">把已安装的应用放到桌面</string>

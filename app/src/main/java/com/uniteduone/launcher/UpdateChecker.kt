@@ -101,6 +101,20 @@ private fun capNotes(s: String): String {
 }
 
 /**
+ * 发布说明按界面语言只留一种(2026-10-11 Gordon):`release.sh` 写进清单的短说明是「中文一行 + 英文一行」,
+ * 关于页只显示与界面同语言的那几行。含汉字的行算中文,其余算英文;`chinese` 由资源 `notes_lang` 决定
+ * (繁体界面也取中文行——短说明只写简体)。挑不出任何一行(只写了一种语言、或格式不是逐行双语)时原样返回,
+ * 宁可多显示也不显示空白。清单格式不变,旧版应用照旧两行都显示。
+ */
+fun notesForLanguage(notes: String, chinese: Boolean): String {
+    val lines = notes.lines().map { it.trim() }.filter { it.isNotEmpty() }
+    val picked = lines.filter { line -> line.any { isCjk(it) } == chinese }
+    return if (picked.isEmpty()) notes else picked.joinToString("\n")
+}
+
+private fun isCjk(c: Char): Boolean = Character.UnicodeScript.of(c.code) == Character.UnicodeScript.HAN
+
+/**
  * 裸值(数字 / true / false)一路取到下一个逗号或右花括号,与 Settings.kt 的 extractRaw 同构。
  * 键名前后都要求是真正的引号:值里出现的 `\"versionCode\"` 结尾是反斜杠,匹配不上。
  */
