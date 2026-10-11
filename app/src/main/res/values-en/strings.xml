@@ -449,6 +449,7 @@
     <string name="gallery_refresh">Refresh gallery</string>
     <string name="gallery_refreshing">Refreshing…</string>
     <string name="gallery_refresh_failed">Refresh failed; press OK to retry</string>
+    <string name="gallery_refresh_failed_short">Refresh failed</string>
     <string name="gallery_use">Use image</string>
     <string name="gallery_join">Add to slideshow</string>
     <string name="gallery_preview">Preview</string>
@@ -463,7 +464,6 @@
     <string name="gallery_protected">This image is in use. Change your wallpaper or remove it from the slideshow first.</string>
     <string name="gallery_delete_failed">Could not delete the download. Try again later.</string>
     <string name="gallery_update">Update available</string>
-    <string name="gallery_cleanup">Clean unused download leftovers</string>
     <string name="gallery_network_failed">Could not connect. Check your network and retry.</string>
     <string name="gallery_storage_failed">Not enough storage or could not save. Free some space and retry.</string>
     <string name="gallery_invalid_failed">The image failed validation. Refresh the gallery and retry.</string>

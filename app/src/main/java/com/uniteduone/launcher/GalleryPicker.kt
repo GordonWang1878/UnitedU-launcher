@@ -49,7 +49,6 @@ data class GalleryPickerActions(
 /** Page-owned state: refresh is keyed by mount, preview owns its own repository waiter. */
 internal class GalleryPickerState(val repository: GalleryRepository, val actions: GalleryPickerActions, val scope: CoroutineScope) {
     var menu by mutableStateOf<GalleryRow?>(null)
-    var refreshMenu by mutableStateOf(false)
     var active by mutableStateOf<GalleryRow?>(null)
     var progress by mutableStateOf(0L)
     var failed by mutableStateOf(false)
@@ -71,13 +70,14 @@ internal class GalleryPickerState(val repository: GalleryRepository, val actions
     }
     /** Effects own repository waiters; changing only this key preserves the grid/focus identity. */
     fun retryThumbnails() { thumbnailGeneration++ }
-    suspend fun refresh() {
+    /** [report] = 失败时弹提示页;打开页时的自动刷新不弹(标题旁已写「刷新失败」),用户手动重试才弹。 */
+    suspend fun refresh(report: Boolean = true) {
         notice = null
         try {
             repository.refresh()
-            repository.state.value.error?.let { message -> showRefreshFailure(java.io.IOException(message)) }
+            repository.state.value.error?.let { message -> if (report) showRefreshFailure(java.io.IOException(message)) }
         } catch (cancelled: CancellationException) { throw cancelled }
-        catch (failure: Exception) { showRefreshFailure(failure) }
+        catch (failure: Exception) { if (report) showRefreshFailure(failure) }
         // Includes unchanged catalog/304 and manifest errors: cached rows may still recover thumbnails.
         retryThumbnails()
     }
@@ -121,7 +121,16 @@ internal fun rememberGalleryPicker(kind: BuiltinKind, packageName: String?, acti
     val ghost = LocalPageGhost.current
     LaunchedEffect(ghost) { if (ghost) state.cancel() }
     val snapshot by repository.state.collectAsState()
-    LaunchedEffect(repository) { state.refresh() }
+    // 打开页即刷新;刷完顺手清掉没被壁纸 / 轮播引用的残留下载(原来是刷新格菜单里的「清理」,失败不打扰用户,下次打开再清)。
+    LaunchedEffect(repository) {
+        state.refresh(report = false)
+        try {
+            withContext(Dispatchers.IO) { GalleryMutationGate.locked {
+                val settings = SettingsStore.read(ctx)
+                cleanupGalleryLeftovers(repository, settings.galleryScreensavers.values.map { it.sha256 }.toSet() + listOfNotNull(settings.galleryWallpaper?.sha256))
+            } }
+        } catch (e: CancellationException) { throw e } catch (_: Exception) {}
+    }
     LaunchedEffect(snapshot, state.menu, state.active) {
         state.joined = withContext(Dispatchers.IO) { SettingsStore.read(ctx).galleryScreensavers }
     }
@@ -136,24 +145,23 @@ internal fun rememberGalleryPicker(kind: BuiltinKind, packageName: String?, acti
  */
 internal sealed class GalleryLayer(val key: String) {
     class Notice(val text: Int) : GalleryLayer("notice")
-    object Refresh : GalleryLayer("refresh")
     class Preview(val file: File, val name: String) : GalleryLayer("preview")
     class Active(val row: GalleryRow, val failed: Boolean, val failure: GalleryFailure, val progress: Long) : GalleryLayer("active:${row.key}")
-    class Menu(val row: GalleryRow, val joined: Boolean, val thumbnailFailed: Boolean) : GalleryLayer("menu:${row.key}")
+    class Menu(val row: GalleryRow, val joined: Boolean, val thumbnailFailed: Boolean, val refreshFailed: Boolean) : GalleryLayer("menu:${row.key}")
 }
 
 @Composable
 internal fun GalleryPickerOverlay(state: GalleryPickerState, screensaver: Boolean, nonce: Int) {
     val ctx = LocalContext.current
     val lang = stringResource(R.string.builtin_names_lang)
+    val snapshot by state.repository.state.collectAsState()
     val menu = state.menu
     val active = state.active
     val layer = when {
         state.notice != null -> GalleryLayer.Notice(state.notice!!)
-        state.refreshMenu -> GalleryLayer.Refresh
         state.preview != null -> GalleryLayer.Preview(state.preview!!, state.previewItem?.names?.get(lang) ?: state.previewItem?.id.orEmpty())
         active != null -> GalleryLayer.Active(active, state.failed, state.failure, state.progress)
-        menu != null -> GalleryLayer.Menu(menu, screensaver && state.joined[menu.item.id]?.sha256 == menu.item.original.blob.sha256, menu.key in state.thumbnailFailures)
+        menu != null -> GalleryLayer.Menu(menu, screensaver && state.joined[menu.item.id]?.sha256 == menu.item.original.blob.sha256, menu.key in state.thumbnailFailures, snapshot.error != null)
         else -> null
     }
     val pick = stringResource(if (screensaver) R.string.gallery_join else R.string.gallery_use)
@@ -162,24 +170,10 @@ internal fun GalleryPickerOverlay(state: GalleryPickerState, screensaver: Boolea
     val delete = stringResource(R.string.gallery_delete)
     val cancel = stringResource(R.string.dialog_cancel)
     val retry = stringResource(R.string.gallery_retry)
+    val refreshLabel = stringResource(R.string.gallery_refresh)
     OverlayStack(state = layer, layerKey = { it.key }) { l -> when (l) {
     is GalleryLayer.Notice -> GearMenu(title = stringResource(R.string.picker_section_gallery), body = stringResource(l.text), nonce = nonce,
         items = listOf(MenuItem(cancel, "") { state.notice = null }), onDismiss = { state.notice = null })
-    GalleryLayer.Refresh -> GearMenu(title = stringResource(R.string.gallery_refresh), nonce = nonce,
-        items = listOf(
-            MenuItem(stringResource(R.string.gallery_refresh), "") { state.refreshMenu = false; state.scope.launch { state.refresh() } },
-            MenuItem(stringResource(R.string.gallery_cleanup), "") {
-                state.scope.launch {
-                    try {
-                        val leftovers = withContext(Dispatchers.IO) { GalleryMutationGate.locked {
-                            val settings = SettingsStore.read(ctx)
-                            cleanupGalleryLeftovers(state.repository, settings.galleryScreensavers.values.map { it.sha256 }.toSet() + listOfNotNull(settings.galleryWallpaper?.sha256))
-                        } }
-                        state.refreshMenu = false
-                        if (leftovers.isNotEmpty()) state.notice = R.string.gallery_delete_failed
-                    } catch (e: CancellationException) { throw e } catch (_: Exception) { state.refreshMenu = false; state.notice = R.string.gallery_delete_failed }
-                }
-            }, MenuItem(cancel, "") { state.refreshMenu = false }), onDismiss = { state.refreshMenu = false })
     is GalleryLayer.Preview -> ScreensaverPreview(listOf(l.file), 0, nonce, displayNames = mapOf(l.file.absolutePath to l.name)) { state.preview = null; state.previewItem = null }
     is GalleryLayer.Active -> GearMenu(
         title = l.row.item.names[lang] ?: l.row.item.id,
@@ -217,6 +211,8 @@ internal fun GalleryPickerOverlay(state: GalleryPickerState, screensaver: Boolea
                     } catch (e: CancellationException) { throw e } catch (_: Exception) { state.menu = null; state.notice = R.string.gallery_delete_failed }
                 }
             })
+            // 上次刷新失败(标题旁写着「刷新失败」)时才给手动重刷;平时打开页就自动刷新,不占菜单。
+            if (l.refreshFailed) add(MenuItem(refreshLabel, "") { state.menu = null; state.scope.launch { state.refresh() } })
             add(MenuItem(cancel, "") { state.menu = null })
         }, onDismiss = { state.menu = null }) }
     } }

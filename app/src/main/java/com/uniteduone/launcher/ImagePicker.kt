@@ -52,6 +52,8 @@ import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -347,11 +349,14 @@ private fun PickerGrid(
     val ghost = LocalPageGhost.current
     val (galleryState, galleryRows) = rememberGalleryPicker(galleryKind, galleryPackage, galleryActions)
     @Suppress("NAME_SHADOWING")
-    val covered = covered || ghost || galleryState?.let { it.menu != null || it.active != null || it.preview != null || it.notice != null || it.refreshMenu } == true
+    val covered = covered || ghost || galleryState?.let { it.menu != null || it.active != null || it.preview != null || it.notice != null } == true
     // 格子 = 内置 + 「＋」+ 我的(换算见 PickerCells.kt)。下面 focusedIdx / holderIdx / focusRequesters / interactionSources
     // 全用格子下标,只有 onFocusedItem 上报、落点种子这两处要认「是哪一类」。
     val builtinCount = builtins.size
-    val online = if (galleryState == null) emptyList() else listOf(PickerItem.GalleryRefresh) + galleryRows.map { PickerItem.Gallery(it) }
+    // 在线图库没有常驻的刷新格(2026-10-12 Gordon:块首的大空格读起来像「＋」那样往里加东西):打开页就自动刷新,状态写在标题旁;
+    // 一张图都没有(离线首次打开 / 清单为空)时才留一格「重试」,焦点总有地方落。
+    val online = if (galleryState == null) emptyList() else if (galleryRows.isEmpty()) listOf(PickerItem.GalleryRefresh) else galleryRows.map { PickerItem.Gallery(it) }
+    val gallerySnapshot = galleryState?.repository?.state?.collectAsState()?.value
     val cells = remember(builtins, items, online) { pickerCells<PickerItem>(builtins, PickerItem.AddFromPhone, items, online) }
     val cellKeys = cells.map { when (it) { is PickerItem.Gallery -> it.row.key; PickerItem.GalleryRefresh -> "gallery:refresh"; is PickerItem.Builtin -> "builtin:${it.image.id}"; is PickerItem.Library -> "mine:${it.file.absolutePath}"; is PickerItem.Original -> "original"; PickerItem.AddFromPhone -> "add" } }
     val lines = remember(builtinCount, cells.size, columns) { pickerLines(builtinCount, items.size + 1, columns, online.size) }
@@ -618,7 +623,10 @@ private fun PickerGrid(
                     is PickerLine.Title -> SectionTitle(
                         text = stringResource(
                             when (line.section) { PickerSection.BUILTIN -> R.string.picker_section_builtin; PickerSection.GALLERY -> R.string.picker_section_gallery; PickerSection.MINE -> R.string.picker_section_mine },
-                        ) + if (line.section == PickerSection.GALLERY && rotationBadges) " · " + stringResource(R.string.gallery_videos_unavailable) else "",
+                        ) + if (line.section != PickerSection.GALLERY) "" else listOfNotNull(
+                            when { gallerySnapshot?.refreshing == true -> stringResource(R.string.gallery_refreshing); gallerySnapshot?.error != null -> stringResource(R.string.gallery_refresh_failed_short); else -> null },
+                            if (rotationBadges) stringResource(R.string.gallery_videos_unavailable) else null,
+                        ).joinToString("") { " · $it" },
                         modifier = Modifier.onSizeChanged { lineHeights[k] = it.height },
                     )
                     is PickerLine.Cells -> Row(
@@ -678,7 +686,7 @@ private fun PickerGrid(
                                             is PickerItem.Library -> onSelectFile(item.file)
                                             is PickerItem.Builtin -> onSelectFile(item.image.file)
                                             is PickerItem.Gallery -> galleryState?.menu = item.row
-                                            PickerItem.GalleryRefresh -> galleryState?.refreshMenu = true
+                                            PickerItem.GalleryRefresh -> galleryState?.let { st -> if (st.repository.state.value.refreshing != true) st.scope.launch { st.refresh() } }
                                             PickerItem.AddFromPhone -> onAddFromPhone()
                                         }
                                     },
@@ -782,11 +790,8 @@ private fun ThumbCard(
     cellModifier: Modifier = Modifier,
 ) {
     if (item is PickerItem.GalleryRefresh) {
-        Column(modifier = thumbCellModifier(cellModifier, focused, thumbWidth), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.fillMaxWidth().height(thumbHeight).gtvAppFocusFrame(focused, LocalThemeColors.current.accent, THUMB_CORNER).background(GtvTokens.SurfacePlaceholder), contentAlignment = Alignment.Center) { BasicText(stringResource(R.string.gallery_refresh), style = Type.caption) }
-            val snapshot = galleryState?.repository?.state?.collectAsState()?.value
-            ThumbLabel(stringResource(if (snapshot?.refreshing == true) R.string.gallery_refreshing else if (snapshot?.error != null) R.string.gallery_refresh_failed else R.string.gallery_refresh), focused)
-        }; return
+        GalleryRefreshCard(galleryState, focused, thumbWidth, thumbHeight, cellModifier)
+        return
     }
     if (item is PickerItem.AddFromPhone) {
         AddFromPhoneCard(focused, thumbWidth, thumbHeight, cellModifier)
@@ -955,6 +960,41 @@ private val THUMB_CORNER = GtvLayout.CARD_CORNER.dp
  * 「＋ 从手机添加」格(Ruling R63):与图片格同尺寸、同聚焦样式(P2 起:缩略图放大 + 描边,标签变 highlight),
  * 缩略图位置画一个「＋」(同编辑页行尾 AddCard 的字形)。
  */
+/**
+ * 「在线图库」块里一张图都没有时的那一格(确定键 = 重新刷新)。与 [AddFromPhoneCard] 同一套画法:圆角占位底 + 居中图标 + 下方一行字;
+ * 刷新中图标转动(只在绘制阶段读角度),字随状态换成「正在刷新… / 更新失败」。不进任何焦点账本。
+ */
+@Composable
+private fun GalleryRefreshCard(galleryState: GalleryPickerState?, focused: Boolean, thumbWidth: Dp, thumbHeight: Dp, modifier: Modifier) {
+    val highlight = LocalThemeColors.current.highlight
+    val accent = LocalThemeColors.current.accent
+    val snapshot = galleryState?.repository?.state?.collectAsState()?.value
+    val refreshing = snapshot?.refreshing == true
+    val angle = if (refreshing) {
+        androidx.compose.animation.core.rememberInfiniteTransition(label = "galleryRefresh").animateFloat(
+            0f, 360f, androidx.compose.animation.core.infiniteRepeatable(tween(1000, easing = androidx.compose.animation.core.LinearEasing)), label = "spin",
+        )
+    } else null
+    Column(
+        modifier = thumbCellModifier(modifier, focused, thumbWidth),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(thumbLabelGap(thumbHeight)),
+    ) {
+        Box(
+            modifier = Modifier.gtvAppFocusFrame(focused, accent, THUMB_CORNER).fillMaxWidth().height(thumbHeight)
+                .clip(RoundedCornerShape(THUMB_CORNER)).background(GtvTokens.SurfacePlaceholder)
+                .clearAndSetSemantics { },
+            contentAlignment = Alignment.Center,
+        ) {
+            RefreshGlyph(
+                color = if (focused) highlight else Ink.Label, size = 30.dp,
+                modifier = Modifier.graphicsLayer { rotationZ = angle?.value ?: 0f },
+            )
+        }
+        ThumbLabel(stringResource(if (refreshing) R.string.gallery_refreshing else R.string.gallery_retry), focused)
+    }
+}
+
 @Composable
 private fun AddFromPhoneCard(focused: Boolean, thumbWidth: Dp, thumbHeight: Dp, modifier: Modifier) {
     val highlight = LocalThemeColors.current.highlight

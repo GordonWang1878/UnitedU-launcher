@@ -441,6 +441,7 @@
     <string name="gallery_refresh">刷新图库</string>
     <string name="gallery_refreshing">正在刷新…</string>
     <string name="gallery_refresh_failed">更新失败，按确定重试</string>
+    <string name="gallery_refresh_failed_short">刷新失败</string>
     <string name="gallery_use">选用</string>
     <string name="gallery_join">加入轮播</string>
     <string name="gallery_preview">预览</string>
@@ -455,7 +456,6 @@
     <string name="gallery_protected">正在使用的图片不能删除，请先更换壁纸或取消轮播。</string>
     <string name="gallery_delete_failed">删除失败，请稍后重试。</string>
     <string name="gallery_update">有新版本</string>
-    <string name="gallery_cleanup">清理未使用的残留下载</string>
     <string name="gallery_network_failed">网络连接失败，请检查网络后重试。</string>
     <string name="gallery_storage_failed">存储空间不足或写入失败，请清理空间后重试。</string>
     <string name="gallery_invalid_failed">图片校验失败，请刷新图库后重试。</string>

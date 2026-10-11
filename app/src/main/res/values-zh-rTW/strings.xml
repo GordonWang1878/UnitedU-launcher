@@ -440,6 +440,7 @@
     <string name="gallery_refresh">重新整理圖庫</string>
     <string name="gallery_refreshing">正在更新…</string>
     <string name="gallery_refresh_failed">更新失敗，按確認重試</string>
+    <string name="gallery_refresh_failed_short">重新整理失敗</string>
     <string name="gallery_use">選用</string>
     <string name="gallery_join">加入輪播</string>
     <string name="gallery_preview">預覽</string>
@@ -454,7 +455,6 @@
     <string name="gallery_protected">正在使用的圖片無法刪除，請先更換桌布或取消輪播。</string>
     <string name="gallery_delete_failed">刪除失敗，請稍後重試。</string>
     <string name="gallery_update">有新版本</string>
-    <string name="gallery_cleanup">清理未使用的殘留下載</string>
     <string name="gallery_network_failed">網路連線失敗，請檢查網路後重試。</string>
     <string name="gallery_storage_failed">儲存空間不足或寫入失敗，請清理空間後重試。</string>
     <string name="gallery_invalid_failed">圖片驗證失敗，請更新圖庫後重試。</string>
