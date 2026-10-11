@@ -2345,3 +2345,8 @@ I1/I2/M1/M2收口：在线缩略图按UI物理像素采样并保留真实bounds�
 - 模拟器验收(unitedu-tv,本机 http 服务 + `adb reverse`,debug 包 `-Punitedu.galleryBaseUrl=http://127.0.0.1:8765/`):revision-1(v1)下设「夜色汤屋」为壁纸,原图下载 1 次 → 换 revision-2(v2)后屏保图库出现 4 张、该图标「已下载」→ 加入轮播**没有再请求原图**,本地元数据用途合并为壁纸 + 屏保 → 两边都用 / 只壁纸 / 只屏保三种情况删除都被拦下 → 移出轮播不影响壁纸 → 屏保实际播放该图(临时排除 4 张内置图,测完还原)→ 两边都不用后删除成功,原图与元数据清空,焦点回原格。截图 `docs/screenshots/gallery-shared-images/`(替换了 Codex 未入库的那组)。
 - 未做:电视实测、在线视频、I3 未知 Settings 原图仍未处置。
 - 随后再并 main(beta.6,vc 19):全套 1182 项第一次跑有 1 项超时 `PosterLoaderTest.fetchHasAHardTotalDeadline`(卡在 `HttpURLConnection` 的内部锁上,`PosterLoader.kt` 与 main 逐字相同),单独连跑 3 次、全套重跑都通过——是 main 频道海报代码的偶发问题,不是图库引入的,未处理。
+
+## 2026-10-11 · 图库首次上线 + 1.2.0-beta.7
+
+- Gordon 定:图库分支合 main、先传图库再发 Beta。main 快进到图库分支;版本 1.2.0-beta.7(versionCode 21,回退包 22)。
+- 图库 revision-2(4 张,壁纸 + 屏保双用途)已用 `scripts/gallery-publish.py --publish` 传到 `https://dl.uniteduone.com/gallery/`,线上 `index.json` 与本地产物 sha256 一致。首次上传时校验读取报 403:Cloudflare 拦默认 UA `Python-urllib`(浏览器 / Dalvik / 其他 UA 都是 200,电视不受影响);脚本改为自报 `UnitedU-gallery-publish/1` 后整套重传通过。

@@ -17,6 +17,9 @@ from pathlib import Path
 spec=importlib.util.spec_from_file_location('gallery_assets',Path(__file__).with_name('gallery-assets.py'))
 assets=importlib.util.module_from_spec(spec); spec.loader.exec_module(assets)
 
+# Cloudflare 对默认的 Python-urllib UA 返回 403(2026-10-11 首次上线实测),校验读取自报身份。
+USER_AGENT='UnitedU-gallery-publish/1'
+
 def build_upload_commands(artifact,bucket):
     assets.require(isinstance(bucket,str) and re.fullmatch('[a-z0-9][a-z0-9-]{0,62}',bucket),'invalid bucket')
     root=Path(artifact); catalog=assets.validate_artifact(root)
@@ -59,7 +62,7 @@ def verify_remote(url,path):
     size=path.stat().st_size; digest=hashlib.sha256(); total=0
     import time
     started=time.monotonic()
-    with absolute_deadline(TOTAL_TIMEOUT), urllib.request.build_opener(RedirectGuard()).open(url,timeout=10) as response:
+    with absolute_deadline(TOTAL_TIMEOUT), urllib.request.build_opener(RedirectGuard()).open(urllib.request.Request(url,headers={'User-Agent':USER_AGENT}),timeout=10) as response:
         validate_remote_url(response.geturl())
         while True:
             assets.require(time.monotonic()-started<=TOTAL_TIMEOUT,'remote total timeout')
