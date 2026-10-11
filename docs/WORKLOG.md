@@ -2294,3 +2294,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - Gordon 电视上看到央视频 TV 的频道行头是「央视频TV · 央视频TV」:标题按「应用名 · 频道名」拼,而央视频把频道也起名成应用名。
 - 改:`channelTitle`(ChannelModel.kt)在频道名为空或与应用名相同(忽略空白、大小写)时只写应用名;首页行头、编辑页频道架子、选频道页三处共用。单测 `ChannelModelTest.channelTitleDropsDuplicateName`。随下一个 Beta 上电视(他的央视频频道行若还在,看行头)。
 - 发 1.2.0-beta.6(versionCode 19,回退包 20 = v1.1.1;线上 beta / rollback 清单与 sha256 已核对)。下次 Beta 从 21 起。Gordon 回「推」:main 推到 origin(`1035d91`)。推前核对:WORKLOG 无「先不推」;未推范围里有 `docs/screenshots/{edit-ref,channels/ref}/gtv-*`(已登录 Google TV,左上角带他的账号头像、海报、他人缩略图),但它们从 2026-10-10 起已随 `v1.2.0-beta.1`…`beta.5` tag 公开在 GitHub 上(API 按 tag 读得到),推 main 没有新增暴露;是否处理待 Gordon 定。
+- 标题去重模拟器实证(`unitedu-tv-2`,beta.6 正式包):shell 发布「Shell」(与 shell 的应用名相同)和「Probe Picks」两个频道,首页行头画「Shell」、编辑页两层分别是「Shell」与「Shell · Probe Picks」(`docs/screenshots/channel-title/`)。A95L 上测不了:Gordon 的频道行已删,R169 起无 GMS 加不回来。顺带:这台 AVD 上 R169 测试时停用的 GMS 一直没恢复,已 `pm enable`;刚开机后第一次冷启动首页没画出频道行(6 s 内),回编辑页再回首页就有了,疑为开机后 TvProvider 首次查询慢,未追。
