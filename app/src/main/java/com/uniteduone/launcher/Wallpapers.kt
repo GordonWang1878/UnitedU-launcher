@@ -554,7 +554,13 @@ private fun WallpaperImages(b: Bitmap, imageAlpha: Float) {
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer { this.alpha = imageAlpha },
+                .graphicsLayer {
+                    this.alpha = imageAlpha
+                    // R167 Task 12:图层里只有这一张图、一次绘制,透明度乘在这次绘制上(ModulateAlpha)与先画进离屏层再整体淡化逐像素相同。
+                    // 默认的 Auto 会给下层 P_B 里这张 alpha < 1 的图再提升出一张常驻的 1920×1080 离屏层(8 MB 显存,首页 / 编辑页 / 设置一直占着),
+                    // 显存逼近 HWUI 上限(1920×1080×48 ≈ 99.5 MB)时进出编辑页的每一帧都在清缓存、重建纹理。
+                    compositingStrategy = CompositingStrategy.ModulateAlpha
+                },
         )
     }
 }

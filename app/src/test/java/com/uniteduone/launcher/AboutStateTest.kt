@@ -55,4 +55,10 @@ class AboutStateTest {
             AboutState.NeedsPermission(info), AboutState.Installing(info), AboutState.InstallFailed(info),
         ).forEach { assertEquals(it.toString(), false, it.cancellable) }
     }
+
+    @Test fun foundDefaultsToStableKind() {
+        val i = LatestInfo(7, "1.1.0", "", "https://e.com/a.apk", "0".repeat(64), 1)
+        assertEquals(UpdateKind.STABLE, AboutState.Found(i).kind)
+        assertEquals(AboutAction.DOWNLOAD, AboutState.Found(i, UpdateKind.ROLLBACK).action)
+    }
 }

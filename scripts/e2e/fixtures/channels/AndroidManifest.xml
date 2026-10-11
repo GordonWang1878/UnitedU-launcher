@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- R164 e2e 夹具:带代码的频道发布方(仿研究 §6 的探针)。由 scripts/e2e/fixtures.py 的 channels() 构建,不进 UnitedU 本体。 -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="test.channels" android:versionCode="1" android:versionName="1">
+  <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="34"/>
+  <uses-feature android:name="android.software.leanback" android:required="false"/>
+  <!-- normal 级,装上即有;写自己包的频道 / 节目要它 -->
+  <uses-permission android:name="com.android.providers.tv.permission.WRITE_EPG_DATA"/>
+  <!-- 同为 normal;channelId() 要查自己的频道,照研究 §6 的探针 / 哔哩哔哩云视听两个都声明 -->
+  <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA"/>
+  <application android:label="E2E Channels">
+    <activity android:name=".Play" android:exported="true" android:label="E2E Channels">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN"/>
+        <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
+      </intent-filter>
+    </activity>
+    <receiver android:name=".Init" android:exported="true">
+      <intent-filter><action android:name="android.media.tv.action.INITIALIZE_PROGRAMS"/></intent-filter>
+    </receiver>
+    <receiver android:name=".Cmd" android:exported="true"/>
+    <provider android:name=".Posters" android:authorities="test.channels.posters" android:exported="true"/>
+  </application>
+</manifest>

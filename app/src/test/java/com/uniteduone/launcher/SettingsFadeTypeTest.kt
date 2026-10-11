@@ -145,6 +145,14 @@ class SettingsFadeTypeTest {
         assertEquals(GtvLayout.SETTINGS_FADE_OUT_MS, m.zMs)
     }
 
+    /** R168:进编辑页关掉外壳时,预览框放大到整屏与编辑页淡入同长;退出时缩回同长。 */
+    @Test fun `进编辑页关外壳,z 放大与编辑页淡入同长`() {
+        val m = previewMotion(shown = false, preview = true, fresh = false, vNow = 1f, toEdit = true)
+        assertEquals(0f, m.zTarget!!, 0f)
+        assertEquals(GtvLayout.EDIT_SWAP_MS, m.zMs)
+        assertEquals("退出时缩回也同长", GtvLayout.SETTINGS_FADE_IN_MS, GtvLayout.EDIT_SWAP_MS)
+    }
+
     @Test fun `从完全关着打开到第一层,v、z 直接归 0(首页随 a 淡出)`() {
         val m = previewMotion(shown = true, preview = false, fresh = true, vNow = 1f)
         assertEquals(0f, m.vSnap!!, 0f)

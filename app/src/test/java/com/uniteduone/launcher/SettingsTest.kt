@@ -423,4 +423,14 @@ class SettingsTest {
         assertEquals(0.4f, f.restAlpha, 1e-6f)
         assertArrayEquals(CardFade(100, 100).matrix(), f.matrix(), 1e-6f)
     }
+
+    @Test fun updateChannelDefaultsToStable() = assertEquals(UpdateChannel.STABLE, parseSettings("{}").updateChannel)
+    @Test fun updateChannelRoundTrips() {
+        val s = Settings(updateChannel = UpdateChannel.BETA)
+        assertEquals(UpdateChannel.BETA, parseSettings(s.toJson()).updateChannel)
+    }
+    @Test fun updateChannelUnknownIsStable() =
+        assertEquals(UpdateChannel.STABLE, parseSettings("{\"updateChannel\":\"nightly\"}").updateChannel)
+    @Test fun restoreDefaultsKeepsChannel() =
+        assertEquals(UpdateChannel.BETA, restoredDefaults(Settings(updateChannel = UpdateChannel.BETA), 0L).updateChannel)
 }

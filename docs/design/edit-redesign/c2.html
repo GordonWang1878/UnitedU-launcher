@@ -1,0 +1,27 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0..1,0">
+<link rel="stylesheet" href="base.css"><link rel="stylesheet" href="shelf.css">
+<style>.choice{position:absolute;top:52px;width:300px;height:110px;border-radius:16px;background:rgba(255,255,255,.07);padding:18px 20px;display:flex;flex-direction:column;gap:6px}
+.choice .ms{font-size:28px;color:#BBD5B3}.choice .t{font-size:17px;color:#F5F5F5}.choice .d{font-size:12px;color:#9A9A9A;line-height:16px}
+.choice.f{background:#BBD5B3;transform:scale(1.05);box-shadow:0 14px 40px rgba(0,0,0,.5)}.choice.f .ms,.choice.f .t{color:#1A1F19}.choice.f .d{color:#3b4538}</style></head><body>
+<div class="bg"></div><div class="dim"></div>
+<div class="abs" style="left:0;right:0;top:0;height:96px;z-index:9;background:linear-gradient(180deg,rgba(12,13,16,.97) 55%,rgba(12,13,16,0))"></div><div class="top" style="z-index:10"><div class="headline">编辑桌面</div><div class="caption">3 行 · 6 个应用 · 1 个频道</div>
+<div class="hint"><span class="kbd">←</span><span class="kbd">→</span>选择 &nbsp;<span class="kbd">确定</span>添加 &nbsp;<span class="kbd">返回</span>完成</div></div>
+
+<div class="shelf off" style="top:-10px;height:118px;opacity:.35">
+  <div class="card" style="left:18px;top:40px;background-image:url(assets/bilibili.jpg)"></div>
+  <div class="card" style="left:160px;top:40px;background-image:url(assets/mango.jpg)"></div>
+</div>
+<div class="shelf off" style="top:122px;height:118px">
+  <div class="hd"><span class="ms">live_tv</span><span>酷喵 · 今日推荐</span><span class="caption" style="margin-left:6px">频道</span></div>
+  <div class="poster" style="left:18px;top:40px;width:122px;background-image:url(assets/p-alpine.jpg)"></div>
+  <div class="poster" style="left:160px;top:40px;width:68.6px;background-image:url(assets/p-lofi.jpg)"></div>
+  <div class="poster" style="left:248.6px;top:40px;width:122px;background-image:url(assets/p-city.jpg)"></div>
+</div>
+<div class="shelf on" style="top:258px;height:190px;border-style:dashed">
+  <div class="hd"><span class="ms" style="color:#BBD5B3">add</span><span>新的一行</span></div>
+  <div class="choice" style="left:18px"><span class="ms">apps</span><div class="t">应用行</div><div class="d">放你自己挑的应用,可以排顺序、换图标</div></div>
+  <div class="choice f" style="left:338px"><span class="ms">live_tv</span><div class="t">频道</div><div class="d">其它应用推送的节目,比如酷喵、Jellyfin 的推荐</div></div>
+</div>
+<div class="abs caption" style="left:58px;top:470px">应用行最多 5 行,频道另算最多 5 行</div>
+</body></html>

@@ -1,0 +1,14 @@
+.left{position:absolute;left:58px;top:70px;width:440px}
+.pv{position:relative;width:432px;height:243px;border-radius:12px;overflow:hidden;background:url(assets/wall.jpg) center/cover;box-shadow:0 0 0 1px rgba(255,255,255,.12)}
+.pv .sh{position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,14,15,.35),rgba(14,14,15,.85))}
+.m{position:absolute;width:55px;height:31px;border-radius:4px;background-size:cover;background-position:center}
+.mp{position:absolute;height:31px;border-radius:4px;background-size:cover;background-position:center}
+.ring{position:absolute;border-radius:8px;box-shadow:0 0 0 2px #BBD5B3,0 0 24px rgba(187,213,179,.35)}
+.col{position:absolute;left:586px;width:268px;top:0;bottom:0;display:flex;flex-direction:column;justify-content:center;gap:14px}
+.cap{position:relative;width:268px;min-height:55px;border-radius:28px;background:#161718;display:flex;align-items:center;gap:10px;padding:0 18px;font-size:15px;color:#B0B0B0}
+.cap.f{background:#BBD5B3;color:#1A1F19;width:282px;margin-left:-7px;box-shadow:0 8px 30px rgba(0,0,0,.45)}
+.cap .ms{font-size:20px}
+.mini{width:34px;height:19px;border-radius:3px;background-size:cover;background-position:center;flex:none}
+.minis{display:flex;gap:5px}
+.cnt{margin-left:auto;font-size:12px;opacity:.8}
+.sep{height:1px;background:rgba(255,255,255,.08);margin:2px 18px}

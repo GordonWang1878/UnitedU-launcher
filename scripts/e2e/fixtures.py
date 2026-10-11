@@ -6,11 +6,13 @@
   (R160 起表里没有 com.ktcp.tvvideo / com.huya.nftv 了;旧模拟器上装过的这两个用 `--uninstall` 之外的 `adb uninstall` 清)。
 - 假调谐器 test.tvinput(一个空的 TvInputService,输入源页才有东西)+ 假直播 test.livetv(接 content://android.media.tv 的 VIEW,
   输入源页按确定才切得过去)。做法见 CLAUDE.md「模拟器上没有电视输入源」一条。
+- 频道发布方 test.channels(R164 j_channels):带代码(javac + d8),源码在 fixtures/channels/;INITIALIZE_PROGRAMS 时建频道「E2E Picks」,
+  e2e 用 `am broadcast -f 32 -n test.channels/.Cmd -a test.channels.<PUBLISH|SHRINK|CLEAR|REPUBLISH|DROP|MANY>` 改内容。由 j_channels 自己 `--user 0` 装。
 - 上传素材:两张 1920×1080 JPEG、一张卡片 PNG、一段 3 秒 MP4(ffmpeg)、一个 txt(拒收用)。
 
 工具链:先 `source scripts/env.sh`(JDK 17 + Android SDK build-tools 35.0.0);ffmpeg 与 Pillow 要装在本机。
 """
-import os, subprocess, sys
+import glob, os, subprocess, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from lib import DEV, OUT, APKS, FX
@@ -104,6 +106,20 @@ def tvinput():
     run("zip", "-j", os.path.join(d, "u.apk"), os.path.join(d, "classes.dex"))
     sign(os.path.join(d, "u.apk"), os.path.join(APKS, "test.tvinput.apk"))
 
+CHANNELS_SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "channels")
+
+def channels():
+    """带代码的频道发布方 test.channels:javac → d8 → aapt2 link(只有清单)→ 把 classes.dex 塞进去 → 对齐签名。"""
+    d = os.path.join(APKS, "test.channels"); os.makedirs(d, exist_ok=True)
+    classes = os.path.join(d, "classes"); os.makedirs(classes, exist_ok=True)
+    srcs = sorted(glob.glob(os.path.join(CHANNELS_SRC, "src", "test", "channels", "*.java")))
+    run("javac", "--release", "11", "-cp", JAR, "-d", classes, *srcs)
+    cls = sorted(glob.glob(os.path.join(classes, "test", "channels", "*.class")))
+    run(f"{BT}/d8", "--lib", JAR, "--min-api", "26", "--output", d, *cls)
+    run(f"{BT}/aapt2", "link", "-I", JAR, "--manifest", os.path.join(CHANNELS_SRC, "AndroidManifest.xml"), "-o", os.path.join(d, "u.apk"))
+    run("zip", "-j", os.path.join(d, "u.apk"), os.path.join(d, "classes.dex"))
+    sign(os.path.join(d, "u.apk"), os.path.join(APKS, "test.channels.apk"))
+
 def media():
     os.makedirs(FX, exist_ok=True)
     from PIL import Image, ImageDraw
@@ -117,7 +133,7 @@ def media():
         "-pix_fmt", "yuv420p", os.path.join(FX, "e2e-clip.mp4"))
 
 def packages():
-    return [f"test.dummy.app{i:02d}" for i in range(len(DUMMY_LABELS))] + list(KNOWN) + ["test.tvinput", "test.livetv"]
+    return [f"test.dummy.app{i:02d}" for i in range(len(DUMMY_LABELS))] + list(KNOWN) + ["test.tvinput", "test.livetv", "test.channels"]
 
 def build():
     os.makedirs(APKS, exist_ok=True)
@@ -127,9 +143,11 @@ def build():
         manifest_only(pkg, LAUNCHER.format(pkg=pkg, label=label))
     manifest_only("test.livetv", LIVETV)
     tvinput()
+    channels()
     media()
 
-def install(skip=("test.dummy.app18",)):
+# test.channels 由 j_channels 自己用 `--user 0` 装(卸载要发 FULLY_REMOVED,见 CLAUDE.md 模拟器坑)
+def install(skip=("test.dummy.app18", "test.channels")):
     for pkg in packages():
         if pkg in skip: continue   # app18 留给「在应用页开着时装一个新应用」那一步
         r = subprocess.run(["adb", "-s", DEV, "install", "-r", os.path.join(APKS, pkg + ".apk")], capture_output=True, text=True)

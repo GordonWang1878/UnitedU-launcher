@@ -123,7 +123,6 @@
 
     <!-- edit_* : Edit Rows screen -->
     <string name="edit_title">Edit Home Screen</string>
-    <string name="edit_hint">On an app, press OK to move it, change its card art or remove it. On the + at the end of a row, press OK to add apps or manage the row. Press Back when you\'re done.</string>
     <string name="edit_toast_order_not_saved">The order couldn\'t be saved and will reset after restart</string>
     <string name="edit_change_image">Change Card Art</string>
     <string name="edit_change_image_desc">Pick a 16:9 image to replace it</string>
@@ -265,6 +264,7 @@
     <string name="about_checking">Checking…</string>
     <string name="about_latest">You\'re up to date</string>
     <string name="about_found">New version %1$s available</string>
+    <string name="about_found_rollback">Back to stable %1$s (layout and settings kept)</string>
     <string name="about_download">Download and Install</string>
     <string name="about_ready_install">Install Update</string>
     <string name="about_downloading">Downloading %1$d%%</string>
@@ -277,9 +277,9 @@
     <string name="about_overlay_hint">Allow “Display over other apps” so UnitedU comes back after the update. Then press Install Update (it also installs without this)</string>
     <string name="about_net_failed">Couldn\'t reach the update server. Check your network and try again.</string>
     <string name="about_bad_json">Couldn\'t read the update info. Try again later.</string>
-    <string name="about_license_title">Licenses</string>
-    <string name="about_license">UnitedU is released under Apache-2.0. Third-party: Google Sans Flex (OFL 1.1), Material Icons (Apache-2.0), NanoHTTPD (BSD-3-Clause), ZXing (Apache-2.0).</string>
-    <string name="about_repo">Project: github.com/GordonWang1878/UnitedU-launcher</string>
+    <string name="about_footer">Apache-2.0 · github.com/GordonWang1878/UnitedU-launcher</string>
+    <!-- 更新说明挑哪种语言的行(notesForLanguage),不是给人看的文字 -->
+    <string name="notes_lang" translatable="false">en</string>
     <!-- onb_* : first-run guide (T10, spec §8); step 1 language buttons reuse settings_lang_* -->
     <string name="onb_step1_title">Choose a language</string>
     <string name="onb_step2_title">Put your installed apps on the home screen</string>
@@ -320,27 +320,47 @@
     <string name="settings_hidden_inputs_count">%1$d hidden</string>
     <string name="toast_inputs_restored">All inputs restored</string>
     <string name="title_dialog_hint_input">OK saves · Back cancels · empty restores the system name</string>
-    <!-- edit_row_* / row_icon_* : edit-screen row menu (row-end +), row icon picker, delete-row confirm (M4b Task 4; since R163 rows have no names, so the rename page is gone) -->
+    <!-- edit_row_* / row_icon_* : edit-screen shelf chips (since R165, replacing the row-end + menu), row icon picker, delete-row confirm (M4b Task 4; since R163 rows have no names, so the rename page is gone) -->
     <string name="edit_row_add_app">Add App</string>
-    <string name="edit_row_add_app_desc">Pick from installed apps</string>
-    <string name="edit_row_icon">Change Row Icon</string>
-    <string name="edit_row_icon_desc">Pick the icon for this row</string>
-    <string name="edit_row_up">Move Row Up</string>
-    <string name="edit_row_up_desc">Swap with the row above</string>
-    <string name="edit_row_down">Move Row Down</string>
-    <string name="edit_row_down_desc">Swap with the row below</string>
-    <string name="edit_row_new">New Row Below</string>
-    <string name="edit_row_new_desc">Add an empty row under this one</string>
-    <string name="edit_row_delete">Delete Row</string>
-    <string name="edit_row_delete_desc">The apps in it won\'t be uninstalled</string>
     <string name="edit_row_icon_heading">Choose Row Icon</string>
-    <string name="edit_row_menu_title">Manage Row</string>
     <string name="edit_row_delete_confirm_title">Delete this row?</string>
     <plurals name="edit_row_delete_confirm_body">
         <item quantity="one">The app in this row leaves your home screen. It won\'t be uninstalled.</item>
         <item quantity="other">The %1$d apps in this row leave your home screen. They won\'t be uninstalled.</item>
     </plurals>
     <string name="edit_row_delete_ok">Delete</string>
+    <!-- edit_summary_* / edit_hint_* / edit_chip_* / edit_choice_* : Edit Home Screen shelves (R165) -->
+    <plurals name="edit_summary_rows">
+        <item quantity="one">%1$d row</item>
+        <item quantity="other">%1$d rows</item>
+    </plurals>
+    <plurals name="edit_apps_count">
+        <item quantity="one">%1$d app</item>
+        <item quantity="other">%1$d apps</item>
+    </plurals>
+    <string name="edit_key_ok">OK</string>
+    <string name="edit_key_back">Back</string>
+    <string name="edit_hint_pick">Pick up</string>
+    <string name="edit_hint_row">Row actions</string>
+    <string name="edit_hint_done">Done</string>
+    <string name="edit_hint_choose">Choose</string>
+    <string name="edit_hint_add">Add</string>
+    <string name="edit_hint_move">Move</string>
+    <string name="edit_hint_drop">Drop</string>
+    <string name="edit_hint_cancel">Cancel</string>
+    <string name="edit_chip_icon">Icon</string>
+    <string name="edit_chip_up">Move Up</string>
+    <string name="edit_chip_down">Move Down</string>
+    <string name="edit_chip_delete">Delete</string>
+    <string name="edit_new_row">New Row</string>
+    <string name="edit_choice_app_row">App Row</string>
+    <string name="edit_choice_app_row_desc">Apps you pick. Reorder, change icons.</string>
+    <string name="edit_choice_full">Full (max %1$d rows)</string>
+    <string name="edit_new_row_caption">Up to %1$d app rows and %2$d channel rows</string>
+    <string name="edit_new_row_caption_apps">Up to %1$d app rows</string>
+    <!-- R164 new row: channel choice -->
+    <string name="shelf_new_channel">Channel</string>
+    <string name="shelf_new_channel_desc">Shows and movies from your apps</string>
     <string name="row_icon_movie">Movies</string>
     <string name="row_icon_tv">TV</string>
     <string name="row_icon_live">Live</string>
@@ -356,8 +376,6 @@
     <!-- home_move_hint / toast_move_failed : in-place move on the home screen (M4b Task 5) -->
     <string name="home_move_hint">← → Move · ↑ ↓ Change Row · OK Drop · Back Cancel</string>
     <string name="toast_move_failed">Couldn\'t save the new position, try again</string>
-    <!-- edit_move_desc : edit-screen carry mode (M4b follow-up Task 2) -->
-    <string name="edit_move_desc">Move this card with the arrow keys, empty rows included</string>
     <!-- settings shell: capsule shell for all settings pages (R69–R72, 2026-09-23) -->
     <string name="shell_root_layout_desc">Edit home screen, app names, card display</string>
     <string name="shell_root_general_desc">Language, default home, upload files, clock</string>
@@ -450,4 +468,35 @@
     <string name="gallery_storage_failed">Not enough storage or could not save. Free some space and retry.</string>
     <string name="gallery_invalid_failed">The image failed validation. Refresh the gallery and retry.</string>
     <string name="gallery_videos_unavailable">Online gallery videos are not available yet</string>
+    <string name="channel_title">Update channel</string>
+    <string name="channel_stable">Stable</string>
+    <string name="channel_beta">Beta</string>
+    <string name="channel_stable_note">Tested releases, recommended for most people. Switching back from Beta reinstalls the stable version and keeps your layout and settings.</string>
+    <string name="channel_beta_note">Get new features first; may be less stable. You can switch back to Stable anytime without losing your layout.</string>
+    <string name="about_beta_badge">Beta</string>
+
+    <!-- R164 home channel rows: header "App · Channel"; second line under cards in the focused row -->
+    <string name="channel_row_title">%1$s · %2$s</string>
+    <string name="channel_meta_season_episode">S%1$s · E%2$s</string>
+    <string name="channel_meta_episode">Episode %1$s</string>
+    <string name="channel_meta_hours_minutes">%1$d h %2$d min</string>
+    <string name="channel_meta_minutes">%1$d min</string>
+    <!-- R164 edit page: channel shelf -->
+    <string name="shelf_channel_tag">Channel</string>
+    <string name="shelf_channel_empty">Nothing here right now</string>
+    <string name="shelf_channel_needs_permission">Permission needed</string>
+    <string name="shelf_chip_reauthorize">Allow Again</string>
+    <plurals name="edit_channels_count">
+        <item quantity="one">%1$d channel</item>
+        <item quantity="other">%1$d channels</item>
+    </plurals>
+    <!-- R164 channel picker -->
+    <string name="channel_picker_title">Add Channel</string>
+    <string name="channel_picker_hint">What a channel shows, and when it updates, is decided by the app that provides it; some apps only update after you open them and exit with Back. UnitedU only reads and shows them on this TV and never uploads anything.</string>
+    <string name="channel_picker_loading">Loading channels…</string>
+    <string name="channel_picker_empty">No apps offer channels yet</string>
+    <string name="channel_picker_empty_hint">Video apps usually offer one only after you\'ve opened them; some also need you to exit with Back once</string>
+    <string name="channel_picker_denied">UnitedU isn\'t allowed to read channels. You can allow it in System Settings.</string>
+    <string name="channel_picker_open_settings">Open System Settings</string>
+    <string name="channel_picker_back">Back</string>
 </resources>

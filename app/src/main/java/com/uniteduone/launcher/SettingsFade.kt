@@ -257,11 +257,12 @@ data class PreviewMotion(
  * @param preview 栈顶页有预览。
  * @param fresh 这是一次从「完全关着」(a = 0)开始的打开。
  * @param vNow v 此刻的值。
+ * @param toEdit 外壳是因为进编辑页而关掉的:放大到整屏与编辑页淡入同长([GtvLayout.EDIT_SWAP_MS],R168)。
  */
-fun previewMotion(shown: Boolean, preview: Boolean, fresh: Boolean, vNow: Float): PreviewMotion = when {
-    !shown -> PreviewMotion(zTarget = 0f, zMs = GtvLayout.SETTINGS_FADE_OUT_MS)
+fun previewMotion(shown: Boolean, preview: Boolean, fresh: Boolean, vNow: Float, toEdit: Boolean = false): PreviewMotion = when {
+    !shown -> PreviewMotion(zTarget = 0f, zMs = if (toEdit) GtvLayout.EDIT_SWAP_MS else GtvLayout.SETTINGS_FADE_OUT_MS)
     // 编辑页回来(外壳重新打开、落在有预览的页):R136 起首页当场落在预览框里——整屏缩进去会先露一帧整屏亮壁纸。
-    // R147 起那一层上还盖着编辑页的残影(MainActivity 首页 / 编辑页各一个 FadeSwitch),一开始整屏仍是深色的编辑页,
+    // R147 起那一层上还盖着编辑页的残影(R167 起首页常驻、只有编辑页一个 FadeSwitch),一开始整屏仍是深色的编辑页,
     // 整层从整屏缩回预览框、编辑页在缩小的框里淡出:亮壁纸只在越来越小的框里渐渐露出来,不闪;z 从现在的值(整屏 = 0)动过去
     fresh && preview -> PreviewMotion(vSnap = 1f, zTarget = 1f, zMs = GtvLayout.SETTINGS_FADE_IN_MS)
     fresh -> PreviewMotion(vSnap = 0f, zSnapFirst = 0f)
@@ -290,13 +291,13 @@ class ShellMotion(initialShown: Boolean, initialPreview: Boolean) {
     /** 首页那一层此刻的几何(绘制阶段读):有 [zHold] 用它,否则是动画值。 */
     val zNow: Float get() = zHold ?: z.value
 
-    suspend fun run(shown: Boolean, preview: Boolean) = coroutineScope {
+    suspend fun run(shown: Boolean, preview: Boolean, toEdit: Boolean = false) = coroutineScope {
         val fresh = shown && a.value <= 0f
         launch {
             if (shown) a.animateTo(1f, tween(GtvLayout.SETTINGS_FADE_IN_MS, easing = SettingsFadeEasing))
             else a.animateTo(0f, tween(GtvLayout.SETTINGS_FADE_OUT_MS, easing = SettingsFadeEasing))
         }
-        val m = previewMotion(shown, preview, fresh, v.value)
+        val m = previewMotion(shown, preview, fresh, v.value, toEdit)
         m.vSnap?.let { v.snapTo(it) }
         m.zSnapFirst?.let { z.snapTo(it) }
         val zJob = m.zTarget?.let { t -> launch { z.animateTo(t, tween(m.zMs, easing = FastOutSlowInEasing)) } }
@@ -309,7 +310,7 @@ class ShellMotion(initialShown: Boolean, initialPreview: Boolean) {
 
 /** 外壳的淡入淡出状态(MainActivity 用):[shown] / [preview] 一变就按 [previewMotion] 动一轮。 */
 @Composable
-fun rememberShellMotion(shown: Boolean, preview: Boolean): ShellMotion {
+fun rememberShellMotion(shown: Boolean, preview: Boolean, toEdit: Boolean = false): ShellMotion {
     val m = remember { ShellMotion(shown, preview) }
     // 这一次要不要先把首页瞬移进预览框:在**这一次组合**里定下来(见 ShellMotion.zHold)。zHold 只在绘制阶段被读,
     // 组合阶段写它不会造成「先读后写」。shown / preview 没变的重组不重算。
@@ -317,7 +318,8 @@ fun rememberShellMotion(shown: Boolean, preview: Boolean): ShellMotion {
         val fresh = shown && m.a.value <= 0f
         m.zHold = previewMotion(shown, preview, fresh, m.v.value).zSnapFirst
     }
-    LaunchedEffect(shown, preview) { m.run(shown, preview) }
+    // toEdit 不进 key:它与 shown 同一帧翻转(shown = 栈非空 && !editing),只决定这一轮放大的时长
+    LaunchedEffect(shown, preview) { m.run(shown, preview, toEdit) }
     return m
 }
 

@@ -147,7 +147,7 @@ def run():
     check("下 → 回到按钮", s.label() == S("home_empty_go"), s.label())
     key("ok"); time.sleep(2)
     s = screen()
-    check("确定 → 进编辑页", s.has(S("edit_hint")[:20]), s.texts()[:8])
+    check("确定 → 进编辑页", s.has(S("edit_hint_pick")), s.texts()[:8])
     shot("home-empty-edit-page")
     key("back"); time.sleep(2)
     ok, s = focus_stable()

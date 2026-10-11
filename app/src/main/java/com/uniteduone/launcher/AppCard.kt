@@ -14,6 +14,7 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -107,8 +108,29 @@ fun AppCard(
      * 编辑页不传,立即放大。
      */
     focusAfterShift: Boolean = false,
+    /**
+     * R167(编辑页拿起搬运):焦点画法(缩放 + 描边 + 柔光)跟着**应用**走,不跟格子走。卡片按位置组合,搬一步时
+     * 格子里换了别的应用;为 true 时:格子换了应用 → 原来的焦点画法当场收掉(不淡出,否则淡出的框会跟着让位的邻卡滑走);
+     * 被搬的卡([moving])恒画成聚焦、当场到位。只是绘制,焦点事件与上报照旧。见 [carryFocusLook]。首页不传。
+     */
+    focusFollowsApp: Boolean = false,
+    /** R167:取消搬运后正滑回出发格的那张卡,焦点落回它之前照样画成聚焦(见 [carryFocusLook] 的 settling)。只与 [focusFollowsApp] 一起用。 */
+    settling: Boolean = false,
+    /**
+     * R167 复审 3:编辑页此刻是否在搬运或滑回中(整页一个量)。只有这时「格子换了应用」才当场收掉焦点画法。
+     * R167 Task 12:以 lambda 传、**只在用得上时才读**(这一格记下的应用已不是现在这个),整页翻转时只有这几张卡重组。
+     */
+    carrying: () -> Boolean = { false },
 ) {
     var focused by remember { mutableStateOf(false) }
+    /** 这一格最近一次得到焦点时放的是哪个应用(只给 [focusFollowsApp] 用)。 */
+    var focusedPkg by remember { mutableStateOf<String?>(null) }
+    // carrying() 只在用得上时才读(短路,见 carryingMatters):整页翻转时没读它的卡不重组
+    val look = if (focusFollowsApp) {
+        carryFocusLook(focused, moving, focusedPkg, app.packageName, settling, carryingMatters(focusedPkg, app.packageName) && carrying())
+    } else CarryFocusLook(focused, snap = false)
+    // 不在搬运中时焦点格里换了应用(后台卸载让行变短):把记下的包跟上,下一次搬运时这一格不会被当成「换了应用」
+    if (focusFollowsApp && focused && focusedPkg != app.packageName && !carrying()) SideEffect { focusedPkg = app.packageName }
     val accent = LocalThemeColors.current.accent
     // R70:淡化参数来自设置(R120 起在布局组的卡片滑块),含设置页的实时预览。
     val fade = LocalCardFade.current
@@ -145,8 +167,8 @@ fun AppCard(
                 // gtvAppFocusFrame 里(见其 KDoc 里的绘制顺序说明);R49 的淡化只包卡片内容(容器底色 +
                 // banner / 图标 / 文字回落),挂在它**之内**——顺序由 gtvFocusFrameOverFade 一处固定。
                 .gtvFocusFrameOverFade(
-                    focused, accent, metrics.cardCorner, moving, movingColor,
-                    afterShift = focusAfterShift, fade = fade,
+                    look.shown, accent, metrics.cardCorner, moving, movingColor,
+                    afterShift = focusAfterShift, fade = fade, snap = look.snap,
                     // R86:未聚焦的卡按设置的不透明度画,焦点卡 / 被搬的卡恒 1(在 gtvAppFocusFrame 里插值)
                     restAlpha = fade.restAlpha,
                 )
@@ -157,7 +179,11 @@ fun AppCard(
                     if (isLastRow) down = FocusRequester.Cancel else downTarget?.let { down = it }
                     if (isFirstRow) up = FocusRequester.Cancel else upTarget?.let { up = it }
                 }
-                .onFocusChanged { focused = it.isFocused; onFocusChange(it.isFocused) },
+                .onFocusChanged {
+                    if (it.isFocused) focusedPkg = app.packageName
+                    focused = it.isFocused
+                    onFocusChange(it.isFocused)
+                },
             shape = CardDefaults.shape(shape),
             colors = CardDefaults.colors(
                 containerColor = container,
@@ -344,7 +370,8 @@ internal fun Modifier.gtvFocusFrameOverFade(
     afterShift: Boolean = false,
     fade: CardFade = CardFade.DEFAULT,
     restAlpha: Float = 1f,
-): Modifier = gtvAppFocusFrame(focused, accentColor, corner, moving, movingColor, afterShift, restAlpha).gtvCardFade(fade)
+    snap: Boolean = false,
+): Modifier = gtvAppFocusFrame(focused, accentColor, corner, moving, movingColor, afterShift, restAlpha, snap).gtvCardFade(fade)
 
 /**
  * 卡片 / 缩略图边缘一圈极细的亮边(R141):宽 [GtvLayout.CARD_HAIRLINE_DP]、白 [GtvLayout.CARD_HAIRLINE_ALPHA],画在圆角里面、

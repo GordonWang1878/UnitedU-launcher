@@ -13,19 +13,22 @@ class LayoutOpsTest {
         LayoutRow("music"),
     )
 
-    @Test fun addInsertsAnEmptyRowBelowWithTheDefaultIcon() {
-        val next = addRowBelow(three, 0)
-        assertEquals(listOf("movie", "apps", "tv", "music"), next.map { it.icon })
-        assertEquals(LayoutRow(icon = "apps"), next[1])
-        assertEquals(NEW_ROW_ICON, next[1].icon)
-        assertEquals(emptyList<String>(), next[1].apps)
+
+
+    /** R165:新行一律追加在最后(「新的一行 → 应用行」),不再有「在下方新建一行」。 */
+    @Test fun appendAddsAnEmptyAppRowAtTheEnd() {
+        val next = appendAppRow(three)
+        assertEquals(listOf("movie", "tv", "music", NEW_ROW_ICON), next.map { it.icon })
+        assertEquals(LayoutRow(icon = NEW_ROW_ICON), next.last())
+        assertEquals(three, next.take(3))
+        assertEquals(3, appRowCount(three))
     }
 
-    @Test fun addStopsAtFiveRowsAndOnBadIndex() {
+    @Test fun appendStopsAtFiveAppRows() {
         val five = three + LayoutRow("games") + LayoutRow("kids")
-        assertSame(five, addRowBelow(five, 0))
-        assertSame(three, addRowBelow(three, 3))
-        assertSame(three, addRowBelow(three, -1))
+        assertSame(five, appendAppRow(five))
+        val six = five + LayoutRow("tools")
+        assertSame("手改坏的超量文件不再加", six, appendAppRow(six))
     }
 
     @Test fun deleteRemovesButNeverTheLastRow() {

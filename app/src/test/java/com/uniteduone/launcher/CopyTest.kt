@@ -137,4 +137,49 @@ class CopyTest {
             assertEquals(setOf("%1\$s", "%2\$d"), placeholders(s.getValue("apps_row_names_more")))
         }
     }
+
+    /** R165 货架的新文案:三种语言都有;两条带行数上限的、两条 plurals 都带 %1$d。 */
+    @Test fun editShelfStringsExist() {
+        val keys = listOf(
+            "edit_summary_rows", "edit_apps_count", "edit_key_ok", "edit_key_back",
+            "edit_hint_pick", "edit_hint_row", "edit_hint_done", "edit_hint_choose", "edit_hint_add",
+            "edit_hint_move", "edit_hint_drop", "edit_hint_cancel",
+            "edit_chip_icon", "edit_chip_up", "edit_chip_down", "edit_chip_delete",
+            "edit_new_row", "edit_choice_app_row", "edit_choice_app_row_desc", "edit_choice_full", "edit_new_row_caption",
+        )
+        for (l in langs) {
+            val s = strings(l)
+            for (k in keys) assertNotNull("$l 缺 $k(R165)", s[k])
+            for (k in listOf("edit_choice_full", "edit_summary_rows", "edit_apps_count")) {
+                assertEquals("$l 的 $k", setOf("%1\$d"), placeholders(s.getValue(k)))
+            }
+            assertEquals("$l 的 edit_new_row_caption(应用行上限 + 频道行上限)", setOf("%1\$d", "%2\$d"), placeholders(s.getValue("edit_new_row_caption")))
+        }
+    }
+
+    /** R165:行菜单与行尾「+」取消,它们的文案(以及旧的整段说明、「移动位置」说明)三种语言都删掉。 */
+    @Test fun rowMenuStringsAreGone() {
+        val gone = listOf(
+            "edit_hint", "edit_row_add_app_desc", "edit_row_icon", "edit_row_icon_desc",
+            "edit_row_up", "edit_row_up_desc", "edit_row_down", "edit_row_down_desc",
+            "edit_row_new", "edit_row_new_desc", "edit_row_delete", "edit_row_delete_desc",
+            "edit_row_menu_title", "edit_move_desc",
+        )
+        for (l in langs) {
+            val s = strings(l)
+            for (k in gone) assertTrue("$l 里还有 $k(R165 行菜单取消)", k !in s)
+        }
+    }
+
+    /** R167(研究 2026-10-10 §3.2):频道相关文案不把频道叫「推荐」;选频道页说明写明内容与更新时机由提供它的应用决定。 */
+    @Test fun channelCopySaysTheAppDecidesAndNeverRecommends() {
+        val bad = Regex("推荐|推薦|[Rr]ecommend")
+        val decides = mapOf("values" to "应用决定", "values-en" to "decided by the app", "values-zh-rTW" to "應用程式決定")
+        for (l in langs) {
+            val s = strings(l)
+            val offenders = s.filter { (k, v) -> (k.startsWith("channel_picker") || k.startsWith("shelf_")) && bad.containsMatchIn(v) }
+            assertTrue("$l 频道文案里出现「推荐」:$offenders", offenders.isEmpty())
+            assertTrue("$l 的 channel_picker_hint 没写明由应用决定:${s["channel_picker_hint"]}", s["channel_picker_hint"].orEmpty().contains(decides.getValue(l)))
+        }
+    }
 }

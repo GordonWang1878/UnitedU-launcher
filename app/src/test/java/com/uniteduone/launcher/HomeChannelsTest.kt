@@ -1,0 +1,127 @@
+package com.uniteduone.launcher
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/** R164 首页:哪些频道行画出来、焦点列号按「这一行的格数」夹、海报只加载焦点行 ± 1。 */
+class HomeChannelsTest {
+    private fun app(p: String) = AppEntry(packageName = p, label = p, card = null, isWide = false)
+    private fun prog(id: Long) = Program(id, "t$id", null, null, null, 0, null, PosterAspect.R16_9, null, 0)
+    private fun ref(n: Int) = ChannelRef("p$n", "k$n", "c$n")
+    private fun chRow(n: Int, layoutRow: Int) = Row(apps = emptyList(), icon = CHANNEL_ROW_ICON, layoutRow = layoutRow, channel = ref(n), channelAppLabel = "App$n")
+
+    /** Review Focus 2:没授权 / 找不到 / 没节目的频道行与空应用行一样不画;layoutRow 在过滤前就定好了。 */
+    @Test fun permissionlessAndEmptyChannelRowsAreDropped() {
+        val appA = Row(apps = listOf(app("a")), layoutRow = 0)
+        val rows = listOf(appA, chRow(1, 1), chRow(2, 2), chRow(3, 3), chRow(4, 4), Row(apps = emptyList(), layoutRow = 5))
+        val content = mapOf(
+            ref(2) to ChannelContent.NeedsPermission,
+            ref(3) to ChannelContent.Missing,
+            ref(4) to ChannelContent.Ready(listOf(prog(1), prog(2))),
+        )
+        val shown = withChannelContent(rows, content)
+        assertEquals(listOf(0, 4), shown.map { it.layoutRow })
+        assertSame(appA, shown[0])
+        assertEquals(listOf(1L, 2L), shown[1].programs.map { it.id })
+        assertEquals("App4", shown[1].channelAppLabel)
+    }
+
+    @Test fun everythingDeniedLeavesOnlyAppRows() {
+        val rows = listOf(Row(apps = listOf(app("a")), layoutRow = 0), chRow(1, 1))
+        assertEquals(listOf(0), withChannelContent(rows, mapOf(ref(1) to ChannelContent.NeedsPermission)).map { it.layoutRow })
+    }
+
+    /** Review Focus 4:焦点在第 8 张,应用把节目删到 3 张 → 目标列夹到这一行的最后一张(不是行首、不是别的行)。 */
+    @Test fun shrinkingRowClampsTheFocusColumnToItsLastCard() {
+        val before = listOf(Row(apps = listOf(app("a")), layoutRow = 0), chRow(1, 1).copy(programs = (1L..8L).map { prog(it) }))
+        assertEquals(7, homeFocusCol(before, 1, 7))
+        val after = listOf(before[0], before[1].copy(programs = (1L..3L).map { prog(it) }))
+        assertEquals(2, homeFocusCol(after, 1, 7))
+        assertEquals(0, homeFocusCol(after, 0, 7))
+        assertEquals("行不在了按 0", 0, homeFocusCol(after, 5, 3))
+    }
+
+    @Test fun postersLoadOnlyNearTheFocusRow() {
+        assertEquals(listOf(false, true, true, true, false), (0..4).map { loadsPosters(it, 2) })
+        assertTrue(loadsPosters(1, 0))
+        assertFalse(loadsPosters(2, 0))
+    }
+
+    // ---- owner 裁定(2026-10-08):焦点目标按 layoutRow 认行,画出来的行数变了不换行、不清列 ----
+    private fun appRow(lr: Int, vararg pkgs: String) = Row(apps = pkgs.map { app(it) }, layoutRow = lr)
+    private val ready = chRow(1, 1).copy(programs = (1L..4L).map { prog(it) })
+
+    /** 焦点在频道行下面的应用行,发布方把频道清空 → 频道行不画了,目标仍是同一个 layout 行的同一张卡(画出来的行号 2 → 1)。 */
+    @Test fun channelRowAboveDisappearingKeepsTheSameCard() {
+        val before = listOf(appRow(0, "a"), ready, appRow(2, "c", "d", "e"))
+        assertEquals(2 to 1, homeTargetCell(before, tgtLayoutRow = 2, tgtCol = 1))
+        val after = listOf(before[0], before[2])
+        assertEquals(1 to 1, homeTargetCell(after, tgtLayoutRow = 2, tgtCol = 1))
+    }
+
+    /** 冷启动节目晚到:频道行出现在焦点行上面 → 目标跟着同一个 layout 行往下挪一格,不跳到新冒出来的频道行。 */
+    @Test fun channelRowAppearingAboveKeepsTheSameCard() {
+        val before = listOf(appRow(0, "a"), appRow(2, "c", "d"))
+        assertEquals(1 to 1, homeTargetCell(before, 2, 1))
+        val after = listOf(before[0], ready, before[1])
+        assertEquals(2 to 1, homeTargetCell(after, 2, 1))
+    }
+
+    @Test fun targetRowGoneFallsToTheRowThatTookItsPlace() {
+        val rows = listOf(appRow(0, "a"), appRow(3, "c", "d"), appRow(4, "x"))
+        assertEquals("layout 行 2 没画 → 补上它位置的行 3", 1, homeTargetRow(rows, 2))
+        assertEquals("下面没有了 → 最后一行", 2, homeTargetRow(rows, 9))
+        assertEquals("还没定目标(-1)→ 第一行", 0, homeTargetRow(rows, -1))
+        assertEquals(0, homeTargetRow(emptyList(), 2))
+        assertEquals("列号夹到落点那一行的格数", 2 to 0, homeTargetCell(rows, 4, 5))
+    }
+
+    // ---- Task 12 修订一:落定后目标改写(补位行 / 夹过的列)只在前台、非移动态、目标自报落地时做 ----
+    @Test fun landingAdoptsReplacementRowAndClampedColumnOnlyWhenResumed() {
+        val rows = listOf(appRow(0, "a"), appRow(2, "c", "d"))
+        // 目标 layout 行 1(频道行)没画 → 落到 layout 行 2 的第 1 格(列 5 夹到 1)
+        val want = homeTargetCell(rows, tgtLayoutRow = 1, tgtCol = 5)
+        assertEquals(1 to 1, want)
+        assertEquals(2 to 1, homeLandingTarget(rows, want, landed = true, resumed = true, moving = false))
+        assertEquals("ON_PAUSE 期间不改写(铁律 5)", null, homeLandingTarget(rows, want, landed = true, resumed = false, moving = false))
+        assertEquals("没落地不改写(铁律 2)", null, homeLandingTarget(rows, want, landed = false, resumed = true, moving = false))
+        assertEquals("移动态不改写", null, homeLandingTarget(rows, want, landed = true, resumed = true, moving = true))
+    }
+
+    @Test fun shrunkRowLandingAdoptsTheClampedColumn() {
+        val before = listOf(appRow(0, "a"), ready.copy(programs = (1L..8L).map { prog(it) }))
+        val after = listOf(before[0], before[1].copy(programs = (1L..3L).map { prog(it) }))
+        val want = homeTargetCell(after, 1, 7)
+        assertEquals(1 to 2, want)
+        assertEquals("行变短夹到第 3 张后,目标列就是 2(上下键同列落点从这里算)", 1 to 2, homeLandingTarget(after, want, true, true, false))
+    }
+
+    // 删行后 layout.json 下标整体前移:原第 3 行(layoutRow 3)变成 layoutRow 2。
+    private val afterDelete = listOf(appRow(0, "a", "b"), appRow(1, "c"), appRow(2, "d"))
+
+    /** R167:编辑页里删掉了首页焦点所在的中间那一行(原 layoutRow 2):补位的是下一行(下标前移后同为 2),列夹到它的格数(Review Focus 4) */
+    @Test fun deletedMiddleTargetRowAfterEditLandsOnNextRow() =
+        assertEquals(2 to 0, homeTargetCell(afterDelete, tgtLayoutRow = 2, tgtCol = 3))
+
+    /** R167:删掉的是最后一行(原 layoutRow 3,已不存在):落到现在的最后一行 */
+    @Test fun deletedLastTargetRowAfterEditLandsOnLastRow() =
+        assertEquals(2 to 0, homeTargetCell(afterDelete, tgtLayoutRow = 3, tgtCol = 1))
+
+    /** R167:R161 空桌面进的编辑页(目标是按钮的负行号)加了应用回来:落第一行第一张 */
+    @Test fun emptyDesktopTargetLandsOnFirstCardAfterEdit() =
+        assertEquals(0 to 0, homeTargetCell(listOf(appRow(0, "a")), tgtLayoutRow = EMPTY_EDIT_ROW, tgtCol = 0))
+
+    /** R167 裁定:这一轮编辑页一次都没写盘 → 没有落点,冻结的目标原样还原(回到原来那张卡) */
+    @Test fun noLandingWhenEditDidNotWrite() = assertEquals(null, homeLandingAfterEdit(changed = false))
+
+    /** R167 裁定:写过盘 → 落第一行第一张(画出来的第 0 行第 0 列,= R167 前首页重建后的落点);每次都是新落点,不是闩 */
+    @Test fun landingOnFirstCardWhenEditWrote() {
+        val a = homeLandingAfterEdit(changed = true)!!
+        assertEquals(MovePos(0, 0), a.pos)
+        assertEquals(false, a.wrote)
+        assert(a !== homeLandingAfterEdit(changed = true))
+    }
+}

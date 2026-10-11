@@ -1982,6 +1982,318 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - Gordon 传好社交预览图后,要再加一张「风暴舰队」壁纸的预览(担心用户不喜欢卡通风)。GitHub 社交预览只有一个位置,所以:两份 README 首屏改成两张截图并排(`home-en.jpg` 夏日数码门 + `home-storm-en.jpg` 风暴舰队);另做一张同版式的 `docs/social-preview-storm.png`,要不要换掉现在的社交预览由 Gordon 定。设内置壁纸写 `settings.json` 的 `wallpaperFile = "builtin:<ID>"`(ID = 去扩展名的文件名),只写文件名不认。
 - Gordon 已把 GitHub 社交预览换成风暴舰队版(`docs/social-preview-storm.png`);`docs/social-preview.png` 留作备用。仓库曝光优化这条线结束。
 
+## 2026-10-09 · 稳定版 / Beta 双通道:方案定案(未开工)
+
+- Gordon 定(grilling):同一应用 + 关于页「更新通道」开关;Beta 切回稳定用**回退包**(每发一个 Beta,用上一个稳定 tag 的源码构建一个 versionCode = Beta + 1 的包,挂 `rollback.json`,当场回退、不丢数据);main = Beta,稳定版由同一提交去后缀重构建晋级。
+- 否掉的:独立 Beta 包名(数据不共享、要切默认桌面)、等稳定版追上(切回要等数周)、卸载重装(布局全丢)、长期双分支、功能开关。
+- 回退包带来硬约束:**Beta 只能新增数据字段**,旧代码要能读新数据;写进 CLAUDE.md + 读盘单测。
+- 设计稿:`docs/superpowers/specs/2026-10-09-release-channels-design.md`(R166)。代码一行未动。
+
+## 2026-10-09 · 稳定版 / Beta 双通道(R166)实施完成(分支 feature/release-channels,未合 main、未发布)
+
+- 做了(按设计稿 `docs/superpowers/specs/2026-10-09-release-channels-design.md`):`updateChannel` 设置字段(「恢复默认」不动它)→ 纯函数 `resolveChannel`(`UpdateChannels.kt`)→ 检查更新按通道读 `latest.json` / `beta.json` / `rollback.json`(`Update.checkChannel`、`UpdateKind`)→ 关于页胶囊 2 → 3 与二选一通道页 → `scripts/release.sh` Beta 模式(prerelease、回退包、versionCode 单调检查、`channel-beta` 固定 tag)→ 端到端脚本 `scripts/e2e/channels.sh`;CLAUDE.md 加「数据格式向下兼容铁律」,`ForwardCompatTest` 钉住读盘函数对未知字段宽容。R166 条目已写进 gtv 线 spec §12,设置清单、REVIEW-GUIDE、两份 README 已同步。
+- **验证**:单测全过(含 `UpdateChannelsTest`、`ForwardCompatTest`、`SettingsPageLimitTest` 数到关于页 3 / 通道页 2);模拟器 `unitedu-tv-2` 焦点验收(关于页三颗、进通道页焦点落当前项、Beta 说明跟光标、切换后自动检查、返回落回「更新通道」)截图在 `docs/screenshots/channels/`;e2e `scripts/e2e/channels.sh` 5 场景全过(35/35 断言):稳定查 latest;切 Beta 装 1.0.4-beta.1(关于页标 Beta);切回稳定装回退包,layout.json md5 与改过的设置前后相同;beta.json 404 不报失败;下载中切通道下载作废。
+- **未验证**:①**还没往真实 R2 / GitHub 发过任何 Beta**(`release.sh` Beta 模式只跑过 dry-run,稳定模式路径也是 dry-run);②`channel_beta_fail` 失败恢复提示与回退 worktree 的 trap 清理只做了语法检查,没造出失败去走;③首页焦点可见只有间接证据(空桌面 uiautomator 读不到透明节点);④没在 A95L 真机上看过。
+- **Gordon 2026-10-09 定:更新通道顺序沿用 R2 优先、GitHub 兜底、先到先得;清单读到后下载失败不换通道重试,不改。**
+- **发版顺序前提**:第一个带通道开关的版本必须先作为**稳定版**发出(1.0.3 及以前的用户没有开关,发了 Beta 他们也看不到);稳定版发出后才能发第一个 Beta。`release.sh` 的 versionCode 必须比已发布最大值大(三类包共用一个计数)。
+- 模拟器小坑已记 CLAUDE.md:自我更新要同时开 `REQUEST_INSTALL_PACKAGES` 与 `SYSTEM_ALERT_WINDOW` 两个 appop;系统确认页默认焦点在 Cancel、Update 在它左边。
+
+## 2026-10-10 · 双通道终审修复(分支 feature/release-channels)
+
+- 回退包只对「已装名字带 `-beta`」的包生效(`resolveChannel` 新参数 `installedName`);已是回退包则视为最新。Beta 分支先滤「装得上且更新」再择优。
+- **Gordon 2026-10-10 定**:Beta 通道只接收版本名不低于当前 Beta 基础版本的稳定版(装 1.1.0-beta.2 不收稳定急修 1.0.4;`compareSemver`);急修要给 Beta 用户就并进 main 发下一个 Beta。
+- `release.sh` Beta 模式:先 `git fetch --tags`,稳定 tag 须等于线上 `latest.json` 的 versionName,且该 tag 的 `gradle.properties` 已有 `unitedu.rollbackUrls`(第一个带通道开关的版本必须先发稳定版);`published_max_code` 网络失败不再当 0(404 只对 beta/rollback 算 0);dry-run 只警告。回退包 trap 的 INT/TERM 现会退出。
+- 关于页:`offerKind` 记当前更新来路,回退包在下载失败 / 校验失败等态也不叫「新版本」。
+- 2026-10-10 编号冲突:双通道原用 R164,但分支 `GordonWang1878/频道推荐`(2026-10-08 起)已占 R164(频道行)/ R165(编辑桌面货架)。双通道改号 **R166**(代码注释与文档同步替换),频道推荐分支合入时保持原号。已本地合入 main(fast-forward 至 8cc23a3,861 单测通过),未推送。
+
+## 2026-10-10 · 发布 1.1.0(versionCode 7):带「更新通道」开关的首个稳定版
+
+- Gordon 定版本号 1.1.0。`R2_BUCKET=unitedu R2_BASE_URL=https://dl.uniteduone.com scripts/release.sh 1.1.0`:先 dry-run 后正式;单调检查 7 > 已发布最大值 6,签名 = release 证书。
+- 读回:R2 `latest.json` = 7 / 1.1.0,APK 200(16065698 字节);GitHub `releases/latest/download/latest.json` = 7 / 1.1.0。说明 `dist/notes-1.1.0.txt` + `.app.txt`(双语)。
+- 这是发 Beta 的前提:此后 `release.sh x.y.z-beta.N` 的「最新稳定 tag 必须带 unitedu.rollbackUrls」检查可通过。下一步:`频道推荐` 分支 rebase 到 main 后以 Beta 发出(见记忆 channels-branch-awaits-beta-track)。
+- 电视实测(Gordon 2026-10-10):A95L 经「检查更新」装上 1.1.0,「更新通道」切换正常。Gordon 选「推」:main 17 个提交已推到 origin/main(`3895102`)。
+
+## 2026-10-10 · 实测发现:回退后无法立即重进同一个 Beta(机制所致,非 bug)
+
+- Gordon 在 A95L:1.1.0 → Beta 1.2.0-beta.1(code 8)→ 切回稳定装回退包 1.1.0(code 9)→ 再切 Beta,装不上。
+- 机制:回退包的 versionCode 必须大于 Beta 才能覆盖安装(Android 禁止降级);于是回退后已装 9,线上 Beta 仍是 8,`resolveChannel` 判「已是最新」。同一个 Beta 想再装回来需要一个比 9 更大的新包——来回切换每一次都需要新构建,无法预先备好。下一个 Beta(code ≥ 10)发出后自动能进。
+- 界面只显示「已是最新」、不说明原因:Gordon 2026-10-10 定**保持现状**,不加提示。
+
+## 2026-10-10 · 关于页:许可收成一行 + 左侧排版不再随检查结果抖动
+
+- Gordon:许可字太多;「发现新版本」时整块文字往上跑。
+- 根因(抖动):`ShellTitle` 把左列整体垂直居中,结局 / 更新说明(最多 4 行)出现时列变高、居中点上移,版本号与页名跟着动。修法:左列每段定高——版本号、结果胶囊单行不换行;结局 + 说明先画一份不可见的「最高情况」占位(结局 2 行 + 说明 4 行)撑定高度,真实内容从顶上叠。模拟器四态(空白 / 已是最新 / 发现新版本带 4 行说明 / 下载失败)截图比对:页名、版本号、页脚位置逐像素一致,`docs/screenshots/about-layout/`。
+- 许可(Gordon 选「一行 + 打包进 APK」):页面只留 `about_footer`「Apache-2.0 · github.com/GordonWang1878/UnitedU-launcher」(删 `about_license_title` / `about_license` / `about_repo`)。原来那行只列组件名、并不含 NanoHTTPD(BSD-3)要求的版权声明原文;现在 `app/build.gradle.kts` 的 `copyNotices` 把仓库根的 `NOTICE`、`LICENSE` 构建时拷进 APK 的 `assets/licenses/`(与 OFL 全文同目录,单一来源),合规比之前更完整。
+- 未验证:A95L 上的观感(需发版后电视上看)。
+- 2026-10-10 发布 **1.1.1(versionCode 10)**:线上已有 Beta 8(1.2.0-beta.1,频道推荐会话发的)+ 回退包 9,单调检查取 10。R2 / GitHub `latest.json` 读回 10 / 1.1.1,APK 200。Beta 1.2.0-beta.1 的用户按基础版本规则收不到 1.1.1(1.1.1 < 1.2.0),符合设计;稳定通道的人(含装了回退包 9 的)收到 1.1.1。**下一个 Beta 的 versionCode 至少 11**。
+## 2026-10-07 · 调研:频道 / 内容推荐(未决定做)
+- Gordon 在考虑下个大版本加首页「频道推荐」,先问机制、能不能做、代价。报告 `docs/research/2026-10-07-tv-channels-recommendations.md`(纯文献 + AOSP 14 源码,未实测)。
+- 结论:机制是 TvProvider 的 channel / preview_program / watch_next_program 三张表;侧载桌面申请 `READ_TV_LISTINGS`(dangerous,弹窗或 `pm grant`)就能读所有 `searchable = 1` 的行,Projectivy 走的同一条路。做不了的:批准频道上首页(`ACCESS_ALL_EPG_DATA`,signature|privileged)——不批准时 Kodi 这类应用不填节目。定位:Gordon 裁定不冲突——「零推荐」是默认不推、能关,不是想开也开不了;做成默认关闭的可选项(§9 的「不做」是 1.0 范围)。
+- 待实测:国内 TV 应用写不写频道、A95L 上 Projectivy 频道行有没有内容(命令在报告第 5 节)。
+- 同日按 Gordon 要求改为「先 desk、再模拟器、电视最后」,补两路:
+  - 模拟器探针(unitedu-tv / unitedu-gtv,报告 §6):授权弹窗正常、可在设置里撤销;未审批(browsable=0)的频道照样读得到;Google TV 的 launcherx 对侧载应用不审批(对话框直接 CANCELED,原因未查明);searchable 过滤逐行不级联;卸载即清空。截图 `docs/screenshots/channels/`。
+  - APK 静态分析 20 个(报告 §7):国内写频道的是云视听极光(受云端开关)、CIBN 酷喵、云视听小电视;奇异果 / 芒果 / 咪视界未发现;继续观看国内基本空;海外主流都写。当贝桌面不读 TvProvider。Projectivy APK 没拿到。
+
+## 2026-10-08 · 频道推荐:进入设计(brainstorming,架构级)
+- Gordon 选定第一版范围:「继续观看」行 + 各应用的频道行;**不做**焦点停留自动播预告片(A95L 32 位解码压力、与安静桌面调性冲突,可后加)。
+- 摸底发现:设置第一层、「布局」组、「通用」组都已是 6 / 6 颗胶囊(R128 上限),放总开关得先合并别的行;`INITIALIZE_PROGRAMS` 按文档由「桌面」发、不是 protected broadcast——我们当桌面时要自己发,否则酷喵 / Netflix / YouTube 这类靠它建频道的应用在没有原厂桌面的机器上可能永远不建。
+- Gordon 选定做法 A:频道 / 继续观看是用户在「编辑桌面」里亲手加的一行(与应用行一样可上下移、删除),默认一行都没有;不做设置总开关(B)。
+- 原厂参照截图 20 张 + 尺寸表:`docs/screenshots/channels/ref/`(tvlauncher:行头「应用名: 频道名」12sp、卡高 115dp 按比例变宽、焦点放大 1.2 倍且信息写在行下方、Play Next 进度条 4dp;Google TV 不显示侧载应用的继续观看)。
+- 第 1 段「怎么用」Gordon 批准;随后 Gordon 决定**第一版去掉「继续观看」**:首页一行叫「继续观看」会被当成全系统的观看记录,实际只收录主动写表的应用(YouTube 走 Engage 读不到、国内基本只有极光写),承诺大于能给。第一版只做各应用的频道行(最多 5 行、每行 12 张)。
+- 模拟器坑(Mac 侧):代理用 `adb emu kill` 关掉模拟器后,Dock 上会留下 `qemu-system-aarch64` 空壳图标(LaunchServices 标 `exited-with-subordinates`,进程已不在,`adb kill-server` 也清不掉);Gordon 右键「Stop Running in Background」清掉。查法:`lsappinfo list | grep -c "\"qemu-system-aarch64\" ASN"`。
+- 第 2 段视觉 Gordon 定:频道卡固定 110dp 高、宽按海报比例;焦点行里每张卡正下方写标题 + 第二行(照 Google TV,不写简介);行头在卡片上方写「应用名 · 频道名」、左边距不画图标;长按频道卡第一版不做菜单。下一步写 spec。
+
+## 2026-10-08 · 编辑桌面重做(由频道行引出)
+- Gordon 看设计稿后:「在下方添加频道」藏在行尾「+」的菜单里,层级太深、用户想不到;他本来就不喜欢行尾「+」。要求把编辑桌面整页重做:有高级感、与全 App 风格一致。频道行设计稿(R164)入口部分挂起,等编辑桌面新方案定了再改。
+- Gordon 看完三方案效果图(`docs/screenshots/edit-redesign/`)选 **C 货架**(我推荐的是 B 工作台):全屏、壁纸模糊垫底、每行一层玻璃架子,行操作摆在架子顶部,最后一层「新的一行」里选「应用行 / 频道」。下一步出 C 的细化设计。
+- 货架细化 Gordon 批准;编辑桌面 + 频道行合成一份设计稿 `docs/superpowers/specs/2026-10-08-edit-shelves-and-channels-design.md`(R165),旧频道稿入口部分标为被取代。
+- 合并设计稿 Gordon 审定(「没问题」,含编辑页菜单键改成卡片菜单)。下一步出实施计划。
+- 编辑参照截图:会话重启后以为原代理已中断、又派了一个续拍,实际原代理还活着,两个同时操作同一对模拟器互相打断;续拍的已退出,留原代理收尾(去重编号、写 INDEX.md、还原 unitedu-tv 的 long_press_timeout=400 与 HomeKeyService、关模拟器)。教训:续派前先看目标目录最近写入时间。
+
+## 2026-10-09 · 编辑桌面货架:模拟器验收(R165 Task 10,unitedu-tv-2)
+- e2e:`j_edit` 52/52、`j_overlays`(编辑六项)54/54、`j_home + j_pkg` 118/118;修完下面两处后 `j_edit` / 编辑浮层重跑仍全过。截图与逐帧证据在 `docs/screenshots/edit-shelves/`。
+- **修 1(横向换焦点,1× 录像)**:焦点走到行尾那张露出一截的卡时,它当场不再裁、而横向位移还在动,约 170 ms 里整张卡画进架子外 40 dp 留白、只被屏幕边缘截(`b-right-end-before.jpg`)。改成焦点卡只有整张进了架子才不裁、滑入时照样裁在架子右端(`shelfCardClipRight`,`b-right-end-after.jpg`)。停下后的样子不变:焦点卡柔光照常画出架子(owner 裁定)。
+- **修 2(换卡片图回来落在下面几层)**:进页先画在第 1 层、再 200 ms 滑到种子那层(`c-seed-return-before.jpg`)。目标初值改成种子那一层(`initialEditSpot`),各层高度第一次量齐之前整页位移 snap 不走动画;现在第一帧就在种子层(`c-seed-return-after.jpg`)。
+- 模糊底:效果图是 960 CSS px 宽、2 倍渲染,blur(36px) = 1920 上 σ 72 px;我们半径 8 × 3 遍 × 8 倍 ≈ σ 68 px,两者相当(拿效果图原图 wall2.jpg 离线对照,`a-blur-compare.jpg`)。Task 5 复审「是效果图 2 倍」的说法有误,BLUR_RADIUS 保持 8,只改 KDoc。非 16:9 壁纸会被拉伸、不是居中裁切——只记下,未改。
+- 核对通过:第 1 张卡柔光连续画出架子左缘、无硬边(`e-first-card-left-glow.jpg`);行尾露出那张齐齐截在架子右缘;换层淡入时焦点卡四边完整(`08*`);焦点落到非焦点层的透明胶囊时那一层同帧变焦点层、胶囊随架子 200 ms 淡入(`d-chip-on-inactive-shelf.jpg`)。
+- 与效果图的差异(未改,记下):焦点色是当前主题的 accent(模拟器默认白),效果图是绿;卡片按上落「离得最近的胶囊」、胶囊按下落离得最近的卡(spec 本意),所以从「添加应用」按下会落到第 5 张而不是第 1 张;页头渐隐遮罩下,滚上去那层的行名在屏幕最顶端还隐约透出一点(遮罩 97%);胶囊失焦的头一两帧字色已换成浅色、底色还没褪,字会短暂看不清(约 50 ms)。
+- 帧时间(模拟器,只作相对参照;5 行 + 新的一行 + 模糊底,上下各 10 下):252 帧,Janky 42%,50th 48 ms / 90th 121 ms / 95th 150 ms / 99th 150 ms。同样按键在首页:139 帧,50th 42 ms / 90th 129 ms / 95th 150 / 99th 150——两者同一个量级。真机由 Gordon 随正式版看。
+
+## 2026-10-09 · 编辑桌面货架实施收口(R165,计划 1)
+- 按 `docs/superpowers/plans/2026-10-08-edit-shelves.md` 实施 spec §2(编辑页)与 §5 的两条(菜单键、新行追加到末尾);频道行留给计划 2。
+- 新文件:`EditShelves.kt`(纯逻辑,单测 `EditShelvesTest` / `EditShelvesLandingTest`)、`EditPress.kt`(`OkPressTest`)、`EditBackdrop.kt`(`EditBackdropTest`)、`EditShelfParts.kt`、`AppPicker.kt`(从 EditScreen 搬来);`EditScreen.kt` 重写;删 `addRowBelow`、`editFirstRow`(`EditScrollTest`)与行菜单文案。
+- 解释过的 spec 空白:非焦点层胶囊透明度 0 但照常布局、可聚焦(「卡片 → 下一层胶囊」要有落点);所有应用架子同高 140 dp(效果图非焦点层 118 dp,同高避免换层时整页跳);拿起 = 焦点放大 + highlight 描边 + 阴影 + 方向箭头,不再叠 1.08;删除落上一层**第一颗**胶囊(防连删);跨层上下也按水平中心取最近;货架不画卡片标题。
+- Task 10 的两处运行时修正已写进 CLAUDE.md 焦点表:焦点卡滑入架子右端时照样裁(静止的焦点卡不裁,owner 裁定);换卡片图回来第一帧就在种子那层(`initialEditSpot`)。REVIEW-GUIDE 里「回编辑页滚动位置不同」那条已删(已修)。
+- 验证:单测、模拟器 `unitedu-tv-2` 的 e2e(`j_edit`、`j_overlays`、`j_home`、`j_pkg`)与 1× 录像逐帧见上一条(模拟器验收);帧时间 252 帧,Janky 42%,50th 48 ms / 90th 121 ms / 99th 150 ms(首页同操作 50th 42 ms,同量级)。截图 `docs/screenshots/edit-shelves/`。
+- 与效果图的差异:焦点色用当前主题 accent(效果图是绿);卡片按上落「离得最近的胶囊」;页头渐隐遮罩下滚上去那层的行名仍隐约透出;胶囊失焦头一两帧字色先于底色褪(约 50 ms)。其余见上一条。
+- 文档同步:CLAUDE.md 焦点表(重写「编辑页」、删「编辑页的行菜单」、改行图标 / 删行确认 / 添加应用三行、长按菜单行调用点数)、REVIEW-GUIDE、README 双语、gtv 线 §12(R165 状态、R76 标被取代)。
+- 仍待:电视上看(随下一个正式版);计划 2(频道行、`Move.kt` 跳过频道行、应用页「加到桌面」只列应用行)。
+
+## 2026-10-09 · 频道行计划 Task 17:模拟器验收、截图、性能
+
+- 模拟器 `unitedu-tv-2`(`-gpu host`,英文界面)。回归 `j_channels` 72/72;1× 录像(首页上下换行各 5 次、频道行左右走到底再回来)逐帧看过:换行无跳动,行头焦点行全白 / 离开变暗,卡下两行字只在焦点行画、其余行留高不跳,行尾焦点卡的放大 + 描边 + 柔光没被裁(R129f)。实测卡高 109–110 dp、16:9 卡宽 196 dp、行头 17 sp,与 spec §3.2 / R164-4 一致。
+- 顺手修的四处小毛病(都只动画法,不动焦点账本):①「应用行」选择卡说明在英文下被截半句——卡高 110 只放得下一行说明,改 `maxLines = 1` + 省略号,英文改短为「Apps you pick. Reorder, change icons.」;②已满 5 行的「频道」卡有焦点时照样填主题色,看着是亮的焦点态——改成灰底(白 18%、整卡 80%,纯函数 `choiceLook`,单测 `ChoiceLookTest`);③选频道页没横幅的应用卡上回落成整句「应用 · 频道」,改为只写应用名(`PickerRow.cardLabel`);④选频道页「没有任何频道」两行说明偏离页名中线(Column 默认靠左),改居中。
+- 截图 `docs/screenshots/channel-rows/01…10`(01 首页焦点在频道行、02 焦点在频道行下一行、03 无图回落卡、04 编辑页频道架子、05 需要重新授权、06「频道」满 5 行变暗、07 选频道页、08 拒绝授权、09 没有任何频道、10 系统授权窗)。02 取的是频道行**下面**那行有焦点:首页第一行在屏幕下部,焦点在它上面时频道行在屏幕外。
+- 性能(首页 5 应用行 + 5 频道行 × 12 vs 纯 5 应用行,同操作:下 9 / 右 11 / 上 9;release 包已 `compile -m speed`;各跑两遍,数字只作相对比较):gfxinfo 50th 97 vs 57–69 ms、90th 都是 150 ms 档;framestats UI 线程 50th 0.9–1.6 vs 0.6–1.0 ms、90th 3.3–4.5 vs 2.0–5.3 ms(同量级);RenderThread 50th 46–70 vs 23–34 ms(频道行画的像素多,模拟器 GPU 是瓶颈,不代表 A95L,见 perf-2026-09-28 的 GPU 坑)。海报只加载焦点行 ± 1(`loadsPosters`)。PSS 92 vs 61 MB,两遍间不涨(LRU 16 MB 封顶);模拟器 `Graphics` 一栏恒 0,看不出图形内存。编辑页 10 层(5 应用 + 5 频道,毛玻璃底)上下各 11 下:UI 50th 0.7–1.5 ms、RenderThread 50th 25–26 ms,与 5 层纯应用(27–34 ms)持平。A95L 的手感要随正式版由 Gordon 在电视上看。
+- 仍待:电视上看(随下一个正式版)。
+
+## 2026-10-09 · 频道行实现收口(R164 / R165 §3–§5,计划 `docs/superpowers/plans/2026-10-08-channel-rows.md`)
+- 做了什么(按任务):①模型与 layout.json(`LayoutRow.channel`,旧版读到是空应用行)②行数判据:应用行 / 频道行各自最多 5 行 ③匹配 / 排序 / 截断 12 张 ④`moveCard` / `moveInLayout` 跳过频道行 ⑤缺包清理 ⑥「加到桌面」只列应用行 ⑦`ChannelSource` 读 TvProvider + `ChannelCache` + `READ_TV_LISTINGS` ⑧`PosterLoader` ⑨授权请求、500 ms 去抖、`LocalChannelEnv`、`ChannelLaunch` 两条防线 ⑩`HomeVertical` 逐行累计纵向几何 ⑪e2e 夹具 `test.channels` ⑫首页频道行(目标改按 layout.json 行号认行)⑬编辑页频道架子 ⑭「新的一行」加「频道」卡 ⑮选频道页 ⑯e2e `j_channels` ⑰模拟器验收与截图 ⑱本条文档同步。
+- 关键结论:①**没授权时 TvProvider 不抛异常、只返回 0 行**,「需要重新授权」以 `checkSelfPermission` 为准;②`pm revoke` 撤销授权会杀本进程(授权不会),且不清「拒绝过」标记,要清得 `pm clear-permission-flags … user-set user-fixed`;③频道重读**不整段冻结**焦点目标——TvProvider 每变一次就吞方向键不可接受;只在内容真的变了时、同一次恢复里冻结一次(`restoring` → 换数据 → `channelsLanding++`),否则焦点卡被拆那一帧 Compose 抢给的 (0,0) 会改写目标;④首页目标按 layout.json 行号认行、rows 不包 `key`,频道行整行出现 / 消失时下面那行焦点不动;⑤TV 版授权窗连拒两次不会自动变「不再询问」,第二次起多一个显式按钮;⑥读失败时缓存留上一份,设备没有 TvProvider 才算空;⑦海报和 `intent_uri` 都来自第三方,分别加了尺寸 / 像素 / 时限约束与「去授权位、只启发布方自己的导出组件、钉 component」。
+- 联网说明变化:海报是 https 时会联网下载,是继「检查更新」「上传资料」后的第三个联网点,只在用户自己加了频道行时;README 双语「全程不联网」一句同步改。
+- e2e:`j_channels` 72/72(最近一次),`j_edit` + `j_pkg` 131/131;全量单测 + `assembleRelease` 通过。Task 11 的夹具未需要补 `input_id`。
+- Task 17 性能(首页 5 应用行 + 5 频道行 × 12 vs 纯 5 应用行,同操作;模拟器,只作相对比较):gfxinfo 50th 97 vs 57–69 ms;framestats UI 线程 50th 0.9–1.6 vs 0.6–1.0 ms(同量级);RenderThread 50th 46–70 vs 23–34 ms(模拟器 GPU 是瓶颈);PSS 92 vs 61 MB,两遍间不涨(LRU 16 MB 封顶)。截图 `docs/screenshots/channel-rows/01…10`。
+- 验收时的裁定:满 5 行的「频道」选择卡有焦点时用 80% 灰底(不用主题色,免得看着像能按),请 Gordon 看 `06-new-row-full.jpg`;「应用行」卡英文说明改短一行。
+- 未验证项:**国行 A95L 上有没有频道数据、Kodi 型「不 browsable 就不写节目」的应用会怎样,都只能随正式版在电视上看**;A95L 手感(渲染线程耗时模拟器约 2 倍)同样待看。
+- 已知小毛病(记下未修):选频道页标签用 `ctx.getString`(换语言不重组);授权窗开着时 Activity 重建 → 页面停在「询问中」只能按返回;没横幅的应用在选频道页卡上回落成整句文字略挤;满行卡获焦时 alpha 0.45→0.8 瞬跳而填色走 150 ms。
+- 文档同步:CLAUDE.md(首页行补频道行与目标口径、新增「选频道页」行、编辑页补频道架子、模拟器坑)、REVIEW-GUIDE(文件地图 / 约束 / 已知限制 / 计数)、README 双语、DESIGN(「内容推荐行」注明 R164)、gtv 线 §12 R164 状态。`docs/design/settings-inventory.md` 未受影响(没有新设置项)。
+- 2026-10-09 夜间窗口收尾:计划 2 终审修复后 e2e 一度 67/72,诊断为环境(设备缺 fixtures.py 占位应用),HEAD 用新夹具连跑两次 72/72。建议 scripts/e2e/README 注明 j_channels 依赖 fixtures.py 的占位应用。
+- 晨间 Gordon 定:暂不发版、不合 main、不推。另一会话在做稳定版 / Beta 双轨;就绪后把本分支作为新 Beta 发出,他在 A95L 的 Beta 通道实测,通过后再谈合并与推送。
+
+## 2026-10-10 · 频道行分支变基到双轨 main,发 1.2.0-beta.1
+
+- 分支 `GordonWang1878/频道推荐` 变基到 origin/main 54b6d2d(含 R166 更新通道、1.1.0);冲突都是两边各自追加(WORKLOG、gtv spec §12、三份 strings.xml、CLAUDE.md),保留两边;裁定表去掉合并出的重复 R164 行,按 R164 / R165 / R166 排。变基前的头留在本地分支 `backup/频道推荐-pre-rebase`。
+- 单测 1032 个全过(1 个本来就跳过),assembleRelease 通过。
+- 发 Beta:versionCode 8 / `1.2.0-beta.1`;回退包 = v1.1.0 源码、versionCode 9。GitHub prerelease `v1.2.0-beta.1` + `channel-beta` 附件,R2 写了 beta.json / rollback.json 与两个 APK,latest.json 仍是 1.1.0(7)、GitHub releases/latest 仍指 v1.1.0。线上 APK 的 sha256 与 beta.json 一致。
+- 推上 origin 的只有 tag `v1.2.0-beta.1`(连带这条分支的提交);分支本身未推、未合 main。
+- 待办:Gordon 在 A95L 上切 Beta 通道「检查更新」实测(流畅度、国行真实频道数据、切回稳定拿到回退包 9)。
+
+## 2026-10-10 · 1.2.0-beta.1 电视反馈:编辑桌面卡顿诊断、国行频道调研
+
+- Gordon 实测:Beta → 稳定(装上回退包 9)→ 再切 Beta 收不到 8。机制:Android 禁止降级,Beta 通道取 max(latest 7, beta 8) = 8 < 已装 9,要等下一个 Beta(versionCode 10)。待办:这一状态下关于页文案说明「下一个 Beta 发布后会收到」,随 beta.2 发。
+- 编辑桌面「一卡一卡」:模拟器诊断报告 `docs/design/perf-2026-10-10-edit-page.md`。主因在进 / 出编辑页两段转场(进页 37–42 fps、退出 29 fps:组合期读盘 + 重复解码图、首页离开组合后退出整棵重建 + `revision++` 全量重读、转场期整屏离屏层多导致纹理反复上传);页内按键帧正常,但拿起搬运与进页焦点放大缺动效。另实测:自我更新会话装完是 `verify`(未编译),本应用没有自己的 baseline profile。
+- 国行应用频道调研 `docs/research/2026-10-10-cn-apps-tv-channels.md`:小电视写的是播放历史前 20 条、只在首页按返回退出时刷新,所以停在几个月前;极光 / 酷喵写服务端推荐,央视频只有索尼构建写。选频道页文案要写明「内容与更新由应用决定」。
+
+## 2026-10-10 · 编辑页顺滑度 Task 3:首页与外壳在编辑页期间留在组合里(R167 / 报告 #1)
+
+- 改动:首页去掉 `FadeSwitch`,编辑页开着时 `previewing = overlayOpen || editing` 让路、留在组合里;外壳编辑页期间以残影语义留着(`shellKept`);`leaveEdit()` 不再 `revision++`,编辑页每次写盘落地 `layoutRevision++`,首页按 `(revision, layoutRevision)` 判数据新鲜。行为变化:从设置进的编辑页退出再关设置,焦点回**打开设置之前**那一格(MENU 开的回那张卡、顶栏药丸开的回药丸),不再落 (0,0);目标行被删 → 补位行;空桌面进的 → 第一行第一张。
+- 放下写盘那一帧的闸门(unitedu-tv-2,`-gpu host`,宿主负载 ≈14):无去抖时 W 段(拿起 → 右移 → 放下)放下后 ≈170 ms 有一次 33.9 ms 的 `Recomposer:recompose`(首页随写盘整页重组),UI 线程最长帧 135 ms(其中 135 ms 是 `postAndWait` 等 RT)→ 不通过;加去抖(`homeLayoutRevision`:编辑页开着时 600 ms 才跟上,编辑页一关 / `leaveEdit` 当场追上)后,放下后 300 ms 内只剩放下那一帧 20.3 ms 的重组(编辑页自己:rows 换新顺序、目标换格),首页那次 12.9 ms 挪到放下后 ≈930 ms;UI 线程最长帧 95 ms,仍高于 D 段 p90(46.5)+ 4,超出部分是等 RT。编辑页放下那一帧的重组交 Task 5「只重组焦点层」一并看。
+- 新发现:首页 / 外壳留在组合里之后,它们的无障碍节点会叠进编辑页——Compose 的「未被遮挡区域」裁剪让上层(透明度 0 的外壳残影)把编辑页胶囊的节点框裁成 20 px、首页卡片名混进读数,j_edit 24 条失败。编辑页开着时两者都套 `clearAndSetSemantics {}`(只动语义,不碰焦点;TalkBack 本来也不该念被盖住的首页)。
+- E 段(退出):按键帧组合 15 ms 以内(before 37 ms / t2 73 ms),没有 1920×1080 纹理上传,mp4 13 帧(before 10)。截图 `docs/screenshots/edit-smooth/t3-*.jpg`。
+- 焦点落点模拟器实测(final 构建):MENU 开设置 → 编辑页 → 返回 ×3 回到原来那张卡(Kodi,第 4 行第 2 张);顶栏药丸开的回「设置」药丸;焦点所在行(Music)在编辑页里删掉 → 落补位行第一张(Settings);放下后 0.1 s 内返回,退出动画里预览框中的首页已是新顺序;空桌面进的加一个应用回来落第一张。**未覆盖的边界(交复审)**:删掉 / 上下移动的是焦点行**上面**的一行时,目标按 layout.json 下标认行,会落到下标相同的另一行(实测焦点在 Settings 行、删掉上面的 Music 行 → 回来落 Games 行第一张);改前一律落 (0,0),不算回归,但不是「回到原来那张卡」。
+- e2e(unitedu-tv-2):j_edit 52/52、j_home 39/39、j_pkg 79/79、j_overlays 298/298、j_persist 133/133、j_recreate 77/77;j_settings 80/82,两条失败是脚本过期(关于页 R166 起多了「更新通道」一颗,脚本按一下下键就当到了「恢复默认」),与本任务无关。
+- 复审修复(controller 裁定):上面那条「删 / 移焦点行上面的一行落到别的行」改为——退出编辑页时这一轮写过盘(`layoutRevision` 比进页时大)就给首页一个落点「第 0 行第一张(画出来的第一行,可能是频道行)」(`homeLandingAfterEdit`,走 `MoveLanding` 那条一次写入的路,`leaveEdit` 里赋值一次);没写过盘就按冻结的目标回到原来那张卡。模拟器实测:不改动退出 → 回 Kodi;焦点在 Settings 行、删掉上面的 Music 行 → 落 YouTube(第 0 行第一张(画出来的第一行,可能是频道行))。复审第 2 轮:「改过没有」按编辑页**发起**的写盘算(EditScreen `onLayoutWriteIssued`,排进 layoutWrites 之前同步回调;MainActivity 计数,退出时与进页时比),不等落地——实测删掉上面那一行后 0.1 s 内按返回,仍落第 0 行第一张(画出来的第一行,可能是频道行)。
+
+## 2026-10-10 · 编辑页顺滑度 Task 4:编辑页盖满后首页与透明外壳不画(R167 / 报告 #4)
+
+- 改动:`editCoversHome(editing, elapsedMs)`(EditEntry.kt,单测 3 条)= 编辑页淡入走完 `EDIT_SWAP_MS` 再加 `EDIT_COVER_SLACK_MS` 50 ms;MainActivity 按帧计时(墙钟按 `MotionDurationScale` 折算成动画时间,缩放 0 当场算盖满),首页外包一层 `drawWithContent`,`editing && editSettled` 时不画;外壳内容透明度为 0 且不是活的那份时也不画。只动绘制:首页照旧在组合里、焦点账本不动、语义(Task 3 的 `clearAndSetSemantics`)不动;`editing` 一假当场恢复绘制。
+- 根因证据:t3 里首页在不透明的编辑页底下每帧照画,页内 B / C / D 段每帧渲染遍数 p50 8 / 8 / 9(before 1 / 1 / 2),每帧还要 `glGenTextures`(B / C / D 段合计 140–320 ms)——首页自己的离屏图层每帧重画。
+- 取舍闸门(unitedu-tv-2,`-gpu host`,speed-profile,宿主负载 11–16;t3 对照包 = 本任务代码去掉两处让路,交替跑 3 + 4 轮):
+  - 页内:渲染遍数 p50 B / C / D 8 / 8 / 9 → 1 / 1 / 2(4 轮都是),`glGenTextures` 页内 ≈0;RT 线程 CPU 运行时间 p50 均值 B 10.8 → 8.2 ms、C 9.2 → 7.4、D 10.5 → 9.0(改善 1.5–2.6 ms,> 1 ms)。整帧 RT 墙钟 p50 受宿主负载摆动(同一包两轮差 10 ms 以上),不拿它判。
+  - 退出 E / E2:`flush layers` t3 均值 122 ms(6 次)、t4 均值 121 ms(8 次),没多 30 ms;没有 1920×1080 纹理上传(两边都只有 960×540 / 480×270 小纹理);退出那一帧渲染遍数最多 274(t3 106)——首页的图层要重新画一次,但 E 段 RT CPU 合计 t3 均值 440 ms、t4 432 ms,没变重。→ **保留**让路。
+- R129f / 缩放折算(慢放 10 倍录屏):进页途中第 1 层焦点卡柔光四边完整,半透明编辑页底下仍是首页的卡片;淡入走完后逐帧差 < 0.1(停画首页那一下看不出来)。1× 录像进页亮度曲线与 t3 / before 同形(开头那下变暗是外壳 → 预览缩放,改前就有)。截图 `docs/screenshots/edit-smooth/t4-mid-enter.jpg`、`t4-settled.jpg`。
+- 没做:壁纸 / 屏保层仍在编辑页底下画(本任务只按计划停首页);Ambient / EditBackdrop 的 960×540 位图用 `createBitmap(int[], …)` 生成,本来就不可变,不属 Task 2 说的「可变位图逐帧重传」;壁纸 1920×1080 是可变位图,但 E 段 trace 里没有它的上传,没证据就不动。E 段每帧的 960×540 / 480×270 新 id 上传 t3 / t4 都有,来源未查明,留给后续任务。
+- e2e(unitedu-tv-2,本任务构建):j_edit 52/52、j_home 39/39。
+
+## 2026-10-10 · 编辑页顺滑度 Task 5:焦点移动只重组焦点所在那一层(R167 / 报告 #5)
+
+- 改动(EditScreen.kt):重组探针 `EditPerf`(`setprop log.tag.UnitedUPerf D` 才打);顶层不再直接读 `holder` / `target` / `shelfCol`——焦点层、有无持有者、按键提示区域改成三个 `derivedStateOf`;胶囊表比对改成「胶囊表换了一份才比」并在 `Snapshot.withoutReadObservation` 里读目标;`viewRows` / `shelves` / 每层胶囊表 `remember`;传给各层的回调整页一份(`EditShelfCallbacks`);`AppShelfView` 的列号改成 lambda,只在那一层里读。焦点账本的读写点一个没动。
+- **brief 以外的一处(MainActivity)**:探针显示只改 EditScreen 后层内右键仍每下 1 次整页重组、各层不再重组——根因是 setContent 根作用域读了 `lastInput`(待机计时的 key),每按一下键整个根重组,编辑页跟着重跑(把这一读临时换成常量后右键 0 次整页重组,确认)。改为效果里 `snapshotFlow { lastInput }.collectLatest { … }`,其余守卫仍是 key,语义同「lastInput 变了就重启」。首页按键也因此不再每下整根重组。
+- 探针(unitedu-tv-2,5 次右键 / 5 次下键):改前 page 5 + 每层各 5 / page 5 + 每层各 5;改后 page 0 + 各层 0 / page 5 + 每次至多新旧两层(合计 6 次层重组)。
+- suite(t5 / t5b,负载 12–16)按键帧 recomp p50:B 1.8 / 1.5(before 2.9)、C 3.0 / 2.4(before 1.7,t4d 6.7)、D 1.6 / 11.2(before 3.7;D 是拿起搬运,carry 一变整页仍重组,属 Task 7)。C 未低于 before:before 时首页不在组合里、整页重组多落在动画帧,按键帧这一指标噪声大;探针说明层内左右已不重组页和层。
+- W 段(拿起 → 右移 → 放下,两轮):放下那一帧重组 14.8 / 5.8 ms(Task 3 时 20.3),放下后 300 ms 内无 > 16 ms 重组,放下后 UI 最长帧 46.6 / 36.5 ms ≤ D p90(47.9 / 44.5)+ 4 → 放下这一段通过。整段最长帧 94 / 143 ms 出在拿起那一下之后的一帧,其中 `postAndWait` 88.5 / 136.1 ms(等 RenderThread,上一帧 RT 101.9 ms),重组只有 5.6 / 0.9 ms——是 RT 瓶颈,不是重组;拿起 / 右移那两帧整页重组 ≈ 21 ms(carry 变化),交 Task 7。
+- e2e(unitedu-tv-2,本任务构建):j_edit 52/52、j_channels 72/72、j_idle 10/10(待机计时改写的回归)、j_home 39/39。
+
+## 2026-10-10 · 编辑页顺滑度 Task 6:非焦点架子改 ModulateAlpha —— 闸门没过,报告 #7 未做(R167)
+
+- 结论:`ShelfLayout.DIM_BY_MODULATE = false`,非焦点架子仍是整层离屏淡化。代码路径(`ShelfFrame` 的 `compositingStrategy` 二选一)保留。
+- 第一轮只比了默认应用架子:进页静止 max 4 / mean 0.434,下移两次 max 5 / mean 0.394,都在阈值内(8 / 0.5)。卡片约 +2/255,说明 HWUI 确实把父层透明度乘进了卡片的子 RenderNode。
+- 复审要求补测其他内容(unitedu-tv-3,同一剧本分别装 false / true 两个 APK,静止截图逐像素比):
+  - 频道海报架子 + 空应用行(进页、焦点在第 1 层):max 12 / mean 0.683,**不过**。海报那一带 mean ≈ 5,「添加应用」方块 max 12。
+  - 虚线「新的一行」架子 + 空行(焦点在第 4 层):max 12 / mean 0.407,**不过**。超限的是「添加应用」方块。
+  - 拿起 YouTube 下移、越过频道架子落到空行后静止:max 8 / mean 0.732,**不过**。超的是海报那一带。
+  - 拿起中途帧:两边按过渡起点 +0.75 s 取帧,max 204 / mean 9.4。这个数主要来自整页位移的时刻差,不能当闸门;目视两边都没有裁切或闪烁。
+- 原因:这些子元素里有叠在一起的半透明绘制(海报上的标题与底、方块的底色与「＋」文字)。ModulateAlpha 是逐个绘制乘 0.62,整层淡化是先合成再乘,两者在重叠处结果不同。代码里没有找到依赖离屏组合成的 `BlendMode.Dst*`:卡片淡化(R49)自带 `saveLayer`,`clipPastShelfEnd` 只是 clipRect。
+- 第一轮同机 A/B 量到的收益(B 段 flush layers 264 → 90 ms、drawLayer 大降)随之放弃。E 段的 flush layers 不来自架子图层(false 44 ms、true 71–75 ms)。
+- 截图:`docs/screenshots/edit-smooth/t6-*`(第一轮)、`t6b-{auto,mod}-{1,2,3}`、`t6b-diff-{1,2,3}-x30`、`t6b-{auto,mod}-carry-mid`。
+
+- 复审第 2 轮(controller 裁定再试一次):给空架子「添加应用」方块(只在非焦点时)和每格频道海报各加一层 `graphicsLayer(Offscreen)` 自成一组,然后 `DIM_BY_MODULATE = true`,同一次开机里把五个场景全部重测(false 包对 true 包):
+  - 默认布局进页:max 4 / 0.434。默认布局下移两次:5 / 0.394。
+  - 频道 + 空行:**9** / 0.403。超限的是频道架子标题旁「频道」小标签(10% 白底 + 字),y≈520。
+  - 新的一行:6 / 0.404。
+  - 拿起后静止:4 / **0.549**。
+- 仍有两项不过,已撤回这两层,保持 `DIM_BY_MODULATE = false`(提交里的状态没变)。mean 超限的来源是海报整片压在玻璃底上:逐个乘透明度时玻璃会透出来,这一带平均 +1.9/255。这与卡片压玻璃底是同一种本质差异,只是海报面积大,把整屏均值推过了 0.5;想消掉只能把玻璃和海报放进同一组,那就等于回到整层离屏。所以 B 段的收益没有再测。截图:`docs/screenshots/edit-smooth/t6c-*`。
+
+## 2026-10-10 · 编辑页顺滑度 Task 7:拿起搬运补位置过渡(R167 / 报告 #8)
+
+- 做法:卡片仍按位置组合(不包 `key(pkg)`,焦点账本不动),换位只是绘制平移。`EditCarrySlide.kt` 的 `carrySlideStarts` 只认搬运造成的三种变化(换顺序 / 少一张 / 多一张),每格从「旧位置 − 新位置 + 旧格此刻还没走完的位移」滑回 0,200 ms `FastOutSlowIn`(= `SHIFT_MS`)。跨层搬入的卡另从来的方向竖直滑入:非焦点架子仍是离屏层(Task 6 没过),从上方 40 dp、从下方按 `carryArriveDp` 收短到约 12 dp,柔光不出撑大后的图层(R129f)。`clipPastShelfEnd` 加 `shiftPx`:「整张不画」按卡此刻画在哪判。
+- brief 之外两处:① `ShelfSlide.begin`:竖直滑入还没走完又左右搬一步时,那张卡带着剩下的竖直位移去新格接着滑(单测 `ShelfSlideTest`);② 让一步搬运只重组受影响的那一两层。`reuseEqual` 让内容没变的层沿用旧的 `Shelf` / 胶囊表实例;箭头集合只传给被搬的卡所在那一层。探针(unitedu-tv-2):拿起 = 整页 2 次 + 第 0 层 1 次;同层左右 = 整页 2 次 + 本层 1 次;跨层 = 整页 2 次 + 两层各 1 次。改前每一步所有层都要重组。
+- 动效实测(1×,mp4 pts,追踪 YouTube 图标的 x):三次右移各滑一个卡距,用时约 180–200 ms,中间分别有 7 / 6 / 8 帧在中途。两键零间隔连发(`input keyevent 22 22`)时 x 单调前进,没有回跳(Review Focus 2)。取消时 YouTube 从第 3 格滑回第 0 格,三张邻卡同时右移让位。跨层(`animator_duration_scale 10` 慢放):下移时从上方滑入,上移时从下方短距离滑入。目视卡身、描边和柔光都没有被直线截断。截图 `docs/screenshots/edit-smooth/t7-{D,step,double,cancel,up-mid,down-mid}.jpg`。
+- 观众视角:被搬的卡在前(zIndex)。让位的邻卡带着原焦点格还在淡出的描边一起滑走,所以换位途中看起来像两张有框的卡交叉而过,约 150 ms 后邻卡的框淡掉。原因:焦点描边动画属于格子,不属于应用。改前这个淡出框留在原地;卡片焦点动画不在本任务范围,没有动。宿主负载高时,步后头一两帧会卡在等 RenderThread 上(`postAndWait`),200 ms 的滑动可能只剩首尾两帧(`dbl` 录像第一步就是这样)。
+- 性能(unitedu-tv-2,负载 ≈13,suite t7):D 段动画帧 RT p50 21.2 ms(t5 19.9 / t5b 28.0 / t6r 21.3),掉帧 39.7%(t5 33.6 / t5b 61.2 / t6r 38.7),与之前持平。W 段(拿起 → 右移 → 放下):
+  - 拿起那一帧:重组 21.0 → 9.8 ms,RT 101.9 → 55.4 ms,flush layers 33 ms 降为 0。
+  - 整段 UI 最长帧 94 / 143 → 52.3 ms,闸门(D p90 36.0 + 4 = 40)**仍不过**。最长那帧是拿起后一帧的 `postAndWait` 42 ms,对应的 RT 帧 55 ms,构成是首次 `shader_compile` 17.8 ms(抬起阴影的 AAConvexPathOp,每进程一次)加 `eglSwapBuffers` / `rcCreateSyncKHR` 21 ms(模拟器 GPU 管道同步)。
+  - 右移后一帧有一条 21.5 ms 的 `Recomposer:recompose`,其中只有 5.6 ms 在跑,15.8 ms 是 Runnable(被宿主抢占)。
+- 测试:单测 1071(1 跳过)全过;j_edit 52/52;j_channels 72/72。
+- 复审修复 1(controller 裁定:交叉而过的双框必须修)。
+  - 编辑页的 `AppCard` 传 `focusFollowsApp = true`,焦点画法跟着应用走(`carryFocusLook`,单测 `CarryFixTest`):
+    - 被搬的卡恒画成聚焦,当场到位。
+    - 某一格得到焦点时放的应用后来被换掉了,原来的焦点画法当场收掉,不淡出。
+    - 其余与改前相同。
+  - `gtvAppFocusFrame` 加 `snap`:为真时直接画目标值,不走进焦 / 失焦动画,也不等动画值下一帧才跟上。第一次只换了动画规格(snap 规格),录像里邻卡上还露了一帧旧框,所以改成直接画目标值。
+  - 首页与其余调用点不传,行为不变。
+  - `arrival` 放下时清掉,`ShelfSlide` 按实例记下已用过的那一次跨层搬入:同一个包被移出再加回时,不再重放竖直滑入。
+  - 1× 录像(unitedu-tv-2)的结果:
+    - 换位全程只有被搬的卡一张有框,而且一直是完整的放大 + 柔光。
+    - 跨层搬运时,源层不留残框。
+    - 取消时没有残框,YouTube 滑回第 0 格后照常淡入焦点。
+    - 搬运之外的左右移动,旧焦点卡照常缩回淡出。
+    - 截图 `t7-fix-{step,cancel,down,browse}.jpg`。单测 1075(1 跳过)全过,j_edit 52/52,j_channels 72/72。
+- 复审修复 2(controller 裁定:取消时那张卡焦点一直在它身上,滑回途中不能丢框再重放进焦)。
+  - `cancelCarry` 记下 `settling = (出发层, 包)`。那张卡传 `settling = true`,`carryFocusLook` 把它与被搬的卡同样处理,恒画成聚焦、当场到位。
+  - 一个效果在 snapshotFlow 里等 holder 自报落回那张卡(最多 2 s),然后清掉。在效果里读 holder,不让整页随焦点重组。
+  - 单测 `CarryCancelLookTest`。
+  - 1× 录像:取消后 YouTube 一路带着完整焦点画法滑回第 0 格,全程只有它一张有框。随后右移,它照常缩回淡出。截图 `t7-fix-cancel2.jpg`。
+  - 单测 1078(1 跳过)全过,j_edit 52/52。
+- 复审修复 3:焦点格里的应用在后台换了,焦点卡不能画成没焦点。
+  - 原因:`focusedPkg` 只在焦点事件里更新,卡片又按位置组合。编辑页开着时卸载一个应用,行变短、焦点格里换上下一张;修复 1 的「格子换了应用 → 收掉画法」把真正有焦点的卡画成没焦点,看起来像遥控器失灵。
+  - 修法:这条只在搬运或滑回中生效(整页一个量,`carrying = carry != null || settling != null`)。不在搬运中时照 `focused` 画,并在 SideEffect 里把 `focusedPkg` 跟上。
+  - 单测 `CarryNotCarryingTest`。
+  - 模拟器实测:焦点停在第 3 张时 `pm uninstall test.dummy.app01`,行变成 9 张,焦点格换成下一张,仍是完整的放大 + 描边 + 柔光。截图 `t7-fix-uninstall.jpg`。
+  - 单测 1080(1 跳过)全过,j_edit 52/52,j_pkg 79/79;复录一次搬运加取消,仍只有一张有框。
+
+## 2026-10-10 · 编辑页顺滑度 Task 8:本应用自己的 baseline profile;会话安装带 `.dm` 闸门没过,未接进代码(R167 / 报告 #10)
+
+- 结论:APK 现在带上了覆盖本包全部代码的画像,ProfileInstaller 首启写入、后台编译后是 `speed-profile`。`.dm` 实验里 E1 没过(APK 里那份画像 ART 安装时不认),按闸门**不改 `SelfUpdate`**,下一步待 Gordon 定(见本条末)。
+- `app/src/main/baseline-prof.txt` 两条通配(`HSPLcom/uniteduone/launcher/**;->**(**)**` + `Lcom/uniteduone/launcher/**;`)。AGP 8.7.3 先展开通配(`expandReleaseArtProfileWildcards` 输出 7456 行本包规则),R8 再按 mapping 改写成混淆名(合并后的文本画像 12463 行,其中 3424 行是本包,`x1/…`);没有任何 invalid rule 警告。
+- 画像大小:`assets/dexopt/baseline.prof` 3958 → 4133 字节。**压缩后几乎不变不代表没进去**:二进制画像是 zlib 压缩的,方法按下标差分存、连续下标压得极小;解压后 34862 → 48896 字节(+14 KB)。计划里「应到数十 KB」是按未压缩估的。
+- 模拟器(unitedu-tv-3,`-gpu host`):`adb install` 读回 `verify / install`;启动后 logcat `ProfileInstaller: Installing profile for com.uniteduone.launcher`;`pm compile -r bg-dexopt` 后 `speed-profile / bg-dexopt`,odex 109 KB → 8.68 MB。
+- `suite.sh t8prof`(bg-dexopt 状态,不跑 setup 的 `compile -m speed`;宿主负载 ≈ 13):H 段按键帧 UI 主线程 p50 7.9 ms(p90 32.1)。对照:同模拟器 before 基线(`compile -m speed`,负载 ≈ 12)12.9 ms;报告里 verify 8.1 / speed 3.1 ms 是另一组条件。模拟器噪声大,只能说「bg-dexopt 后的画像状态不比全量 speed 差」,真机差异要电视上量。原始数据 `/tmp/edit-jank/summary_t8prof.txt`。
+- `.dm` 实验(`adb install-multiple app.apk app.dm`,读 `dumpsys package dexopt` 与 ArtService 日志):
+
+  | 组 | dm 内容 | 安装 | 编译状态 | 说明 |
+  |---|---|---|---|---|
+  | E1 | APK 里的 `assets/dexopt/baseline.prof` 原样当 `primary.prof` | 成功 | `verify / install-dm` | ArtService `Failed to initialize profile from DexMetadata`,`profman returned code 24`:APK 里那份是 `pro\0` + `010\0`(P 版格式),Android 14 ART 不认;ProfileInstaller 首启会按 `baseline.profm` 转码成本机格式,所以首启路径不受影响 |
+  | E2 | 本机 `snapshot-profile` 快照(`pro\0` + `015\0`) | 成功 | `speed-profile / install-dm` | dm 机制在这版 ART 上可用 |
+  | E3 | zip 里 `primary.prof` 是乱码 | 成功 | `verify / install-dm` | 坏画像只是被忽略 |
+  | E3b(加测) | dm 本身不是 zip | **整个安装失败** | — | `INSTALL_FAILED_BAD_DEX_METADATA … base.dm: Invalid file` |
+  | E1b(加测) | AGP 构建产物 `intermediates/dex_metadata_directory/release/compileReleaseArtProfile/0/.dm`(`primary.prof` 015 格式 + `primary.profm`,`dex-metadata-map.properties` 里 API 31+ 用它) | 成功 | `speed-profile / install-dm` | 构建时就能产出电视 ART 认的 dm,但它不在 APK 里 |
+
+- 闸门判定:E1 失败、E2 成功 → 按计划「E1 失败、E2 成功」那一支:**不改代码**,`DexMetadata.kt` / `SelfUpdate.kt` 都没动;`channels.sh` 的版本名修复留给 Task 9。
+- E3b 是新发现的风险:dm 坏到「不是合法 zip」时**整次安装失败**。将来若接 dm,「同步失败当场不带 dm 重试 + 异步失败后本进程不再带」两条兜底必须一起上;而这一条在会话路径上是同步还是异步(确认页前还是后)还没测。
+- 待 Gordon 定的下一步(二选一或都不做):
+  1. **把 AGP 的 `0/.dm` 随 APK 带上**(例如构建后拷成 `assets/dexopt/base.dm` 再打包;dm 只依赖 dex 校验和,加 asset 不改 dex),自我更新时已装版本从新包里取它写进会话。E1b 证明这份文件在 Android 14 模拟器上直接 `speed-profile`。要改构建脚本(任务顺序),外加上面两条兜底。
+  2. 在应用里把 010 画像按 `.profm` 转成本机格式再写 dm(ProfileInstaller 首启做的就是这件事),代码量与风险都比 1 大。
+  - 两条都只在**下一次**应用内更新时生效,电视上的首版 Android 14 ART 认不认,要先发一个只读 `dumpsys` 的 Beta 才知道。
+
+## 2026-10-10 · R167 编辑桌面顺滑度(收口:复测对照表、裁定、文档同步)
+
+- 做了什么(计划 `docs/superpowers/plans/2026-10-10-edit-page-smoothness.md`,11 个任务):①测量剧本 `scripts/perf/edit-jank/` 与基线;②编辑页首帧用进程级 `AppEntryCache`、layout 进页前在 `layoutWrites` 上预读,卡片位图改存 HARDWARE 副本(根因:可变位图每次重录显示列表都换新纹理 id,HWUI 每帧重传);③首页与外壳在编辑页期间留在组合里,退出不重建、不重读;④编辑页盖满后首页与透明外壳不画;⑤焦点移动只重组焦点所在那一层,待机计时改 `snapshotFlow`;⑥非焦点架子 `ModulateAlpha`——闸门没过,未做;⑦拿起换位滑动 + 搬运中的焦点画法;⑧本应用 baseline profile,`.dm` 闸门没过、未接;⑨关于页回退包说明(发 beta.2 前撤回,见下);⑩选频道页文案;⑪本条。
+- 三个闸门:Task 4(盖满停画)保留——页内渲染遍数 / 帧 8–9 → 1–2,E 段 flush layers 未变差(122 vs 121 ms);Task 6(`ModulateAlpha`)不通过——逐像素差在频道海报带 / 空架子方块上最大 9–12,逐元素离屏层再试仍不过,`DIM_BY_MODULATE = false`;Task 8(`.dm`)不通过——APK 内嵌画像 010 格式被 Android 14 profman 拒(E1),AGP 构建期 `.dm` 可用(E1b),要改发版流程,本计划不做。
+- 重组探针(5 次右键 / 5 次下键):改前右键整页 5 次 + 每层各 5 次、下键同;R167 右键整页 0 次 + 各层 0 次,下键整页 5 次、每次只重组新旧两层。
+- 复测(unitedu-tv-2,`-gpu host` 开窗口,speed-profile,负载 11.2–13.6,三遍取中位数;表在 `design/perf-2026-10-10-edit-page.md`「R167 之后复测」):A 进页由「两段 + 0.33 s 空档、首尾 1.35 s」变成一段 0.79 s,纹理上传 126 → 64 次、flush layers 259 → 156 ms,gfxinfo 分位没降(帧少一半,剩下的都是重帧);E 退出 17 → 22 fps、RT p50 66 → 50 ms、flush layers 180 → 81 ms,纹理上传几乎没降(56 → 49);D 每步变成约 0.25 s 的滑动(录屏 38.5 fps),帧时间与改前持平;B / C 的改善与对照组 H 同量级(H 也好了 10–15%,复测时宿主略松),只能说不比改前差。
+- 1× 观感(关键帧 `docs/screenshots/edit-smooth/after-{A,E,D}.jpg`):进页第一帧就是真图标、焦点放大与淡入同时走完,没有「占位 → 停顿 → 换图 → 再跳」;退出时设置预览里一开始就有首页卡片,不再先空后冒;搬运每步看得到中间帧。仍能看出的顿:进页按下后头三帧约 100 ms 一帧,退出中段两个约 85 ms 的间隔。
+- 测量坑:刚 `adb install` 完、包还是 stopped 时 `compile -m speed -f` 连跑 7 次都读回 verify(dex2oat 收到 `--compiler-filter=verify`),把应用拉起来跑几秒再编,第一次就是 speed-profile;`setup.sh` 已改成先拉起再编。模拟器上原来装着 channels.sh 留下的 versionCode 100 测试包,先 `uninstall` 才装得上。
+- 顺手:Task 9 落在 `docs/screenshots/edit-smooth/` 的关于页 e2e 截图挪回 `docs/screenshots/channels/`——与已有同名文件 md5 相同的 6 张直接删,`e2e-3c` 挪过去,内容不同的 `e2e-4` / `e2e-5a` 改名 `*-r167.jpg`;计划里那一处路径同步。
+- 单测 1088 个(1 个本来就跳过)全过,assembleRelease 通过;e2e 整套(`run_all.py`,unitedu-tv-2)1225 / 1227:两条失败都在 `j_settings` 的 settings-about——断言写死了 R166 之前关于页只有两颗胶囊(按一下下键就到「恢复默认」),R166 加了「更新通道」后那一下进的是通道页;改成 `move_to(恢复默认)` 后 `j_settings` 单跑 82 / 82。不是 R167 的回归。
+- 未验证(电视):转场帧率、纹理是否同样重传、编译状态(会话安装后仍是 verify,要等夜里后台编译);仍开着的模拟器观察:退出时新 id 的 960×540 / 480×270 纹理上传(来源未查明)、拿起后第一帧的着色器编译 + GPU 同步、拿起 / 放下时页面级 `carrying` 让所有应用架子重组一次。
+- 需要 Gordon 定:①是否发 1.2.0-beta.2 上电视看顺滑度(带 R167 全部改动);②`.dm` 要不要走「构建期 `.dm` 随包发、自我更新时写进会话」的方案(只在下一次应用内更新时生效,电视 ART 认不认要先发一个 Beta 读 `dumpsys` 才知道)。
+
+## 2026-10-11 · 编辑页顺滑度 Task 12:退出 / 搬运 / 进页的显存与离屏层(R167 补)
+
+- 结论:Task 11 留下的三处——E 每次退出新 id 的 960×540 / 480×270 纹理上传、D 的 `glGenTextures` 0 → 63、A 的 RT p90 65.5 → 94.7——是同一个根因:转场里 HWUI 的 GPU 资源缓存顶到上限(`gfxinfo` 的 `Max resource usage` 99.53 MB = 1920×1080×48),Skia 每帧清缓存、下一帧重建纹理 / 顶点缓冲 / saveLayer 临时层。trace 的 `HWUI All Memory` 在 E 段 88 → 100 MB、可清部分掉到 0。`Texture upload(<id>)` 的数字是新建 GPU 纹理 id,不是位图 id——那两张底图本身不可变,别被「id 每帧变」带去查位图。D 段另有我们自己的放大器:拿起 / 取消那一帧页面级 `carrying` 参数翻转,45 张卡的离屏层一帧重画(Task 7 记下的小项)。
+- 查法:`dumpsys gfxinfo` 看 `GPU Caches`(编辑页上 RenderTarget 74.8 MB / 119 项,不可清 ≈ 60 MB);临时加 `log.tag` 开关逐个关掉壁纸 / 架子淡化量差值:壁纸 ≈ 26 MB(R110 两张缓存层 + P_B 里那张 alpha < 1 的图又被提升出一张 8 MB 层)、架子淡化层 ≈ 23 MB、其余 ≈ 11 MB。开关只在实验构建里,没提交。
+- 改动(只动绘制):①壁纸 P_B 里那张图、②外壳底色那一层改 `ModulateAlpha`;③编辑页底下的氛围底只在选择器开着时画;④编辑页盖满后首页与壁纸改透明度 0(不拿出显示列表,离屏层留着,退出第一帧不再重建 44 张纹理);⑤`carrying` 改惰性 lambda,AppCard 经 `carryingMatters` 短路才读(单测 `CarryingMattersTest` 穷举证明结果不变)。
+- 试过又撤掉的:残影里冻结 AppCard 的焦点画法(想让退出时编辑页残影不再每帧重画)——没止住每帧重画,反而因为所有卡都读 `LocalPageGhost`,退出第一帧 45 个卡片层全部重画;已撤。重画的来源仍未查明:Compose 侧整段只重组 / 重录 2 次(`UnitedUPerf` 探针),把预览框缩放钉住后照样每帧重画。
+- 复测(unitedu-tv-2,`-gpu host` 开窗口,speed-profile,宿主负载 1.5–2.7——远低于 Task 11 的 ≈ 12,所以改前 617a63e 在同一时段交替重跑,各三遍取中位数):E 纹理上传 59 → 20、`glGenTextures` 126 → 16 次(82 → 9 ms)、渲染遍数 / 帧 max 93 → 11、gfxinfo p50 77 → 61 ms、RT p50 35.0 → 29.7 ms;**E 的 RT p90 52.5 → 58.4、最大帧间隔 68 → 81 ms 没变好**(剩下的是退出头三帧的模拟器 GPU 同步 + 外壳底色 960×540 第一次上传)。D 上传 11 → 5、gen 53 → 4、渲染遍数 max 73 → 22,拿起 / 取消帧不再重画全部卡;gfxinfo p90 46 → 53 ms(噪声内)。A RT p90 76 → 46 ms、gfxinfo p90 150 → 105 ms。表与读法在 `design/perf-2026-10-10-edit-page.md`「Task 12」。
+- 静止画面闸门:首页首行 / 第 3 行、布局页、编辑页、卡片菜单,与 617a63e 逐像素比,除时钟数字外 `max 0`;编辑页里打开 / 关掉「换卡片图」的录像与改前一致。关键帧 `docs/screenshots/edit-smooth/t12-{E,D}-{before,after}.jpg`。
+- 文档:perf 报告 R167 一节改正 D「持平」的说法(写出 p90 / 上传 / gen 变差的数字)、补 A 的 RT p90;gtv spec R167 一行改为「e2e 1225 / 1227,两条为 j_settings 旧断言、已改」并补 ⑨;删掉与 `e2e-3c.jpg` 字节相同、无人引用的 `docs/screenshots/channels/e2e-4-r167.jpg`;CLAUDE.md「模拟器验证的坑」加显存上限一条、焦点表首页一行改「透明度 0」;REVIEW-GUIDE、货架设计稿同步。
+- 测试:单测 1090 个(1 个本来就跳过)全过(`--rerun-tasks`),assembleRelease 通过;e2e `j_edit,j_home,j_persist,j_recreate,j_settings`(unitedu-tv-2)383 / 383。
+
+## 2026-10-11 · 撤回关于页回退包说明,并入 1.1.1,发 1.2.0-beta.2
+
+- R167 第 9 项(Beta 通道装着回退包时关于页说明「下一个 Beta 发布后可装」)撤回:另一会话里 Gordon 2026-10-10 已定**保持现状、不加提示**(见上文「回退后无法立即重进同一 Beta」一节),本分支只是晚一步没看到。撤的是 `AboutScreen` / `Update` / `UpdateChannels` 的改动、三语字符串、两处单测与 `channels.sh` 场景 3c;`channels.sh` 的 `build_one` 版本名替换修复保留。
+- 期间 main 发了稳定版 1.1.1(versionCode 10,关于页许可收成一行、各段定高),本分支变基并入;beta.2 取 versionCode 11,回退包 = v1.1.1 源码、versionCode 12。
+- 已发:GitHub prerelease `v1.2.0-beta.2` + `channel-beta`(回退包 `unitedu-1.1.1-rollback-12.apk`),R2 beta.json = 11 / rollback.json = 12,latest.json 仍是 1.1.1(10)、releases/latest 仍指 v1.1.1;线上 APK sha256 与 beta.json 一致。待 Gordon 在 A95L Beta 通道实测编辑桌面手感(退出停顿、拿起卡片、次日预编译后的手感)。
+
+## 2026-10-11 · 编辑页动画放慢一点(R168),发 1.2.0-beta.3
+
+- Gordon 电视实测 beta.2:编辑桌面连贯不卡了,但想慢一点点。选卡定:换层 / 移卡 + 进出编辑页,约 1.25 倍;拿起 / 放下不动。
+- `SHIFT_MS` 200 → 250(与首页换行同长);`EDIT_SWAP_MS` 400 → 500,并让进页时预览框放大跟它走(原来跟 `SETTINGS_FADE_OUT_MS` 400,脱钩后用 `previewMotion(toEdit)`);退出缩回原本就是 500,现在进出对称。新增单测一条。
+- 发 1.2.0-beta.3(versionCode 13,回退包 14 = v1.1.1)。下次 Beta 从 15 起。待电视上看快慢是否合适。
+
+## 2026-10-11 · 关于页更新说明按界面语言只显示一种(分支 fix/notes-lang,未合未发)
+
+- Gordon:「发现新版本」下面的说明中英各一句,想只显示对应语言的。
+- 做法(客户端挑行,清单格式不变):`notesForLanguage`(UpdateChecker.kt)把 notes 按行拆,含汉字的行算中文;界面语言看资源 `notes_lang`(简体 / 繁体 = zh,英文 = en),挑出同语言的行;挑不出(单语、或不是逐行双语)就原样显示。不加清单字段,所以 `release.sh` 与向下兼容铁律都不受影响;代价是只对**显示说明的那个应用**生效——1.1.1 及以前的应用仍两行都显示,装上带这次改动的版本之后,它看到的下一份说明才只剩一行。单测 `NotesLanguageTest`(含线上 beta.2 原文)。
+- 线上已有 Beta 11 + 回退包 12,下一个包 versionCode 至少 13。
+
+## 2026-10-11 · 并入 main(含 30176ef),发 1.2.0-beta.4
+
+- 本分支 merge main(977bb81):带进「更新说明按界面语言只显示一种」(30176ef);WORKLOG 两边各追加一节,冲突按两节都留解决。
+- 发 1.2.0-beta.4(versionCode 15,回退包 16 = v1.1.1)。下次 Beta 从 17 起。按语言显示要从 beta.4 起再看下一次更新提示才看得到(beta.3 上看到的 beta.4 说明仍是两行)。
+- 电视验收(beta.4):Gordon「看过了,可以了」——R168 快慢定稿。
+- 同时 Gordon 问:频道里为什么没有 YouTube 和 Netflix。代码侧已查:两者清单里都有导出、不带权限的 `INITIALIZE_PROGRAMS` 接收器(APKMirror 包 aapt2 实测:Netflix `.InitializeProgramsReceiver`;YouTube 7.24.300 也有),`ChannelInit` 按接收器逐个显式发送并带 `FLAG_INCLUDE_STOPPED_PACKAGES`,发送路径没看出问题。剩下两种可能要在电视上分辨:① 应用收到了但自己决定不写频道;② 写了但 `searchable = 0`(无 `ACCESS_ALL_EPG_DATA` 的读者看不到)。当时电视不在线(`Host is down`),未实测。
+- 2026-10-11 晚 A95L 实测(无线调试重新配对后,只读 + 手动重发 `INITIALIZE_PROGRAMS`):
+  - **Netflix 13.1.3**:广播送到、进程被拉起,接收器去 `startService(REFRESH_RECO_ROW → .NetflixService)`,被系统以 `Background start not allowed` 拦下;它的定时任务走 firebase-jobdispatcher(要 Play 服务,`GooglePlayServicesUtil: requires the Google Play Store, but it is missing`)。即:无 GMS 的国行电视上,Netflix 只靠后台路径建不出频道;前台时会不会刷新待测。我们无法替它绕过(带临时白名单发广播需要特权权限)。
+  - **YouTube 7.24.300**:广播送到,进程被解冻几秒又冻住,日志里没有任何反应;有两个 WorkManager 任务挂着,内容未知。
+  - `adb shell content query` 读 TvProvider 一律「No result found」——shell 没有 `READ_TV_LISTINGS`,**这不是「没有频道」的证据**;要看库里有什么只能从我们自己的应用里看。
+  - **前台也不建**:Gordon 依次打开 Netflix、YouTube 各停约 10 秒再回 UnitedU,选频道页里两家都没有;同期 logcat 里两家都没有任何刷新推荐行 / 写 TvProvider 的迹象(Netflix 只报 4 次缺 Play 商店)。结论:**国行无 GMS 的 A95L 上,Netflix 与 YouTube 不建预览频道**,我们这边没有可修的;列为已知限制,不再追。频道行在这台电视上的实际来源是写频道的国内应用(如 CIBN 酷喵)与开源 / 第三方应用(研究报告 §7)。
+
+## 2026-10-11 · 频道入口按 GMS 显示(R169)、海报放开明文 http(R170)
+
+- Gordon 电视实测频道可用性≈0(五个能选的应用只有央视频正常),grilling 定:国行无 GMS 电视藏「频道」入口、有 GMS 的保留;已加的频道行照常显示;酷喵灰卡疑为 http 海报,现在就放开。
+- 实现见 spec R169 / R170。顺带:单卡时按键提示去掉「← → 选择」、页头不写「0 个频道」。
+- 验证:单测全过(期间一次 `testReleaseUnitTest` 失败、`--rerun-tasks` 重跑全过,未定位是哪条,疑为带本地服务器的计时类单测偶发);模拟器 `unitedu-tv-2`(`unitedu-tv` 当时有别的会话占着)停用 / 恢复 GMS 前后截图;http 海报用 shell 发布的探针频道验证(`content insert` 的 `--bind` 值里的冒号要写成 `\:`;shell 只读得到自己发布的行)。
+- 单卡版式 Gordon 定:保持靠左原尺寸(A)。发 1.2.0-beta.5(versionCode 17,回退包 18 = v1.1.1);下次 Beta 从 19 起。
+## 2026-10-11 · beta.3 没带上 main 上的 30176ef;合 main 规则改为「测过就合,实测在 Beta」
+
+- 核对:1.2.0-beta.3(versionCode 13,回退包 14)tag `d7d472c` 从 `频道推荐` 分支构建,该分支最后一次并 main 停在 1.1.1,不含 30176ef;下载线上 APK(sha 与清单一致)资源里也没有 `notes_lang`。
+- 根因:Beta 从功能分支发,带不带 main 上的改动取决于有没有人记得先合并 main,没有机制保证。设计稿本来写的是 main = Beta。
+- Gordon 定:取消「没在电视上实测过的不合 main」,改为审查 + 单测 / 模拟器过了就合 main、电视实测在 Beta 上做、晋级稳定版前必须电视实测(写进设计稿 §开头与 CLAUDE.md)。
+- 同日 Gordon 选「只从 main 发 Beta」:`release.sh` Beta 模式要求 HEAD 等于本地 main 指向的提交(比提交不比分支名,main 被主 checkout 占着也能在别的 worktree 快进后发),否则正式发布中止、dry-run 警告;稳定版不设此闸门(晋级在 main 上发,急修从稳定 tag 拉分支)。
+- 补洞(同日):`release.sh` 里的检查只对含它的分支有效,落后 main 的功能分支跑的是旧脚本、拦不住。加 `scripts/git-hooks/pre-push`(装进共享 `.git/hooks`,所有 worktree 共用):推 `v*-beta.*` tag 时指向的提交 ≠ 本地 main 就拒推;release.sh 先推 tag 再 gh release / 传 R2,拦在任何公开动作之前。实测:分支提交上的轻量 / 附注 tag 被拒(含真实 `git push` 到临时 bare 仓库),main 上的 Beta tag、稳定 tag、删 tag、推分支都放行。另:beta.4(versionCode 15,`289e9a6`)已由频道推荐会话发出,含 30176ef。
+
+## 2026-10-11 · beta.5 电视验收
+
+- R169:Gordon 在 A95L 上装 beta.5,「新的一行」只剩「应用行」一张卡——通过。
+- R170:酷喵频道行此前已被 Gordon 删掉,而 R169 起无 GMS 电视加不回来,A95L 上测不了;以模拟器 http 海报探针为准,酷喵灰卡是否由 http 造成不再追。
+
+## 2026-10-11 · 频道标题去重
+
+- Gordon 电视上看到央视频 TV 的频道行头是「央视频TV · 央视频TV」:标题按「应用名 · 频道名」拼,而央视频把频道也起名成应用名。
+- 改:`channelTitle`(ChannelModel.kt)在频道名为空或与应用名相同(忽略空白、大小写)时只写应用名;首页行头、编辑页频道架子、选频道页三处共用。单测 `ChannelModelTest.channelTitleDropsDuplicateName`。随下一个 Beta 上电视(他的央视频频道行若还在,看行头)。
+
 ## 2026-10-09 官方图库实施边界与稳定约束
 
 - 首次功能通过 APK 交付，后续静态目录资源独立发布；生产根为 `https://dl.uniteduone.com/gallery/`，本轮不上传、不推远程、不发布 APK，维持 1.0.3/code 6。官方目录同步不是账号或个人跨设备同步。

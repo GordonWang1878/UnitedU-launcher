@@ -9,10 +9,31 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
+ * R164:频道行指向的频道。[pkg] = 发布它的应用;[key] = 频道的 `internal_provider_id`(应用自己定的、跨重装稳定的 id;
+ * 应用没写时为空串,按 [name] 认);[name] = 频道的 `display_name`(加行那一刻的,只用来匹配与在编辑页显示)。
+ */
+data class ChannelRef(val pkg: String, val key: String, val name: String)
+
+/**
  * layout.json 的一行。**R163 起没有名字**:行只靠图标认——桌面上、编辑页里、各种菜单里都画这一行的图标,不再有行名。
  * [icon] 必为 [ROW_ICON_IDS] 里的合法 id(读盘时缺失 / 非法的值已补成合法值,见 [layoutRowFromDisk]);[apps] 是有序的包名。
+ * **R164**:[channel] 非 null = 频道行([apps] 恒空,[icon] 恒写 `tv`,只为旧版本回落成一个空应用行用,界面不画)。
  */
-data class LayoutRow(val icon: String, val apps: List<String> = emptyList())
+data class LayoutRow(val icon: String, val apps: List<String> = emptyList(), val channel: ChannelRef? = null)
+
+/** R164:这一行是不是频道行。 */
+val LayoutRow.isChannel: Boolean get() = channel != null
+
+/**
+ * 读盘:`channel` 对象的三个字段 → [ChannelRef]。去首尾空白;`pkg` 或 `name` 为空 → null(这一行按普通应用行读,
+ * 与旧版本读到它时的样子相同);`key` 缺省为空串。
+ */
+internal fun channelRefFromDisk(pkg: String?, key: String?, name: String?): ChannelRef? {
+    val p = pkg?.trim().orEmpty()
+    val n = name?.trim().orEmpty()
+    if (p.isEmpty() || n.isEmpty()) return null
+    return ChannelRef(p, key?.trim().orEmpty(), n)
+}
 
 /**
  * 读盘:把 layout.json 里一行取出来的三个原始字段变成 [LayoutRow]。纯函数(`org.json` 只负责取字段,见 [Layout.parse]),JVM 单测钉住。
@@ -21,10 +42,16 @@ data class LayoutRow(val icon: String, val apps: List<String> = emptyList())
  *   (见 [rowIconFromDisk])。**`name` 只在这里用一次**:不进内存里的行,也不再写回盘。
  * - **应用**:去首尾空白、去掉空串、**同一行里去重**(重复的包名会让列表 key 撞车,状态和焦点会挂到错卡片上)。
  */
-internal fun layoutRowFromDisk(name: String?, icon: String?, apps: List<String>): LayoutRow = LayoutRow(
-    icon = rowIconFromDisk(name, icon),
-    apps = apps.map { it.trim() }.filter { it.isNotEmpty() }.distinct(),
-)
+internal fun layoutRowFromDisk(name: String?, icon: String?, apps: List<String>, channel: ChannelRef? = null): LayoutRow =
+    if (channel != null) {
+        // 频道行不收应用(spec §3.3:频道行 = 带 channel 字段的空应用行)
+        LayoutRow(icon = rowIconFromDisk(name, icon), apps = emptyList(), channel = channel)
+    } else {
+        LayoutRow(
+            icon = rowIconFromDisk(name, icon),
+            apps = apps.map { it.trim() }.filter { it.isNotEmpty() }.distinct(),
+        )
+    }
 
 /**
  * 内置分类表(= 缺省布局):三行,每行是「国行电视上常见、我们认得出该归哪一类」的包。
@@ -71,6 +98,8 @@ internal val layoutWrites: CoroutineDispatcher = Dispatchers.IO.limitedParalleli
 /**
  * layout.json 形如:
  *   {"rows":[{"icon":"movie","apps":["com.a","com.b"]}, ...]}
+ * **R164 频道行**多一个可选的 `channel` 对象:`{"icon":"tv","apps":[],"channel":{"pkg":…,"key":…,"name":…}}`(`apps` 恒空)。
+ * 至少要有一行应用行,否则读盘当损坏([hasAppRow]);[write] 也拒绝写出这样的列表。
  * **R163 起行没有名字**:写盘只写 `icon` + `apps`。老文件里的 `name` 读盘时只用来给没存合法 `icon` 的行回落图标
  * ([layoutRowFromDisk]),此后写盘就不再带它;新文件没有 `name` 也能读。
  * 缺失或损坏时回落到内置默认([DEFAULT_LAYOUT])按已装过滤的那份([installedDefaultLayout]),并写回磁盘,方便 adb 拉下来改。
@@ -86,6 +115,9 @@ internal val layoutWrites: CoroutineDispatcher = Dispatchers.IO.limitedParalleli
 internal fun installedDefaultLayout(ctx: Context): List<LayoutRow> =
     runCatching { plannedLayout(DEFAULT_LAYOUT, installedDefaultApps(ctx).keys) }
         .getOrElse { skippedLayout(DEFAULT_LAYOUT) }
+
+/** R164:至少有一行应用行。[Layout.parse] 与 [Layout.write] 共用这一条,写出去的东西一定读得回来。 */
+internal fun hasAppRow(rows: List<LayoutRow>): Boolean = rows.any { !it.isChannel }
 
 object Layout {
     private const val TAG = "UnitedU"
@@ -127,29 +159,39 @@ object Layout {
         }
     }
 
-    /** 文本 → 行(`internal`:JVM 单测直接喂文本,见 LayoutTest)。语法坏了 / 缺 `rows` / 缺 `apps` / 零行都抛,交给 [LockedFile.load] 当损坏处理。 */
+    /** 文本 → 行(`internal`:JVM 单测直接喂文本,见 LayoutTest)。语法坏了 / 缺 `rows` / 缺 `apps` / 零行 / 没有应用行(全是频道行,R164)都抛,交给 [LockedFile.load] 当损坏处理。 */
     internal fun parse(text: String): List<LayoutRow> {
         if (text.length > 1_000_000) error("layout.json 大得离谱: ${text.length} 字符")
         val rows = JSONObject(text).getJSONArray("rows")
         // "rows":[] 是功能性死胡同:一行都没有 = 一个加号都没有,界面里再也加不回应用,
         // 只能靠齿轮切回 Projectivy 或 adb。当成损坏处理,回落默认。
         if (rows.length() == 0) error("layout.json 里一行都没有")
-        return (0 until rows.length()).map { i ->
+        val parsed = (0 until rows.length()).map { i ->
             val r = rows.getJSONObject(i)
             val apps = r.getJSONArray("apps")
+            // R164:channel 不是对象(旧版本不会写它;手改坏了)或字段不全 → 当普通应用行读
+            val ch = r.optJSONObject("channel")
             layoutRowFromDisk(
                 // R163:新文件没有 name(缺了不抛);老文件有,只用来给没存合法 icon 的行回落图标
                 name = if (r.has("name")) r.optString("name", "") else null,
                 icon = if (r.has("icon")) r.optString("icon", "") else null,
                 apps = (0 until apps.length()).map { apps.getString(it) },
+                channel = ch?.let { channelRefFromDisk(it.optString("pkg", ""), it.optString("key", ""), it.optString("name", "")) },
             )
         }
+        // R164:全是频道行 = 一个「添加应用」入口都没有,同「零行」一样是功能性死胡同,当损坏回落(spec §3.3)
+        if (!hasAppRow(parsed)) error("layout.json 里没有应用行")
+        return parsed
     }
 
-    /** 行 → 文本(`internal`:单测核对落盘字段)。每行只有 `icon` + `apps`,**不写 `name`**(R163);缩进 2 格,adb 拉下来好读好改。 */
+    /** 行 → 文本(`internal`:单测核对落盘字段)。每行只有 `icon` + `apps`,**不写 `name`**(R163);频道行(R164)多写 `channel` 对象,`apps` 恒写空数组;缩进 2 格,adb 拉下来好读好改。 */
     internal fun toJson(rows: List<LayoutRow>): String {
         val arr = JSONArray()
-        rows.forEach { row -> arr.put(JSONObject().put("icon", row.icon).put("apps", JSONArray(row.apps))) }
+        rows.forEach { row ->
+            val o = JSONObject().put("icon", row.icon).put("apps", JSONArray(if (row.isChannel) emptyList() else row.apps))
+            row.channel?.let { o.put("channel", JSONObject().put("pkg", it.pkg).put("key", it.key).put("name", it.name)) }
+            arr.put(o)
+        }
         return JSONObject().put("rows", arr).toString(2)
     }
 
@@ -188,10 +230,13 @@ object Layout {
     /**
      * 纯函数:把一个包从所有行里去掉。一行都没命中时返回**同一个** list(调用方用 `!==` 判断要不要写盘)。
      * 行序、行图标、其余包的顺序都不动;整行空了也保留(空行只是没有卡片,不是损坏——`read` 只把「零行」当损坏)。
+     * R164:`channel.pkg` 是它的频道行整行删掉;频道行不计入应用行,删掉它不会让应用行少于 1。
      */
     fun withoutPackage(rows: List<LayoutRow>, pkg: String): List<LayoutRow> {
-        if (rows.none { pkg in it.apps }) return rows
-        return rows.map { r -> if (pkg in r.apps) r.copy(apps = r.apps.filter { it != pkg }) else r }
+        if (rows.none { pkg in it.apps || it.channel?.pkg == pkg }) return rows
+        // R164:发布方没了,它的频道行一起删(spec §3.3);应用行里的卡照旧移出、空行保留
+        return rows.filter { it.channel?.pkg != pkg }
+            .map { r -> if (pkg in r.apps) r.copy(apps = r.apps.filter { it != pkg }) else r }
     }
 
     /**
@@ -215,6 +260,11 @@ object Layout {
      */
     fun write(ctx: Context, rows: List<LayoutRow>): Boolean = store.locked {
         val base = Paths.baseOrNull(ctx) ?: return@locked false
+        // R164:写出去读不回来的列表(没有应用行)会被 parse 当损坏、回落 .prev / 默认 = 静默丢掉这次编辑
+        if (!hasAppRow(rows)) {
+            Log.w(TAG, "layout.json 拒绝写入:没有任何应用行")
+            return@locked false
+        }
         try {
             store.write(base, toJson(rows))
         } catch (e: Throwable) {

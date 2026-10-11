@@ -1,0 +1,5 @@
+# UnitedU 自己的 baseline profile(R167,报告 perf-2026-10-10 #10)。
+# 首页 / 编辑页 / 设置外壳的启动与按键路径都在本包里;dex 只有约 1.4 MB,整包全编比逐条挑路径稳,且不会因改代码漏掉新路径。
+# 构建开了 R8 混淆,AGP 会按 mapping 改写这里的规则。Compose / tv-material 等库的规则由各自的 AAR 带进来。
+HSPLcom/uniteduone/launcher/**;->**(**)**
+Lcom/uniteduone/launcher/**;

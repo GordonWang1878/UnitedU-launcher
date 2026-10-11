@@ -32,12 +32,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -94,7 +96,7 @@ sealed class AboutState {
         override val action get() = AboutAction.CHECK
     }
 
-    data class Found(override val info: LatestInfo) : AboutState() {
+    data class Found(override val info: LatestInfo, val kind: UpdateKind = UpdateKind.STABLE) : AboutState() {
         override val action get() = AboutAction.DOWNLOAD
     }
 
@@ -169,12 +171,19 @@ sealed class AboutState {
 class AboutController(
     private val activity: ComponentActivity,
     private val currentVersionCode: Int,
-    private val urls: List<String>,
+    private val channel: () -> UpdateChannel,
 ) {
     var state: AboutState by mutableStateOf(AboutState.Idle)
         private set
 
     private var session = 0
+
+    /**
+     * 当前这条更新的来路(稳定 / Beta / 回退)。Found 之后的下载 / 失败 / 校验各态都带 info 但不带 kind,
+     * 标题与「取消下载回到 Found」都要靠它:回退包不能被叫成「新版本」。新检查开始与 [reset] 时清回 STABLE。
+     */
+    var offerKind: UpdateKind by mutableStateOf(UpdateKind.STABLE)
+        private set
     private var checkJob: Job? = null
     private var downloadJob: Job? = null
     /** R151 ②:这次打开关于页已经带用户去开过「显示在其他应用上层」(关页时清,下次打开再问一次)。 */
@@ -184,15 +193,20 @@ class AboutController(
     /** 手动检查(spec §7.3):结果一定落到 Latest / Found / Failed 之一,不静默。 */
     fun check() {
         if (state.action != AboutAction.CHECK) return
+        offerKind = UpdateKind.STABLE
         val my = begin(AboutState.Checking)
         checkJob = activity.lifecycleScope.launch {
-            val result = withContext(Dispatchers.IO) { Update.check(urls) }
+            val result = withContext(Dispatchers.IO) {
+                val ch = channel() // 每次检查只读一次,日志与请求用同一个值
+                ch to Update.checkChannel(ch, currentVersionCode, BuildConfig.VERSION_NAME, Build.VERSION.SDK_INT)
+            }
             if (my != session) return@launch
-            state = result.fold(
-                onSuccess = { info ->
-                    val newer = isNewer(info, currentVersionCode, Build.VERSION.SDK_INT)
-                    Log.i(TAG, "update check: server ${info.versionCode} (${info.versionName}), current $currentVersionCode, newer=$newer")
-                    if (newer) AboutState.Found(info) else AboutState.Latest
+            val (ch, outcome) = result
+            state = outcome.fold(
+                onSuccess = { up ->
+                    Log.i(TAG, "update check (${ch.id}): current $currentVersionCode, found=${up?.info?.versionCode} kind=${up?.kind}")
+                    if (up != null) offerKind = up.kind
+                    if (up != null) AboutState.Found(up.info, up.kind) else AboutState.Latest
                 },
                 onFailure = { e ->
                     val reason = (e as? UpdateCheckException)?.reason ?: CheckFailure.NETWORK
@@ -330,7 +344,7 @@ class AboutController(
         val info = s.info
         if (!s.cancellable || info == null) return false
         Log.i(TAG, "update download cancelled by user")
-        begin(AboutState.Found(info))
+        begin(AboutState.Found(info, offerKind))
         return true
     }
 
@@ -341,11 +355,21 @@ class AboutController(
     fun reset() {
         val ready = (state as? AboutState.ReadyToInstall)?.file
         overlayAsked = false
+        offerKind = UpdateKind.STABLE
         begin(AboutState.Idle)
         if (ready != null) {
             Log.i(TAG, "about closed; discarding verified update ${ready.name} (not installed)")
             Update.discard(activity, ready)
         }
+    }
+
+    /**
+     * 用户刚换了通道:作废进行中的检查 / 下载(包括等着按「安装」的那一份,文件删掉),
+     * 再按新通道检查一次。旧通道下了一半的包绝不会被装上——它的会话号已经作废。
+     */
+    fun switchChannel() {
+        reset()
+        check()
     }
 
     /** 新会话:作废旧工作的结果、取消旧工作(不等它结束)、切到 [next]。返回新会话号。 */
@@ -364,7 +388,7 @@ class AboutController(
 
 /**
  * 关于页(spec §7.1;R74 起换成设置页外壳的样子):左边标题 + 版本 + 检查结果 + 许可声明 + 项目地址,
- * 右边两颗胶囊(R128):检查更新(下载并安装 / 安装更新 / 忙碌态的进度文字)、恢复默认 ›。一屏放下,**不滚动**(铁律 1);
+ * 右边三颗胶囊(R128 两颗,R166 加「更新通道」):检查更新(下载并安装 / 安装更新 / 忙碌态的进度文字)、恢复默认 ›。一屏放下,**不滚动**(铁律 1);
  * `notes` 最多四行,超出省略。
  *
  * 焦点账本 = 外壳同一个 [CapsuleColumn]:初始焦点循环只信自报、`nonce` 变化(从别的应用回来)重来一轮、
@@ -386,6 +410,8 @@ fun AboutScreen(
     versionName: String,
     versionCode: Int,
     state: AboutState,
+    /** 当前更新的来路([AboutController.offerKind]);Found 之后各态的标题据此区分「回退」。 */
+    offerKind: UpdateKind = UpdateKind.STABLE,
     onCheck: () -> Unit,
     onDownload: () -> Unit,
     onInstall: () -> Unit,
@@ -399,6 +425,9 @@ fun AboutScreen(
     onTarget: (String) -> Unit = {},
     /** R128:第二颗「恢复默认」——推外壳的恢复默认确认层(关于页随之让开,见 [aboutPageShown])。 */
     onRestoreDefaults: () -> Unit = {},
+    /** R166:第二颗「更新通道」——推外壳的通道页(关于页随之让开)。[channel] = 当前已保存的通道,画在胶囊右端。 */
+    channel: UpdateChannel = UpdateChannel.STABLE,
+    onChannel: () -> Unit = {},
 ) {
     val highlight = LocalThemeColors.current.highlight
 
@@ -407,7 +436,17 @@ fun AboutScreen(
 
     // 按 ABOUT_CAPSULES 的顺序画(R128 的单测按同一张表数胶囊)。
     val items = ABOUT_CAPSULES.map { id ->
-        if (id == ABOUT_RESTORE) {
+        if (id == ABOUT_CHANNEL) {
+            Capsule(
+                id = id,
+                label = stringResource(R.string.channel_title),
+                trailing = Trailing.Value(
+                    stringResource(if (channel == UpdateChannel.BETA) R.string.channel_beta else R.string.channel_stable),
+                    chevron = true,
+                ),
+                onClick = onChannel,
+            )
+        } else if (id == ABOUT_RESTORE) {
             // R128(Gordon 2026-09-29):「恢复默认」从「通用」组挪来(Google TV 也把重置放在 系统 → 关于)。右端 › = 进确认层。
             Capsule(
                 id = id,
@@ -438,15 +477,21 @@ fun AboutScreen(
                     path = stringResource(R.string.menu_settings_title),
                     title = stringResource(R.string.about_title),
                 ) {
+                    // 2026-10-10 Gordon:「发现新版本」时整块往上跑。ShellTitle 把整列垂直居中,列一变高居中点就跟着变——
+                    // 所以这一列每一段都定高:版本号、结果胶囊各一行(不换行),结局 + 更新说明按最高情况留位(结局 2 行 + 说明 4 行),
+                    // 无论检查结果是什么,总高不变、每一行都停在原处。
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         BasicText(
-                            text = stringResource(R.string.about_version, versionName, versionCode),
+                            text = stringResource(R.string.about_version, versionName, versionCode) +
+                                if (versionName.contains("-beta")) " · " + stringResource(R.string.about_beta_badge) else "",
                             style = Type.body.copy(color = Ink.Primary),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
-                        // 结果区。第一行始终占位(空白态也留一行高),下面的许可声明不会因为「检查中 → 已是最新」上下跳。
+                        // 结果区。第一行始终占位(空白态也留一行高)。
                         Spacer(Modifier.height(10.dp))
                         val info = state.info
-                        val headline = headline(state)
+                        val headline = headline(state, offerKind)
                         // 2026-10-03 Gordon:结果这一行不够醒目,但不许改字号——字号不动,改成一颗实心胶囊:
                         // 底色 = 语气色(好消息主题色 / 失败错误色),字按底色亮度取对比色(同聚焦胶囊的做法)。
                         // 外层 Box 按胶囊高度占位,空白态也留这一格,下面的许可声明不跳。
@@ -460,6 +505,8 @@ fun AboutScreen(
                                         color = contrastingTextColor(fill),
                                         textAlign = TextAlign.Center,
                                     ),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(50))
                                         .background(fill)
@@ -467,37 +514,46 @@ fun AboutScreen(
                                 )
                             }
                         }
+                        // 结局 + 更新说明:先画一份不可见的「最高情况」占位(结局 2 行 + 说明 4 行)把高度撑定,真实内容从顶上叠上去。
                         val outcome = outcome(state)
-                        if (outcome != null) {
-                            Spacer(Modifier.height(4.dp))
-                            BasicText(
-                                text = outcome.first,
-                                style = Type.body.copy(color = outcome.second.color(highlight), textAlign = TextAlign.Center, lineBreak = Type.Balanced),
-                            )
+                        val outcomeStyle = Type.body.copy(textAlign = TextAlign.Center, lineBreak = Type.Balanced)
+                        val notesStyle = Type.caption.copy(textAlign = TextAlign.Center)
+                        Box(contentAlignment = Alignment.TopCenter) {
+                            Column(Modifier.alpha(0f).clearAndSetSemantics {}, horizontalAlignment = Alignment.CenterHorizontally) {
+                                Spacer(Modifier.height(4.dp))
+                                BasicText("", style = outcomeStyle, minLines = 2)
+                                Spacer(Modifier.height(6.dp))
+                                BasicText("", style = notesStyle, minLines = 4)
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                if (outcome != null) {
+                                    Spacer(Modifier.height(4.dp))
+                                    BasicText(
+                                        text = outcome.first,
+                                        style = outcomeStyle.copy(color = outcome.second.color(highlight)),
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                                if (info != null && info.notes.isNotBlank()) {
+                                    Spacer(Modifier.height(6.dp))
+                                    BasicText(
+                                        text = notesForLanguage(info.notes, stringResource(R.string.notes_lang) == "zh"),
+                                        style = notesStyle.copy(color = Ink.Secondary),
+                                        maxLines = 4,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
                         }
-                        if (info != null && info.notes.isNotBlank()) {
-                            Spacer(Modifier.height(6.dp))
-                            BasicText(
-                                text = info.notes,
-                                style = Type.caption.copy(color = Ink.Secondary, textAlign = TextAlign.Center),
-                                maxLines = 4,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
+                        // 2026-10-10 Gordon:许可只留一行。第三方声明(NOTICE、LICENSE、OFL 全文)随 APK 附带在 assets/licenses/,
+                        // 满足 BSD-3 / Apache-2.0 / OFL「随发行物附带」的要求(app/build.gradle.kts 的 copyNotices)。
                         Spacer(Modifier.height(18.dp))
                         BasicText(
-                            text = stringResource(R.string.about_license_title),
-                            style = Type.micro.copy(fontWeight = FontWeight.Medium),
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        BasicText(
-                            text = stringResource(R.string.about_license),
-                            style = Type.micro.copy(textAlign = TextAlign.Center, lineBreak = Type.Balanced),
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        BasicText(
-                            text = stringResource(R.string.about_repo),
+                            text = stringResource(R.string.about_footer),
                             style = Type.micro,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
@@ -533,9 +589,12 @@ private fun buttonLabel(state: AboutState): String = when (state) {
 
 /** 按钮下方第一行:有新版就是「发现新版本 x」,否则是检查结果(已是最新 / 失败原因),空白态为 null。 */
 @Composable
-private fun headline(state: AboutState): Pair<String, Tone>? {
+private fun headline(state: AboutState, offerKind: UpdateKind): Pair<String, Tone>? {
     val info = state.info
-    if (info != null) return stringResource(R.string.about_found, info.versionName) to Tone.GOOD
+    if (info != null) {
+        val res = if (offerKind == UpdateKind.ROLLBACK) R.string.about_found_rollback else R.string.about_found
+        return stringResource(res, info.versionName) to Tone.GOOD
+    }
     return when (state) {
         AboutState.Latest -> stringResource(R.string.about_latest) to Tone.GOOD
         is AboutState.Failed -> {

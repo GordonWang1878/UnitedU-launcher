@@ -10,6 +10,8 @@ object GtvTokens {
     val PanelBg = Color(0xFF171A1F)
     /** 长按 / 齿轮菜单整屏底(Task 8)。 */
     val MenuBg = Color(0xFF0E0E0F)
+    /** R164:频道海报没图 / 加载失败 / 还没进加载范围时的卡底(深灰,上面写节目标题;照 Google TV 无图卡)。 */
+    val PosterFallback = Color(0xFF26282C)
     /** 菜单项药丸,未聚焦(Task 8)。聚焦态改用 LocalThemeColors.current.accent,不是固定色。 */
     val MenuItemIdle = Color(0xFF161718)
     /**

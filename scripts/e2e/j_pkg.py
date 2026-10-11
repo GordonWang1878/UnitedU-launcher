@@ -133,7 +133,7 @@ def run():
 
     journey("pkg-edit-card-menu")
     fresh()
-    open_edit(); key("ok"); time.sleep(1.2)
+    open_edit(); long_ok()
     check("编辑页卡片菜单开着", screen().has(S("edit_remove")))
     uninstall("test.dummy.app00")
     s = settle_and_check("编辑页卡片菜单开着时卸掉那张卡")
@@ -147,9 +147,9 @@ def run():
 
     journey("pkg-edit-add-app-list")
     fresh()
-    open_edit(); key("down")
-    for _ in range(8): key("right")
-    key("ok"); time.sleep(1.2); move_to(S("edit_row_add_app")); key("ok"); time.sleep(2.5)
+    open_edit(); key("down")                     # 第 2 层胶囊
+    for _ in range(6): key("left", gap=0.3)      # 最左一颗 =「添加应用」
+    key("ok"); time.sleep(2.5)
     s = screen(); lab = s.label()
     check("添加应用列表开着", s.has(S("edit_add_app_title")), s.texts()[:4])
     install("test.dummy.app18")

@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  网络安全配置(M7 T9)。整体保持平台缺省:targetSdk ≥ 28 一律禁止明文 HTTP,
-  检查更新的真实通道(COS / GitHub)只走 https。
+  网络安全配置(M7 T9;R170 改)。
 
-  唯一的例外是本机回环 127.0.0.1:模拟器验证「检查更新」时,本地假服务经
-  `adb reverse tcp:8123 tcp:8123` 映射到设备的 127.0.0.1:8123,流量不出设备
-  (Controller ruling R4;App 里对应的地址规则见 UpdateChecker.kt 的 isAllowedUpdateUrl)。
-  没有这一段,HttpURLConnection 会直接抛 "CLEARTEXT communication … not permitted"。
-  正式构建的通道里没有回环地址,这一段对它们不起作用。
+  R170(2026-10-11 Gordon):频道海报允许明文 HTTP——国行应用(如 CIBN 酷喵)给的海报地址可能是 http,
+  原先按平台缺省一律禁止明文,卡片只能画成灰底无图。网络安全配置只能按域名放开、不能按调用方放开,
+  海报来自任意第三方域名,所以这里全局允许明文;**其余联网点由代码自己守 https**:
+  - 检查更新:清单地址与 apkUrl 都过 UpdateChecker.kt 的 isAllowedUpdateUrl(https,或本机回环 127.0.0.1
+    给模拟器验证用,R4);HttpURLConnection 不跨协议跟随重定向,https 不会被 302 带到 http;
+    安装包另有 sha256 校验。
+  - 上传资料页是局域网内的入站服务,不受这里影响。
+  新加任何联网点,必须自己限定 https。
 -->
 <network-security-config>
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">127.0.0.1</domain>
-    </domain-config>
+    <base-config cleartextTrafficPermitted="true" />
 </network-security-config>

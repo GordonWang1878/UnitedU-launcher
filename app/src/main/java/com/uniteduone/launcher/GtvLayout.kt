@@ -354,9 +354,11 @@ object GtvLayout {
     const val SETTINGS_FADE_IN_MS = 500  // R113(2026-09-28):淡入 + 轻微放大,对称缓入缓出;R112 为 450
     const val SETTINGS_FADE_OUT_MS = 400  // R113;R112 为 350
     const val SETTINGS_LAYER_FADE_MS = 300  // R112 起;R113 层间另加轻微放大
-    /** R147:首页 ↔ 编辑页交叉淡化的时长(ms)——编辑页淡入 / 首页残影淡出 / 编辑页残影淡出;与打开编辑页时预览框放大到整屏
-     *  (外壳关掉那一轮的 z,[SETTINGS_FADE_OUT_MS])同一个数,放大走完时编辑页也正好完全不透明。 */
-    const val EDIT_SWAP_MS = SETTINGS_FADE_OUT_MS
+    /** R147:首页 ↔ 编辑页交叉淡化的时长(ms)——编辑页淡入 / 首页残影淡出 / 编辑页残影淡出;打开编辑页时预览框放大到整屏
+     *  (外壳因进编辑页关掉那一轮的 z,见 `previewMotion` 的 toEdit)用同一个数,放大走完时编辑页也正好完全不透明;
+     *  退出时缩回预览框是 [SETTINGS_FADE_IN_MS],与它相等。R168(2026-10-11 Gordon:「可不可改慢一点点」)400 → 500,
+     *  此前 = [SETTINGS_FADE_OUT_MS]。 */
+    const val EDIT_SWAP_MS = 500
     /** R113:设置类页面打开时从这个比例放大到 1(关闭反过来)。只作用于页面内容,不作用于全屏底色与首页 / 预览那一层。 */
     const val SETTINGS_ENTER_SCALE = 0.96f
     /** R113:外壳层与层切换(交叉淡化)时的起始比例,比整页打开更轻。 */
@@ -874,6 +876,20 @@ object GtvLayout {
             appFocusOverflow(cardWidth(size))
         // 期望的右侧留白与左基准线对称,同样取 CONTENT_KEYLINE;超出这条线才移动。
         val overRight = focusRight + CONTENT_KEYLINE - screenWidthDp
+        return if (overRight > 0f) -overRight else 0f
+    }
+
+    /**
+     * R164:同一条规则(焦点卡完全可见就不动,右缘含聚焦溢出超出右侧可视区才左移刚好这么多),卡宽逐张给(频道行按海报比例)。
+     * 等宽时与上面那个版本逐值相同(HomeVerticalTest)。[focusedIndex] 夹到 [widths] 范围内;空表 = 0。
+     */
+    fun rowShiftX(focusedIndex: Int, widths: List<Float>, screenWidthDp: Float): Float {
+        if (widths.isEmpty()) return 0f
+        val f = focusedIndex.coerceIn(0, widths.lastIndex)
+        var right = CONTENT_KEYLINE
+        for (i in 0..f) right += widths[i]
+        right += CARD_GAP * f + appFocusOverflow(widths[f])
+        val overRight = right + CONTENT_KEYLINE - screenWidthDp
         return if (overRight > 0f) -overRight else 0f
     }
 

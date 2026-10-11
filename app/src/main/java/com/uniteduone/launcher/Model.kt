@@ -34,4 +34,16 @@ data class Row(
      * 因此这个值必须在 `filter` **之前**按 layout 的下标定下来(见 buildRows)。
      */
     val layoutRow: Int = -1,
+    /** R164:非 null = 频道行([apps] 恒空,卡片是 [programs])。 */
+    val channel: ChannelRef? = null,
+    /** R164:频道行的节目(已排序、≤ 12 张);首页只画非空的频道行。 */
+    val programs: List<Program> = emptyList(),
+    /** R164:频道行发布方的应用名(行头「应用名 · 频道名」的前半;读不到时是包名)。 */
+    val channelAppLabel: String = "",
 )
+
+/** R164:是不是频道行。 */
+val Row.isChannel: Boolean get() = channel != null
+
+/** 这一行可聚焦的格数:应用行 = 应用数,频道行 = 节目数。焦点账本里一切「夹到本行末格」都用它(铁律 2 的同一个夹取口径)。 */
+val Row.cellCount: Int get() = if (channel != null) programs.size else apps.size

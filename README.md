@@ -16,7 +16,7 @@ UnitedU is an open-source home screen (launcher) for Android TV, Android 9 and l
 - **Google TV / Android TV with Google services**, if you find the stock home screen too full of recommendations and ads and want a clean one — similar in spirit to Projectivy Launcher. On these TVs the HOME button goes to the Google home screen by default; turn on [Home Button Takeover](#home-button-takeover) to send it to UnitedU.
 - **Chinese-market TVs without Google services**, whose maker lets you change the home app. These factory home screens are usually heavy and ad-filled. UnitedU has only been tested on a real Chinese-market Sony A95L; see [Compatibility](#compatibility) for other brands.
 
-UnitedU never goes online, except at the moment you press "Check for Updates" (and while the "Upload Files" page is open, when the TV runs a temporary upload server on your local network). It is not on Google Play or any other app store; download the APK from [GitHub Releases](https://github.com/GordonWang1878/UnitedU-launcher/releases) and install it yourself.
+UnitedU never goes online, except at the moment you press "Check for Updates", while the "Upload Files" page is open (the TV runs a temporary upload server on your local network), and — only if you add a channel row — to download that channel's poster images. It is not on Google Play or any other app store; download the APK from [GitHub Releases](https://github.com/GordonWang1878/UnitedU-launcher/releases) and install it yourself.
 
 Package name `com.uniteduone.launcher`, minimum Android 9 (API 28). **Latest version: 1.0.2 (2026-10-03)**, GitHub Release `v1.0.2` (versionCode 5), also mirrored at `dl.uniteduone.com` (Cloudflare R2) so TVs in mainland China can update without a proxy. License at the end.
 
@@ -26,6 +26,7 @@ The app's interface is available in English, Simplified Chinese and Traditional 
 
 - **Home screen**: wallpaper plus rows of app cards (1–5 rows; each row has an icon you can change, and no name). Three buttons at the top left — Settings / Apps / Inputs — and a clock at the top right. Three card sizes; a row shows exactly **5 / 6 / 8 cards** (large / medium / small). Card titles can be turned on or off. Newly installed apps don't appear on their own; you add them. With no apps on the home screen, a hint at the bottom has a "Go Now" button that opens Edit Home Screen.
 - **All Apps** (the "Apps" button): every launchable app on the TV, including those already on your home screen. OK opens one; hold OK or press Menu for Open / Uninstall (when possible) / Add to Home….
+- **Channel rows** (optional, none by default; **offered only on TVs with Google Play services** — on TVs without them, such as Chinese-market models, YouTube, Netflix and most other apps publish no channels or only empty ones, so the option is hidden): in Edit Home Screen → New Row → Channel, add a row of shows and movies that another app on the TV publishes as an Android TV "channel" (for example Kodi, Jellyfin, Emby, SmartTube, YouTube, Netflix, CIBN Kumiao). Up to 5 channel rows with 12 posters each; OK opens the show in its app. The first time, Android asks whether UnitedU may read the TV's channel listings (`READ_TV_LISTINGS`, used only for this); they are only shown on this TV and never uploaded. What a channel shows, and when it updates, is up to the app that provides it (some apps only refresh after you open them and exit with Back); UnitedU itself recommends nothing.
 - **Inputs** (the "Inputs" button): switch between HDMI and TV sources, rename or hide them. An HDMI-CEC device and the port it's on are shown once; multiple tuners are merged into one "TV".
 - **Settings**: a column of buttons on the right, one level at a time, at most 6 per page. Card and wallpaper settings show a live preview on the left.
 - **Built-in images**: 4 wallpapers, 4 screensaver photos and 7 app card images (Tencent Video, iQIYI, Youku, bilibili, MIGU, Mango TV, YouTube — each only usable for its own app). All three image pickers are split into "Built-in" and "Mine". The built-in wallpapers and screensaver photos are HDR photos with gain maps (Ultra HDR, in both the Android 14 and the Android 15+ formats): brighter highlights on TVs whose interface supports HDR, ordinary photos everywhere else.
@@ -109,7 +110,7 @@ If HOME still goes to the stock home screen after the steps above (on Google TV 
 The first time UnitedU opens (a fresh install, not an upgrade) a three-step guide appears; Back returns to the previous step:
 
 1. **Choose a language**: System Default / 简体中文 / 繁體中文 / English, applied immediately.
-2. **Put your installed apps on the home screen**: this is not a recommendation algorithm, just a fixed list of common Chinese-market apps, filtered to those installed on the TV: video (Tencent Video's TV app Yunshiting Jiguang, iQIYI's TV app Yinhe Qiyiguo, CIBN Kumiao, Mango TV, bilibili's TV app Yunshiting Xiaodianshi), live TV (CCTV Video, MIGU), music (NetEase Cloud Music, QQ Music). "Continue" places them; "Skip" leaves three empty rows and the home screen hints at Edit Home Screen ("Go Now" opens it), where you add apps with the "＋" at the end of each row. You can also hold OK on an app in All Apps → "Add to Home…". On TVs outside China this list usually finds nothing; add your apps from All Apps.
+2. **Put your installed apps on the home screen**: this is not a recommendation algorithm, just a fixed list of common Chinese-market apps, filtered to those installed on the TV: video (Tencent Video's TV app Yunshiting Jiguang, iQIYI's TV app Yinhe Qiyiguo, CIBN Kumiao, Mango TV, bilibili's TV app Yunshiting Xiaodianshi), live TV (CCTV Video, MIGU), music (NetEase Cloud Music, QQ Music). "Continue" places them; "Skip" leaves three empty rows and the home screen hints at Edit Home Screen ("Go Now" opens it), where you add apps with "Add App" at the top of each row (an empty row has an "Add App" tile where its cards go). You can also hold OK on an app in All Apps → "Add to Home…". On TVs outside China this list usually finds nothing; add your apps from All Apps.
 3. **Make UnitedU your default home screen**: the same as [Set as the default home screen](#set-as-the-default-home-screen), offered once up front (TVs where UnitedU isn't the default home app also get a "Home Button Takeover" button here). "Done" goes to the home screen; you can change this in Settings any time.
 
 Users upgrading from an older version don't see the guide.
@@ -125,7 +126,7 @@ Hold OK on an app card (about 0.6 seconds) for a menu:
 - **Move** — right on the home screen: left/right swap with the neighboring card, up/down move to the adjacent row, OK drops it, Back cancels
 - **Remove from Row** — only takes it off this row; the app itself is not uninstalled
 
-Adding and deleting rows, changing a row's icon (rows have no names, only icons) and reorganizing across rows happen in Settings → Layout → Edit Home Screen.
+Adding and deleting rows, changing a row's icon (rows have no names, only icons) and reorganizing across rows happen in Settings → Layout → Edit Home Screen. It shows your rows as shelves: each shelf's actions sit along its top (Add App / Icon / Move Up / Move Down / Delete). Press OK on a card to pick it up, move it with the arrow keys (up and down move it to another row), then OK to drop it or Back to cancel. Hold OK or press Menu on a card for its menu (Change Card Art / Remove). "New Row" at the bottom adds a row (up to 5).
 
 ## Settings
 
@@ -164,6 +165,10 @@ Settings → About shows the current version (`versionName (versionCode)`). Unit
 - Network unreachable, unreadable response or a download that fails verification each get their own message.
 
 The first time you install an update here, allow UnitedU under "Install unknown apps" on the TV (see [Install](#install)) and try again. Updates go through the system installer's session API and don't turn off Home Button Takeover (the service reconnects after the update; verified on an emulator). An APK of UnitedU itself sent from your phone takes the same session install. If an update fails (other than you pressing Cancel), the TV shows a message: "Update was not installed (status code). You can retry under "About"".
+
+### Stable and Beta channels
+
+By default UnitedU follows the **Stable** channel. If you want new features first, open Settings → About → **Update channel** and pick **Beta**; it checks for an update right away. Beta builds get features earlier and may be less stable. You can switch back to Stable at any time from the same place: UnitedU installs the current stable version over the Beta, and your layout and settings are kept.
 
 ## Going back to the old home screen
 

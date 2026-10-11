@@ -115,7 +115,6 @@
 
     <!-- edit_* : 編輯分欄畫面 -->
     <string name="edit_title">編輯桌面</string>
-    <string name="edit_hint">在應用程式上按確定：移動、換卡片圖、移出這一列。在每列最後的 + 上按確定：新增應用程式、管理這一列。按返回鍵完成。</string>
     <string name="edit_toast_order_not_saved">順序沒能存下來，重新啟動後會變回原樣</string>
     <string name="edit_change_image">換卡片圖</string>
     <string name="edit_change_image_desc">選一張 16:9 的圖片取代</string>
@@ -257,6 +256,7 @@
     <string name="about_checking">檢查中…</string>
     <string name="about_latest">已是最新版本</string>
     <string name="about_found">發現新版本 %1$s</string>
+    <string name="about_found_rollback">可回到穩定版 %1$s（版面與設定保留）</string>
     <string name="about_download">下載並安裝</string>
     <string name="about_ready_install">安裝更新</string>
     <string name="about_downloading">下載中 %1$d%%</string>
@@ -269,9 +269,9 @@
     <string name="about_overlay_hint">允許「顯示在其他應用程式上層」後，更新裝好會自動回到桌面。回來按「安裝更新」繼續（不允許也能裝）</string>
     <string name="about_net_failed">連不上更新伺服器，請檢查網路後再試</string>
     <string name="about_bad_json">暫時無法取得更新資訊，請稍後再試</string>
-    <string name="about_license_title">授權聲明</string>
-    <string name="about_license">本專案以 Apache-2.0 授權發布。第三方元件：Google Sans Flex（OFL 1.1）、Material Icons（Apache-2.0）、NanoHTTPD（BSD-3-Clause）、ZXing（Apache-2.0）。</string>
-    <string name="about_repo">專案網址 github.com/GordonWang1878/UnitedU-launcher</string>
+    <string name="about_footer">Apache-2.0 · github.com/GordonWang1878/UnitedU-launcher</string>
+    <!-- 更新说明挑哪种语言的行(notesForLanguage),不是给人看的文字 -->
+    <string name="notes_lang" translatable="false">zh</string>
     <!-- onb_* : 首次啟動引導(T10,spec §8);第 1 步的語言按鈕沿用 settings_lang_* -->
     <string name="onb_step1_title">選擇語言</string>
     <string name="onb_step2_title">把應用程式放到桌面</string>
@@ -312,27 +312,47 @@
     <string name="settings_hidden_inputs_count">%1$d 個</string>
     <string name="toast_inputs_restored">已恢復全部輸入源</string>
     <string name="title_dialog_hint_input">確定儲存 · 返回取消 · 清空恢復系統名稱</string>
-    <!-- edit_row_* / row_icon_* : 編輯頁行選單(行尾「+」)、行圖示選擇器、刪行確認框(M4b Task 4;R163 起行沒有名字,「行改名」整頁取消) -->
+    <!-- edit_row_* / row_icon_* : 編輯頁貨架頂部的操作膠囊(R165 起取代行尾「+」的行選單)、行圖示選擇器、刪行確認框(M4b Task 4;R163 起行沒有名字,「行改名」整頁取消) -->
     <string name="edit_row_add_app">新增應用程式</string>
-    <string name="edit_row_add_app_desc">從已安裝的應用程式裡挑</string>
-    <string name="edit_row_icon">更換此列圖示</string>
-    <string name="edit_row_icon_desc">更換這一列的圖示</string>
-    <string name="edit_row_up">此列上移</string>
-    <string name="edit_row_up_desc">和上面一列對調</string>
-    <string name="edit_row_down">此列下移</string>
-    <string name="edit_row_down_desc">和下面一列對調</string>
-    <string name="edit_row_new">在下方新增一列</string>
-    <string name="edit_row_new_desc">在這一列下面加一個空列</string>
-    <string name="edit_row_delete">刪除此列</string>
-    <string name="edit_row_delete_desc">列裡的應用程式不會被解除安裝</string>
     <string name="edit_row_icon_heading">選擇列圖示</string>
-    <string name="edit_row_menu_title">分欄管理</string>
     <string name="edit_row_delete_confirm_title">刪除這一列？</string>
     <plurals name="edit_row_delete_confirm_body">
         <item quantity="one">這一列的 %1$d 個應用程式會從桌面移除，不會解除安裝。</item>
         <item quantity="other">這一列的 %1$d 個應用程式會從桌面移除，不會解除安裝。</item>
     </plurals>
     <string name="edit_row_delete_ok">刪除</string>
+    <!-- edit_summary_* / edit_hint_* / edit_chip_* / edit_choice_* : 編輯桌面「貨架」(R165) -->
+    <plurals name="edit_summary_rows">
+        <item quantity="one">%1$d 列</item>
+        <item quantity="other">%1$d 列</item>
+    </plurals>
+    <plurals name="edit_apps_count">
+        <item quantity="one">%1$d 個應用程式</item>
+        <item quantity="other">%1$d 個應用程式</item>
+    </plurals>
+    <string name="edit_key_ok">確定</string>
+    <string name="edit_key_back">返回</string>
+    <string name="edit_hint_pick">拿起卡片</string>
+    <string name="edit_hint_row">列操作</string>
+    <string name="edit_hint_done">完成</string>
+    <string name="edit_hint_choose">選擇</string>
+    <string name="edit_hint_add">新增</string>
+    <string name="edit_hint_move">移動</string>
+    <string name="edit_hint_drop">放下</string>
+    <string name="edit_hint_cancel">取消</string>
+    <string name="edit_chip_icon">換圖示</string>
+    <string name="edit_chip_up">上移</string>
+    <string name="edit_chip_down">下移</string>
+    <string name="edit_chip_delete">刪除</string>
+    <string name="edit_new_row">新的一列</string>
+    <string name="edit_choice_app_row">應用程式列</string>
+    <string name="edit_choice_app_row_desc">放你自己挑的應用程式，可以排順序、換圖示</string>
+    <string name="edit_choice_full">已滿 %1$d 列</string>
+    <string name="edit_new_row_caption">應用程式列最多 %1$d 列、頻道最多 %2$d 列</string>
+    <string name="edit_new_row_caption_apps">應用程式列最多 %1$d 列</string>
+    <!-- R164 新的一列:頻道選擇卡 -->
+    <string name="shelf_new_channel">頻道</string>
+    <string name="shelf_new_channel_desc">其他應用程式推送的節目</string>
     <string name="row_icon_movie">影片</string>
     <string name="row_icon_tv">電視</string>
     <string name="row_icon_live">直播</string>
@@ -348,8 +368,6 @@
     <!-- home_move_hint / toast_move_failed : 首頁原地移動態(M4b Task 5) -->
     <string name="home_move_hint">← → 移動 · ↑ ↓ 換列 · 確定 放下 · 返回 取消</string>
     <string name="toast_move_failed">無法儲存新位置，請稍後再試</string>
-    <!-- edit_move_desc : 編輯頁搬運模式(M4b 真機驗收補丁 Task 2) -->
-    <string name="edit_move_desc">在編輯頁裡用方向鍵挪這張卡，空列也能去</string>
     <!-- settings shell:設定頁膠囊外殼(R69–R72,2026-09-23) -->
     <string name="shell_root_layout_desc">編輯桌面、應用程式名稱、卡片顯示偏好</string>
     <string name="shell_root_general_desc">語言、預設桌面、上傳資料、時鐘</string>
@@ -441,4 +459,35 @@
     <string name="gallery_storage_failed">儲存空間不足或寫入失敗，請清理空間後重試。</string>
     <string name="gallery_invalid_failed">圖片驗證失敗，請更新圖庫後重試。</string>
     <string name="gallery_videos_unavailable">線上圖庫影片暫未推出</string>
+    <string name="channel_title">更新通道</string>
+    <string name="channel_stable">穩定版</string>
+    <string name="channel_beta">Beta</string>
+    <string name="channel_stable_note">經過驗證的版本，推薦大多數人使用。從 Beta 切回時會裝回穩定版，版面與設定保留。</string>
+    <string name="channel_beta_note">先用上新功能，可能不太穩定。隨時可以切回穩定版，不丟版面。</string>
+    <string name="about_beta_badge">Beta</string>
+
+    <!-- R164 首頁頻道列:列頭「應用程式名稱 · 頻道名稱」;焦點列卡片下第二行的資訊 -->
+    <string name="channel_row_title">%1$s · %2$s</string>
+    <string name="channel_meta_season_episode">第 %1$s 季 · 第 %2$s 集</string>
+    <string name="channel_meta_episode">第 %1$s 集</string>
+    <string name="channel_meta_hours_minutes">%1$d 小時 %2$d 分鐘</string>
+    <string name="channel_meta_minutes">%1$d 分鐘</string>
+    <!-- R164 編輯頁頻道架 -->
+    <string name="shelf_channel_tag">頻道</string>
+    <string name="shelf_channel_empty">暫無內容</string>
+    <string name="shelf_channel_needs_permission">需要重新授權</string>
+    <string name="shelf_chip_reauthorize">重新授權</string>
+    <plurals name="edit_channels_count">
+        <item quantity="one">%1$d 個頻道</item>
+        <item quantity="other">%1$d 個頻道</item>
+    </plurals>
+    <!-- R164 選頻道頁 -->
+    <string name="channel_picker_title">新增頻道</string>
+    <string name="channel_picker_hint">頻道裡放什麼、何時更新，都由提供它的應用程式決定；有的應用程式只在你開啟它、按返回離開後才更新。UnitedU 只在本機讀取與顯示，不會上傳。</string>
+    <string name="channel_picker_loading">正在讀取頻道…</string>
+    <string name="channel_picker_empty">目前沒有應用程式提供頻道</string>
+    <string name="channel_picker_empty_hint">開啟過的影音應用程式才可能提供；有的還要在應用程式裡按返回離開一次</string>
+    <string name="channel_picker_denied">沒有讀取頻道的權限，可以在系統設定裡開啟。</string>
+    <string name="channel_picker_open_settings">前往系統設定開啟</string>
+    <string name="channel_picker_back">返回</string>
 </resources>

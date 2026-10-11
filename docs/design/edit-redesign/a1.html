@@ -1,0 +1,52 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0..1,0">
+<link rel="stylesheet" href="base.css">
+<style>
+.wall{position:absolute;inset:0;background:url(assets/wall.jpg) center/cover}
+.shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,14,15,.55) 0%,rgba(14,14,15,.82) 35%,rgba(14,14,15,.92) 100%)}
+.bar{left:58px;top:34px;display:flex;align-items:center;gap:10px}
+.chip{display:flex;align-items:center;gap:6px;height:30px;padding:0 14px;border-radius:15px;background:rgba(255,255,255,.10);font-size:13px;color:#E8E8E8}
+.chip.acc{background:#BBD5B3;color:#1A1F19}
+.hint{right:58px;top:41px;font-size:12px;color:#9A9A9A}
+.gut{position:absolute;left:14px;width:30px;height:30px;border-radius:15px;display:flex;align-items:center;justify-content:center;color:#959BA3;font-size:20px}
+.tile{position:absolute;width:122px;height:68.6px;border-radius:8px;background:rgba(255,255,255,.07);border:1px dashed rgba(255,255,255,.22);display:flex;flex-direction:column;justify-content:center;padding-left:12px;gap:4px;color:#CFCFCF;font-size:13px}
+.tile .ms{font-size:18px;color:#BBD5B3}
+.under{position:absolute;font-size:11px;color:#BDBDBD;white-space:nowrap}
+.rowlabel{position:absolute;font-size:12px;color:#9A9A9A}
+.wide{position:absolute;height:44px;border-radius:22px;display:flex;align-items:center;gap:8px;padding:0 18px;background:rgba(255,255,255,.08);font-size:14px;color:#DADADA;border:1px solid rgba(255,255,255,.10)}
+.wide .ms{font-size:20px;color:#BBD5B3}
+.rail{position:absolute;left:44px;right:30px;border-radius:14px;background:rgba(255,255,255,.035)}
+</style></head><body>
+<div class="wall"></div><div class="shade"></div>
+<div class="abs bar"><div class="chip acc"><span class="ms" style="font-size:16px">edit</span>正在编辑桌面</div></div>
+<div class="abs hint"><span class="kbd">确定</span>拿起 / 放下 &nbsp; <span class="kbd">菜单</span>更多 &nbsp; <span class="kbd">返回</span>完成</div>
+
+<!-- row 1 (focused) -->
+<div class="rail" style="top:96px;height:112px;background:rgba(255,255,255,.06)"></div>
+<div class="gut" style="top:122px"><span class="ms">movie</span></div>
+<div class="card focus" style="left:58px;top:110px;background-image:url(assets/youtube.jpg)"></div>
+<div class="card" style="left:200px;top:110px;background-image:url(assets/tencent.jpg)"></div>
+<div class="card" style="left:342px;top:110px;background-image:url(assets/iqiyi.jpg)"></div>
+<div class="card" style="left:484px;top:110px;background-image:url(assets/youku.jpg)"></div>
+<div class="tile" style="left:626px;top:110px"><span class="ms">add</span>添加应用</div>
+<div class="under" style="left:58px;top:188px">YouTube · <span style="color:#BBD5B3">确定拿起移动</span></div>
+
+<!-- row 2 -->
+<div class="gut" style="top:240px"><span class="ms">tv</span></div>
+<div class="card" style="left:58px;top:228px;background-image:url(assets/bilibili.jpg);opacity:.75"></div>
+<div class="card" style="left:200px;top:228px;background-image:url(assets/mango.jpg);opacity:.75"></div>
+<div class="tile" style="left:342px;top:228px;opacity:.75"><span class="ms">add</span>添加应用</div>
+
+<!-- row 3: channel -->
+<div class="rowlabel" style="left:58px;top:322px">酷喵 · 今日推荐</div>
+<div class="gut" style="top:352px"><span class="ms">live_tv</span></div>
+<div class="poster" style="left:58px;top:340px;width:122px;background-image:url(assets/p-alpine.jpg);opacity:.75"></div>
+<div class="poster" style="left:200px;top:340px;width:68.6px;background-image:url(assets/p-lofi.jpg);opacity:.75"></div>
+<div class="poster" style="left:288.6px;top:340px;width:122px;background-image:url(assets/p-city.jpg);opacity:.75"></div>
+<div class="poster" style="left:430.6px;top:340px;width:122px;background-image:url(assets/p-deep.jpg);opacity:.75"></div>
+
+<!-- bottom actions -->
+<div class="wide" style="left:58px;top:452px"><span class="ms">add_row_below</span>新建一行</div>
+<div class="wide" style="left:196px;top:452px"><span class="ms">live_tv</span>添加频道</div>
+<div class="abs caption" style="left:350px;top:466px">频道 = 其它应用推送的节目,只有你加了才会出现</div>
+</body></html>
