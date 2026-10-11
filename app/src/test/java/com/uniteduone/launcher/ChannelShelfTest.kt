@@ -23,7 +23,7 @@ class ChannelShelfTest {
         val s = shelves(ChannelContent.NeedsPermission)
         assertEquals(4, s.size)
         assertEquals(Shelf.ChannelShelf(1, ref, "CIBN酷喵", ChannelShelfState.NeedsPermission), s[1])
-        assertEquals(Shelf.NewRowShelf, s.last())
+        assertEquals(Shelf.NewRowShelf(), s.last())
         assertEquals("没有应用名时用包名", "com.cibn.tv", (shelvesOf(view)[1] as Shelf.ChannelShelf).appLabel)
     }
 

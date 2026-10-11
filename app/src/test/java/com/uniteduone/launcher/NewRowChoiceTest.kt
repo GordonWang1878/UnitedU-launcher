@@ -27,4 +27,15 @@ class NewRowChoiceTest {
         assertEquals(listOf(true, false), NewRowChoice.entries.map { choiceFull(fullApps, it) })
         assertEquals(listOf(MAX_ROWS, MAX_CHANNEL_ROWS), NewRowChoice.entries.map { choiceMax(it) })
     }
+
+    /** R169:没有 Google Play 服务时「新的一行」只有应用行一格;已有的频道架子照常在,目标夹回唯一那一格。 */
+    @Test fun noChannelCardWithoutPlayServices() {
+        assertEquals(listOf(NewRowChoice.APP_ROW), newRowChoices(channelsOffered = false))
+        assertEquals(NewRowChoice.entries, newRowChoices(channelsOffered = true))
+        val s = shelvesOf(listOf(app(), ch(1)), channelsOffered = false)
+        assertEquals(Shelf.NewRowShelf(listOf(NewRowChoice.APP_ROW)), s.last())
+        assertEquals("已加的频道行照常显示", true, s[1] is Shelf.ChannelShelf)
+        assertEquals(1, laneSize(s, 2, ShelfZone.NEW))
+        assertEquals(ShelfSpot(2, ShelfZone.NEW, 0), clampSpot(s, ShelfSpot(2, ShelfZone.NEW, 1)))
+    }
 }

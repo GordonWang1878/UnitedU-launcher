@@ -24,15 +24,20 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * R164 频道海报(spec `2026-10-08-channel-rows-design.md` §3.3)。纯函数在上半(JVM 单测 PosterLoaderTest),
  * Android 侧的缓存与解码是 [PosterCache]。**不做磁盘缓存**;这是 UnitedU 除「检查更新」「上传资料」之外唯一会联网的地方
- * (只在频道行的海报是 https 地址时,README 同步写明)。
+ * (只在频道行的海报是网络地址时,README 同步写明)。
  */
 
-internal enum class PosterSource { RESOLVER, HTTPS, NONE }
+internal enum class PosterSource { RESOLVER, NETWORK, NONE }
 
-/** `content://` / `android.resource://` 走 ContentResolver;`https://` 走网络;其它(含明文 `http://`、`file://`)当作没图。 */
+/**
+ * `content://` / `android.resource://` 走 ContentResolver;`https://` / `http://` 走网络;其它(`file://` 等)当作没图。
+ * **R170(2026-10-11 Gordon)起明文 `http://` 也下载**:A95L 上 CIBN 酷喵的频道卡全是灰底无图,疑为海报地址是 http
+ * (R164 时按网络安全配置当作没图)。网络安全配置只能按域名放开,所以 `network_security_config.xml` 改成全局允许明文,
+ * 其余联网点自己守 https:检查更新的地址过 [isAllowedUpdateUrl],`HttpURLConnection` 也不跨协议跟随重定向。
+ */
 internal fun posterSourceOf(uri: String): PosterSource = when (uri.substringBefore(':', "").lowercase()) {
     "content", "android.resource" -> PosterSource.RESOLVER
-    "https" -> PosterSource.HTTPS
+    "https", "http" -> PosterSource.NETWORK
     else -> PosterSource.NONE
 }
 
@@ -245,7 +250,7 @@ object PosterCache {
 
     private fun bytesOf(ctx: Context, uri: String): ByteArray? = when (posterSourceOf(uri)) {
         PosterSource.RESOLVER -> null   // 走 readResolverBounded
-        PosterSource.HTTPS -> fetchBytes(URL(uri), POSTER_TIMEOUT_MS, POSTER_MAX_BYTES)
+        PosterSource.NETWORK -> fetchBytes(URL(uri), POSTER_TIMEOUT_MS, POSTER_MAX_BYTES)
         PosterSource.NONE -> null
     }
 

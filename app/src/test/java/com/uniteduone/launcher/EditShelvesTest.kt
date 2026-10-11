@@ -29,9 +29,9 @@ class EditShelvesTest {
     @Test fun shelvesKeepLayoutRowIndicesAndEndWithTheNewRow() {
         assertEquals(4, three.size)
         assertEquals(Shelf.AppShelf(1, "tv", listOf("e", "f")), three[1])
-        assertEquals(Shelf.NewRowShelf, three.last())
+        assertEquals(Shelf.NewRowShelf(), three.last())
         assertEquals(3, appShelfCount(three))
-        assertEquals(listOf<Shelf>(Shelf.NewRowShelf), shelvesOf(emptyList()))
+        assertEquals(listOf<Shelf>(Shelf.NewRowShelf()), shelvesOf(emptyList()))
     }
 
     @Test fun chipsDependOnPositionAndHowManyAppRowsThereAre() {

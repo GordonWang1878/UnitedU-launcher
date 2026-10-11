@@ -43,3 +43,14 @@ internal fun permissionResult(granted: Boolean, rationaleBefore: Boolean, ration
 }
 
 val LocalChannelEnv: ProvidableCompositionLocal<ChannelEnv> = compositionLocalOf { ChannelEnv() }
+
+/** R169:Google Play 服务的包名。国行无 GMS 的电视上没有它;海外 Android TV 都预装。 */
+internal const val PLAY_SERVICES_PKG = "com.google.android.gms"
+
+/**
+ * R169:这台电视有没有可用的 Google Play 服务(装着、且没被停用)——决定编辑页「新的一行」里给不给「频道」卡([newRowChoices])。
+ * Netflix 的定时刷新、YouTube 的推荐都依赖它,没有它时这些应用不建频道(A95L 实测)。看包可见性靠清单里的 QUERY_ALL_PACKAGES。
+ */
+internal fun hasPlayServices(ctx: android.content.Context): Boolean = runCatching {
+    ctx.packageManager.getApplicationInfo(PLAY_SERVICES_PKG, 0).enabled
+}.getOrDefault(false)

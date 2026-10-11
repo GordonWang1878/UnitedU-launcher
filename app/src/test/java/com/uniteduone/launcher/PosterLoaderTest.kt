@@ -51,8 +51,8 @@ class PosterLoaderTest {
     @Test fun sources() {
         assertEquals(PosterSource.RESOLVER, posterSourceOf("content://test.channels.posters/1"))
         assertEquals(PosterSource.RESOLVER, posterSourceOf("android.resource://com.x/drawable/p"))
-        assertEquals(PosterSource.HTTPS, posterSourceOf("HTTPS://cdn.example.com/p.jpg"))
-        assertEquals("明文 http 按网络安全配置会失败,当作没图", PosterSource.NONE, posterSourceOf("http://cdn.example.com/p.jpg"))
+        assertEquals(PosterSource.NETWORK, posterSourceOf("HTTPS://cdn.example.com/p.jpg"))
+        assertEquals("R170:明文 http 也下载", PosterSource.NETWORK, posterSourceOf("http://cdn.example.com/p.jpg"))
         assertEquals(PosterSource.NONE, posterSourceOf("file:///sdcard/p.jpg"))
         assertEquals(PosterSource.NONE, posterSourceOf("garbage"))
     }

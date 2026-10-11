@@ -104,6 +104,7 @@ class EditShelvesLandingTest {
         assertEquals(EditHintSet.BROWSE, editHintSet(CHIPS, carrying = false))
         assertEquals(EditHintSet.BROWSE, editHintSet(null, carrying = false))
         assertEquals(EditHintSet.NEW_ROW, editHintSet(NEW, carrying = false))
+        assertEquals("R169:只有应用行一张卡", EditHintSet.NEW_ROW_SINGLE, editHintSet(NEW, carrying = false, newRowChoices = 1))
         assertEquals(EditHintSet.CARRY, editHintSet(CARDS, carrying = true))
     }
 

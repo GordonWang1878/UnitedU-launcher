@@ -236,7 +236,9 @@ fun EditScreen(
      * 本页的货架一律经这里算(组合期、按键回调、重定位的 snapshotFlow、看门狗)。频道架子的胶囊表取决于授权状态(「重新授权」那颗),
      * 有一处漏传内容,那一处算出的胶囊下标就与画出来的对不上。读的是 State(rememberUpdatedState),回调与 snapshotFlow 读到的都是最新的。
      */
-    fun shelvesFor(v: List<LayoutRow>): List<Shelf> = shelvesOf(v, channelLabelsNow, channelContentNow)
+    // R169:进一次编辑页判断一次(本页随退出离开组合,下次进来重判)
+    val channelsOffered = remember { hasPlayServices(ctx) }
+    fun shelvesFor(v: List<LayoutRow>): List<Shelf> = shelvesOf(v, channelLabelsNow, channelContentNow, channelsOffered)
     fun shelvesNow(): List<Shelf> = shelvesFor(view())
     fun applyView(edited: List<LayoutRow>, base: List<LayoutRow> = rows) {
         rows = withVisibleEdits(base, edited, shownNow())
@@ -475,11 +477,12 @@ fun EditScreen(
                 retarget(landingAfterAppend(shelvesNow()))
             }
             NewRowChoice.CHANNEL -> {
+                if (!channelsOffered) return   // R169:没有这张卡,不该走到这里
                 if (choiceFull(shelvesNow(), NewRowChoice.CHANNEL)) return   // 已满 5 行:确定不响应(spec §2.4)
                 // 状态并进 overlay = 自动并进 overlayOpen(看门狗 / 定位效果让路,铁律 6);ON_PAUSE 不清它(授权窗回来选页要还在)
                 overlay = EditOverlay.ChannelPick(
                     rows.mapNotNull { it.channel },
-                    from = ShelfSpot(shelvesNow().lastIndex, ShelfZone.NEW, NewRowChoice.CHANNEL.ordinal),
+                    from = ShelfSpot(shelvesNow().lastIndex, ShelfZone.NEW, newRowChoices(channelsOffered).indexOf(NewRowChoice.CHANNEL)),
                 )
             }
         }
@@ -781,7 +784,8 @@ fun EditScreen(
                             onChip = { cb.onChip(si, it) },
                             modifier = measure,
                         )
-                        Shelf.NewRowShelf -> NewRowShelfView(
+                        is Shelf.NewRowShelf -> NewRowShelfView(
+                            choices = shelf.choices,
                             shelfIndex = si,
                             shelves = shelves,
                             focus = { focusAnim.value },
@@ -798,7 +802,7 @@ fun EditScreen(
             }
         }
 
-        EditTopBar(counts = remember(viewRows) { editCounts(viewRows) }, hints = editHintSet(hintZone, carry != null))
+        EditTopBar(counts = remember(viewRows) { editCounts(viewRows) }, showChannels = channelsOffered, hints = editHintSet(hintZone, carry != null, newRowChoices(channelsOffered).size))
 
         // **R136:编辑页的浮层是一摞,淡入淡出**(OverlayStack)。残影画关掉前那一份,回调只有活着的那一层会调到(`overlay === ov` 判一次)
         OverlayStack(state = overlay?.takeIf { !staleOverlay }, layerKey = { it.layer }) { ov ->
@@ -895,7 +899,7 @@ fun EditScreen(
 
 /** 页头(spec §2.1):左「编辑桌面」+ 概况,右按键提示;下面一条渐隐遮罩盖住滚上来的架子(c2)。纯展示、不可聚焦。 */
 @Composable
-private fun EditTopBar(counts: EditCounts, hints: EditHintSet) {
+private fun EditTopBar(counts: EditCounts, showChannels: Boolean, hints: EditHintSet) {
     Box(
         Modifier
             .fillMaxWidth()
@@ -911,7 +915,8 @@ private fun EditTopBar(counts: EditCounts, hints: EditHintSet) {
         val rowsText = pluralStringResource(R.plurals.edit_summary_rows, counts.rows, counts.rows)
         val appsText = pluralStringResource(R.plurals.edit_apps_count, counts.apps, counts.apps)
         val channelsText = pluralStringResource(R.plurals.edit_channels_count, counts.channels, counts.channels)
-        BasicText("$rowsText · $appsText · $channelsText", style = Type.caption)
+        // R169:没有「频道」入口的电视上不写「0 个频道」;已经加过频道行的照写
+        BasicText(if (showChannels || counts.channels > 0) "$rowsText · $appsText · $channelsText" else "$rowsText · $appsText", style = Type.caption)
         Spacer(Modifier.weight(1f))
         EditKeyHints(hints)
     }
@@ -1076,6 +1081,7 @@ private fun AppShelfView(
 /** 「新的一行」(spec §2.4,c2):虚线架子 + 选择卡,下面一行说明。 */
 @Composable
 private fun NewRowShelfView(
+    choices: List<NewRowChoice>,
     shelfIndex: Int,
     shelves: List<Shelf>,
     focus: () -> Float,
@@ -1101,7 +1107,6 @@ private fun NewRowShelfView(
                 Modifier.padding(start = ShelfLayout.PAD_START.dp, top = ShelfLayout.CHOICE_TOP.dp),
                 horizontalArrangement = Arrangement.spacedBy(ShelfLayout.CHOICE_GAP.dp),
             ) {
-                val choices = NewRowChoice.entries
                 choices.forEachIndexed { i, c ->
                     val spot = ShelfSpot(shelfIndex, ShelfZone.NEW, i)
                     ChoiceCard(
@@ -1117,7 +1122,8 @@ private fun NewRowShelfView(
             }
         }
         BasicText(
-            stringResource(R.string.edit_new_row_caption, choiceMax(NewRowChoice.APP_ROW), choiceMax(NewRowChoice.CHANNEL)),
+            if (NewRowChoice.CHANNEL in choices) stringResource(R.string.edit_new_row_caption, choiceMax(NewRowChoice.APP_ROW), choiceMax(NewRowChoice.CHANNEL))
+            else stringResource(R.string.edit_new_row_caption_apps, choiceMax(NewRowChoice.APP_ROW)),
             style = Type.caption,
             modifier = Modifier.padding(start = ShelfLayout.PAD_START.dp, top = ShelfLayout.NEW_ROW_CAPTION_GAP.dp),
         )

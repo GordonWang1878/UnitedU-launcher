@@ -434,6 +434,10 @@ internal fun EditKeyHints(set: EditHintSet, modifier: Modifier = Modifier) {
             listOf(ok) to stringResource(R.string.edit_hint_add),
             listOf(back) to stringResource(R.string.edit_hint_done),
         )
+        EditHintSet.NEW_ROW_SINGLE -> listOf(
+            listOf(ok) to stringResource(R.string.edit_hint_add),
+            listOf(back) to stringResource(R.string.edit_hint_done),
+        )
         EditHintSet.CARRY -> listOf(
             listOf("←", "→", "↑", "↓") to stringResource(R.string.edit_hint_move),
             listOf(ok) to stringResource(R.string.edit_hint_drop),

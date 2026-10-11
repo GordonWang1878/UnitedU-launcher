@@ -2269,3 +2269,10 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
   - **YouTube 7.24.300**:广播送到,进程被解冻几秒又冻住,日志里没有任何反应;有两个 WorkManager 任务挂着,内容未知。
   - `adb shell content query` 读 TvProvider 一律「No result found」——shell 没有 `READ_TV_LISTINGS`,**这不是「没有频道」的证据**;要看库里有什么只能从我们自己的应用里看。
   - **前台也不建**:Gordon 依次打开 Netflix、YouTube 各停约 10 秒再回 UnitedU,选频道页里两家都没有;同期 logcat 里两家都没有任何刷新推荐行 / 写 TvProvider 的迹象(Netflix 只报 4 次缺 Play 商店)。结论:**国行无 GMS 的 A95L 上,Netflix 与 YouTube 不建预览频道**,我们这边没有可修的;列为已知限制,不再追。频道行在这台电视上的实际来源是写频道的国内应用(如 CIBN 酷喵)与开源 / 第三方应用(研究报告 §7)。
+
+## 2026-10-11 · 频道入口按 GMS 显示(R169)、海报放开明文 http(R170)
+
+- Gordon 电视实测频道可用性≈0(五个能选的应用只有央视频正常),grilling 定:国行无 GMS 电视藏「频道」入口、有 GMS 的保留;已加的频道行照常显示;酷喵灰卡疑为 http 海报,现在就放开。
+- 实现见 spec R169 / R170。顺带:单卡时按键提示去掉「← → 选择」、页头不写「0 个频道」。
+- 验证:单测全过(期间一次 `testReleaseUnitTest` 失败、`--rerun-tasks` 重跑全过,未定位是哪条,疑为带本地服务器的计时类单测偶发);模拟器 `unitedu-tv-2`(`unitedu-tv` 当时有别的会话占着)停用 / 恢复 GMS 前后截图;http 海报用 shell 发布的探针频道验证(`content insert` 的 `--bind` 值里的冒号要写成 `\:`;shell 只读得到自己发布的行)。
+- 待定:「新的一行」只剩一张卡时的版式(截图已出,等 Gordon 定);之后发 1.2.0-beta.5。

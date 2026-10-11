@@ -19,7 +19,8 @@ internal sealed interface Shelf {
     data class AppShelf(val row: Int, val icon: String, val apps: List<String>) : Shelf
     /** R164 / R165 §2.1:频道架子——顶部频道图标 +「应用名 · 频道名」+ 小标签「频道」+ 胶囊;下面不可聚焦的海报预览或状态文字。[row] = layout.json 行号。 */
     data class ChannelShelf(val row: Int, val ref: ChannelRef, val appLabel: String, val state: ChannelShelfState) : Shelf
-    data object NewRowShelf : Shelf
+    /** [choices]:这一层给哪几张选择卡(R169:没有 Google Play 服务的电视上只有应用行,见 [newRowChoices])。 */
+    data class NewRowShelf(val choices: List<NewRowChoice> = NewRowChoice.entries) : Shelf
 }
 
 /** 架子顶部的操作胶囊。左右顺序由 [shelfChips] 的 `buildList` 决定,不看枚举顺序([REAUTHORIZE] 只在频道架子上,R164)。 */
@@ -27,6 +28,14 @@ internal enum class ShelfChip { ADD_APP, ICON, UP, DOWN, DELETE, REAUTHORIZE }
 
 /** 「新的一行」里的选择卡:应用行 / 频道(R164)。 */
 internal enum class NewRowChoice { APP_ROW, CHANNEL }
+
+/**
+ * R169(2026-10-11 Gordon):「频道」卡只在有 Google Play 服务的电视上给。国行无 GMS 的电视上 Netflix / YouTube 建不出频道、
+ * 能建的几家也多是空的或不更新(A95L 实测,WORKLOG 2026-10-11),入口藏起来;这是**唯一**能添加频道的入口(选频道页、
+ * 读频道的授权都从它进),已经加了的频道行照常显示、照常可删。
+ */
+internal fun newRowChoices(channelsOffered: Boolean): List<NewRowChoice> =
+    if (channelsOffered) NewRowChoice.entries else listOf(NewRowChoice.APP_ROW)
 
 /** 一层里的哪一条:顶部胶囊、卡片(空架子 = 「添加应用」方块)、新的一行的选择卡。 */
 internal enum class ShelfZone { CHIPS, CARDS, NEW }
@@ -68,16 +77,18 @@ internal fun channelShelfState(c: ChannelContent?): ChannelShelfState = when (c)
  * 看得见的那份行(R67,`visibleRows`)→ 货架:应用行一层应用架子,频道行一层频道架子(R164),最后一层「新的一行」。
  * 层号 = layout.json 行号(`visibleRows` 与 `rows` 逐行一一对应),所以 `swapRows` / `deleteRow` 直接拿层号当行号。
  * [channelLabels] / [channelContent] 来自进程级 `ChannelCache`(EditScreen 的 `shelvesFor` 统一传);缺省空表 = 用包名、按「暂无内容」。
+ * [channelsOffered]:「新的一行」里给不给「频道」卡(R169,[newRowChoices])。
  */
 internal fun shelvesOf(
     view: List<LayoutRow>,
     channelLabels: Map<String, String> = emptyMap(),
     channelContent: Map<ChannelRef, ChannelContent> = emptyMap(),
+    channelsOffered: Boolean = true,
 ): List<Shelf> = view.mapIndexed { i, r ->
     val ref = r.channel
     if (ref != null) Shelf.ChannelShelf(i, ref, channelLabels[ref.pkg] ?: ref.pkg, channelShelfState(channelContent[ref]))
     else Shelf.AppShelf(i, r.icon, r.apps)
-} + Shelf.NewRowShelf
+} + Shelf.NewRowShelf(newRowChoices(channelsOffered))
 
 internal fun appShelfCount(shelves: List<Shelf>): Int = shelves.count { it is Shelf.AppShelf }
 
@@ -114,7 +125,7 @@ internal fun laneSize(shelves: List<Shelf>, shelf: Int, zone: ShelfZone): Int {
     return when (zone) {
         ShelfZone.CHIPS -> shelfChips(shelves, shelf).size
         ShelfZone.CARDS -> if (s is Shelf.AppShelf) s.apps.size.coerceAtLeast(1) else 0
-        ShelfZone.NEW -> if (s is Shelf.NewRowShelf) NewRowChoice.entries.size else 0
+        ShelfZone.NEW -> if (s is Shelf.NewRowShelf) s.choices.size else 0
     }
 }
 
@@ -124,7 +135,7 @@ internal fun shelfLanes(shelves: List<Shelf>): List<ShelfLane> = shelves.flatMap
         is Shelf.AppShelf -> listOf(ShelfLane(i, ShelfZone.CHIPS), ShelfLane(i, ShelfZone.CARDS))
         // 海报预览不可聚焦(spec §2.1):只有胶囊那一条
         is Shelf.ChannelShelf -> listOf(ShelfLane(i, ShelfZone.CHIPS))
-        Shelf.NewRowShelf -> listOf(ShelfLane(i, ShelfZone.NEW))
+        is Shelf.NewRowShelf -> listOf(ShelfLane(i, ShelfZone.NEW))
     }
 }.filter { laneSize(shelves, it.shelf, it.zone) > 0 }
 
@@ -174,7 +185,7 @@ internal fun clampSpot(shelves: List<Shelf>, spot: ShelfSpot): ShelfSpot {
         is Shelf.AppShelf -> if (spot.zone == ShelfZone.NEW) ShelfZone.CARDS else spot.zone
         // 频道架子只有胶囊(格号这里按位置夹;胶囊表变了按身份落是 [resolveEditTarget] 的事)
         is Shelf.ChannelShelf -> ShelfZone.CHIPS
-        Shelf.NewRowShelf -> ShelfZone.NEW
+        is Shelf.NewRowShelf -> ShelfZone.NEW
     }
     val n = laneSize(shelves, shelf, zone)
     return ShelfSpot(shelf, zone, spot.index.coerceIn(0, (n - 1).coerceAtLeast(0)))
@@ -427,11 +438,11 @@ internal fun shelfLook(focus: Float, dashed: Boolean): ShelfLook {
     )
 }
 
-/** 页头右边的按键提示是哪一组:平时(c1)、焦点在新的一行(c2)、拿起中。 */
-internal enum class EditHintSet { BROWSE, NEW_ROW, CARRY }
+/** 页头右边的按键提示是哪一组:平时(c1)、焦点在新的一行(c2;R169 只有一张卡时不写「← → 选择」)、拿起中。 */
+internal enum class EditHintSet { BROWSE, NEW_ROW, NEW_ROW_SINGLE, CARRY }
 
-internal fun editHintSet(zone: ShelfZone?, carrying: Boolean): EditHintSet = when {
+internal fun editHintSet(zone: ShelfZone?, carrying: Boolean, newRowChoices: Int = NewRowChoice.entries.size): EditHintSet = when {
     carrying -> EditHintSet.CARRY
-    zone == ShelfZone.NEW -> EditHintSet.NEW_ROW
+    zone == ShelfZone.NEW -> if (newRowChoices > 1) EditHintSet.NEW_ROW else EditHintSet.NEW_ROW_SINGLE
     else -> EditHintSet.BROWSE
 }

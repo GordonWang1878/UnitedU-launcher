@@ -72,7 +72,7 @@
 - 权限没了:读到 `SecurityException` 即视为「需要重新授权」,不崩。
 
 ### 3.3 海报图
-- 来源:`content://` / `android.resource://` 走 `ContentResolver.openInputStream`;`https://` 走 `HttpURLConnection`(超时 5 s);`http://` 明文按现有网络安全配置会失败,当作没图。
+- 来源:`content://` / `android.resource://` 走 `ContentResolver.openInputStream`;`https://` 走 `HttpURLConnection`(超时 5 s);`http://` 明文按现有网络安全配置会失败,当作没图(**R170 起也下载**,见 gtv 线设计 §12)。
 - 解码到卡片实际像素(110 dp × 2 = 220 px 高,`inSampleSize` 先粗缩),内存 `LruCache` 16 MB(按 `allocationByteCount`);不做磁盘缓存。
 - **只加载可视附近的行**:焦点行和上下各一行;其余行先画占位底色,进入范围再加载。
 - 没图 / 加载失败:卡上画深色底 + 标题文字(同 Google TV「Key to the Phoenix Heart」那张)。
