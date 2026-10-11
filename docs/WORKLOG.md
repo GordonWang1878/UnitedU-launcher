@@ -2204,7 +2204,7 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 
 ## 2026-10-10 · R167 编辑桌面顺滑度(收口:复测对照表、裁定、文档同步)
 
-- 做了什么(计划 `docs/superpowers/plans/2026-10-10-edit-page-smoothness.md`,11 个任务):①测量剧本 `scripts/perf/edit-jank/` 与基线;②编辑页首帧用进程级 `AppEntryCache`、layout 进页前在 `layoutWrites` 上预读,卡片位图改存 HARDWARE 副本(根因:可变位图每次重录显示列表都换新纹理 id,HWUI 每帧重传);③首页与外壳在编辑页期间留在组合里,退出不重建、不重读;④编辑页盖满后首页与透明外壳不画;⑤焦点移动只重组焦点所在那一层,待机计时改 `snapshotFlow`;⑥非焦点架子 `ModulateAlpha`——闸门没过,未做;⑦拿起换位滑动 + 搬运中的焦点画法;⑧本应用 baseline profile,`.dm` 闸门没过、未接;⑨关于页回退包说明;⑩选频道页文案;⑪本条。
+- 做了什么(计划 `docs/superpowers/plans/2026-10-10-edit-page-smoothness.md`,11 个任务):①测量剧本 `scripts/perf/edit-jank/` 与基线;②编辑页首帧用进程级 `AppEntryCache`、layout 进页前在 `layoutWrites` 上预读,卡片位图改存 HARDWARE 副本(根因:可变位图每次重录显示列表都换新纹理 id,HWUI 每帧重传);③首页与外壳在编辑页期间留在组合里,退出不重建、不重读;④编辑页盖满后首页与透明外壳不画;⑤焦点移动只重组焦点所在那一层,待机计时改 `snapshotFlow`;⑥非焦点架子 `ModulateAlpha`——闸门没过,未做;⑦拿起换位滑动 + 搬运中的焦点画法;⑧本应用 baseline profile,`.dm` 闸门没过、未接;⑨关于页回退包说明(发 beta.2 前撤回,见下);⑩选频道页文案;⑪本条。
 - 三个闸门:Task 4(盖满停画)保留——页内渲染遍数 / 帧 8–9 → 1–2,E 段 flush layers 未变差(122 vs 121 ms);Task 6(`ModulateAlpha`)不通过——逐像素差在频道海报带 / 空架子方块上最大 9–12,逐元素离屏层再试仍不过,`DIM_BY_MODULATE = false`;Task 8(`.dm`)不通过——APK 内嵌画像 010 格式被 Android 14 profman 拒(E1),AGP 构建期 `.dm` 可用(E1b),要改发版流程,本计划不做。
 - 重组探针(5 次右键 / 5 次下键):改前右键整页 5 次 + 每层各 5 次、下键同;R167 右键整页 0 次 + 各层 0 次,下键整页 5 次、每次只重组新旧两层。
 - 复测(unitedu-tv-2,`-gpu host` 开窗口,speed-profile,负载 11.2–13.6,三遍取中位数;表在 `design/perf-2026-10-10-edit-page.md`「R167 之后复测」):A 进页由「两段 + 0.33 s 空档、首尾 1.35 s」变成一段 0.79 s,纹理上传 126 → 64 次、flush layers 259 → 156 ms,gfxinfo 分位没降(帧少一半,剩下的都是重帧);E 退出 17 → 22 fps、RT p50 66 → 50 ms、flush layers 180 → 81 ms,纹理上传几乎没降(56 → 49);D 每步变成约 0.25 s 的滑动(录屏 38.5 fps),帧时间与改前持平;B / C 的改善与对照组 H 同量级(H 也好了 10–15%,复测时宿主略松),只能说不比改前差。
@@ -2225,3 +2225,8 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 静止画面闸门:首页首行 / 第 3 行、布局页、编辑页、卡片菜单,与 617a63e 逐像素比,除时钟数字外 `max 0`;编辑页里打开 / 关掉「换卡片图」的录像与改前一致。关键帧 `docs/screenshots/edit-smooth/t12-{E,D}-{before,after}.jpg`。
 - 文档:perf 报告 R167 一节改正 D「持平」的说法(写出 p90 / 上传 / gen 变差的数字)、补 A 的 RT p90;gtv spec R167 一行改为「e2e 1225 / 1227,两条为 j_settings 旧断言、已改」并补 ⑨;删掉与 `e2e-3c.jpg` 字节相同、无人引用的 `docs/screenshots/channels/e2e-4-r167.jpg`;CLAUDE.md「模拟器验证的坑」加显存上限一条、焦点表首页一行改「透明度 0」;REVIEW-GUIDE、货架设计稿同步。
 - 测试:单测 1090 个(1 个本来就跳过)全过(`--rerun-tasks`),assembleRelease 通过;e2e `j_edit,j_home,j_persist,j_recreate,j_settings`(unitedu-tv-2)383 / 383。
+
+## 2026-10-11 · 撤回关于页回退包说明,并入 1.1.1,发 1.2.0-beta.2
+
+- R167 第 9 项(Beta 通道装着回退包时关于页说明「下一个 Beta 发布后可装」)撤回:另一会话里 Gordon 2026-10-10 已定**保持现状、不加提示**(见上文「回退后无法立即重进同一 Beta」一节),本分支只是晚一步没看到。撤的是 `AboutScreen` / `Update` / `UpdateChannels` 的改动、三语字符串、两处单测与 `channels.sh` 场景 3c;`channels.sh` 的 `build_one` 版本名替换修复保留。
+- 期间 main 发了稳定版 1.1.1(versionCode 10,关于页许可收成一行、各段定高),本分支变基并入;beta.2 取 versionCode 11,回退包 = v1.1.1 源码、versionCode 12。

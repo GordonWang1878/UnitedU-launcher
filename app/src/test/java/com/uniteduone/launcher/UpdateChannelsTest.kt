@@ -78,28 +78,4 @@ class UpdateChannelsTest {
         assertEquals(UpdateChannel.STABLE, UpdateChannel.fromId(null))
         assertEquals(UpdateChannel.STABLE, UpdateChannel.fromId("nightly"))
     }
-
-    private fun noteOf(ch: UpdateChannel, installed: Int, name: String, stable: () -> Result<LatestInfo>, beta: () -> Result<LatestInfo> = never): Pair<ChannelUpdate?, UpToDateNote?> {
-        var note: UpToDateNote? = null
-        val r = resolveChannel(ch, installed, name, 34, fetchStable = stable, fetchBeta = beta, fetchRollback = never) { note = it }
-        return r.getOrThrow() to note
-    }
-
-    /** 回退包(1.1.0,code 10)在 Beta 通道:稳定 8、Beta 9 都比它旧 → 已是最新,但要说明在等下一个 Beta */
-    @Test fun rollbackBuildOnBetaAwaitsNextBeta() =
-        assertEquals(null to UpToDateNote.ROLLBACK_AWAITING_BETA, noteOf(UpdateChannel.BETA, 10, "1.1.0", ok(8), ok(9)))
-    /** Beta 还没发过(beta.json 404)也一样 */
-    @Test fun rollbackBuildWithoutBetaManifestAwaitsNextBeta() =
-        assertEquals(null to UpToDateNote.ROLLBACK_AWAITING_BETA, noteOf(UpdateChannel.BETA, 10, "1.1.0", ok(8), net))
-    /** 装的就是最新 Beta:普通的已是最新 */
-    @Test fun latestBetaIsPlainUpToDate() =
-        assertEquals(null to UpToDateNote.PLAIN, noteOf(UpdateChannel.BETA, 9, "1.2.0-beta.1", ok(8), ok(9)))
-    /** 普通稳定版用户刚切到 Beta、Beta 还没发:不比稳定版新 → 普通的已是最新 */
-    @Test fun stableBuildEqualToLatestIsPlain() =
-        assertEquals(null to UpToDateNote.PLAIN, noteOf(UpdateChannel.BETA, 8, "1.1.0", ok(8), net))
-    /** 有新版时不报说明 */
-    @Test fun noNoteWhenUpdateFound() =
-        assertEquals(UpdateKind.BETA to null, noteOf(UpdateChannel.BETA, 8, "1.1.0", ok(8), ok(11)).let { it.first?.kind to it.second })
-    /** 稳定通道从不报说明 */
-    @Test fun stableChannelNeverNotes() = assertEquals(null to null, noteOf(UpdateChannel.STABLE, 12, "1.1.0", ok(10)))
 }

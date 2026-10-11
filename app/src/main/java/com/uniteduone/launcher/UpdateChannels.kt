@@ -18,24 +18,13 @@ enum class UpdateKind { STABLE, BETA, ROLLBACK }
 
 data class ChannelUpdate(val info: LatestInfo, val kind: UpdateKind)
 
-/** 「已是最新」是哪一种(R167):普通的,还是装着回退包、在等下一个 Beta。只在 Beta 通道判出「没有新版」时报。 */
-enum class UpToDateNote { PLAIN, ROLLBACK_AWAITING_BETA }
-
-/** 装的是回退包(版本名不带 -beta)而且比取到的清单都新:Beta 通道里没有比它新的包,要等下一个 Beta。 */
-fun upToDateNote(installedCode: Int, installedName: String, stableCode: Int?, betaCode: Int?): UpToDateNote {
-    val known = listOfNotNull(stableCode, betaCode)
-    return if (!installedName.contains("-beta") && known.isNotEmpty() && installedCode > known.max()) {
-        UpToDateNote.ROLLBACK_AWAITING_BETA
-    } else UpToDateNote.PLAIN
-}
-
 /**
  * - **稳定通道**:读 `latest.json`;比已装的新 → 它。已装的**比它还新**且版本名带 `-beta`(刚从 Beta 切回来)
  *   → 读 `rollback.json`,比已装的新才给;回退包取不到 / 不够新 → 已是最新(记一行日志:多半是回退包漏发)。
  *   已装的比稳定版新但名字不带 `-beta`(已是回退包、或开发包)→ 已是最新,不读 `rollback.json`。稳定清单本身失败 = 检查失败。
  * - **Beta 通道**:`latest.json` 与 `beta.json` 都读,取 versionCode 大的那个;只要有一份取到就不算失败
  *   (R2 上还没发过 Beta 时 `beta.json` 不存在是常态)。两份都失败才是检查失败,失败原因取稳定那份的。
- *   从不读 `rollback.json`。判出没有新版时经 [onUpToDate] 报是哪一种(R167)。
+ *   从不读 `rollback.json`。
  */
 fun resolveChannel(
     channel: UpdateChannel,
@@ -46,7 +35,6 @@ fun resolveChannel(
     fetchStable: () -> Result<LatestInfo>,
     fetchBeta: () -> Result<LatestInfo>,
     fetchRollback: () -> Result<LatestInfo>,
-    onUpToDate: (UpToDateNote) -> Unit = {},
 ): Result<ChannelUpdate?> {
     val stable = fetchStable()
     if (channel == UpdateChannel.BETA) {
@@ -60,16 +48,12 @@ fun resolveChannel(
             beta.getOrNull()?.let { ChannelUpdate(it, UpdateKind.BETA) },
         )
         if (candidates.isEmpty()) {
-            if (stable.isSuccess && beta.isFailure) { // 稳定版被基础版本规则滤掉、Beta 又没发过:已是最新
-                onUpToDate(upToDateNote(installedCode, installedName, stable.getOrNull()?.versionCode, null))
-                return Result.success(null)
-            }
+            if (stable.isSuccess && beta.isFailure) return Result.success(null) // 稳定版被基础版本规则滤掉、Beta 又没发过:已是最新
             return Result.failure(stable.exceptionOrNull() ?: UpdateCheckException(CheckFailure.NETWORK))
         }
         if (beta.isFailure) log("beta manifest unavailable; using stable only")
         // 先滤「装得上且更新」再比大小:装不上的 Beta(minSdk 太高)不能把能装的稳定版挤掉;并列取列表里靠前的(稳定)
         val best = candidates.filter { isNewer(it.info, installedCode, sdk) }.maxByOrNull { it.info.versionCode }
-        if (best == null) onUpToDate(upToDateNote(installedCode, installedName, stable.getOrNull()?.versionCode, beta.getOrNull()?.versionCode))
         return Result.success(best)
     }
     val s = stable.getOrElse { return Result.failure(it) }
