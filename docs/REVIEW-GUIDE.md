@@ -8,7 +8,7 @@
 - **唯一的真机**:国行 Sony A95L(`XR-77A95L`,MT5897),Android 14,**32 位 armeabi-v7a 用户空间**,界面层 1920×1080 @ 320 dpi(面板 4K,界面由固件放大),无 Google 服务。开发全程在 Android 14 TV 模拟器(arm64)上验证,真机只做里程碑验收。
 - **形态**:单 Activity(`MainActivity`)+ Jetpack Compose(`androidx.tv:tv-material` 1.0.0 只用叶子组件)。包名 `com.uniteduone.launcher`,minSdk 28,target / compile 35。
 - **联网**:除官方图库外两处——用户按「检查更新」时拉一次 `latest.json`;用户打开「从手机添加」页(R130 前叫「手机传输」)时在局域网起一个 HTTP 上传服务(关页即停)。没有统计、没有崩溃上报。
-- **状态**:当前源码版本 `1.2.0-beta.5`(versionCode 17;图库分支 2026-10-11 并入 main 后)。官方在线图库本地实现已验收主要路径，生产目录及首次支持图库的正式 APK 尚未发布；验收边界见本文图库集成验收入口。
+- **状态**:当前源码版本 `1.2.0-beta.6`(versionCode 19;图库分支 2026-10-11 并入 main 后)。官方在线图库本地实现已验收主要路径，生产目录及首次支持图库的正式 APK 尚未发布；验收边界见本文图库集成验收入口。
 
 ## 2. 怎么构建、测试
 
