@@ -2039,3 +2039,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 根因:Beta 从功能分支发,带不带 main 上的改动取决于有没有人记得先合并 main,没有机制保证。设计稿本来写的是 main = Beta。
 - Gordon 定:取消「没在电视上实测过的不合 main」,改为审查 + 单测 / 模拟器过了就合 main、电视实测在 Beta 上做、晋级稳定版前必须电视实测(写进设计稿 §开头与 CLAUDE.md)。
 - 同日 Gordon 选「只从 main 发 Beta」:`release.sh` Beta 模式要求 HEAD 等于本地 main 指向的提交(比提交不比分支名,main 被主 checkout 占着也能在别的 worktree 快进后发),否则正式发布中止、dry-run 警告;稳定版不设此闸门(晋级在 main 上发,急修从稳定 tag 拉分支)。
+- 补洞(同日):`release.sh` 里的检查只对含它的分支有效,落后 main 的功能分支跑的是旧脚本、拦不住。加 `scripts/git-hooks/pre-push`(装进共享 `.git/hooks`,所有 worktree 共用):推 `v*-beta.*` tag 时指向的提交 ≠ 本地 main 就拒推;release.sh 先推 tag 再 gh release / 传 R2,拦在任何公开动作之前。实测:分支提交上的轻量 / 附注 tag 被拒(含真实 `git push` 到临时 bare 仓库),main 上的 Beta tag、稳定 tag、删 tag、推分支都放行。另:beta.4(versionCode 15,`289e9a6`)已由频道推荐会话发出,含 30176ef。

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Beta 只从 main 发(Gordon 2026-10-11)的强制版:推 Beta tag(v*-beta.*)时,tag 指向的提交必须等于本地 main。
+# 为什么放 pre-push 而不只在 release.sh 里查:功能分支跑的是它自己那份 release.sh,分支落后 main 时
+# 根本没有新闸门(1.2.0-beta.3 就是这样发出、漏带 main 上已合的改动)。钩子在共享的 .git/hooks 里,
+# 所有 worktree 共用、与分支内容无关;release.sh 先推 tag 再 gh release / 传 R2,这里拦下就什么都没发出去。
+# 安装:scripts/git-hooks/install.sh。稳定版 tag 不拦(晋级在 main 上发,急修从稳定 tag 拉的分支发)。
+main=$(git rev-parse -q --verify 'refs/heads/main^{commit}') || main=""
+status=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [[ "$remote_ref" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]] || continue
+  [[ "$local_sha" =~ ^0+$ ]] && continue   # 删 tag 放行(release.sh 的失败收场要用)
+  commit=$(git rev-parse -q --verify "${local_sha}^{commit}")
+  if [[ "$commit" != "$main" ]]; then
+    printf '拒绝推 %s:它指向 %s,不是 main(%s)。Beta 只能从 main 发——先把分支合进 main,在 HEAD == main 时重发。\n' \
+      "${remote_ref#refs/tags/}" "${commit:0:7}" "${main:0:7}" >&2
+    printf '本地 tag 留着,删掉再重发:git tag -d %s\n' "${remote_ref#refs/tags/}" >&2
+    status=1
+  fi
+done
+exit $status
