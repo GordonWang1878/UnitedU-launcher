@@ -27,6 +27,7 @@ set -euo pipefail
 #                          写进 rollback.json:Beta 用户选「回到稳定版」时,系统只肯装 versionCode 更高的包,
 #                          所以回退包必须比 Beta 的号大;versionName 仍是稳定版号(用户看到的是稳定版)。
 #                          beta.json / rollback.json 与回退包挂在固定 tag channel-beta 上,每次覆盖。
+# Beta 只从 main 发:HEAD 必须等于本地 main 指向的提交(2026-10-11),稳定版不受限。
 # 每次发布前还做 versionCode 单调检查:新包的号必须大于 R2 上 latest/beta/rollback 三份清单里已发布的最大值,
 # 否则没有任何通道的用户收得到它。
 #
@@ -277,6 +278,24 @@ if [[ -n "$(git status --porcelain)" ]]; then
     echo "工作区不干净,先提交或清理再发布:" >&2
     git status --porcelain >&2
     exit 1
+  fi
+fi
+
+# Beta 只从 main 发(Gordon 2026-10-11):HEAD 必须就是本地 main 指向的那个提交。
+# 否则「合进 main 了」不等于「下一个 Beta 带上」——1.2.0-beta.3 从功能分支发出,漏带了 main 上已合的改动。
+# 比的是提交而不是分支名:main 常被主 checkout 占着,别的 worktree 切不过去,快进 main 后在本 worktree 发即可。
+# 稳定版不设此闸门:晋级在 main 上发,急修则从上一个稳定 tag 拉的 hotfix 分支发。dry-run 只警告(同上面脏树)。
+if [[ "$CHANNEL" == beta ]]; then
+  MAIN_SHA="$(git rev-parse -q --verify refs/heads/main || true)"
+  HEAD_SHA="$(git rev-parse HEAD)"
+  if [[ "$HEAD_SHA" != "$MAIN_SHA" ]]; then
+    msg="Beta 只能从 main 发:HEAD ${HEAD_SHA:0:7} ≠ main ${MAIN_SHA:0:7}。先把这条分支(含改版本号的提交)合进 main,让 main 指向 HEAD(如 git -C <main 所在目录> merge --ff-only $(git branch --show-current)),再发"
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      echo "警告:${msg}(dry-run 继续)" >&2
+    else
+      echo "$msg" >&2
+      exit 1
+    fi
   fi
 fi
 
