@@ -325,6 +325,7 @@ TvProvider 对**没有** `ACCESS_ALL_EPG_DATA` 的调用方:
 4. **海外应用普遍都写**:Kodi、Jellyfin、Emby、SmartTube 是开源或第三方,都写了,而且这几个在 A95L 上能装;YouTube、Netflix、Prime、HBO Max 也接了 TvProvider,YouTube 另外接了 Engage(那部分只有 Google TV 能读)。
 5. **当贝桌面不读 TvProvider**(按 2023 年 4.1.7 版看)。所以国内第三方桌面里,目前没看到谁做这一行。这次没有再查小米 PatchWall。
 6. **不确定的地方**:国内的 APK 都是当贝渠道包(哔哩哔哩除外,它来自官方 CDN),和厂商直供的包可能有差别;加固应用的结论只能算「没发现」;云视听极光到底开没开,要看服务端配置。
+7. **A95L 实测更正第 4 条(2026-10-11)**:Netflix 13.1.3 与 YouTube 7.24.300 在这台国行无 GMS 的电视上**不建预览频道**——`INITIALIZE_PROGRAMS` 送到了,Netflix 的接收器启动后台服务被系统以 `Background start not allowed` 拦下(定时任务又依赖 Play 服务),YouTube 收到后无任何反应;两家在前台打开过也没有写。「接了 TvProvider」不等于在无 GMS 设备上会写。经过见 `docs/WORKLOG.md` 2026-10-11。
 
 ---
 

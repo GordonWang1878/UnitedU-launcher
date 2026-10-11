@@ -2268,3 +2268,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
   - **Netflix 13.1.3**:广播送到、进程被拉起,接收器去 `startService(REFRESH_RECO_ROW → .NetflixService)`,被系统以 `Background start not allowed` 拦下;它的定时任务走 firebase-jobdispatcher(要 Play 服务,`GooglePlayServicesUtil: requires the Google Play Store, but it is missing`)。即:无 GMS 的国行电视上,Netflix 只靠后台路径建不出频道;前台时会不会刷新待测。我们无法替它绕过(带临时白名单发广播需要特权权限)。
   - **YouTube 7.24.300**:广播送到,进程被解冻几秒又冻住,日志里没有任何反应;有两个 WorkManager 任务挂着,内容未知。
   - `adb shell content query` 读 TvProvider 一律「No result found」——shell 没有 `READ_TV_LISTINGS`,**这不是「没有频道」的证据**;要看库里有什么只能从我们自己的应用里看。
+  - **前台也不建**:Gordon 依次打开 Netflix、YouTube 各停约 10 秒再回 UnitedU,选频道页里两家都没有;同期 logcat 里两家都没有任何刷新推荐行 / 写 TvProvider 的迹象(Netflix 只报 4 次缺 Play 商店)。结论:**国行无 GMS 的 A95L 上,Netflix 与 YouTube 不建预览频道**,我们这边没有可修的;列为已知限制,不再追。频道行在这台电视上的实际来源是写频道的国内应用(如 CIBN 酷喵)与开源 / 第三方应用(研究报告 §7)。
