@@ -2026,3 +2026,9 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 许可(Gordon 选「一行 + 打包进 APK」):页面只留 `about_footer`「Apache-2.0 · github.com/GordonWang1878/UnitedU-launcher」(删 `about_license_title` / `about_license` / `about_repo`)。原来那行只列组件名、并不含 NanoHTTPD(BSD-3)要求的版权声明原文;现在 `app/build.gradle.kts` 的 `copyNotices` 把仓库根的 `NOTICE`、`LICENSE` 构建时拷进 APK 的 `assets/licenses/`(与 OFL 全文同目录,单一来源),合规比之前更完整。
 - 未验证:A95L 上的观感(需发版后电视上看)。
 - 2026-10-10 发布 **1.1.1(versionCode 10)**:线上已有 Beta 8(1.2.0-beta.1,频道推荐会话发的)+ 回退包 9,单调检查取 10。R2 / GitHub `latest.json` 读回 10 / 1.1.1,APK 200。Beta 1.2.0-beta.1 的用户按基础版本规则收不到 1.1.1(1.1.1 < 1.2.0),符合设计;稳定通道的人(含装了回退包 9 的)收到 1.1.1。**下一个 Beta 的 versionCode 至少 11**。
+
+## 2026-10-11 · 关于页更新说明按界面语言只显示一种(分支 fix/notes-lang,未合未发)
+
+- Gordon:「发现新版本」下面的说明中英各一句,想只显示对应语言的。
+- 做法(客户端挑行,清单格式不变):`notesForLanguage`(UpdateChecker.kt)把 notes 按行拆,含汉字的行算中文;界面语言看资源 `notes_lang`(简体 / 繁体 = zh,英文 = en),挑出同语言的行;挑不出(单语、或不是逐行双语)就原样显示。不加清单字段,所以 `release.sh` 与向下兼容铁律都不受影响;代价是只对**显示说明的那个应用**生效——1.1.1 及以前的应用仍两行都显示,装上带这次改动的版本之后,它看到的下一份说明才只剩一行。单测 `NotesLanguageTest`(含线上 beta.2 原文)。
+- 线上已有 Beta 11 + 回退包 12,下一个包 versionCode 至少 13。

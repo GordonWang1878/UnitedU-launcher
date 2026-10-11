@@ -538,7 +538,7 @@ fun AboutScreen(
                                 if (info != null && info.notes.isNotBlank()) {
                                     Spacer(Modifier.height(6.dp))
                                     BasicText(
-                                        text = info.notes,
+                                        text = notesForLanguage(info.notes, stringResource(R.string.notes_lang) == "zh"),
                                         style = notesStyle.copy(color = Ink.Secondary),
                                         maxLines = 4,
                                         overflow = TextOverflow.Ellipsis,
