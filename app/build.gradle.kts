@@ -30,7 +30,7 @@ val rollbackUrls: String = providers.gradleProperty("unitedu.rollbackUrls").orNu
  * 1.0.0 = 3(2026-10-02 首次公开发布);1.0.0-beta 内部版是 2(spec §9)。
  * `-PversionCodeOverride=N` 只给模拟器上验证「发现新版本 → 下载 → 安装」时出一个更高版本号的包用,不进任何配置文件。每次对外发布 +1。
  */
-val appVersionCode: Int = providers.gradleProperty("versionCodeOverride").orNull?.toInt() ?: 8
+val appVersionCode: Int = providers.gradleProperty("versionCodeOverride").orNull?.toInt() ?: 11
 
 /**
  * `-PrequireReleaseKey=true`(`scripts/release.sh` 总是带上):找不到 release 密钥时**构建直接失败**,
@@ -52,7 +52,7 @@ android {
         minSdk = 28
         targetSdk = 35
         versionCode = appVersionCode
-        versionName = "1.2.0-beta.1"
+        versionName = "1.2.0-beta.2"
         // 进 Java 字符串字面量:反斜杠与引号先转义(地址里本不该有,防手误把整个构建弄坏)。
         buildConfigField(
             "String",
@@ -115,6 +115,18 @@ android {
         buildConfig = true
     }
 }
+
+/**
+ * 第三方许可随 APK 附带(2026-10-10:关于页许可只留一行,声明全文不再显示在界面上)。
+ * BSD-3(NanoHTTPD)要求二进制发行物附带版权声明,Apache-2.0 / OFL 要求附带许可——把仓库根的 NOTICE、LICENSE
+ * 原样拷进 APK 的 assets/licenses/(与已有的 OFL-GoogleSansFlex.txt 同目录),单一来源、不在 assets 里复制一份会漂移的副本。
+ */
+val copyNotices = tasks.register<Copy>("copyNotices") {
+    from(rootProject.file("NOTICE"), rootProject.file("LICENSE"))
+    into(layout.buildDirectory.dir("generated/notices/licenses"))
+}
+android.sourceSets.getByName("main").assets.srcDir(layout.buildDirectory.dir("generated/notices"))
+tasks.named("preBuild") { dependsOn(copyNotices) }
 
 dependencies {
     // tv-material 只用叶子组件与 token(Card / IconButton / MaterialTheme);滚动容器一律不用(铁律 1)。

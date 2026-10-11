@@ -186,9 +186,9 @@
 - **7.1** 页名:「关于 UnitedU」 `about_title`
 - **7.2** 页名上方小字同 1.2
 - **7.3** 版本号(%1$s 版本名,%2$d 版本号):「版本 %1$s (%2$d)」 `about_version`
-- **7.4** 许可声明标题:「许可声明」 `about_license_title`
-- **7.5** 许可声明:「本项目以 Apache-2.0 许可发布。第三方组件：Google Sans Flex（OFL 1.1）、Material Icons（Apache-2.0）、NanoHTTPD（BSD-3-Clause）、ZXing（Apache-2.0）。」 `about_license`
-- **7.6** 项目地址:「项目地址 github.com/GordonWang1878/UnitedU-launcher」 `about_repo`
+- **7.4** 页脚(许可 + 项目地址;第三方声明随 APK 附带在 assets/licenses/):「Apache-2.0 · github.com/GordonWang1878/UnitedU-launcher」 `about_footer`
+- **7.5** (原「许可声明标题」,2026-10-10 删)
+- **7.6** (原「许可声明」,2026-10-10 删)
 - **7.7** 第 1 颗胶囊(平时):「检查更新」 `about_check`
 - **7.8** 第 1 颗胶囊(检查中):「检查中…」 `about_checking`
 - **7.9** 第 1 颗胶囊(发现新版本后):「下载并安装」 `about_download`

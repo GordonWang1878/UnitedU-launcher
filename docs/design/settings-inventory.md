@@ -99,7 +99,7 @@
 
 ## 关于页(第一层「关于」)
 
-左边:标题「关于 UnitedU」、版本 `versionName (versionCode)`、状态文字、许可声明、项目地址;右边三颗胶囊(R166 起;Beta 包的版本号后标「Beta」):
+左边:标题「关于 UnitedU」、版本 `versionName (versionCode)`、状态文字、一行页脚「Apache-2.0 · 仓库地址」(2026-10-10 起;第三方声明随 APK 附带在 `assets/licenses/`,左侧各段定高、检查结果变化时不移动);右边三颗胶囊(R166 起;Beta 包的版本号后标「Beta」):
 
 | 胶囊 | 类型 | 说明 |
 |---|---|---|

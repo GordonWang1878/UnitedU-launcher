@@ -2012,6 +2012,20 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 读回:R2 `latest.json` = 7 / 1.1.0,APK 200(16065698 字节);GitHub `releases/latest/download/latest.json` = 7 / 1.1.0。说明 `dist/notes-1.1.0.txt` + `.app.txt`(双语)。
 - 这是发 Beta 的前提:此后 `release.sh x.y.z-beta.N` 的「最新稳定 tag 必须带 unitedu.rollbackUrls」检查可通过。下一步:`频道推荐` 分支 rebase 到 main 后以 Beta 发出(见记忆 channels-branch-awaits-beta-track)。
 - 电视实测(Gordon 2026-10-10):A95L 经「检查更新」装上 1.1.0,「更新通道」切换正常。Gordon 选「推」:main 17 个提交已推到 origin/main(`3895102`)。
+
+## 2026-10-10 · 实测发现:回退后无法立即重进同一个 Beta(机制所致,非 bug)
+
+- Gordon 在 A95L:1.1.0 → Beta 1.2.0-beta.1(code 8)→ 切回稳定装回退包 1.1.0(code 9)→ 再切 Beta,装不上。
+- 机制:回退包的 versionCode 必须大于 Beta 才能覆盖安装(Android 禁止降级);于是回退后已装 9,线上 Beta 仍是 8,`resolveChannel` 判「已是最新」。同一个 Beta 想再装回来需要一个比 9 更大的新包——来回切换每一次都需要新构建,无法预先备好。下一个 Beta(code ≥ 10)发出后自动能进。
+- 界面只显示「已是最新」、不说明原因:Gordon 2026-10-10 定**保持现状**,不加提示。
+
+## 2026-10-10 · 关于页:许可收成一行 + 左侧排版不再随检查结果抖动
+
+- Gordon:许可字太多;「发现新版本」时整块文字往上跑。
+- 根因(抖动):`ShellTitle` 把左列整体垂直居中,结局 / 更新说明(最多 4 行)出现时列变高、居中点上移,版本号与页名跟着动。修法:左列每段定高——版本号、结果胶囊单行不换行;结局 + 说明先画一份不可见的「最高情况」占位(结局 2 行 + 说明 4 行)撑定高度,真实内容从顶上叠。模拟器四态(空白 / 已是最新 / 发现新版本带 4 行说明 / 下载失败)截图比对:页名、版本号、页脚位置逐像素一致,`docs/screenshots/about-layout/`。
+- 许可(Gordon 选「一行 + 打包进 APK」):页面只留 `about_footer`「Apache-2.0 · github.com/GordonWang1878/UnitedU-launcher」(删 `about_license_title` / `about_license` / `about_repo`)。原来那行只列组件名、并不含 NanoHTTPD(BSD-3)要求的版权声明原文;现在 `app/build.gradle.kts` 的 `copyNotices` 把仓库根的 `NOTICE`、`LICENSE` 构建时拷进 APK 的 `assets/licenses/`(与 OFL 全文同目录,单一来源),合规比之前更完整。
+- 未验证:A95L 上的观感(需发版后电视上看)。
+- 2026-10-10 发布 **1.1.1(versionCode 10)**:线上已有 Beta 8(1.2.0-beta.1,频道推荐会话发的)+ 回退包 9,单调检查取 10。R2 / GitHub `latest.json` 读回 10 / 1.1.1,APK 200。Beta 1.2.0-beta.1 的用户按基础版本规则收不到 1.1.1(1.1.1 < 1.2.0),符合设计;稳定通道的人(含装了回退包 9 的)收到 1.1.1。**下一个 Beta 的 versionCode 至少 11**。
 ## 2026-10-07 · 调研:频道 / 内容推荐(未决定做)
 - Gordon 在考虑下个大版本加首页「频道推荐」,先问机制、能不能做、代价。报告 `docs/research/2026-10-07-tv-channels-recommendations.md`(纯文献 + AOSP 14 源码,未实测)。
 - 结论:机制是 TvProvider 的 channel / preview_program / watch_next_program 三张表;侧载桌面申请 `READ_TV_LISTINGS`(dangerous,弹窗或 `pm grant`)就能读所有 `searchable = 1` 的行,Projectivy 走的同一条路。做不了的:批准频道上首页(`ACCESS_ALL_EPG_DATA`,signature|privileged)——不批准时 Kodi 这类应用不填节目。定位:Gordon 裁定不冲突——「零推荐」是默认不推、能关,不是想开也开不了;做成默认关闭的可选项(§9 的「不做」是 1.0 范围)。
