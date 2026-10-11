@@ -618,7 +618,7 @@ private fun PickerGrid(
                     is PickerLine.Title -> SectionTitle(
                         text = stringResource(
                             when (line.section) { PickerSection.BUILTIN -> R.string.picker_section_builtin; PickerSection.GALLERY -> R.string.picker_section_gallery; PickerSection.MINE -> R.string.picker_section_mine },
-                        ),
+                        ) + if (line.section == PickerSection.GALLERY && rotationBadges) " · " + stringResource(R.string.gallery_videos_unavailable) else "",
                         modifier = Modifier.onSizeChanged { lineHeights[k] = it.height },
                     )
                     is PickerLine.Cells -> Row(

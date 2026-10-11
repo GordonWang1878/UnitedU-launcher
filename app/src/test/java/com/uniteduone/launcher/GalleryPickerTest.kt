@@ -7,7 +7,15 @@ import java.io.File
 
 class GalleryPickerTest {
     private fun item(id: String, hash: String = "a".repeat(64), kind: BuiltinKind = BuiltinKind.WALLPAPERS, packages: Set<String> = emptySet()) =
-        GalleryItem(id, kind, mapOf("en" to id), 0, GalleryBlob("t.jpg", 1, hash), GalleryOriginal(GalleryBlob("o.jpg", 1, hash), 1, 1, "image/jpeg"), packages, "credit")
+        GalleryItem(id, setOf(kind), mapOf("en" to id), 0, GalleryBlob("t.jpg", 1, hash), GalleryOriginal(GalleryBlob("o.jpg", 1, hash), 1, 1, "image/jpeg"), packages, "credit")
+    @Test fun sharedImageUsesExistingDownloadAndRetainsRemovedUsage() {
+        val old = item("a")
+        val shared = old.copy(usages = setOf(BuiltinKind.WALLPAPERS, BuiltinKind.SCREENSAVERS))
+        val added = GallerySnapshot(GalleryCatalog(2, listOf(shared)), listOf(GalleryLocal(old, File("one"))), false, null)
+        assertTrue(galleryRows(added, BuiltinKind.SCREENSAVERS, null).single().downloaded)
+        val removed = GallerySnapshot(GalleryCatalog(3, listOf(old)), listOf(GalleryLocal(shared, File("one"))), false, null)
+        assertTrue(galleryRows(removed, BuiltinKind.SCREENSAVERS, null).single().retained)
+    }
     @Test fun insertionAndReorderKeepIdentity() {
         assertEquals("gallery:b", resolveGalleryFocus("gallery:b", listOf("gallery:a", "gallery:b"), listOf("gallery:x", "gallery:b", "gallery:a")))
     }

@@ -52,7 +52,7 @@ internal fun scanScreensaverLibrary(ctx: Context): List<File> {
 internal fun scanScreensaverPlaylist(ctx: Context): List<File> {
     val builtins = BuiltinImages.list(ctx, BuiltinKind.SCREENSAVERS)
     val settings = SettingsStore.read(ctx)
-    val online = adoptedGalleryPlaylist(settings.galleryScreensavers) { GalleryAndroid.storeOnIo(ctx).resolve(it)?.takeIf { local -> local.item.kind == BuiltinKind.SCREENSAVERS }?.file }
+    val online = adoptedGalleryPlaylist(settings.galleryScreensavers) { GalleryAndroid.storeOnIo(ctx).resolve(it)?.takeIf { local -> BuiltinKind.SCREENSAVERS in local.item.usages }?.file }
     return screensaverPlaylist(builtins.map { it.file }, { builtinIdOf(it.name) }, settings.excludedBuiltinScreensavers, online + scanScreensaverLibrary(ctx))
 }
 

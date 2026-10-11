@@ -163,7 +163,7 @@ class SharedGalleryRepository(
         verifyOriginal(source, item)
         currentCoroutineContext().ensureActive()
         val existing = store.resolve(GalleryAdoption(item.id, item.original.blob.sha256))
-        val local = existing ?: run {
+        val local = if (existing != null) store.updateMetadata(item) else run {
             val staging = part(store.root)
             try { source.copyTo(staging); currentCoroutineContext().ensureActive(); store.commitOriginal(item, staging) }
             finally { discard(staging) }

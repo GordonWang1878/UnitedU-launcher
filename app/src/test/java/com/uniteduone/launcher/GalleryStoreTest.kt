@@ -13,7 +13,7 @@ class GalleryStoreTest {
     private fun hash(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
     private fun item(id: String = "wall", content: String = "original") : GalleryItem {
         val blob = GalleryBlob("originals/image.jpg", content.toByteArray().size.toLong(), hash(content.toByteArray()))
-        return GalleryItem(id, BuiltinKind.WALLPAPERS, mapOf("zh-CN" to "图", "zh-TW" to "圖", "en" to "Image"), 0,
+        return GalleryItem(id, setOf(BuiltinKind.WALLPAPERS), mapOf("zh-CN" to "图", "zh-TW" to "圖", "en" to "Image"), 0,
             blob, GalleryOriginal(blob, 2, 2, "image/jpeg"), emptySet(), "artist")
     }
     private fun store() = GalleryStore(temp.newFolder(), temp.newFolder())

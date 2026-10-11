@@ -2029,7 +2029,7 @@ class MainActivity : ComponentActivity() {
             VIEW_SCREENSAVER_POOL -> BuiltinKind.SCREENSAVERS
             else -> BuiltinKind.CARDS
         }
-        if (item.kind != expected || (expected == BuiltinKind.CARDS && target !in item.packages)) {
+        if (expected !in item.usages || (expected == BuiltinKind.CARDS && target !in item.packages)) {
             onResult(Result.failure(IllegalArgumentException("Gallery resource does not match picker"))); return {}
         }
         invalidateGallerySelection()

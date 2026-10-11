@@ -67,7 +67,12 @@ class GalleryStore(val root: File, val thumbs: File,
                     else -> emptyList()
                 }
             }.filter { valid(it, original(it.original.blob.sha256)) }
-        val combined = (registered + recovered).distinctBy { it.id to it.original.blob.sha256 }
+        val combined = (registered + recovered).groupBy { it.id to it.original.blob.sha256 }.values.map { versions ->
+            val first = versions.first()
+            // A registry backup may predate an adopted new use; recovery metadata retains it.
+            val compatible = versions.filter { (BuiltinKind.CARDS in it.usages) == (BuiltinKind.CARDS in first.usages) }
+            first.copy(usages = compatible.flatMap { it.usages }.toSet())
+        }
         if (combined != registered || loaded is LockedFile.Load.Ok && loaded.restored)
             write(files.registry, root, encode(combined), "registry")
         return combined
@@ -97,6 +102,20 @@ class GalleryStore(val root: File, val thumbs: File,
         loadRegistry().firstOrNull { it.id == adoption.id && it.original.blob.sha256 == hash }?.let {
             val file = original(hash); if (valid(it, file)) GalleryLocal(it, file) else null
         }
+    }
+    /** Adding a use to an existing version updates recovery metadata without copying its bytes. */
+    fun updateMetadata(item: GalleryItem): GalleryLocal = files.registry.locked {
+        val items = loadRegistry()
+        val previous = items.first { it.id == item.id && it.original.blob.sha256 == item.original.blob.sha256 }
+        val merged = item.copy(usages = previous.usages + item.usages)
+        require(parseGalleryCatalog(serializeGalleryCatalog(GalleryCatalog(0, listOf(merged)))).getOrThrow().items.single() == merged)
+        val file = original(item.original.blob.sha256)
+        require(valid(merged, file))
+        if (merged != previous) {
+            write(metadata(merged), metadataDir, serializeGalleryCatalog(GalleryCatalog(0, listOf(merged))), "metadata")
+            write(files.registry, root, encode(items.map { if (it == previous) merged else it }), "registry")
+        }
+        GalleryLocal(merged, file)
     }
     fun commitOriginal(item: GalleryItem, part: File): GalleryLocal = files.registry.locked {
         require(parseGalleryCatalog(serializeGalleryCatalog(GalleryCatalog(0, listOf(item)))).getOrThrow().items.single() == item)

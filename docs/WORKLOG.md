@@ -1999,3 +1999,27 @@ Task8评审补验：同一mounted picker延迟清单响应，wall-04经插入/�
 ## 2026-10-09 · 图库最终评审有界修复
 
 I1/I2/M1/M2收口：在线缩略图按UI物理像素采样并保留真实bounds；页面失败状态/Retry及refresh代次使304也重启可见缩略图，离屏/换代等待者由effect取消；评审入口修正为GalleryHttp.kt与scripts/gallery-assets.py。最终图库85/85；全JVM912项（911通过、1既有Ignore）、Python20/20；debug/release及lint/R8成功1m22s，两APK无图库fixture标记、生产根/版本不变。Android生产函数探针证实195759B的8192²图实际仅256×256/262144B分配，16:9图采用横幅分支。未安装/写设备应用数据，无额外UI矩阵；I3未知原Settings图仍不动、待处置。详细验收与边界见[验收报告](design/resource-gallery-acceptance-2026-10-09.md)。
+
+## 2026-10-10 · 首批图库同步草案
+
+源目录 /Users/gordonwang/GitHub/unitedu-gallery 新增11张3840×2160壁纸，卡片/屏保为空，与APK内置图无字节重复。4张通过双编码HDR检查；7张真实Ultra HDR仅ISO、缺Android14 XMP，原图未转换。resources.json已登记稳定ID/三语名草案，来源及公开分发授权标为待确认；sync-report.json保存逐图hash/检查结果。尚无正式产物/上传，兼容副本制作和来源说明待用户确认。
+
+首批来源补充：用户确认11张壁纸全部由本人使用GPT生成；素材清单credit已更新为“Gordon Wang 使用 GPT 生成”，不宣称另有第三方许可。兼容副本范围仍待选择；尚未获得本次正式发布确认，未上传。
+
+首批范围裁定：用户选择先准备4张已通过规范的壁纸（夜色汤屋、湘北篮球馆、白龙月夜、龟仙岛暮光）；另外7张移到pending-resources.json，仅记录暂不兼容，不转换、不删原图。图库仓库新增IMAGE-REQUIREMENTS.md，覆盖生图构图/尺寸、XMP+ISO+MPF/gain map、硬上限、卡片包名、源清单与版本发布规则、本批逐项标记。revision-1在/Users/gordonwang/GitHub/unitedu-gallery-builds生成，离线预演9个上传对象；全部11张源图hash保持不变。图库本地提交9e4efe0，未上传/推远程。
+
+## 2026-10-11 · 图库共享用途讨论（未定稿）
+
+用户提出壁纸/屏保共享图片，视频只用于屏保，并讨论同步调整图库与素材库。静态核对：现有GalleryItem仅有单一BuiltinKind，两个消费者按WALLPAPERS/SCREENSAVERS互斥过滤；现有用户屏保支持视频，当前官方gallery协议/发布器仍只支持图片。候选方向为独立资源身份+多个可用用途，图片默认可出现在两个选用页，视频仅屏保，卡片保留包名关联；尚未确认设计/实现范围，不更改清单、目录、代码或首批产物。标准4K尺寸为3840×2160。
+
+2026-10-11 共享模型裁定：用户确认资源身份唯一、图片可用于壁纸及屏保、视频仅屏保；两个选用状态独立。记录于docs/design/gallery-shared-resource-model.md。此轮仅记录已确认产品概念，未修改协议、代码、素材目录或首批产物；具体改造方案尚待形成。
+
+共享资源具体提案：docs/design/gallery-shared-resource-proposal.md。建议先在线图库+素材仓库共享图片，再接在线视频；新清单读v1写v2，保留ID/hash/采用记录和旧产物，不自动扩展APK内置/用户上传迁移范围。视频需要真实探测/封面/下载校验及播放器元数据，不能凭扩展名复用hash.original。待用户确定范围；仅文档变更。
+
+## 2026-10-11 Gallery 共享图片一期完成
+
+- 用户确认先只做图片，在线视频标记暂未推出。GalleryItem 改 usages 集合，v2 type=image 与用途分离，继续读 v1。图片可供壁纸/屏保共同采用，设置独立，下载与删除保护按 hash 共用；用户上传视频保留。
+- 同 ID/hash 增加用途只更新本地元数据，不重复下载；恢复侧文件同步用途，registry 回退到旧备份时合并已知用途，防止已采用屏保失效。卡片用途独占；非法用途与视频清单拒绝。
+- 素材源 11 张原图移至 images/，逐一 SHA-256 不变；4 张合格项双用途，7 张仍 pending。revision-1 原样保留，revision-2 离线生成/发布预演通过，ID 与原图 hash 不变。目录中的 .DS_Store 随目录保留；初次迁移前生成的单用途产物保留为 revision-2-before-migration，不作为发布目标。规范与维护说明同步。
+- 验证：定向 Gallery 测试通过；Python 22/22；最终 testDebugUnitTest 共 916 项，失败 0、错误 0、原有忽略 1；assembleDebug/assembleRelease（含 R8 与 release lint vital）通过。实际编译的 Kotlin parser 分别读取 revision-1 与 revision-2，各 4 项成功。最终差异审查覆盖缓存恢复、单文件复用、独立采用与旧版读取。
+- 边界：本轮未执行电视视觉/真机验收，未部署 APK、未上传图库、未推远程。旧 APK 不能读 v2 清单，正式上线前先提供兼容 APK。

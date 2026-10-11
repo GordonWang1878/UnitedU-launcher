@@ -64,7 +64,7 @@ object Wallpapers {
         if (value.startsWith("gallery:")) {
             val a = adopted ?: SettingsStore.read(ctx).galleryWallpaper
             return a?.takeIf { value == "gallery:${it.id}" }?.let {
-                runCatching { GalleryAndroid.storeOnIo(ctx).resolve(it)?.takeIf { local -> local.item.kind == BuiltinKind.WALLPAPERS }?.file }.getOrNull()
+                runCatching { GalleryAndroid.storeOnIo(ctx).resolve(it)?.takeIf { local -> BuiltinKind.WALLPAPERS in local.item.usages }?.file }.getOrNull()
             }
         }
         val builtins = BuiltinImages.list(ctx, BuiltinKind.WALLPAPERS)

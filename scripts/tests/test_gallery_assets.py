@@ -88,6 +88,34 @@ class AssetsTest(unittest.TestCase):
         result=self.generate(); result['items'][0]['original']['bytes']=True
         with self.assertRaises(ValueError): self.a.validate_catalog(result)
 
+    def test_shared_source_migrates_v1_without_changing_id_or_original(self):
+        repo=Path(__file__).parents[2]
+        source=next((repo/'app/src/main/assets/builtin/wallpapers').glob('*.jpg'))
+        (self.src/'wall.jpg').write_bytes(source.read_bytes())
+        self.item.update(id='wall-old',kind='wallpapers',source='wall.jpg',packages=[])
+        original=self.generate()
+        # Keep a real legacy catalog/history as input even once the generator writes v2.
+        prior=self.root/'out'; c=json.loads((prior/'index.json').read_text()); c['schemaVersion']=1
+        for item in c['items']:
+            item.pop('type',None); item.pop('usages',None); item['kind']='wallpapers'
+        (prior/'index.json').write_text(json.dumps(c))
+        history=json.loads((prior/'id-history.json').read_text())
+        for value in history['ids'].values(): value['kind']='wallpapers'
+        (prior/'id-history.json').write_text(json.dumps(history))
+        self.item.pop('kind'); self.item.update(type='image',usages=['wallpapers','screensavers'])
+        (self.src/'resources.json').write_text(json.dumps({'items':[self.item]}))
+        current=self.a.generate(self.src,prior/'index.json',self.root/'v2',2)
+        self.assertEqual(current['schemaVersion'],2)
+        self.assertEqual(current['items'][0]['id'],'wall-old')
+        self.assertEqual(current['items'][0]['original'],original['items'][0]['original'])
+        self.assertEqual(current['items'][0]['usages'],['wallpapers','screensavers'])
+        self.a.validate_artifact(self.root/'v2')
+    def test_v2_video_and_mixed_card_source_are_rejected(self):
+        self.item.pop('kind'); self.item.update(type='video',usages=['screensavers'])
+        with self.assertRaises(ValueError): self.generate()
+        self.item.update(type='image',usages=['cards','wallpapers'])
+        with self.assertRaises(ValueError): self.generate()
+
 if __name__=='__main__': unittest.main()
 
 class HdrSpoofTest(unittest.TestCase):

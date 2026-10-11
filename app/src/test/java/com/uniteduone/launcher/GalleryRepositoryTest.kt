@@ -13,7 +13,7 @@ class GalleryRepositoryTest {
     @get:Rule val temp = TemporaryFolder()
     private val bytes = "image".toByteArray()
     private fun hash(data: ByteArray) = MessageDigest.getInstance("SHA-256").digest(data).joinToString("") { "%02x".format(it) }
-    private fun item(id: String = "wall") = GalleryItem(id, BuiltinKind.WALLPAPERS,
+    private fun item(id: String = "wall") = GalleryItem(id, setOf(BuiltinKind.WALLPAPERS),
         mapOf("zh-CN" to "图", "zh-TW" to "圖", "en" to "Image"), 0,
         GalleryBlob("thumbs/image.jpg", bytes.size.toLong(), hash(bytes)),
         GalleryOriginal(GalleryBlob("originals/image.jpg", bytes.size.toLong(), hash(bytes)), 2, 2, "image/jpeg"), emptySet(), "artist")
@@ -39,6 +39,25 @@ class GalleryRepositoryTest {
         inspect: (File) -> GalleryImageInfo = { GalleryImageInfo(2, 2, "image/jpeg") }) =
         SharedGalleryRepository(s, t, scope, inspect, { _, target -> target.writeBytes(bytes) })
     private suspend fun eventually(check: () -> Boolean) { withTimeout(5000) { while (!check()) yield() } }
+    @Test fun addingUsageReusesBytesAndRecoveryPreservesBothUses() = runBlocking {
+        val s = store(); val t = FakeTransport(bytes)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val r = repo(s, t, scope)
+            val old = r.original(item()) {}
+            val shared = item().copy(usages = setOf(BuiltinKind.WALLPAPERS, BuiltinKind.SCREENSAVERS))
+            assertEquals(old.file, r.original(shared) {}.file)
+            assertEquals(shared.usages, r.original(item()) {}.item.usages)
+            assertEquals(1, t.downloadCalls.get())
+            File(s.root, "registry.json").writeText("broken")
+            assertEquals(shared.usages, s.resolve(GalleryAdoption(item().id, hash(bytes)))!!.item.usages)
+            File(s.root, "registry.json.prev").writeText("broken")
+            val recovered = s.resolve(GalleryAdoption(item().id, hash(bytes)))!!
+            assertEquals(shared.usages, recovered.item.usages)
+            assertFalse(s.removeOriginal(hash(bytes), setOf(hash(bytes))))
+            assertArrayEquals(bytes, recovered.file.readBytes())
+        } finally { scope.cancel() }
+    }
     @Test fun cacheAppearsBeforeNetworkAnd304PreservesIt() = runBlocking {
         val s = store(); val c = GalleryCatalog(9, listOf(item())); s.writeCatalog(c, serializeGalleryCatalog(c), "cached")
         val t = FakeTransport(bytes).apply { catalogGate = CompletableDeferred() }

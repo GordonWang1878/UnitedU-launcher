@@ -34,8 +34,8 @@ internal fun galleryFailure(error: Throwable): GalleryFailure {
 internal data class GalleryRow(val key: String, val item: GalleryItem, val downloaded: Boolean, val retained: Boolean, val update: Boolean = false)
 internal fun galleryRows(snapshot: GallerySnapshot, kind: BuiltinKind, packageName: String?): List<GalleryRow> {
     val current = snapshot.catalog?.let { galleryItems(it, kind, packageName) }.orEmpty()
-    val locals = snapshot.downloaded.filter { it.item.kind == kind && (kind != BuiltinKind.CARDS || packageName in it.item.packages) }
-    return current.map { item -> GalleryRow(galleryFocusKey(item.id), item, locals.any { it.item.id == item.id && it.item.original.blob.sha256 == item.original.blob.sha256 }, false, locals.any { it.item.id == item.id && it.item.original.blob.sha256 != item.original.blob.sha256 }) } +
+    val locals = snapshot.downloaded.filter { kind in it.item.usages && (kind != BuiltinKind.CARDS || packageName in it.item.packages) }
+    return current.map { item -> GalleryRow(galleryFocusKey(item.id), item, snapshot.downloaded.any { it.item.id == item.id && it.item.original.blob.sha256 == item.original.blob.sha256 }, false, locals.any { it.item.id == item.id && it.item.original.blob.sha256 != item.original.blob.sha256 }) } +
         locals.filter { local -> current.none { it.id == local.item.id && it.original.blob.sha256 == local.item.original.blob.sha256 } }
             .sortedWith(compareBy<GalleryLocal> { it.item.order }.thenBy { it.item.id }.thenBy { it.item.original.blob.sha256 })
             .map { GalleryRow("gallery:${it.item.id}:${it.item.original.blob.sha256}", it.item, true, true) }

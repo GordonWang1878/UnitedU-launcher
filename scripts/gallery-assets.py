@@ -50,15 +50,34 @@ def read_json(path, limit=CATALOG_LIMIT):
         return result
     return json.loads(path.read_text(encoding='utf-8'), object_pairs_hook=pairs)
 
+def usages_of(item):
+    if 'kind' in item:
+        require('type' not in item and 'usages' not in item, 'mixed legacy and shared fields')
+        require(item['kind'] in ('cards','wallpapers','screensavers'), 'invalid kind')
+        return [item['kind']]
+    require(item.get('type') == 'image', 'online gallery videos are not available')
+    usages=item.get('usages')
+    require(isinstance(usages,list) and bool(usages) and all(isinstance(v,str) and v in ('cards','wallpapers','screensavers') for v in usages), 'invalid usages')
+    require(len(usages)==len(set(usages)), 'duplicate usages')
+    require('cards' not in usages or usages==['cards'], 'card usage must be exclusive')
+    return sorted(usages, key=('wallpapers','screensavers','cards').index)
+
+def resource_family(item):
+    return 'cards' if 'cards' in usages_of(item) else 'images'
+
+def history_family(kind):
+    require(kind in ('cards','wallpapers','screensavers','images'), 'invalid history kind')
+    return 'cards' if kind=='cards' else 'images'
+
 def validate_item(item):
     require(isinstance(item,dict), 'item must be object')
     require(isinstance(item.get('id'),str) and re.fullmatch('[a-z0-9][a-z0-9-]{0,95}',item['id']), 'invalid ID')
-    require(item.get('kind') in ('cards','wallpapers','screensavers'), 'invalid kind')
+    usages=usages_of(item)
     require(isinstance(item.get('names'),dict), 'names must be object')
     for lang in ('zh-CN','zh-TW','en'): text(item['names'].get(lang))
     integer(item.get('order'),-2**31,2**31-1); text(item.get('credit'))
     packages=item.get('packages',[])
-    require(isinstance(packages,list) and (packages or item['kind']!='cards'), 'missing packages')
+    require(isinstance(packages,list) and (packages or 'cards' not in usages), 'missing packages')
     for p in packages: require(isinstance(p,str) and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+',p), 'invalid package')
     require(len(packages)==len(set(packages)), 'duplicate package')
 
@@ -137,10 +156,11 @@ def image_info(data, kind, thumbnail=False):
 
 def validate_catalog(catalog):
     require(isinstance(catalog,dict), 'catalog must be object')
-    integer(catalog.get('schemaVersion'),1,1); integer(catalog.get('revision'),0,2**63-1)
+    integer(catalog.get('schemaVersion'),1,2); integer(catalog.get('revision'),0,2**63-1)
     items=catalog.get('items'); require(isinstance(items,list) and len(items)<=2000, 'invalid items')
     ids=set()
     for item in items:
+        require(('kind' in item) == (catalog['schemaVersion']==1), 'schema fields mismatch')
         validate_item(item); require(item['id'] not in ids,'duplicate ID'); ids.add(item['id'])
         for key,limit in [('original',ORIGINAL_LIMIT),('thumbnail',THUMB_LIMIT)]:
             blob=item.get(key); require(isinstance(blob,dict),'missing blob')
@@ -157,10 +177,10 @@ def validate_history(audit, catalog):
     require(isinstance(audit,dict) and type(audit.get('revision')) is int and audit['revision']==catalog['revision'],'invalid history')
     history=audit.get('ids'); require(isinstance(history,dict),'invalid history')
     for id_, value in history.items():
-        require(isinstance(id_,str) and re.fullmatch('[a-z0-9][a-z0-9-]{0,95}',id_) and isinstance(value,dict) and value.get('kind') in ('cards','wallpapers','screensavers') and type(value.get('active')) is bool,'invalid history entry')
+        require(isinstance(id_,str) and re.fullmatch('[a-z0-9][a-z0-9-]{0,95}',id_) and isinstance(value,dict) and value.get('kind') in ('cards','wallpapers','screensavers','images') and type(value.get('active')) is bool,'invalid history entry')
         hashes=value.get('hashes'); require(isinstance(hashes,list) and bool(hashes) and all(isinstance(h,str) and re.fullmatch('[a-f0-9]{64}',h) for h in hashes),'invalid history hashes')
-    active={i['id']:i['kind'] for i in catalog['items']}
-    require({k:v['kind'] for k,v in history.items() if v['active']}==active,'history mismatch')
+    active={i['id']:resource_family(i) for i in catalog['items']}
+    require({k:history_family(v['kind']) for k,v in history.items() if v['active']}==active,'history mismatch')
     for item in catalog['items']: require(item['original']['sha256'] in history[item['id']]['hashes'],'history hash mismatch')
     return history
 
@@ -172,7 +192,7 @@ def validate_artifact(root):
             blob=item[key]; path=safe_path(root,blob['path']); require(path.is_file(),'missing image')
             require(path.stat().st_size==blob['bytes'],'size mismatch'); data=path.read_bytes()
             require(hashlib.sha256(data).hexdigest()==blob['sha256'],'hash mismatch')
-            size,(_,mime)=image_info(data,item['kind'],key=='thumbnail')
+            size,(_,mime)=image_info(data,resource_family(item),key=='thumbnail')
             if key=='original': require(list(size)==[blob['width'],blob['height']] and mime==blob['mediaType'],'metadata mismatch')
     audit=read_json(safe_path(root,'id-history.json'))
     validate_history(audit,catalog)
@@ -189,7 +209,7 @@ def generate(source, previous, out, revision):
     if previous:
         previous=Path(previous); prior=validate_catalog(read_json(previous)); require(revision>prior['revision'],'revision must increase')
         prior_items={i['id']:i for i in prior['items']}
-        history={i['id']:{'kind':i['kind'],'active':True,'hashes':[i['original']['sha256']]} for i in prior['items']}
+        history={i['id']:{'kind':resource_family(i),'active':True,'hashes':[i['original']['sha256']]} for i in prior['items']}
         audit=previous.parent/'id-history.json'
         if audit.is_file():
             audit_value=read_json(audit)
@@ -198,24 +218,24 @@ def generate(source, previous, out, revision):
     items=[]; seen=set(); prepared=[]
     for entry in resources['items']:
         validate_item(entry); id_=entry['id']; require(id_ not in seen,'duplicate ID'); seen.add(id_)
-        if id_ in history: require(history[id_]['kind']==entry['kind'],'retired ID reuse or kind change')
+        if id_ in history: require(history_family(history[id_]['kind'])==resource_family(entry),'retired ID reuse or kind change')
         path=safe_path(source,entry.get('source')); require(path.is_file(),'missing source'); require(path.stat().st_size<=ORIGINAL_LIMIT,'image too large')
-        data=path.read_bytes(); size,(suffix,mime)=image_info(data,entry['kind'])
+        data=path.read_bytes(); size,(suffix,mime)=image_info(data,resource_family(entry))
         if id_ in history and not history[id_]['active']:
             require(hashlib.sha256(data).hexdigest() in history[id_].get('hashes',[]),'retired ID reuse requires known original hash')
         image=Image.open(io.BytesIO(data)).convert('RGB'); image.thumbnail((640,640))
         buffer=io.BytesIO(); image.save(buffer,'JPEG',quality=85,optimize=True); thumb=buffer.getvalue(); image_info(thumb,'cards',True)
-        item={k:entry[k] for k in ('id','kind','names','order','credit')}; item['packages']=entry.get('packages',[])
+        item={k:entry[k] for k in ('id','names','order','credit')}; item.update(type='image',usages=usages_of(entry),packages=entry.get('packages',[]))
         for key,content,ext in [('original',data,suffix),('thumbnail',thumb,'jpg')]:
             digest=hashlib.sha256(content).hexdigest(); relative=f'{key}s/{digest}.{ext}'
             item[key]={'path':relative,'bytes':len(content),'sha256':digest}; prepared.append((relative,content))
         item['original'].update(width=size[0],height=size[1],mediaType=mime); items.append(item)
-    catalog={'schemaVersion':1,'revision':revision,'items':items}; validate_catalog(catalog)
+    catalog={'schemaVersion':2,'revision':revision,'items':items}; validate_catalog(catalog)
     encoded=json.dumps(catalog,ensure_ascii=False,indent=2).encode(); require(len(encoded)<=CATALOG_LIMIT,'catalog too large')
     for value in history.values(): value['active']=False
     for item in items:
         hashes=history.get(item['id'],{}).get('hashes',[])
-        history[item['id']]={'kind':item['kind'],'active':True,'hashes':sorted(set(hashes+[item['original']['sha256']]))}
+        history[item['id']]={'kind':resource_family(item),'active':True,'hashes':sorted(set(hashes+[item['original']['sha256']]))}
     out.parent.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory(dir=out.parent) as temp:
         staged=Path(temp)/'artifact'; staged.mkdir()

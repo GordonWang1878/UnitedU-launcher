@@ -25,4 +25,21 @@ class GalleryCatalogTest {
     @Test fun rejectsMalformedCardPackages() { for(values in listOf(listOf("com.example.*"),listOf("com.example.app "),listOf(""),listOf(123))) { val i=item("card","cards").put("packages",JSONArray(values)); assertTrue(parseGalleryCatalog(catalog(i).toString()).isFailure) }; val i=item("card","cards"); i.remove("packages"); assertTrue(parseGalleryCatalog(catalog(i).toString()).isFailure) }
     @Test fun orderPrecedesId() { val a=item("a").put("order",2); val z=item("z").put("order",1); val c=parseGalleryCatalog(catalog(a,z).toString()).getOrThrow(); assertEquals(listOf("z","a"),galleryItems(c,BuiltinKind.WALLPAPERS,null).map { it.id }) }
     @Test fun ignoresUnknownExtraFields() { val c=catalog(item()); c.put("future",true); assertTrue(parseGalleryCatalog(c.toString()).isSuccess) }
+    @Test fun sharedV2ImageAppearsInBothPickersAndRoundTrips() {
+        val i = item().put("type", "image").put("usages", JSONArray(listOf("wallpapers", "screensavers")))
+        i.remove("kind")
+        val parsed = parseGalleryCatalog(catalog(i).put("schemaVersion", 2).toString()).getOrThrow()
+        assertEquals(listOf("one"), galleryItems(parsed, BuiltinKind.WALLPAPERS, null).map { it.id })
+        assertEquals(listOf("one"), galleryItems(parsed, BuiltinKind.SCREENSAVERS, null).map { it.id })
+        assertEquals(parsed, parseGalleryCatalog(serializeGalleryCatalog(parsed)).getOrThrow())
+    }
+    @Test fun v2RejectsVideosAndInvalidUsageCombinations() {
+        for (usages in listOf(emptyList(), listOf("screensavers", "screensavers"), listOf("cards", "wallpapers"), listOf("unknown"))) {
+            val i = item().put("type", "image").put("usages", JSONArray(usages)); i.remove("kind")
+            assertTrue(parseGalleryCatalog(catalog(i).put("schemaVersion", 2).toString()).isFailure)
+        }
+        val i = item().put("type", "video").put("usages", JSONArray(listOf("screensavers"))); i.remove("kind")
+        assertTrue(parseGalleryCatalog(catalog(i).put("schemaVersion", 2).toString()).isFailure)
+    }
+
 }

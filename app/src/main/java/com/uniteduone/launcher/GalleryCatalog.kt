@@ -6,7 +6,7 @@ import org.json.JSONTokener
 
 data class GalleryBlob(val path: String, val bytes: Long, val sha256: String)
 data class GalleryOriginal(val blob: GalleryBlob, val width: Int, val height: Int, val mediaType: String)
-data class GalleryItem(val id: String, val kind: BuiltinKind, val names: Map<String, String>, val order: Int, val thumbnail: GalleryBlob, val original: GalleryOriginal, val packages: Set<String>, val credit: String)
+data class GalleryItem(val id: String, val usages: Set<BuiltinKind>, val names: Map<String, String>, val order: Int, val thumbnail: GalleryBlob, val original: GalleryOriginal, val packages: Set<String>, val credit: String)
 data class GalleryCatalog(val revision: Long, val items: List<GalleryItem>)
 
 private fun JSONObject.string(key: String): String = (get(key) as? String
@@ -35,7 +35,7 @@ fun parseGalleryCatalog(json: String): Result<GalleryCatalog> = runCatching {
     val tokener = JSONTokener(json)
     val root = tokener.nextValue() as? JSONObject ?: error("catalog must be an object")
     require(tokener.nextClean() == '\u0000') { "trailing content" }
-    require(root.integer("schemaVersion") == 1L)
+    val schema = root.integer("schemaVersion").also { require(it in 1L..2L) }
     val revision = root.integer("revision").also { require(it >= 0) }
     val entries = root.arrayValue("items")
     require(entries.length() <= GALLERY_MAX_ITEMS)
@@ -44,8 +44,18 @@ fun parseGalleryCatalog(json: String): Result<GalleryCatalog> = runCatching {
         val entry = entries.get(index) as? JSONObject ?: error("item must be an object")
         val id = entry.string("id")
         require(id.matches(Regex("[a-z0-9][a-z0-9-]{0,95}")) && ids.add(id))
-        val kindName = entry.string("kind")
-        val kind = BuiltinKind.entries.firstOrNull { it.dir == kindName } ?: error("unknown kind")
+        fun usage(name: String) = BuiltinKind.entries.firstOrNull { it.dir == name } ?: error("unknown usage")
+        val usages = if (schema == 1L) {
+            require(!entry.has("type") && !entry.has("usages"))
+            setOf(usage(entry.string("kind")))
+        } else {
+            require(!entry.has("kind") && entry.string("type") == "image") { "Online gallery videos are not available" }
+            val values = entry.arrayValue("usages")
+            val parsed = (0 until values.length()).map { usage(values.get(it) as? String ?: error("usage must be a string")) }
+            require(parsed.isNotEmpty() && parsed.distinct().size == parsed.size)
+            require(BuiltinKind.CARDS !in parsed || parsed.size == 1)
+            parsed.toSet()
+        }
         val namesJson = entry.objectValue("names")
         val names = listOf("zh-CN", "zh-TW", "en").associateWith { namesJson.string(it) }
         val originalJson = entry.objectValue("original")
@@ -53,31 +63,31 @@ fun parseGalleryCatalog(json: String): Result<GalleryCatalog> = runCatching {
             originalJson.intValue("width").also { require(it in 1..GALLERY_MAX_DIMENSION) },
             originalJson.intValue("height").also { require(it in 1..GALLERY_MAX_DIMENSION) },
             originalJson.string("mediaType").also { require(it in setOf("image/jpeg", "image/png", "image/webp")) })
-        val packages = if (kind == BuiltinKind.CARDS || entry.has("packages")) {
+        val packages = if (BuiltinKind.CARDS in usages || entry.has("packages")) {
             val values = entry.arrayValue("packages")
             (0 until values.length()).map { i ->
                 (values.get(i) as? String ?: error("package must be a string")).also {
                     require(it.matches(Regex("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)+")))
                 }
-            }.toSet().also { if (kind == BuiltinKind.CARDS) require(it.isNotEmpty()) }
+            }.toSet().also { if (BuiltinKind.CARDS in usages) require(it.isNotEmpty()) }
         } else emptySet()
-        GalleryItem(id, kind, names, entry.intValue("order"), parseBlob(entry.objectValue("thumbnail"), GALLERY_MAX_THUMBNAIL_BYTES), original, packages, entry.string("credit"))
+        GalleryItem(id, usages, names, entry.intValue("order"), parseBlob(entry.objectValue("thumbnail"), GALLERY_MAX_THUMBNAIL_BYTES), original, packages, entry.string("credit"))
     }
     GalleryCatalog(revision, items)
 }
 
 fun galleryItems(catalog: GalleryCatalog, kind: BuiltinKind, packageName: String?): List<GalleryItem> =
-    catalog.items.filter { it.kind == kind && (kind != BuiltinKind.CARDS || packageName in it.packages) }
+    catalog.items.filter { kind in it.usages && (kind != BuiltinKind.CARDS || packageName in it.packages) }
         .sortedWith(compareBy<GalleryItem> { it.order }.thenBy { it.id })
 
 /** The same schema is used by network catalogs and durable local metadata. */
 fun serializeGalleryCatalog(catalog: GalleryCatalog): String {
     fun blob(value: GalleryBlob) = JSONObject().put("path", value.path).put("bytes", value.bytes).put("sha256", value.sha256)
     val entries = catalog.items.map { item ->
-        JSONObject().put("id", item.id).put("kind", item.kind.dir).put("names", JSONObject(item.names))
+        JSONObject().put("id", item.id).put("type", "image").put("usages", JSONArray(BuiltinKind.entries.filter { it in item.usages }.map { it.dir })).put("names", JSONObject(item.names))
             .put("order", item.order).put("thumbnail", blob(item.thumbnail))
             .put("original", blob(item.original.blob).put("width", item.original.width).put("height", item.original.height).put("mediaType", item.original.mediaType))
             .put("packages", JSONArray(item.packages.sorted())).put("credit", item.credit)
     }
-    return JSONObject().put("schemaVersion", 1).put("revision", catalog.revision).put("items", JSONArray(entries)).toString()
+    return JSONObject().put("schemaVersion", 2).put("revision", catalog.revision).put("items", JSONArray(entries)).toString()
 }

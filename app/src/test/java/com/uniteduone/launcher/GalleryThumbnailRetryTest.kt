@@ -22,7 +22,7 @@ class GalleryThumbnailRetryTest {
     @Test fun mountedVisibleEffectRetriesAfter304AndExplicitRetryButNotWhenHidden() = runBlocking {
         val bytes = "thumbnail".toByteArray()
         val hash = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-        val item = GalleryItem("wall", BuiltinKind.WALLPAPERS, mapOf("en" to "Wall", "zh-CN" to "图", "zh-TW" to "圖"), 0,
+        val item = GalleryItem("wall", setOf(BuiltinKind.WALLPAPERS), mapOf("en" to "Wall", "zh-CN" to "图", "zh-TW" to "圖"), 0,
             GalleryBlob("thumbs/a.jpg", bytes.size.toLong(), hash),
             GalleryOriginal(GalleryBlob("originals/a.jpg", bytes.size.toLong(), hash), 2, 2, "image/jpeg"), emptySet(), "credit")
         val catalog = GalleryCatalog(1, listOf(item))

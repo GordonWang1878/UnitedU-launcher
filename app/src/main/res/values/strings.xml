@@ -441,4 +441,5 @@
     <string name="gallery_network_failed">网络连接失败，请检查网络后重试。</string>
     <string name="gallery_storage_failed">存储空间不足或写入失败，请清理空间后重试。</string>
     <string name="gallery_invalid_failed">图片校验失败，请刷新图库后重试。</string>
+    <string name="gallery_videos_unavailable">在线图库视频暂未推出</string>
 </resources>

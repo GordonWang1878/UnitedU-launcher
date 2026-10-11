@@ -148,3 +148,5 @@
 发布工具为 scripts/gallery-assets.py、scripts/gallery-publish.py，默认 dry-run；完整说明见 [resource-gallery-publishing.md](design/resource-gallery-publishing.md)。原图和缩略图核验后才发布清单；回滚使用更高 revision。云端上传、推送与正式 APK 发布均需单独授权。当前版本仍为 1.0.3/code 6，生产图库尚未上线。
 
 本次实际验收、真实清理bug回归、数据保留例外与未执行项见 [图库集成验收](design/resource-gallery-acceptance-2026-10-09.md)。
+
+共享图片补充（2026-10-11）：GalleryItem 使用 usages 集合，schemaVersion 2 区分 type=image 与用途，仍读 v1。图库图片在壁纸/屏保之间共用 hash 文件，采用记录独立；本地注册和恢复元数据保留已知用途并集。在线视频拒绝，用户上传视频不变。见 [共享资源方案](design/gallery-shared-resource-proposal.md)。

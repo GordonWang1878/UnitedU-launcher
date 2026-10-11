@@ -449,4 +449,5 @@
     <string name="gallery_network_failed">Could not connect. Check your network and retry.</string>
     <string name="gallery_storage_failed">Not enough storage or could not save. Free some space and retry.</string>
     <string name="gallery_invalid_failed">The image failed validation. Refresh the gallery and retry.</string>
+    <string name="gallery_videos_unavailable">Online gallery videos are not available yet</string>
 </resources>
