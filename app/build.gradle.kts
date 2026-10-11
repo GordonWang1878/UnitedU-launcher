@@ -56,7 +56,7 @@ android {
         minSdk = 28
         targetSdk = 35
         versionCode = appVersionCode
-        versionName = "1.2.0-beta.7"
+        versionName = "1.2.0-beta.8"
         buildConfigField("String", "GALLERY_BASE_URL",
             "\"" + galleryBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"") + "\"")
         // 进 Java 字符串字面量:反斜杠与引号先转义(地址里本不该有,防手误把整个构建弄坏)。
