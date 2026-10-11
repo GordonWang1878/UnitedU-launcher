@@ -2335,3 +2335,10 @@ I1/I2/M1/M2收口：在线缩略图按UI物理像素采样并保留真实bounds�
 - 素材源 11 张原图移至 images/，逐一 SHA-256 不变；4 张合格项双用途，7 张仍 pending。revision-1 原样保留，revision-2 离线生成/发布预演通过，ID 与原图 hash 不变。目录中的 .DS_Store 随目录保留；初次迁移前生成的单用途产物保留为 revision-2-before-migration，不作为发布目标。规范与维护说明同步。
 - 验证：定向 Gallery 测试通过；Python 22/22；最终 testDebugUnitTest 共 916 项，失败 0、错误 0、原有忽略 1；assembleDebug/assembleRelease（含 R8 与 release lint vital）通过。实际编译的 Kotlin parser 分别读取 revision-1 与 revision-2，各 4 项成功。最终差异审查覆盖缓存恢复、单文件复用、独立采用与旧版读取。
 - 边界：本轮未执行电视视觉/真机验收，未部署 APK、未上传图库、未推远程。旧 APK 不能读 v2 清单，正式上线前先提供兼容 APK。
+
+## 2026-10-11 · 图库分支接手(Claude):并 main + 共享图片模拟器验收 + 浮层透明修复
+
+- 并入 main(频道行 / Beta 通道 / 编辑页重做,136 个提交):冲突在版本号、`restoredDefaults`、三语字符串、文档;两边都用了 R164,图库裁定改号 **R171**。并后 JVM 1182 项(1181 过、1 既有忽略)、Python 22/22、release 构建通过。
+- **修了一个合并前就有的 bug**:图库的选项菜单 / 下载进度 / 提示页 / 刷新菜单 / 预览直接叠在选图页里画,而选图页本身已在 `OverlayStack` 里(`LocalBackdropProvided` 为真),R142 后 `GearMenu` 不再自己铺底——这几页整页透明地压在网格上(Codex 截的 `protected-both.png` 就是这样,不是淡化中途)。现在 `GalleryPickerOverlay` 按快照 `GalleryLayer` 放进 `OverlayStack`:有底、有淡入淡出、残影画关掉前那一份。
+- 模拟器验收(unitedu-tv,本机 http 服务 + `adb reverse`,debug 包 `-Punitedu.galleryBaseUrl=http://127.0.0.1:8765/`):revision-1(v1)下设「夜色汤屋」为壁纸,原图下载 1 次 → 换 revision-2(v2)后屏保图库出现 4 张、该图标「已下载」→ 加入轮播**没有再请求原图**,本地元数据用途合并为壁纸 + 屏保 → 两边都用 / 只壁纸 / 只屏保三种情况删除都被拦下 → 移出轮播不影响壁纸 → 屏保实际播放该图(临时排除 4 张内置图,测完还原)→ 两边都不用后删除成功,原图与元数据清空,焦点回原格。截图 `docs/screenshots/gallery-shared-images/`(替换了 Codex 未入库的那组)。
+- 未做:电视实测、在线视频、I3 未知 Settings 原图仍未处置。

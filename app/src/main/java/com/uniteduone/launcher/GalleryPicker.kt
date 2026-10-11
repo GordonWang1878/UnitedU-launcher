@@ -129,21 +129,43 @@ internal fun rememberGalleryPicker(kind: BuiltinKind, packageName: String?, acti
     return state to remember(snapshot, kind, packageName) { galleryRows(snapshot, kind, packageName) }
 }
 
+/**
+ * 图库浮层的一层快照(R136 残影约定):残影画关掉前那一份,不按 [GalleryPickerState] 现查。
+ * 要放进 [OverlayStack]:选图页本身已在一摞里(`LocalBackdropProvided` 为真),直接叠在网格上的 [GearMenu]
+ * 不铺底(R142),整页透明地压在图库网格上(2026-10-11 模拟器实测)。
+ */
+internal sealed class GalleryLayer(val key: String) {
+    class Notice(val text: Int) : GalleryLayer("notice")
+    object Refresh : GalleryLayer("refresh")
+    class Preview(val file: File, val name: String) : GalleryLayer("preview")
+    class Active(val row: GalleryRow, val failed: Boolean, val failure: GalleryFailure, val progress: Long) : GalleryLayer("active:${row.key}")
+    class Menu(val row: GalleryRow, val joined: Boolean, val thumbnailFailed: Boolean) : GalleryLayer("menu:${row.key}")
+}
+
 @Composable
 internal fun GalleryPickerOverlay(state: GalleryPickerState, screensaver: Boolean, nonce: Int) {
     val ctx = LocalContext.current
+    val lang = stringResource(R.string.builtin_names_lang)
     val menu = state.menu
     val active = state.active
-    val title = menu?.item?.names?.get(stringResource(R.string.builtin_names_lang)) ?: menu?.item?.id.orEmpty()
+    val layer = when {
+        state.notice != null -> GalleryLayer.Notice(state.notice!!)
+        state.refreshMenu -> GalleryLayer.Refresh
+        state.preview != null -> GalleryLayer.Preview(state.preview!!, state.previewItem?.names?.get(lang) ?: state.previewItem?.id.orEmpty())
+        active != null -> GalleryLayer.Active(active, state.failed, state.failure, state.progress)
+        menu != null -> GalleryLayer.Menu(menu, screensaver && state.joined[menu.item.id]?.sha256 == menu.item.original.blob.sha256, menu.key in state.thumbnailFailures)
+        else -> null
+    }
     val pick = stringResource(if (screensaver) R.string.gallery_join else R.string.gallery_use)
     val preview = stringResource(R.string.gallery_preview)
     val remove = stringResource(R.string.gallery_remove_rotation)
     val delete = stringResource(R.string.gallery_delete)
     val cancel = stringResource(R.string.dialog_cancel)
     val retry = stringResource(R.string.gallery_retry)
-    if (state.notice != null) GearMenu(title = stringResource(R.string.picker_section_gallery), body = stringResource(state.notice!!), nonce = nonce,
+    OverlayStack(state = layer, layerKey = { it.key }) { l -> when (l) {
+    is GalleryLayer.Notice -> GearMenu(title = stringResource(R.string.picker_section_gallery), body = stringResource(l.text), nonce = nonce,
         items = listOf(MenuItem(cancel, "") { state.notice = null }), onDismiss = { state.notice = null })
-    else if (state.refreshMenu) GearMenu(title = stringResource(R.string.gallery_refresh), nonce = nonce,
+    GalleryLayer.Refresh -> GearMenu(title = stringResource(R.string.gallery_refresh), nonce = nonce,
         items = listOf(
             MenuItem(stringResource(R.string.gallery_refresh), "") { state.refreshMenu = false; state.scope.launch { state.refresh() } },
             MenuItem(stringResource(R.string.gallery_cleanup), "") {
@@ -158,34 +180,34 @@ internal fun GalleryPickerOverlay(state: GalleryPickerState, screensaver: Boolea
                     } catch (e: CancellationException) { throw e } catch (_: Exception) { state.refreshMenu = false; state.notice = R.string.gallery_delete_failed }
                 }
             }, MenuItem(cancel, "") { state.refreshMenu = false }), onDismiss = { state.refreshMenu = false })
-    else if (state.preview != null) ScreensaverPreview(listOf(state.preview!!), 0, nonce, displayNames = mapOf(state.preview!!.absolutePath to (state.previewItem?.names?.get(stringResource(R.string.builtin_names_lang)) ?: state.previewItem?.id.orEmpty()))) { state.preview = null; state.previewItem = null }
-    else if (active != null) GearMenu(
-        title = active.item.names[stringResource(R.string.builtin_names_lang)] ?: active.item.id,
-        body = if (state.failed) stringResource(when (state.failure) { GalleryFailure.NETWORK -> R.string.gallery_network_failed; GalleryFailure.STORAGE -> R.string.gallery_storage_failed; GalleryFailure.INVALID -> R.string.gallery_invalid_failed; GalleryFailure.UNKNOWN -> R.string.gallery_failed }) else stringResource(R.string.gallery_progress, state.progress * 100 / active.item.original.blob.bytes),
+    is GalleryLayer.Preview -> ScreensaverPreview(listOf(l.file), 0, nonce, displayNames = mapOf(l.file.absolutePath to l.name)) { state.preview = null; state.previewItem = null }
+    is GalleryLayer.Active -> GearMenu(
+        title = l.row.item.names[lang] ?: l.row.item.id,
+        body = if (l.failed) stringResource(when (l.failure) { GalleryFailure.NETWORK -> R.string.gallery_network_failed; GalleryFailure.STORAGE -> R.string.gallery_storage_failed; GalleryFailure.INVALID -> R.string.gallery_invalid_failed; GalleryFailure.UNKNOWN -> R.string.gallery_failed }) else stringResource(R.string.gallery_progress, l.progress * 100 / l.row.item.original.blob.bytes),
         nonce = nonce,
         items = buildList {
             add(MenuItem(cancel, "") { state.cancel() })
-            if (state.failed) add(MenuItem(retry, "") { state.retry() })
+            if (l.failed) add(MenuItem(retry, "") { state.retry() })
         }, onDismiss = { state.cancel() },
     )
-    else if (menu != null) GearMenu(title = title, nonce = nonce,
-        body = if (menu.update) stringResource(R.string.gallery_update) else if (menu.retained) stringResource(R.string.gallery_retained) else if (menu.downloaded) stringResource(R.string.gallery_downloaded) else stringResource(R.string.gallery_available),
+    is GalleryLayer.Menu -> { val row = l.row; GearMenu(title = row.item.names[lang] ?: row.item.id, nonce = nonce,
+        body = if (row.update) stringResource(R.string.gallery_update) else if (row.retained) stringResource(R.string.gallery_retained) else if (row.downloaded) stringResource(R.string.gallery_downloaded) else stringResource(R.string.gallery_available),
         items = buildList {
-            if (menu.key in state.thumbnailFailures) add(MenuItem(retry, "") {
+            if (l.thumbnailFailed) add(MenuItem(retry, "") {
                 state.menu = null; state.retryThumbnails()
             })
-            add(MenuItem(preview, "") { state.preview(menu) })
-            if (screensaver && state.joined[menu.item.id]?.sha256 == menu.item.original.blob.sha256) {
-                add(MenuItem(remove, "") { state.actions.removeScreensaver(menu.item.id) { result -> if (result.isFailure) state.notice = R.string.gallery_failed; state.menu = null } })
-            } else add(MenuItem(pick, "") { state.pick(menu) })
-            if (menu.downloaded) add(MenuItem(delete, "") {
+            add(MenuItem(preview, "") { state.preview(row) })
+            if (l.joined) {
+                add(MenuItem(remove, "") { state.actions.removeScreensaver(row.item.id) { result -> if (result.isFailure) state.notice = R.string.gallery_failed; state.menu = null } })
+            } else add(MenuItem(pick, "") { state.pick(row) })
+            if (row.downloaded) add(MenuItem(delete, "") {
                 state.scope.launch {
                     try {
                     val removed = withContext(Dispatchers.IO) {
                         GalleryMutationGate.locked {
                             val settings = SettingsStore.read(ctx)
                             val protected = settings.galleryScreensavers.values.map { it.sha256 }.toSet() + listOfNotNull(settings.galleryWallpaper?.sha256)
-                            val result = state.repository.removeDownloaded(menu.item.original.blob.sha256, protected)
+                            val result = state.repository.removeDownloaded(row.item.original.blob.sha256, protected)
                             state.repository.cleanupOrphans(protected)
                             result
                         }
@@ -196,5 +218,6 @@ internal fun GalleryPickerOverlay(state: GalleryPickerState, screensaver: Boolea
                 }
             })
             add(MenuItem(cancel, "") { state.menu = null })
-        }, onDismiss = { state.menu = null })
+        }, onDismiss = { state.menu = null }) }
+    } }
 }
