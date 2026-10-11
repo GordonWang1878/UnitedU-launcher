@@ -2283,3 +2283,8 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - Gordon 定:取消「没在电视上实测过的不合 main」,改为审查 + 单测 / 模拟器过了就合 main、电视实测在 Beta 上做、晋级稳定版前必须电视实测(写进设计稿 §开头与 CLAUDE.md)。
 - 同日 Gordon 选「只从 main 发 Beta」:`release.sh` Beta 模式要求 HEAD 等于本地 main 指向的提交(比提交不比分支名,main 被主 checkout 占着也能在别的 worktree 快进后发),否则正式发布中止、dry-run 警告;稳定版不设此闸门(晋级在 main 上发,急修从稳定 tag 拉分支)。
 - 补洞(同日):`release.sh` 里的检查只对含它的分支有效,落后 main 的功能分支跑的是旧脚本、拦不住。加 `scripts/git-hooks/pre-push`(装进共享 `.git/hooks`,所有 worktree 共用):推 `v*-beta.*` tag 时指向的提交 ≠ 本地 main 就拒推;release.sh 先推 tag 再 gh release / 传 R2,拦在任何公开动作之前。实测:分支提交上的轻量 / 附注 tag 被拒(含真实 `git push` 到临时 bare 仓库),main 上的 Beta tag、稳定 tag、删 tag、推分支都放行。另:beta.4(versionCode 15,`289e9a6`)已由频道推荐会话发出,含 30176ef。
+
+## 2026-10-11 · beta.5 电视验收
+
+- R169:Gordon 在 A95L 上装 beta.5,「新的一行」只剩「应用行」一张卡——通过。
+- R170:酷喵频道行此前已被 Gordon 删掉,而 R169 起无 GMS 电视加不回来,A95L 上测不了;以模拟器 http 海报探针为准,酷喵灰卡是否由 http 造成不再追。
