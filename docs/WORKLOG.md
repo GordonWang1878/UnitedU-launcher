@@ -2038,3 +2038,4 @@ Gordon 出门前三点要求:行图标小一点点;行距太短、上下移动�
 - 核对:1.2.0-beta.3(versionCode 13,回退包 14)tag `d7d472c` 从 `频道推荐` 分支构建,该分支最后一次并 main 停在 1.1.1,不含 30176ef;下载线上 APK(sha 与清单一致)资源里也没有 `notes_lang`。
 - 根因:Beta 从功能分支发,带不带 main 上的改动取决于有没有人记得先合并 main,没有机制保证。设计稿本来写的是 main = Beta。
 - Gordon 定:取消「没在电视上实测过的不合 main」,改为审查 + 单测 / 模拟器过了就合 main、电视实测在 Beta 上做、晋级稳定版前必须电视实测(写进设计稿 §开头与 CLAUDE.md)。
+- 同日 Gordon 选「只从 main 发 Beta」:`release.sh` Beta 模式要求 HEAD 等于本地 main 指向的提交(比提交不比分支名,main 被主 checkout 占着也能在别的 worktree 快进后发),否则正式发布中止、dry-run 警告;稳定版不设此闸门(晋级在 main 上发,急修从稳定 tag 拉分支)。
