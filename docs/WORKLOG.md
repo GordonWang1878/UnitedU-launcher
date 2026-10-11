@@ -2356,3 +2356,4 @@ I1/I2/M1/M2收口：在线缩略图按UI物理像素采样并保留真实bounds�
 - Gordon 在电视上看 beta.7:功能大体 OK,刷新在线图库那一格「丑到爆炸」,且刷新动作和块首「＋」那种格子语义不搭。原样式是一块直角灰底 + 格内格下两行同样的「刷新图库」。
 - 改法照 Google TV(没有手动刷新按钮,内容自己更新):打开即自动刷新、状态挂标题旁、清理残留改成刷新后自动做;只在一张图都没有时留「重试」格。自动刷新失败不再弹整页「网络连接失败」(否则离线时每次打开选图页都要先关一个弹窗)。
 - 模拟器验证:离线态用 `-Punitedu.galleryBaseUrl=http://127.0.0.1:8799/`(无人监听)造;`cmd connectivity airplane-mode enable` 在这台 AVD 上断不了网(ping 照通),别用。截图 `docs/screenshots/gallery-refresh/`。
+- 已合 main 并发 1.2.0-beta.8(versionCode 23,回退包 24),main 推到 `97a2c7e`。下一个 Beta 从 versionCode 25 起。
