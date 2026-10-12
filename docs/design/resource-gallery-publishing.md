@@ -4,7 +4,7 @@
 
 ## 源目录与身份
 
-固定源目录为 `/Users/gordonwang/GitHub/unitedu-gallery`，独立 Git 仓库仅追踪 `resources.json`、维护说明与目录占位文件；`images/`、`cards/`、预留的 `videos/` 内的原图不进入 Git，须另行备份。新增图片放入对应目录后发起“同步图库”，先审阅变化再确认上传。发布产物建议保存到独立的 `/Users/gordonwang/GitHub/unitedu-gallery-builds/`，完整保留每版图片、清单与 ID 历史；已保留 revision-1，当前共享图片产物为 revision-2。
+固定源目录为 `/Users/gordonwang/GitHub/unitedu-gallery`，独立 Git 仓库仅追踪 `resources.json`、维护说明与目录占位文件；`images/`、`cards/`、预留的 `videos/` 内的原图不进入 Git，须另行备份。新增图片放入对应目录后发起“同步图库”，先审阅变化再确认上传。发布产物建议保存到独立的 `/Users/gordonwang/GitHub/unitedu-gallery-builds/`，完整保留每版图片、清单与 ID 历史；已保留 revision-1、revision-2，当前线上为 revision-3(11 张，2026-10-12)。
 
 在仓库外维护源目录，`resources.json` 示例：
 

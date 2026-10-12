@@ -2357,3 +2357,9 @@ I1/I2/M1/M2收口：在线缩略图按UI物理像素采样并保留真实bounds�
 - 改法照 Google TV(没有手动刷新按钮,内容自己更新):打开即自动刷新、状态挂标题旁、清理残留改成刷新后自动做;只在一张图都没有时留「重试」格。自动刷新失败不再弹整页「网络连接失败」(否则离线时每次打开选图页都要先关一个弹窗)。
 - 模拟器验证:离线态用 `-Punitedu.galleryBaseUrl=http://127.0.0.1:8799/`(无人监听)造;`cmd connectivity airplane-mode enable` 在这台 AVD 上断不了网(ping 照通),别用。截图 `docs/screenshots/gallery-refresh/`。
 - 已合 main 并发 1.2.0-beta.8(versionCode 23,回退包 24),main 推到 `97a2c7e`。下一个 Beta 从 versionCode 25 起。
+
+## 2026-10-12 · 图库 revision-3 上线(11 张)
+
+- Gordon:自动刷新没法实测,因为在线图库没有新图可刷。原 7 张 pending 图(缺 Android 14 XMP)用 `scripts/hdr-assets.py <in> <out>` 补成双写法,7/7 通过(PSNR 44–47 dB);转换前原图备份 `~/unitedu-assets-originals/2026-10-12-gallery-pending/`。并入 `resources.json`,沿用 pending 里原定的交错 order(0–10 共 11 位)。
+- revision-3 生成于 `unitedu-gallery-builds/revision-3`(changes:新增 7、更新 0、下架 0),预演后经 Gordon 确认 `--publish`,线上 `index.json` 与本地 sha256 一致(`4d1f86e4…`)。图库源仓库本地提交,未推远程。
+- 电视验收待做:打开选图页应看到「· 正在刷新…」后多出 7 张。
