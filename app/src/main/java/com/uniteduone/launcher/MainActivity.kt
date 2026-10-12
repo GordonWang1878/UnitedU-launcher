@@ -422,6 +422,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) armUpdateReclaim(intent)
         // R164:本应用第一处运行时权限。结果回来 channelsRevision++(编辑页 / 选频道页 / 首页重读),focusNonce++(系统授权窗
         // 盖过来时本页 ON_PAUSE 冻结了焦点,回来要接回)。
         tvListingsRequest = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
@@ -1324,6 +1325,7 @@ class MainActivity : ComponentActivity() {
      */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         lastInput = System.currentTimeMillis()
+        updateKeyed = true
         if (idle) {
             // 待机与自定义屏保一样:任意键回到正常,这一下只负责唤醒(spec §1.2)。
             standby = StandbyFlags.NORMAL
@@ -1667,6 +1669,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         invalidateGallerySelection()
         super.onNewIntent(intent)
+        armUpdateReclaim(intent)
         // HOME = 移动态取消(M4b spec §0-9)。通常 onPause 已经先取消过,这里是同一件事的第二道。
         cancelMove()
         leaveEdit()
@@ -1901,6 +1904,29 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         RelaunchMarks.setHomeVisible(this, false)
         super.onStop()
+        if (!isChangingConfigurations && !isFinishing &&
+            shouldReclaimAfterUpdate(android.os.SystemClock.elapsedRealtime(), updateGuardUntil, updateKeyed, updateReclaims)
+        ) {
+            updateReclaims++
+            val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+                .setComponent(android.content.ComponentName(this, MainActivity::class.java))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            runCatching { startActivity(home) }
+                .onSuccess { android.util.Log.i("UnitedU", "covered right after update relaunch; reclaiming home (#$updateReclaims)") }
+                .onFailure { android.util.Log.w("UnitedU", "update reclaim failed", it) }
+        }
+    }
+
+    // ---- 更新后夺回(2026-10-12,见 EXTRA_UPDATE_RELAUNCH):带标记启动后守 UPDATE_RECLAIM_WINDOW_MS,用户按过键即解除 ----
+    private var updateGuardUntil = 0L
+    private var updateKeyed = false
+    private var updateReclaims = 0
+    private fun armUpdateReclaim(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_UPDATE_RELAUNCH, false) != true) return
+        intent.removeExtra(EXTRA_UPDATE_RELAUNCH)
+        updateGuardUntil = android.os.SystemClock.elapsedRealtime() + UPDATE_RECLAIM_WINDOW_MS
+        updateKeyed = false
+        updateReclaims = 0
     }
 
     /** R164:500 ms 尾沿去抖后 channelsRevision++(应用同步频道时会连写几十行);持续在写时从第一次变化起最多等 2 s。 */

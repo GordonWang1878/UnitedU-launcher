@@ -39,4 +39,13 @@ class RelaunchPolicyTest {
         assertTrue(shouldRelaunchHome(homeOrTakeover(false, true), canDrawOverlays = true, wasOnScreen = true, userStartedUpdate = false))
         assertFalse(shouldRelaunchHome(homeOrTakeover(false, true), canDrawOverlays = false, wasOnScreen = true, userStartedUpdate = false))
     }
+
+    /** 2026-10-12:更新拉回后被输入源应用的 CEC 一键播放盖住 → 窗口内、没按过键、次数没用完才夺回。 */
+    @Test fun reclaimOnlyInsideWindowWithoutUserKeys() {
+        assertTrue(shouldReclaimAfterUpdate(now = 5_000, guardUntil = 10_000, userKeyed = false, reclaims = 0))
+        assertFalse(shouldReclaimAfterUpdate(now = 5_000, guardUntil = 10_000, userKeyed = true, reclaims = 0))
+        assertFalse(shouldReclaimAfterUpdate(now = 10_000, guardUntil = 10_000, userKeyed = false, reclaims = 0))
+        assertFalse(shouldReclaimAfterUpdate(now = 5_000, guardUntil = 10_000, userKeyed = false, reclaims = UPDATE_RECLAIM_MAX))
+        assertFalse(shouldReclaimAfterUpdate(now = 5_000, guardUntil = 0, userKeyed = false, reclaims = 0))
+    }
 }

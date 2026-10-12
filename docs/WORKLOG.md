@@ -2407,3 +2407,10 @@ Gordon 在 beta.9 上报三件事,模拟器 perfetto trace(给各解码点临时
 ## 2026-10-12 · 设置第二组「布局」改名「桌面布局」
 
 - Gordon 定。三语:桌面布局 / 桌面版面 / Home Layout;空桌面提示里的路径、README 两版、设置页清单同改。
+
+## 2026-10-12 · 更新后跳到 Apple TV 的 HDMI 2(拉回后被 CEC 盖住)
+
+- Gordon:beta.13 关于页检查更新装完,屏幕停在 Apple TV(HDMI 2),要再按 HOME。电视走网线、无线调试不广播(mDNS 无 `_adb-tls-connect`,5555 也没开),这次读不到日志;现象与 2026-10-01 13:02 实测的机制一致(CLAUDE.local.md「R151 拉回也挡不住 CEC」):更新删掉首页任务的空档里,栈里下一个 `com.sony.dtv.tvlin` 被短暂恢复、调回上次的 HDMI 2 并发 CEC `<Set Stream Path>`,Apple TV 被唤醒回 `<Image View On>`,约 3 s 后 tvlin 把自己顶到最前,盖住 R151 已拉回的桌面。当时只记成已知问题,没修——不是回归,是触发要看更新那一刻首页下面是不是 tvlin。
+- 修:`RelaunchAfterUpdate` 的 HOME intent 带 `EXTRA_UPDATE_RELAUNCH`;MainActivity 带它启动后守 10 s(`UPDATE_RECLAIM_WINDOW_MS`),期间被盖住(`onStop`)且用户一个键都没按过 → 自己再起一次 HOME(最多 2 次,`shouldReclaimAfterUpdate`,单测)。夺回走的是同一个悬浮窗 appop 放行(能被拉回就能夺回)。代价:Apple TV 已被 CEC 唤醒(它自己会再睡)。
+- 模拟器四例:拉回后 2 s 被 YouTube 盖住且未按键 → 回到桌面(日志 `reclaiming home (#1)`);期间按过键 / 超过 10 s / 普通启动(不带标记)→ 都不干预。注意:系统设置是半透明侧边面板,盖着时本应用不进 `onStop`,测这类逻辑要用全屏应用(YouTube)。
+- 未验证:电视实测(要等下一个 Beta + 恰好首页下面是 tvlin 的那次更新)。
