@@ -2449,3 +2449,4 @@ Gordon 在 beta.9 上报三件事,模拟器 perfetto trace(给各解码点临时
 - Gordon:发下一个稳定版前最后一件事,自家 APK 的方形图标(不是 banner)显得拥挤。病因两层:R156 把标撑满安全圆,方形显示时四边几乎没有留白;内部方块、三角贴着碗的圆头,红圆贴着碗内壁。出了四版(现状 / A 整体缩小 / B 缩小 + 内部松开 / C 再小一档),Gordon 选 B。实现与参数见 spec R176;`gen.py` 重跑,banner md5 不变,release APK 内五个密度前景层与母版逐像素一致。
 - 模拟器看不到:TV 系统设置的应用详情页不画图标,Google TV 桌面按 versionCode 缓存旧图标;以电视为准。
 - 已合 main 并发 1.2.0-beta.16(versionCode 39,回退包 40;R176 图标留白),main 推到 `4633bf8`。下一个 Beta 从 versionCode 41 起。
+- Gordon 电视实测 beta.16:方形图标不再拥挤,满意。R176 关闭。
