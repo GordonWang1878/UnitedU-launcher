@@ -2389,3 +2389,4 @@ Gordon 在 beta.9 上报三件事,模拟器 perfetto trace(给各解码点临时
 ## 2026-10-12 · 屏保图库「在线图库」标题去掉「视频暂未推出」
 
 - Gordon:暂未推出就不提,不说用户也不知道有视频;标题就叫「在线图库」。删掉 `gallery_videos_unavailable`(三语),刷新状态后缀照旧。模拟器屏保图库读回标题「在线图库」。
+- 已合 main 并发 1.2.0-beta.11(versionCode 29,回退包 30),main 推到 `847b33c`。下一个 Beta 从 versionCode 31 起。
