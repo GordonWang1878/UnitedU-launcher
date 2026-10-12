@@ -2384,3 +2384,4 @@ Gordon 在 beta.9 上报三件事,模拟器 perfetto trace(给各解码点临时
 - **在线图选用后立刻返回失败**:`pickerTarget` 的 setter 会作废进行中的选用(`invalidateGallerySelection`);内置图 `handlePick` 是先关页再开始所以不受影响,在线图是写完盘才关页,中间一按返回就被作废。改:已下载的图从菜单上「选用 / 加入轮播」走新的 `MainActivity.adoptGallery`——壁纸 / 卡片图与内置一样先关页、后台写盘并提示「壁纸已更换」;屏保图库不关页,结果回给页面(页已关就提示条);这次选用记在 `detachedSelection`,关页 / 换页不作废它,只有下一次真正的选用(`begin` 换代)顶掉。未下载的照旧走下载进度页,进度页上返回 = 取消下载。模拟器:选用后零间隔连按两次返回,壁纸照换;加入轮播后立刻返回,照样进轮播。单测 `downloadedPickIsHandedOffAndSurvivesPageCancel`。
 - 未改:回到「外观偏好」后壁纸仍是先旧后新交叉淡化(新图 4K 解码约 1 s,模拟器);现在不再与缩略图抢 CPU,电视上应明显变快,待实测。
 - 已合 main 并发 1.2.0-beta.10(versionCode 27,回退包 28;含 R173 与上面三项修复),main 推到 `ea2c90a`。下一个 Beta 从 versionCode 29 起。
+- Gordon 电视实测 1.2.0-beta.10:选壁纸页菜单统一、预览淡入、内置缩略图、选用后返回不卡、在线图选用后立刻返回,全部通过。图库 revision-3 自动刷新同时验过。
