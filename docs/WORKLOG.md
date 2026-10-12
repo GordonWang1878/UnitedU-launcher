@@ -2429,3 +2429,15 @@ Gordon 在 beta.9 上报三件事,模拟器 perfetto trace(给各解码点临时
   - 回到「外观偏好」后新壁纸出现的速度(2026-10-12 beta.9 修复一节「未改」那条):电视实测 OK,现在是淡入,不再觉得卡。
   - 频道行在国行 A95L 上的表现(2026-10-07 调研「待实测」与频道行实现「未验证项」):不再测。Gordon:无 GMS 时国内应用写频道会被系统拒绝 / 忽略,且大多数国内应用本来就不写;R169 已按有没有 GMS 决定给不给「频道」卡,这条不是待解决的问题。(R169 当时记的 A95L 实测里央视频频道是正常的,属个例,不影响结论。)
   - 编辑桌面页(R167)的转场帧率:电视实测没问题。纹理重传、编译状态那几项模拟器观察不再单独追。
+
+## 2026-10-12 · beta.13 之后代码审查(更新后夺回、内置壁纸缩减)
+
+- 审查 `0230169`(更新后夺回)与 `f663361`(内置壁纸缩减)。夺回逻辑的本质缺陷:它只看「10 s 内 `onStop` 且 `MainActivity` 没收到键」,不问是谁、为什么盖住了桌面。修:
+  - 熄屏 / 待机(`PowerManager.isInteractive` 为假)与我们的屏保(`RelaunchMarks.dreaming`)不夺回;`onStop` 后等 `UPDATE_RECLAIM_SETTLE_MS` = 500 ms 再判,让这两个状态先反映出来,判时仍须不在前台。
+  - 标记 `EXTRA_UPDATE_RELAUNCH` 改带发出时刻(`elapsedRealtime`,`updateGuardUntil` 单测):`removeExtra` 删不掉系统存的任务根 intent,以后用它重建出的新实例按时间认出是旧标记、不武装。
+  - 守护状态写进 Bundle:窗口内 `recreate()` 不再让夺回失效。
+  - HOME intent 抽成 `homeRelaunchIntent`(拉回与夺回共用);`RelaunchPolicy` 注释不再指向不入库的 `CLAUDE.local.md`。
+- **已知盲区(没修,应用层修不了)**:输入源、电源、语音、品牌应用键被系统先截走,到不了 `dispatchKeyEvent`;更新拉回后 10 s 内用这些键离开桌面(或用 Apple TV 遥控器一键播放)仍会被夺回一次。要分辨「是谁盖住了我们」得有 `PACKAGE_USAGE_STATS`(用户手动授权)。
+- 内置壁纸:选过已退出内置的《午夜玩具房》《雨夜巴士站》的用户,冷启动时后台从在线图库下载同一张、把选中值换成 `gallery:<id>`(`RETIRED_BUILTIN_WALLPAPERS` / `retiredWallpaperGalleryId`,单测);下载期间用户自己换了壁纸就不动,离线失败下次冷启动再试;成功前仍回落夏日数码门。回退包不认 `gallery:` 的话回落它自己的第一张(只影响回退)。
+- 模拟器(`unitedu-tv`,接管开着,因为 Google 镜像上原厂桌面优先级高、HOME 抢不到):真 `adb install -r` 后 2 s 被 YouTube 盖住 → `reclaiming home (#1)`、回到桌面;2 s 时 `KEYCODE_SLEEP` → 不夺回;先按方向键再开 YouTube → 不夺回。壁纸:settings 写 `builtin:02-午夜玩具房` 冷启动 → 日志 `retired builtin wallpaper migrated`,读回 `gallery:wall-midnight-toy-room` + `galleryWallpaper` sha256。全量单测 + release 构建通过。
+- 未验证:屏保中更新的那条路(模拟器造屏保要整套设置,只靠单测与代码路径);电视实测随下一个 Beta。
