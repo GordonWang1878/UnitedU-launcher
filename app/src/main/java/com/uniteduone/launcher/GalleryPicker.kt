@@ -90,21 +90,40 @@ internal class GalleryPickerState(val repository: GalleryRepository, val actions
         }
     }
     fun cancel() { generation++; previewJob?.cancel(); previewJob = null; cancelUse?.invoke(); cancelUse = null; active = null; failed = false }
+    /**
+     * 已下载的图不经过「下载中」那一层(2026-10-12 Gordon:点预览会闪一下「下载中」):菜单留着,等本地原图取到再直接换成
+     * 预览 / 收菜单;只有取不到(文件丢了要重下、或出错)才把进度 / 失败页推上来。没下载的照旧先出进度页。
+     */
+    /** 返回 quiet:从菜单上点的、且已下载 → 不推进度页。重试(失败页上点的)一律走进度页。 */
+    private fun begin(row: GalleryRow, intent: Boolean): Boolean {
+        val quiet = row.downloaded && menu?.key == row.key && active == null
+        cancel(); previewIntent = intent; progress = 0
+        if (!quiet) { active = row; menu = null }
+        return quiet
+    }
+    /** quiet 这一步还在菜单上时,用户按返回 / 取消关了菜单 → 结果作废(关菜单同时 [cancel])。 */
+    private fun stillWanted(row: GalleryRow, quiet: Boolean) = !quiet || menu?.key == row.key || active?.key == row.key
+    private fun fail(row: GalleryRow, error: Throwable) { menu = null; active = row; failed = true; failure = galleryFailure(error) }
     fun pick(row: GalleryRow) {
-        cancel(); previewIntent = false; active = row; progress = 0; menu = null
+        val quiet = begin(row, intent = false)
         val token = generation
-        cancelUse = actions.pick(row.item, { if (generation == token) progress = it }, { if (generation == token) { failed = it.isFailure; it.exceptionOrNull()?.let { error -> failure = galleryFailure(error) }; if (it.isSuccess) active = null } })
+        cancelUse = actions.pick(row.item, { if (generation == token) { progress = it; if (quiet && active == null && stillWanted(row, quiet)) { menu = null; active = row } } }) {
+            if (generation == token && stillWanted(row, quiet)) {
+                it.exceptionOrNull()?.let { error -> fail(row, error) }
+                if (it.isSuccess) { active = null; menu = null }
+            }
+        }
     }
     fun retry() { active?.let { if (previewIntent) preview(it) else pick(it) } }
     fun preview(row: GalleryRow) {
-        cancel(); previewIntent = true; active = row; progress = 0; menu = null
+        val quiet = begin(row, intent = true)
         val token = generation
         previewJob = scope.launch {
             try {
-                val local = repository.original(row.item) { count -> scope.launch { if (generation == token) progress = count } }
-                if (generation == token) { preview = local.file; previewItem = row.item; active = null }
+                val local = repository.original(row.item) { count -> scope.launch { if (generation == token) { progress = count; if (quiet && active == null && stillWanted(row, quiet)) { menu = null; active = row } } } }
+                if (generation == token && stillWanted(row, quiet)) { preview = local.file; previewItem = row.item; active = null; menu = null }
             } catch (e: CancellationException) { throw e }
-            catch (error: Exception) { if (generation == token) { failed = true; failure = galleryFailure(error) } }
+            catch (error: Exception) { if (generation == token && stillWanted(row, quiet)) fail(row, error) }
         }
     }
 }
@@ -213,7 +232,7 @@ internal fun GalleryPickerOverlay(state: GalleryPickerState, screensaver: Boolea
             })
             // 上次刷新失败(标题旁写着「刷新失败」)时才给手动重刷;平时打开页就自动刷新,不占菜单。
             if (l.refreshFailed) add(MenuItem(refreshLabel, "") { state.menu = null; state.scope.launch { state.refresh() } })
-            add(MenuItem(cancel, "") { state.menu = null })
-        }, onDismiss = { state.menu = null }) }
+            add(MenuItem(cancel, "") { state.cancel(); state.menu = null })
+        }, onDismiss = { state.cancel(); state.menu = null }) }
     } }
 }

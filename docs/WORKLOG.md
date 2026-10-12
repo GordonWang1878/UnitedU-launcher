@@ -2363,3 +2363,8 @@ I1/I2/M1/M2收口：在线缩略图按UI物理像素采样并保留真实bounds�
 - Gordon:自动刷新没法实测,因为在线图库没有新图可刷。原 7 张 pending 图(缺 Android 14 XMP)用 `scripts/hdr-assets.py <in> <out>` 补成双写法,7/7 通过(PSNR 44–47 dB);转换前原图备份 `~/unitedu-assets-originals/2026-10-12-gallery-pending/`。并入 `resources.json`,沿用 pending 里原定的交错 order(0–10 共 11 位)。
 - revision-3 生成于 `unitedu-gallery-builds/revision-3`(changes:新增 7、更新 0、下架 0),预演后经 Gordon 确认 `--publish`,线上 `index.json` 与本地 sha256 一致(`4d1f86e4…`)。图库源仓库本地提交,未推远程。
 - 电视验收待做:打开选图页应看到「· 正在刷新…」后多出 7 张。
+
+## 2026-10-12 · 已下载的在线图点「预览」闪一下「下载中」
+
+- Gordon 在电视上(beta.8)发现:已下载的图,菜单里点「预览」会一闪「下载中」再进预览。根因:`GalleryPickerState.preview()` / `pick()` 在知道原图在不在本地之前就把进度层(`active = row`)推上来、同时收掉菜单;`repository.original()` 命中缓存立刻返回,进度层只活了几帧。
+- 修法:从菜单上对已下载的图点「预览 / 选用」时菜单留着,等原图取到直接换成预览 / 收菜单;只有真的要下载(缓存文件丢了 → 有进度回调)或失败时才推进度 / 失败页;取图途中菜单被返回 / 取消关掉,结果作废(关菜单同时 `cancel()`)。失败页上的「重试」照旧走进度页。单测 `downloadedPreviewAndPickNeverShowProgressLayer`;模拟器录屏逐帧确认菜单直接淡到预览,没有「下载中」帧(中间几帧黑是预览页解 4K 原图,原来就有)。

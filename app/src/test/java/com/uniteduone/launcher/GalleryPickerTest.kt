@@ -87,6 +87,45 @@ class GalleryPickerTest {
         state.cancel()
     }
 
+    /** 2026-10-12 Gordon:已下载的图点「预览」会闪一下「下载中」。已下载 → 菜单留到原图取到,直接换成预览,进度页一次都不出现。 */
+    @Test fun downloadedPreviewAndPickNeverShowProgressLayer() = kotlinx.coroutines.runBlocking {
+        val row = GalleryRow("gallery:a", item("a"), true, false)
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val repository = object : GalleryRepository {
+            override val state = kotlinx.coroutines.flow.MutableStateFlow(GallerySnapshot(null, emptyList(), false, null))
+            override suspend fun refresh() = Unit
+            override suspend fun original(item: GalleryItem, onProgress: (Long) -> Unit): GalleryLocal { gate.await(); return GalleryLocal(item, File("cached")) }
+            override suspend fun thumbnail(item: GalleryItem): File = error("unused")
+            override suspend fun removeDownloaded(sha256: String, protected: Set<String>) = false
+            override suspend fun orphanedDownloads() = emptySet<String>()
+            override suspend fun cleanupOrphans(protected: Set<String>) = emptySet<String>()
+        }
+        var done: ((Result<Unit>) -> Unit)? = null
+        val state = GalleryPickerState(repository, GalleryPickerActions({ _, _, result -> done = result; {} }, {}, { _, _ -> }), this)
+        state.menu = row
+        state.preview(row); kotlinx.coroutines.yield()
+        assertNull(state.active); assertEquals(row, state.menu)
+        gate.complete(Unit); kotlinx.coroutines.yield(); kotlinx.coroutines.yield()
+        assertEquals(File("cached"), state.preview); assertNull(state.active); assertNull(state.menu)
+        state.preview = null
+        state.menu = row
+        state.pick(row)
+        assertNull(state.active); assertEquals(row, state.menu)
+        done!!(Result.success(Unit))
+        assertNull(state.active); assertNull(state.menu)
+        // 菜单在取图途中被关掉 → 结果作废,不会凭空弹出预览
+        state.menu = row
+        val slow = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val repo2 = object : GalleryRepository by repository {
+            override suspend fun original(item: GalleryItem, onProgress: (Long) -> Unit): GalleryLocal { slow.await(); return GalleryLocal(item, File("cached")) }
+        }
+        val s2 = GalleryPickerState(repo2, GalleryPickerActions({ _, _, _ -> {} }, {}, { _, _ -> }), this)
+        s2.menu = row; s2.preview(row); kotlinx.coroutines.yield()
+        s2.cancel(); s2.menu = null
+        slow.complete(Unit); kotlinx.coroutines.yield(); kotlinx.coroutines.yield()
+        assertNull(s2.preview); assertNull(s2.active)
+    }
+
     @Test fun disposingOldPickerCancelsOnlyItsOwnSelectionWaiter() = kotlinx.coroutines.runBlocking {
         val repository = object : GalleryRepository {
             override val state = kotlinx.coroutines.flow.MutableStateFlow(GallerySnapshot(null, emptyList(), false, null))
