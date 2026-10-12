@@ -3,8 +3,6 @@
 # 放了新图就在这里补一行;漏补的话单测 BuiltinNamesTest 会拦下,图照样显示(名字退回简体 / 文件名)。
 
 wallpapers/01-夏日数码门 = 夏日数码门 | 夏日數碼門 | Summer Digital Gate
-wallpapers/02-午夜玩具房 = 午夜玩具房 | 午夜玩具房 | Midnight Toy Room
-wallpapers/03-雨夜巴士站 = 雨夜巴士站 | 雨夜公車站 | Rainy Night Bus Stop
 wallpapers/04-风暴舰队 = 风暴舰队 | 風暴艦隊 | Storm Fleet
 
 screensavers/01-云海天光 = 云海天光 | 雲海天光 | Light Above the Clouds

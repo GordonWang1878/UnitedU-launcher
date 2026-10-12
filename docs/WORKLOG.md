@@ -2414,3 +2414,9 @@ Gordon 在 beta.9 上报三件事,模拟器 perfetto trace(给各解码点临时
 - 修:`RelaunchAfterUpdate` 的 HOME intent 带 `EXTRA_UPDATE_RELAUNCH`;MainActivity 带它启动后守 10 s(`UPDATE_RECLAIM_WINDOW_MS`),期间被盖住(`onStop`)且用户一个键都没按过 → 自己再起一次 HOME(最多 2 次,`shouldReclaimAfterUpdate`,单测)。夺回走的是同一个悬浮窗 appop 放行(能被拉回就能夺回)。代价:Apple TV 已被 CEC 唤醒(它自己会再睡)。
 - 模拟器四例:拉回后 2 s 被 YouTube 盖住且未按键 → 回到桌面(日志 `reclaiming home (#1)`);期间按过键 / 超过 10 s / 普通启动(不带标记)→ 都不干预。注意:系统设置是半透明侧边面板,盖着时本应用不进 `onStop`,测这类逻辑要用全屏应用(YouTube)。
 - 未验证:电视实测(要等下一个 Beta + 恰好首页下面是 tvlin 的那次更新)。
+
+## 2026-10-12 · 内置壁纸缩成两张,另两张移入在线图库
+
+- Gordon:有了在线图库,内置壁纸只留《夏日数码门》《风暴舰队》;《午夜玩具房》《雨夜巴士站》放进在线图库,「千万不要丢失」。
+- 先上图库再删包:两张 HDR 处理过的成品(sha256 与 APK 里逐字节相同)拷进图库源 `images/`,`resources.json` 加 `wall-midnight-toy-room` / `wall-rainy-night-bus-stop`(order 11 / 12,壁纸 + 屏保双用途),生成 revision-4(新增 2、更新 0、下架 0),发布后线上 `index.json` 与本地一致(`603d92a6…`),两张原图从线上下载回来 sha256 核对通过;图库源本地提交 `173e35c`。再从 `assets/builtin/wallpapers/` 删掉两张与 `names.txt` 两行。备份:未处理原图在 `~/unitedu-assets-originals/2026-09-28/` 与 `2026-09-28-renamed/`,成品在图库源、`unitedu-gallery-builds/revision-4` 与 git 历史。
+- 之前选了这两张内置壁纸的用户:`builtin:02-…` / `builtin:03-…` 在新版里解析不到,按原规则回落内置第一张(夏日数码门);图在在线图库里可以重新选。回退包照旧带着这两张。

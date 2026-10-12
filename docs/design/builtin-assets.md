@@ -94,7 +94,7 @@ unzip -l app/build/outputs/apk/release/app-release.apk | grep assets/builtin/   
 
 ## 2026-09-28 现状
 
-- 壁纸:01-夏日数码门(默认,Gordon 16:18 自己调的顺序)、02-午夜玩具房、03-雨夜巴士站、04-风暴舰队
+- 壁纸:01-夏日数码门(默认,Gordon 16:18 自己调的顺序)、04-风暴舰队(2026-10-12 起只留这两张;02-午夜玩具房、03-雨夜巴士站移入在线图库 revision-4,id `wall-midnight-toy-room` / `wall-rainy-night-bus-stop`)
 - 屏保:01-云海天光、02-暮色沙虫、03-海上列车、04-深空远征
 - 卡片:01-wetv、02-youku、03-youtube、04-iqiyi(品牌商标,归属写在 NOTICE)
 - 2026-10-01 晚 Gordon 重排卡片为 7 张:01-wetv、02-iqiyi、03-youku、04-bilibili、05-migu(咪视界)、06-mangotv、07-youtube——WeTV、优酷换了新图(webp → 512×288 PNG),爱奇艺 / 哔哩哔哩 / YouTube 只改了序号,咪视界是新加的;全部 512×288 PNG。卡片按内容复制,改名不影响用户已换上的卡
