@@ -2442,3 +2442,9 @@ Gordon 在 beta.9 上报三件事,模拟器 perfetto trace(给各解码点临时
 - 模拟器(`unitedu-tv`,接管开着,因为 Google 镜像上原厂桌面优先级高、HOME 抢不到):真 `adb install -r` 后 2 s 被 YouTube 盖住 → `reclaiming home (#1)`、回到桌面;2 s 时 `KEYCODE_SLEEP` → 不夺回;先按方向键再开 YouTube → 不夺回。壁纸:settings 写 `builtin:02-午夜玩具房` 冷启动 → 日志 `retired builtin wallpaper migrated`,读回 `gallery:wall-midnight-toy-room` + `galleryWallpaper` sha256。全量单测 + release 构建通过。
 - 未验证:屏保中更新的那条路(模拟器造屏保要整套设置,只靠单测与代码路径);电视实测随下一个 Beta。
 - 已合 main 并发 1.2.0-beta.15(versionCode 37,回退包 38;上面两项修复),main 推到 `46ad91f`。下一个 Beta 从 versionCode 39 起。电视实测待做:壁纸若曾选那两张,更新后应自动换回;更新后跳 HDMI 仍应几秒后自动回桌面。
+- Gordon 电视实测 beta.15:更新后跳 HDMI 几秒后自己回到桌面(夺回照旧生效)。
+
+## 2026-10-12 · 方形图标显得拥挤(R176)
+
+- Gordon:发下一个稳定版前最后一件事,自家 APK 的方形图标(不是 banner)显得拥挤。病因两层:R156 把标撑满安全圆,方形显示时四边几乎没有留白;内部方块、三角贴着碗的圆头,红圆贴着碗内壁。出了四版(现状 / A 整体缩小 / B 缩小 + 内部松开 / C 再小一档),Gordon 选 B。实现与参数见 spec R176;`gen.py` 重跑,banner md5 不变,release APK 内五个密度前景层与母版逐像素一致。
+- 模拟器看不到:TV 系统设置的应用详情页不画图标,Google TV 桌面按 versionCode 缓存旧图标;以电视为准。

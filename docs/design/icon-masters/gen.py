@@ -97,6 +97,36 @@ def mark_parts(size, cx, baseline):
     return svg, pts
 
 
+def icon_mark_parts(size, cx, baseline, shape_k=0.82, gap=0.045, circ_k=0.7):
+    """图标用的标(2026-10-12 Gordon:方形图标显得拥挤):同一个碗,方块 / 三角缩到 [shape_k]、两者之间与碗口之间
+    各留 [gap] × size 的空,红圆半径 = 碗内半宽 × [circ_k] 并与碗底拉开同样的空。banner 仍用 [mark_parts](不动)。"""
+    cap, stem, bw, inner, sq0 = dims(size)
+    top = baseline - cap
+    r = (bw - stem) / 2
+    arc_cy = baseline - bw / 2
+    leg_top = top + stem / 2
+    cr = inner * circ_k
+    sq, g = sq0 * shape_k, gap * size
+    sx = cx - (2 * sq + g) / 2  # 方块 + 空 + 三角,整体居中
+    base_y = top + sq0 * 0.45 - (sq0 - sq) * 0.45 - g * 0.6
+    tx = sx + sq + g
+    tri = [(tx, base_y), (tx + sq, base_y), (tx + sq / 2, base_y - sq)]
+    svg = (
+        f'<circle cx="{cx:.3f}" cy="{baseline - stem - cr - (0.008 + gap) * size:.3f}" r="{cr:.3f}" fill="{RED}"/>'
+        f'<rect x="{sx:.3f}" y="{base_y - sq:.3f}" width="{sq:.3f}" height="{sq:.3f}" fill="{YEL}"/>'
+        f'<path d="M{tri[0][0]:.3f} {tri[0][1]:.3f} L{tri[1][0]:.3f} {tri[1][1]:.3f} L{tri[2][0]:.3f} {tri[2][1]:.3f} Z" fill="{BLU}"/>'
+        f'<path d="M{cx - r:.3f} {leg_top:.3f} V{arc_cy:.3f} A{r:.3f} {r:.3f} 0 0 0 {cx + r:.3f} {arc_cy:.3f} V{leg_top:.3f}" '
+        f'fill="none" stroke="{INK}" stroke-width="{stem:.3f}" stroke-linecap="round"/>'
+    )
+    pts = [(sx, base_y - sq), (sx + sq, base_y - sq), *tri]
+    for a in range(0, 360, 5):
+        for s in (-1, 1):
+            pts.append((cx + s * r + stem / 2 * math.cos(math.radians(a)), leg_top + stem / 2 * math.sin(math.radians(a))))
+    for a in range(0, 181, 5):
+        pts.append((cx + bw / 2 * math.cos(math.radians(a)), arc_cy + bw / 2 * math.sin(math.radians(a))))
+    return svg, pts
+
+
 def banner_svg(avail_w=260, avail_h=116):
     word = "United"
 
@@ -117,10 +147,11 @@ def banner_svg(avail_w=260, avail_h=116):
     ), size
 
 
-def icon_fg_svg(safe_r=32.5):
-    """在 108 画布里找最大字号 + 最佳基线,使整个标离中心 (54, 54) 不超过 safe_r。"""
+def icon_fg_svg(safe_r=27.5):
+    """在 108 画布里找最大字号 + 最佳基线,使整个标离中心 (54, 54) 不超过 safe_r。
+    2026-10-12 起 safe_r 32.5 → 27.5(撑满安全圆在方形图标里四边没有留白,显得拥挤;对比图 docs/screenshots/icon-spacing/)。"""
     def worst(size, baseline):
-        _, pts = mark_parts(size, 54, baseline)
+        _, pts = icon_mark_parts(size, 54, baseline)
         return max(math.hypot(x - 54, y - 54) for x, y in pts)
 
     def best_baseline(size):
@@ -142,7 +173,7 @@ def icon_fg_svg(safe_r=32.5):
             hi = mid
     size = lo
     baseline = best_baseline(size)
-    svg, _ = mark_parts(size, 54, baseline)
+    svg, _ = icon_mark_parts(size, 54, baseline)
     return svg, size, baseline
 
 
