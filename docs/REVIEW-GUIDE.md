@@ -114,6 +114,7 @@
 - **`MainActivity` 同时挂 `LEANBACK_LAUNCHER` 与 `HOME`**:API 29+ 上可能出现两个实例(例如先 `am start -n` 再发 HOME intent);建议过跳板 Activity,未做。
 - **「自动关屏」行(R132 前叫「关闭屏幕」)确定键只能开系统设置首页**:那一页(TvSettings 的 `EnergySaverFragment`)在 AOSP 与索尼上都没有外部 intent 入口;行下小字从电视自己的设置应用里读真实菜单名(R127c)。
 - **R129 换行淡入按几何只在下键触发**:我们的焦点线在屏幕下部,上一行静止时全亮,单按上键不满足「换行前看不见」的条件(连按时才会);这是规则的结果,不是漏写。
+- **更新后夺回(`MainActivity.maybeReclaimAfterUpdate`)认不出系统截走的键**:输入源、电源、语音、品牌应用键到不了 `dispatchKeyEvent`,更新拉回后 10 s 内用它们离开桌面仍会被夺回一次;分辨「谁盖住了桌面」要 `PACKAGE_USAGE_STATS`,未做(WORKLOG 2026-10-12 代码审查一节)。熄屏、屏保已排除。
 - **A95L 界面层显示不了 HDR**(见 §5),内置 HDR 图在它上面等于 SDR。
 - **主线程 / 组合期的文件 IO**:有几处小文件读取在主线程或组合期里(`MainActivity.kt` 约 468 / 1449 / 1498 / 1822 行),体检报告里列了;目前文件都很小,未改。编辑页 `rows` 的初值 R167 起改由 MainActivity 在 `layoutWrites` 上预读,不再在组合期读盘。
 - **超大 composable**:`EditScreen.kt` 约 890 行,其中 `EditScreen` 这个 composable 约 550 行(R165 已拆出纯逻辑与零件)、`HomeScreen` 约 800 行、`MainActivity.onCreate` 约 580 行。拆分是已知的技术债,不是本轮目标。

@@ -40,12 +40,24 @@ class RelaunchPolicyTest {
         assertFalse(shouldRelaunchHome(homeOrTakeover(false, true), canDrawOverlays = false, wasOnScreen = true, userStartedUpdate = false))
     }
 
-    /** 2026-10-12:更新拉回后被输入源应用的 CEC 一键播放盖住 → 窗口内、没按过键、次数没用完才夺回。 */
+    /** 2026-10-12:更新拉回后被输入源应用的 CEC 一键播放盖住 → 窗口内、没按过键、次数没用完、亮屏且不在屏保才夺回。 */
     @Test fun reclaimOnlyInsideWindowWithoutUserKeys() {
-        assertTrue(shouldReclaimAfterUpdate(now = 5_000, guardUntil = 10_000, userKeyed = false, reclaims = 0))
-        assertFalse(shouldReclaimAfterUpdate(now = 5_000, guardUntil = 10_000, userKeyed = true, reclaims = 0))
-        assertFalse(shouldReclaimAfterUpdate(now = 10_000, guardUntil = 10_000, userKeyed = false, reclaims = 0))
-        assertFalse(shouldReclaimAfterUpdate(now = 5_000, guardUntil = 10_000, userKeyed = false, reclaims = UPDATE_RECLAIM_MAX))
-        assertFalse(shouldReclaimAfterUpdate(now = 5_000, guardUntil = 0, userKeyed = false, reclaims = 0))
+        fun r(now: Long = 5_000, until: Long = 10_000, keyed: Boolean = false, n: Int = 0, on: Boolean = true, dream: Boolean = false) =
+            shouldReclaimAfterUpdate(now, until, keyed, n, interactive = on, dreaming = dream)
+        assertTrue(r())
+        assertFalse("按过键", r(keyed = true))
+        assertFalse("窗口到头", r(now = 10_000))
+        assertFalse("次数用完", r(n = UPDATE_RECLAIM_MAX))
+        assertFalse("没武装", r(until = 0))
+        assertFalse("熄屏 / 待机", r(on = false))
+        assertFalse("屏保", r(dream = true))
+    }
+
+    /** 标记带发出时刻:窗口内才武装;任务根 intent 里残留的旧标记(过窗、或重启后来自「未来」)不武装。 */
+    @Test fun guardArmsOnlyForFreshRelaunch() {
+        assertEquals(1_000 + UPDATE_RECLAIM_WINDOW_MS, updateGuardUntil(sentAt = 1_000, now = 1_500))
+        assertEquals(0L, updateGuardUntil(sentAt = 0, now = 1_500))
+        assertEquals(0L, updateGuardUntil(sentAt = 1_000, now = 1_000 + UPDATE_RECLAIM_WINDOW_MS))
+        assertEquals(0L, updateGuardUntil(sentAt = 50_000, now = 1_500))
     }
 }

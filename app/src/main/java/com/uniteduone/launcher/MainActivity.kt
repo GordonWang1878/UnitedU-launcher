@@ -64,6 +64,10 @@ private const val KEY_ABOUT_OPEN = "aboutOpen"
 private const val KEY_ABOUT_FOCUS = "aboutFocus"
 /** 见 [MainActivity.selfTriggeredRecreate] 的 KDoc、`SettingsRestorePolicy.kt`。 */
 private const val KEY_SELF_RECREATE = "selfTriggeredRecreate"
+/** 更新后夺回的守护状态(见 [EXTRA_UPDATE_RELAUNCH]);只在窗口还开着时写。 */
+private const val KEY_UPDATE_GUARD_UNTIL = "updateGuardUntil"
+private const val KEY_UPDATE_KEYED = "updateKeyed"
+private const val KEY_UPDATE_RECLAIMS = "updateReclaims"
 /** 首次引导停在第几步(T10)。只在引导开着时写;还原规则见 `onCreate` 里引导那一段。 */
 private const val KEY_ONB_STEP = "onbStep"
 /** 自己触发的重建之后要补发的提示(R140,字符串资源 id);见 [MainActivity.toastAfterRecreate]。 */
@@ -422,7 +426,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (savedInstanceState == null) armUpdateReclaim(intent)
+        if (savedInstanceState == null) { armUpdateReclaim(intent); migrateRetiredWallpaper() } else restoreUpdateReclaim(savedInstanceState)
         // R164:本应用第一处运行时权限。结果回来 channelsRevision++(编辑页 / 选频道页 / 首页重读),focusNonce++(系统授权窗
         // 盖过来时本页 ON_PAUSE 冻结了焦点,回来要接回)。
         tvListingsRequest = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
@@ -1307,6 +1311,12 @@ class MainActivity : ComponentActivity() {
         // 这里写下的就是 2——重建后直接落在第 2 步、已是新语言。
         if (onboarding) outState.putInt(KEY_ONB_STEP, onbStep)
         if (selfTriggeredRecreate) toastAfterRecreate?.let { outState.putInt(KEY_TOAST_AFTER_RECREATE, it) }
+        // 更新后夺回的守护窗口跨重建续命:拉回后几秒内切语言 / 配置变化重建,不能让 CEC 那一下没人管
+        if (updateGuardUntil != 0L) {
+            outState.putLong(KEY_UPDATE_GUARD_UNTIL, updateGuardUntil)
+            outState.putBoolean(KEY_UPDATE_KEYED, updateKeyed)
+            outState.putInt(KEY_UPDATE_RECLAIMS, updateReclaims)
+        }
     }
 
     /**
@@ -1904,29 +1914,42 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         RelaunchMarks.setHomeVisible(this, false)
         super.onStop()
-        if (!isChangingConfigurations && !isFinishing &&
-            shouldReclaimAfterUpdate(android.os.SystemClock.elapsedRealtime(), updateGuardUntil, updateKeyed, updateReclaims)
-        ) {
-            updateReclaims++
-            val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-                .setComponent(android.content.ComponentName(this, MainActivity::class.java))
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            runCatching { startActivity(home) }
-                .onSuccess { android.util.Log.i("UnitedU", "covered right after update relaunch; reclaiming home (#$updateReclaims)") }
-                .onFailure { android.util.Log.w("UnitedU", "update reclaim failed", it) }
+        if (updateGuardUntil != 0L && !isChangingConfigurations && !isFinishing) {
+            // 稍等再判:屏保开始、熄屏要一点时间才反映到 RelaunchMarks / isInteractive 上
+            lifecycleScope.launch { delay(UPDATE_RECLAIM_SETTLE_MS); maybeReclaimAfterUpdate() }
         }
     }
 
     // ---- 更新后夺回(2026-10-12,见 EXTRA_UPDATE_RELAUNCH):带标记启动后守 UPDATE_RECLAIM_WINDOW_MS,用户按过键即解除 ----
+    // 已知盲区:系统先截走的键(输入源、电源、语音、品牌应用键)到不了 dispatchKeyEvent,窗口内用这些键离开桌面
+    // 仍会被当成 CEC 盖住而夺回一次;应用层拿不到「是谁盖住了我们」(要 PACKAGE_USAGE_STATS)。
     private var updateGuardUntil = 0L
     private var updateKeyed = false
     private var updateReclaims = 0
     private fun armUpdateReclaim(intent: Intent?) {
-        if (intent?.getBooleanExtra(EXTRA_UPDATE_RELAUNCH, false) != true) return
-        intent.removeExtra(EXTRA_UPDATE_RELAUNCH)
-        updateGuardUntil = android.os.SystemClock.elapsedRealtime() + UPDATE_RECLAIM_WINDOW_MS
+        val sentAt = intent?.getLongExtra(EXTRA_UPDATE_RELAUNCH, 0L) ?: 0L
+        if (sentAt == 0L) return
+        intent?.removeExtra(EXTRA_UPDATE_RELAUNCH)
+        val until = updateGuardUntil(sentAt, android.os.SystemClock.elapsedRealtime())
+        if (until == 0L) return
+        updateGuardUntil = until
         updateKeyed = false
         updateReclaims = 0
+    }
+    private fun restoreUpdateReclaim(state: Bundle) {
+        updateGuardUntil = state.getLong(KEY_UPDATE_GUARD_UNTIL, 0L)
+        updateKeyed = state.getBoolean(KEY_UPDATE_KEYED, false)
+        updateReclaims = state.getInt(KEY_UPDATE_RECLAIMS, 0)
+    }
+    private fun maybeReclaimAfterUpdate() {
+        if (isFinishing || isDestroyed || lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) return
+        val interactive = getSystemService(android.os.PowerManager::class.java)?.isInteractive != false
+        val dreaming = RelaunchMarks.read(this).dreaming
+        if (!shouldReclaimAfterUpdate(android.os.SystemClock.elapsedRealtime(), updateGuardUntil, updateKeyed, updateReclaims, interactive, dreaming)) return
+        updateReclaims++
+        runCatching { startActivity(homeRelaunchIntent(this, implicit = false)) }
+            .onSuccess { android.util.Log.i("UnitedU", "covered right after update relaunch; reclaiming home (#$updateReclaims)") }
+            .onFailure { android.util.Log.w("UnitedU", "update reclaim failed", it) }
     }
 
     /** R164:500 ms 尾沿去抖后 channelsRevision++(应用同步频道时会连写几十行);持续在写时从第一次变化起最多等 2 s。 */
@@ -2405,6 +2428,42 @@ class MainActivity : ComponentActivity() {
                 }
                 check(committed == true) { "Gallery selection cancelled" }
             } finally { staged?.delete() }
+        }
+    }
+
+    /**
+     * 选过已退出内置的壁纸([RETIRED_BUILTIN_WALLPAPERS])的用户:后台下载图库里的同一张、把选中值换过去(2026-10-12)。
+     * 失败(离线、图库没这张)什么都不说,下次冷启动再试;下载期间用户自己换了壁纸,选中值已不是旧值 → 不动。
+     */
+    private fun migrateRetiredWallpaper() {
+        lifecycleScope.launch {
+            val ctx = this@MainActivity
+            val result = runCatching {
+                val (old, galleryId) = withContext(Dispatchers.IO) {
+                    if (Paths.baseOrNull(ctx) == null) return@withContext null
+                    val old = SettingsStore.read(ctx).wallpaperFile
+                    retiredWallpaperGalleryId(old, BuiltinImages.list(ctx, BuiltinKind.WALLPAPERS).map { it.id })?.let { old to it }
+                } ?: return@launch
+                val repo = GalleryAndroid.repository(ctx)
+                fun find() = repo.state.value.catalog?.items?.firstOrNull { it.id == galleryId && BuiltinKind.WALLPAPERS in it.usages }
+                val item = find() ?: run { repo.refresh(); find() } ?: error("gallery has no $galleryId")
+                repo.original(item) { }
+                val adoption = GalleryAdoption(item.id, item.original.blob.sha256)
+                withContext(Dispatchers.IO) {
+                    GalleryMutationGate.locked {
+                        check(GalleryAndroid.store(ctx).resolve(adoption) != null) { "gallery original missing" }
+                        var wrote = false
+                        check(SettingsStore.update(ctx) {
+                            if (it.wallpaperFile != old) it
+                            else { wrote = true; it.copy(wallpaperFile = "gallery:${item.id}", galleryWallpaper = adoption) }
+                        } != null) { "cannot save wallpaper" }
+                        wrote
+                    }
+                }
+            }
+            result.exceptionOrNull()?.let { if (it is kotlinx.coroutines.CancellationException) throw it }
+            result.onSuccess { if (it) { android.util.Log.i("UnitedU", "retired builtin wallpaper migrated to gallery"); settingsRevision++ } }
+                .onFailure { android.util.Log.w("UnitedU", "retired wallpaper migration failed; retry next launch", it) }
         }
     }
 

@@ -168,4 +168,16 @@ class BuiltinCatalogTest {
         assertEquals(emptySet<String>(), toggleExcluded(setOf("01-a"), "01-a"))
         assertEquals(setOf("01-a", "02-b"), toggleExcluded(setOf("01-a"), "02-b"))
     }
+
+    /** 2026-10-12:退出内置的两张壁纸映射到图库里的同一张;还在内置、别的内置、图库 / 我的选中值都不映射。 */
+    @Test fun retiredBuiltinWallpaperMapsToGallery() {
+        val now = listOf("01-夏日数码门", "04-风暴舰队")
+        assertEquals("wall-midnight-toy-room", retiredWallpaperGalleryId("builtin:02-午夜玩具房", now))
+        assertEquals("wall-rainy-night-bus-stop", retiredWallpaperGalleryId("builtin:03-雨夜巴士站", now))
+        assertNull(retiredWallpaperGalleryId("builtin:02-午夜玩具房", now + "02-午夜玩具房"))
+        assertNull(retiredWallpaperGalleryId("builtin:01-夏日数码门", now))
+        assertNull(retiredWallpaperGalleryId("gallery:wall-midnight-toy-room", now))
+        assertNull(retiredWallpaperGalleryId("02-午夜玩具房.jpg", now))
+        assertNull(retiredWallpaperGalleryId("", now))
+    }
 }

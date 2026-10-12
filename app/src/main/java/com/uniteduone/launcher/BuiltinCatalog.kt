@@ -233,6 +233,19 @@ internal fun resolveWallpaperChoice(
     return firstMine()?.let { ImageChoice.Mine(it) }
 }
 
+/**
+ * 退出内置、改放在线图库的壁纸(2026-10-12 内置缩成两张):旧选中值里的内置 ID → 图库 id。
+ * 选过它们的用户升级后由 MainActivity 在后台下载原图、把选中值换成图库那张;下载成功前照 [resolveWallpaperChoice] 回落。
+ */
+internal val RETIRED_BUILTIN_WALLPAPERS = mapOf(
+    "02-午夜玩具房" to "wall-midnight-toy-room",
+    "03-雨夜巴士站" to "wall-rainy-night-bus-stop",
+)
+
+/** 选中值指向一张已退出内置、在图库里有替身的壁纸 → 图库 id;否则 null(还在内置清单里的不算)。 */
+internal fun retiredWallpaperGalleryId(value: String, builtinIds: List<String>): String? =
+    (decodeImageChoice(value) as? ImageChoice.Builtin)?.id?.takeIf { it !in builtinIds }?.let { RETIRED_BUILTIN_WALLPAPERS[it] }
+
 // ---- 屏保轮播(R117)--------------------------------------------------------------------------------
 
 /**

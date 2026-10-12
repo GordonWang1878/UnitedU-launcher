@@ -16,9 +16,8 @@ import android.util.Log
 class RelaunchAfterUpdate : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
-        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
         val defaultHome = context.packageManager
-            .resolveActivity(home, PackageManager.MATCH_DEFAULT_ONLY)
+            .resolveActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), PackageManager.MATCH_DEFAULT_ONLY)
             ?.activityInfo?.packageName
         val isDefaultHome = defaultHome == context.packageName
         // R162:主页键接管开着时也拉;不是默认桌面的话隐式 HOME 会解析到原厂桌面,得点名自己(仍带 MAIN + HOME → type=home 任务)。
@@ -33,11 +32,10 @@ class RelaunchAfterUpdate : BroadcastReceiver() {
                 "onScreen=$wasOnScreen (home=${marks.homeVisible} dream=${marks.dreaming}) userStarted=$userStarted")
             return
         }
-        // type=home 的桌面任务靠 MAIN + HOME 类别认(上面的 home 带着);只点名 Activity、不带 HOME 的 intent 会变成普通任务。
-        // 被后台启动限制拦下时 startActivity 不抛异常,判定要看 ActivityTaskManager 的日志。
-        val target = if (isDefaultHome) home else home.setComponent(android.content.ComponentName(context, MainActivity::class.java))
-        // 带标记:桌面据此守一会儿,被输入源应用的 CEC 一键播放盖住时自己回来(见 EXTRA_UPDATE_RELAUNCH)
-        runCatching { context.startActivity(target.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra(EXTRA_UPDATE_RELAUNCH, true)) }
+        // 带标记(发出时刻):桌面据此守一会儿,被输入源应用的 CEC 一键播放盖住时自己回来(见 EXTRA_UPDATE_RELAUNCH)
+        val target = homeRelaunchIntent(context, implicit = isDefaultHome)
+            .putExtra(EXTRA_UPDATE_RELAUNCH, android.os.SystemClock.elapsedRealtime())
+        runCatching { context.startActivity(target) }
             .onSuccess { Log.i(TAG, "package replaced; HOME intent sent (verdict in ActivityTaskManager log)") }
             .onFailure { Log.w(TAG, "package replaced; relaunch threw", it) }
     }
@@ -46,3 +44,14 @@ class RelaunchAfterUpdate : BroadcastReceiver() {
         const val TAG = "UnitedU"
     }
 }
+
+/**
+ * 把桌面拉回前台的 HOME intent(更新后拉回与 MainActivity 的更新后夺回共用一份)。
+ * type=home 的桌面任务靠 MAIN + HOME 类别认;只点名 Activity、不带 HOME 的 intent 会变成普通任务。
+ * [implicit]:我们是默认桌面时用隐式 HOME;否则(R162 主页键接管)隐式会解析到原厂桌面,得点名自己。
+ * 被后台启动限制拦下时 startActivity 不抛异常,判定要看 ActivityTaskManager 的日志。
+ */
+internal fun homeRelaunchIntent(context: Context, implicit: Boolean): Intent =
+    Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).apply {
+        if (!implicit) setComponent(android.content.ComponentName(context, MainActivity::class.java))
+    }

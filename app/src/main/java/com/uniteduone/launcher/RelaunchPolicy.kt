@@ -26,19 +26,36 @@ fun isRecentUpdateRequest(pendingAt: Long, now: Long, window: Long = UPDATE_REQU
 fun homeOrTakeover(isDefaultHome: Boolean, takeoverEnabled: Boolean): Boolean = isDefaultHome || takeoverEnabled
 
 /**
- * 更新后拉回的 HOME intent 带这个标记(2026-10-12 Gordon:更新完跳到 Apple TV 的 HDMI 2,要再按 HOME)。
- * 机制见 CLAUDE.local.md「R151 拉回也挡不住 CEC」:首页任务被删的空档里输入源应用(tvlin)被短暂恢复、调回上次的 HDMI,
- * 3 s 后被 CEC 一键播放顶到最前,盖住已经拉回的桌面。带标记启动的桌面在 [UPDATE_RECLAIM_WINDOW_MS] 内被盖住、
+ * 更新后拉回的 HOME intent 带这个标记,值是发出时的 `elapsedRealtime`(2026-10-12 Gordon:更新完跳到 Apple TV 的 HDMI 2,要再按 HOME)。
+ * 机制见 WORKLOG 2026-10-12「更新后跳到 Apple TV 的 HDMI 2」:首页任务被删的空档里输入源应用(tvlin)被短暂恢复、调回上次的 HDMI,
+ * 约 3 s 后被 CEC 一键播放顶到最前,盖住已经拉回的桌面。带标记启动的桌面在 [UPDATE_RECLAIM_WINDOW_MS] 内被盖住、
  * 而用户一个键都没按过时,自己再回前台([shouldReclaimAfterUpdate])。
+ * 带时间戳而不是布尔:系统存着的任务根 intent 里标记删不掉,以后用它重建出新实例时按时间认出是旧的([updateGuardUntil])。
  */
 const val EXTRA_UPDATE_RELAUNCH = "com.uniteduone.launcher.UPDATE_RELAUNCH"
 
 /** 更新拉回后守多久(CEC 那一下实测在拉回后约 3 s;留足余量)。 */
 const val UPDATE_RECLAIM_WINDOW_MS = 10_000L
 
+/** 被盖住后等多久再判:屏保开始([RelaunchMarks.setDreaming])、熄屏要一点时间才反映出来。 */
+const val UPDATE_RECLAIM_SETTLE_MS = 500L
+
 /** 每次更新最多夺回几次:防止与某个同样执着的应用来回抢。 */
 const val UPDATE_RECLAIM_MAX = 2
 
-/** 桌面刚被盖住([now] 是 elapsedRealtime):在守护窗口内、用户没按过键、次数没用完 → 夺回。 */
-fun shouldReclaimAfterUpdate(now: Long, guardUntil: Long, userKeyed: Boolean, reclaims: Int): Boolean =
-    !userKeyed && now < guardUntil && reclaims < UPDATE_RECLAIM_MAX
+/** 带标记启动时守到什么时候([sentAt]、[now] 都是 elapsedRealtime);标记缺失、已过窗口或来自未来(重启过)→ 0 = 不守。 */
+fun updateGuardUntil(sentAt: Long, now: Long): Long =
+    if (sentAt > 0L && now >= sentAt && now - sentAt < UPDATE_RECLAIM_WINDOW_MS) sentAt + UPDATE_RECLAIM_WINDOW_MS else 0L
+
+/**
+ * 桌面被盖住([now] 是 elapsedRealtime):在守护窗口内、用户没按过键、次数没用完,**而且**屏幕亮着、不在我们的屏保里 → 夺回。
+ * 熄屏 / 待机与屏保不是「被别的应用盖住」,夺回只会把电视叫醒或把屏保打掉。
+ */
+fun shouldReclaimAfterUpdate(
+    now: Long,
+    guardUntil: Long,
+    userKeyed: Boolean,
+    reclaims: Int,
+    interactive: Boolean,
+    dreaming: Boolean,
+): Boolean = !userKeyed && now < guardUntil && reclaims < UPDATE_RECLAIM_MAX && interactive && !dreaming
