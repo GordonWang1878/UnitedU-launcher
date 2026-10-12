@@ -126,7 +126,7 @@ Hold OK on an app card (about 0.6 seconds) for a menu:
 - **Move** — right on the home screen: left/right swap with the neighboring card, up/down move to the adjacent row, OK drops it, Back cancels
 - **Remove from Row** — only takes it off this row; the app itself is not uninstalled
 
-Adding and deleting rows, changing a row's icon (rows have no names, only icons) and reorganizing across rows happen in Settings → Layout → Edit Home Screen. It shows your rows as shelves: each shelf's actions sit along its top (Add App / Icon / Move Up / Move Down / Delete). Press OK on a card to pick it up, move it with the arrow keys (up and down move it to another row), then OK to drop it or Back to cancel. Hold OK or press Menu on a card for its menu (Change Card Art / Remove). "New Row" at the bottom adds a row (up to 5).
+Adding and deleting rows, changing a row's icon (rows have no names, only icons) and reorganizing across rows happen in Settings → Home Layout → Edit Home Screen. It shows your rows as shelves: each shelf's actions sit along its top (Add App / Icon / Move Up / Move Down / Delete). Press OK on a card to pick it up, move it with the arrow keys (up and down move it to another row), then OK to drop it or Back to cancel. Hold OK or press Menu on a card for its menu (Change Card Art / Remove). "New Row" at the bottom adds a row (up to 5).
 
 ## Settings
 
@@ -135,7 +135,7 @@ Settings is a column of buttons on the right: **Up/Down** to move, **OK** to go 
 | Top level | Contents |
 |---|---|
 | General | Language; Set Default Home App (the current default is shown on the right); Library; Idle Screen (sub-page: Idle Start Time Never/1/3/5/10 min; Show When Idle Wallpaper + Clock / Black / No Change); Clock Display (Time Only / Time & Date / Time, Date & Weekday; 12/24-hour follows the system). When the system animation speed isn't 1×, an extra row points it out and OK jumps to Developer options |
-| Layout | Edit Home Screen; Card Size (Small/Medium/Large = 8/6/5 per row); Show App Names; Card Saturation; Card Brightness; Card Transparency (only affects cards that aren't selected) |
+| Home Layout | Edit Home Screen; Card Size (Small/Medium/Large = 8/6/5 per row); Show App Names; Card Saturation; Card Brightness; Card Transparency (only affects cards that aren't selected) |
 | Appearance | Switch Wallpaper (hold OK to delete your own uploads); Wallpaper Blur; Wallpaper Brightness (darker or brighter); Theme Color (5 light colors); Match Wallpaper Color |
 | Screensaver | Start screensaver now; Screensaver Start Time (how long after the idle screen appears); Screensaver Gallery; Switch Interval; System Screensaver (shows the TV system screensaver's switch / source / start time, OK jumps to system settings); Auto Screen Off (read-only display of the TV's "turn off screen after inactivity" setting; with the cursor on this row the left side says where to change it in the TV settings; OK opens the system settings home) |
 | Native TV Settings | Opens the TV's own Android settings (network, picture, sound, …) |

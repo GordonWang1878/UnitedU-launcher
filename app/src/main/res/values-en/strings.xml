@@ -136,7 +136,7 @@
 
     <!-- home_* : home screen and default-home settings card -->
     <string name="home_empty_go">Go Now</string>
-    <string name="home_empty_apps_hint">No apps on your home screen yet. Add the ones you use most in “Settings &gt; Layout &gt; Edit Home Screen”</string>
+    <string name="home_empty_apps_hint">No apps on your home screen yet. Add the ones you use most in “Settings &gt; Home Layout &gt; Edit Home Screen”</string>
     <string name="home_settings_title">Default Home App</string>
     <string name="home_settings_current_label">Current</string>
     <string name="home_settings_change_button">Change in Native TV Settings</string>
@@ -190,7 +190,7 @@
     <!-- settings_* : UnitedU settings page (grouped) -->
     <!-- R57(2026-09-23):设置页左栏四组 通用 / 布局 / 外观 / 屏保 -->
     <string name="settings_group_general">General</string>
-    <string name="settings_group_layout">Layout</string>
+    <string name="settings_group_layout">Home Layout</string>
     <string name="settings_group_appearance">Appearance</string>
     <string name="settings_group_screensaver">Screensaver</string>
     <!-- R57:「时钟显示」二选一,映射既有 showDate(0 = 仅时间,1 = 时间与日期) -->

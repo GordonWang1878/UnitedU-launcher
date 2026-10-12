@@ -128,7 +128,7 @@
 
     <!-- home_* : 首页与默认桌面设置卡 -->
     <string name="home_empty_go">立即前往</string>
-    <string name="home_empty_apps_hint">桌面上还没有应用，请前往「设置-布局-编辑桌面」页面添加常用的应用</string>
+    <string name="home_empty_apps_hint">桌面上还没有应用，请前往「设置-桌面布局-编辑桌面」页面添加常用的应用</string>
     <string name="home_settings_title">默认桌面</string>
     <string name="home_settings_current_label">当前</string>
     <string name="home_settings_change_button">去原生电视设置更改</string>
@@ -182,7 +182,7 @@
     <!-- settings_* : UnitedU 设置页(分组带标题) -->
     <!-- R57(2026-09-23):设置页左栏四组 通用 / 布局 / 外观 / 屏保 -->
     <string name="settings_group_general">通用</string>
-    <string name="settings_group_layout">布局</string>
+    <string name="settings_group_layout">桌面布局</string>
     <string name="settings_group_appearance">外观偏好</string>
     <string name="settings_group_screensaver">屏保</string>
     <!-- R57:「时钟显示」二选一,映射既有 showDate(0 = 仅时间,1 = 时间与日期) -->

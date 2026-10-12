@@ -128,7 +128,7 @@
 
     <!-- home_* : 首頁與預設桌面設定卡 -->
     <string name="home_empty_go">立即前往</string>
-    <string name="home_empty_apps_hint">桌面上還沒有應用程式，請前往「設定-版面-編輯桌面」頁面新增常用的應用程式</string>
+    <string name="home_empty_apps_hint">桌面上還沒有應用程式，請前往「設定-桌面版面-編輯桌面」頁面新增常用的應用程式</string>
     <string name="home_settings_title">預設桌面</string>
     <string name="home_settings_current_label">目前</string>
     <string name="home_settings_change_button">前往原生電視設定變更</string>
@@ -182,7 +182,7 @@
     <!-- settings_* : UnitedU 設定頁(分組帶標題) -->
     <!-- R57(2026-09-23):设置页左栏四组 通用 / 布局 / 外观 / 屏保 -->
     <string name="settings_group_general">通用</string>
-    <string name="settings_group_layout">版面</string>
+    <string name="settings_group_layout">桌面版面</string>
     <string name="settings_group_appearance">外觀偏好</string>
     <string name="settings_group_screensaver">螢幕保護</string>
     <!-- R57:「时钟显示」二选一,映射既有 showDate(0 = 仅时间,1 = 时间与日期) -->
