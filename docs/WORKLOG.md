@@ -2402,3 +2402,4 @@ Gordon 在 beta.9 上报三件事,模拟器 perfetto trace(给各解码点临时
 ## 2026-10-12 · 换卡片图页:原图归内置、去掉在线图库(R175)
 
 - Gordon 电视实测 beta.12 资料库:还可以。另提卡片图页两点,我的建议他全采纳:原图挪进「内置」第一格(改名「原图」);卡片图页不显示「在线图库」(线上目前一张卡片图都没有,永远是空块;以后要发,并进内置)。实现见 spec R175,`IconPicker` 不再接 `galleryActions`。
+- 已合 main 并发 1.2.0-beta.13(versionCode 33,回退包 34;R175),main 推到 `476cdad`。下一个 Beta 从 versionCode 35 起。
