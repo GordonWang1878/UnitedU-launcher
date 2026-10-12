@@ -1280,7 +1280,6 @@ class MainActivity : ComponentActivity() {
                 directory = Paths.cardLibrary(this),
                 originalIcon = remember(target) { Apps.originalIcon(this, target) },
                 nonce = focusNonce,
-                    galleryActions = GalleryPickerActions(::handleGalleryPick, ::cancelGallerySelection, ::removeGalleryScreensaver, ::adoptGallery),
                 onSelect = { file -> handlePick(file) },
                 onRestoreOriginal = { restoreOriginalIcon(target) },
                 onDismiss = { pickerTarget = null; focusNonce++ },

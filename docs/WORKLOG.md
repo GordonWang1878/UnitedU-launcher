@@ -2398,3 +2398,7 @@ Gordon 在 beta.9 上报三件事,模拟器 perfetto trace(给各解码点临时
 - 新文件 `UserMedia.kt`(列图片 / 视频、迁移、轮播项);`scanScreensaverLibrary` = 屏保图库「我的」,新 `scanScreensaverRotation` = 参与轮播的「我的」。
 - 模拟器离线态之外的坑:headless Chrome 截手机网页,`--window-size=390,…` 会按更宽的视口排版再裁成 390,看着像右边溢出;用 520 宽截。
 - 已合 main 并发 1.2.0-beta.12(versionCode 31,回退包 32;资料库 R174),main 推到 `1c21415`。下一个 Beta 从 versionCode 33 起。
+
+## 2026-10-12 · 换卡片图页:原图归内置、去掉在线图库(R175)
+
+- Gordon 电视实测 beta.12 资料库:还可以。另提卡片图页两点,我的建议他全采纳:原图挪进「内置」第一格(改名「原图」);卡片图页不显示「在线图库」(线上目前一张卡片图都没有,永远是空块;以后要发,并进内置)。实现见 spec R175,`IconPicker` 不再接 `galleryActions`。

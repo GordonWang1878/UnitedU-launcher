@@ -282,7 +282,7 @@ private class WallpaperDelete(val file: File, val current: Boolean)
  * 横幅判据照 R88/R107;选中时把**内容**复制成 icons/<包名>.png(与「我的」同一条路,内置与我的同名也不冲突)。
  * **R159 起只列属于 [packageName] 的内置卡**(按 card-apps.txt,见 [builtinCardsFor]):爱奇艺卡不会出现在腾讯的选图页里;
  * 一张都没有时「内置」整块不画,网格与内置目录为空时逐格相同(格子换算只认 builtinCount)。
- * 下块「我的」=「＋」+「恢复原图」+ 卡片图库。
+ * 下块「我的」=「＋」+ 卡片图库。R175 起「原图」(应用 APK 自带的那张)是「内置」第一格;没有「在线图库」一块。
  */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
@@ -296,7 +296,6 @@ fun IconPicker(
     onDismiss: () -> Unit,
     onAddFromPhone: () -> Unit,
     landing: List<String>? = null,
-    galleryActions: GalleryPickerActions? = null,
 ) {
     val ctx = LocalContext.current
     val files = remember(directory) { listImages(directory) }
@@ -306,20 +305,14 @@ fun IconPicker(
     }
     // R63 起不再截到 16 项(TvHome 时期网格不能滚的遗留;现在是自算位移的视窗,换壁纸 / 屏保图库本来就不截):
     // 有了「从手机添加」,卡片图库超过 16 张是常态,截掉的话刚传的那张在网格里根本不存在、焦点也落不上去。
-    val items = remember(originalIcon, files) {
-        buildList {
-            if (originalIcon != null) add(PickerItem.Original(originalIcon))
-            addAll(files.map { PickerItem.Library(it) })
-        }
-    }
+    // 2026-10-12 Gordon(R175):「原图」是应用 APK 自带的,归「内置」(第一格),不在「我的」;
+    // 卡片图页没有「在线图库」——卡片图只是应用的封面,不是持续更新的内容(以后真在线发卡片图,并进「内置」)。
+    val items = remember(files) { files.map { PickerItem.Library(it) } }
     val ghost = LocalPageGhost.current
     androidx.activity.compose.BackHandler(enabled = !ghost) { onDismiss() }
     PickerPage {
         if (builtins != null) PickerGrid(
-                galleryActions = galleryActions,
-                galleryKind = BuiltinKind.CARDS,
-                galleryPackage = packageName,
-            builtins = builtins.map { PickerItem.Builtin(it) },
+            builtins = listOfNotNull(originalIcon?.let { PickerItem.Original(it) }) + builtins.map { PickerItem.Builtin(it) },
             items = items,
             title = stringResource(R.string.picker_card_image_title),
             columns = PICKER_CARD_COLUMNS,
@@ -364,9 +357,9 @@ private fun PickerGrid(
     galleryActions: GalleryPickerActions? = null,
     galleryKind: BuiltinKind = BuiltinKind.WALLPAPERS,
     galleryPackage: String? = null,
-    /** 上块「内置」(R115);空 = 上块整块不画,「我的」也不画标题(版式与 R63 相同)。 */
-    builtins: List<PickerItem.Builtin>,
-    /** 下块「我的」里「＋」之后的格子:图库图片(换卡片图时第一项是「恢复原图」)。 */
+    /** 上块「内置」(R115);空 = 上块整块不画,「我的」也不画标题(版式与 R63 相同)。换卡片图时第一格是「原图」(R175)。 */
+    builtins: List<PickerItem>,
+    /** 下块「我的」里「＋」之后的格子:图库图片。 */
     items: List<PickerItem>,
     title: String,
     columns: Int,

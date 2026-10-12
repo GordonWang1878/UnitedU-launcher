@@ -164,7 +164,7 @@
     <string name="picker_no_images">No images available yet</string>
     <string name="picker_back_to_cancel">Press OK to choose, Back to cancel</string>
     <string name="picker_wallpaper_hint">Press OK to preview or choose, Back to cancel</string>
-    <string name="picker_restore_original">Restore Original</string>
+    <string name="picker_restore_original">Original</string>
     <!-- 内置图名字表(assets/builtin/names.txt)取哪一列(R137);随这份 strings.xml 的语言走,不要翻译成别的值 -->
     <string name="builtin_names_lang">en</string>
     <string name="picker_add_from_phone">Library</string>

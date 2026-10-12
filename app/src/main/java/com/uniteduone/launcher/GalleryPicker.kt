@@ -6,7 +6,7 @@ import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.*
 import java.io.File
 
-internal fun pickerFocusGroup(key: String): PickerSection = when (key.substringBefore(":")) { "builtin" -> PickerSection.BUILTIN; "gallery" -> PickerSection.GALLERY; else -> PickerSection.MINE }
+internal fun pickerFocusGroup(key: String): PickerSection = when (key.substringBefore(":")) { "builtin", "original" -> PickerSection.BUILTIN; "gallery" -> PickerSection.GALLERY; else -> PickerSection.MINE }
 internal fun galleryFocusKey(id: String) = "gallery:$id"
 internal fun resolveGalleryFocus(previous: String, previousKeys: List<String>, newKeys: List<String>): String {
     if (previous in newKeys) return previous

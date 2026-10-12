@@ -47,7 +47,7 @@ class GalleryPickerTest {
     @Test fun onlineCellsNeverAliasMineOrPhone() {
         assertEquals(PickerSection.MINE, pickerFocusGroup("mine:path"))
         assertEquals(PickerSection.MINE, pickerFocusGroup("add"))
-        assertEquals(PickerSection.MINE, pickerFocusGroup("original"))
+        assertEquals(PickerSection.BUILTIN, pickerFocusGroup("original"))
         assertEquals("add", resolveGalleryFocus("mine:last", listOf("add", "mine:last"), listOf("add")))
         val lines = pickerLines(2, 3, 4, 6)
         assertEquals(8, addCell(2, 6))
