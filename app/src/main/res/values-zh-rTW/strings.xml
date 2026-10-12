@@ -35,13 +35,13 @@
     <string name="toast_uninstall_failed">無法開啟系統解除安裝頁</string>
     <string name="toast_remove_failed">找不到這張卡，可能剛被移出</string>
     <!-- R60(2026-09-23):原「导入图片」改名「手机传输」,从外观组挪到通用组;扫码页本身不变 -->
-    <string name="settings_phone_transfer">上傳資料</string>
+    <string name="settings_phone_transfer">資料庫</string>
     <string name="settings_phone_transfer_desc">用手機掃碼，把相片和影片傳到電視，或替電視安裝應用程式。</string>
     <!-- import_* : 電視端「從手機新增」頁(R130 起:左邊三步說明,右邊 QR 碼與網址) -->
-    <string name="import_title">上傳資料</string>
-    <string name="import_title_wallpapers">上傳桌布</string>
+    <string name="import_title">資料庫</string>
+    <string name="import_title_wallpapers">上傳圖片</string>
     <string name="import_title_cards">上傳卡片圖</string>
-    <string name="import_title_screensavers">上傳螢幕保護相片和影片</string>
+    <string name="import_title_screensavers">上傳圖片和影片</string>
     <string name="import_step_wifi">手機連上和電視相同的 Wi-Fi</string>
     <string name="import_step_scan">用手機相機掃描右邊的 QR 碼</string>
     <string name="import_step_pick">在開啟的網頁裡選好檔案，電視這邊馬上就能使用</string>
@@ -59,24 +59,25 @@
     <string name="import_apk_started">請在電視上確認安裝</string>
 
     <!-- web_* : 手機上傳網頁文案(伺服端注入;JS 裡 %d 由網頁自行取代)。R130 起頁面按「傳到電視」重做 -->
-    <string name="web_title">上傳資料</string>
+    <string name="web_title">資料庫</string>
     <string name="web_connected">已連線到電視</string>
     <string name="web_offline">和電視中斷連線</string>
-    <string name="web_offline_hint">在電視上重新開啟「上傳資料」，再重新整理這一頁</string>
-    <string name="web_tab_wallpapers">桌布</string>
+    <string name="web_offline_hint">在電視上重新開啟「資料庫」，再重新整理這一頁</string>
     <string name="web_tab_cards">卡片圖</string>
-    <string name="web_tab_screensavers">螢幕保護</string>
-    <string name="web_tab_apk">裝應用程式</string>
-    <string name="web_desc_wallpapers">電視桌面的背景圖。建議橫向 16:9、至少 1920×1080（4K 電視用 3840×2160 更清晰）；直向相片會被裁掉上下，只留中間一段。</string>
+    <string name="web_tab_apk">應用程式</string>
+    <string name="web_tab_images">圖片</string>
+    <string name="web_tab_videos">影片</string>
+    <string name="web_desc_images">桌布和螢幕保護程式共用的圖片，傳一次兩邊都能用：在電視的「切換桌布」裡選用，或在「螢幕保護圖庫」裡加入輪播。建議橫向 16:9、至少 1920×1080（4K 電視用 3840×2160 更清晰）；直向相片會被裁掉上下，只留中間一段。</string>
+    <string name="web_desc_videos">螢幕保護輪播用的影片，傳完自動加入輪播。靜音播放，最長播放 60 秒，每部不超過 500 MB。</string>
+    <string name="web_pick_videos">選擇影片</string>
+    <string name="web_empty_videos">還沒有影片</string>
+    <string name="web_rejected_type_video">格式不支援，影片只能使用 MP4、MOV 或 WebM</string>
     <string name="web_desc_cards">替應用程式卡片換上的圖，16:9 橫圖最合適。傳完在電視上長按應用程式，選「換卡片圖」就能使用。</string>
-    <string name="web_desc_screensavers">螢幕保護輪播用的相片和影片。相片建議橫向 16:9、至少 1920×1080（4K 電視用 3840×2160 更清晰），直向相片會被裁掉上下；影片靜音播放，最長播放 60 秒，每部不超過 500 MB。</string>
     <string name="web_desc_apk">把手機裡的 Android 安裝檔（.apk）裝到電視上。傳送後，電視會請你確認安裝。</string>
     <string name="web_pick_photos">選擇相片</string>
-    <string name="web_pick_media">選擇相片或影片</string>
     <string name="web_pick_apk">選擇安裝檔</string>
     <string name="web_lib_title">電視上已有</string>
     <string name="web_empty">還沒有圖片</string>
-    <string name="web_empty_screensavers">還沒有相片或影片</string>
     <string name="web_empty_sub">傳上來的會出現在這裡，電視上也能馬上選到。</string>
     <plurals name="web_uploading" formatted="false">
         <item quantity="one">正在傳送 %d 個檔案…</item>
@@ -100,7 +101,6 @@
     <string name="web_rejected_decode">這張圖片打不開，可能已損壞</string>
     <string name="web_rejected_name">檔名不支援，改個名稱再試</string>
     <string name="web_rejected_write">電視無法儲存這個檔案</string>
-    <string name="web_rejected_type_media">格式不支援：相片用 JPG、PNG、WebP，影片用 MP4、MOV、WebM</string>
     <string name="web_rejected_video_size">影片太大了，每部不超過 500 MB</string>
     <string name="web_rejected_video_decode">電視無法播放這部影片</string>
     <string name="web_rejected_space">電視的儲存空間不足</string>
@@ -159,7 +159,7 @@
     <string name="picker_restore_original">恢復原圖</string>
     <!-- 内置图名字表(assets/builtin/names.txt)取哪一列(R137);随这份 strings.xml 的语言走,不要翻译成别的值 -->
     <string name="builtin_names_lang">zh-TW</string>
-    <string name="picker_add_from_phone">上傳資料</string>
+    <string name="picker_add_from_phone">資料庫</string>
     <plurals name="picker_screensaver_pool_title">
         <item quantity="one">螢幕保護圖庫 · %1$d 項</item>
         <item quantity="other">螢幕保護圖庫 · %1$d 項</item>
@@ -169,14 +169,14 @@
     <!-- R115:選圖頁「內建 / 我的」兩塊的分組標題;內建螢幕保護圖關掉之後的角標與膠囊選單(R117) -->
     <string name="picker_section_builtin">內建</string>
     <string name="picker_section_mine">我的</string>
-    <string name="pool_hint">帶✓的會在螢幕保護程式裡輪播。長按內建圖可以取消或加回，長按你上傳的圖可以刪除；按確定預覽</string>
+    <string name="pool_hint">帶✓的會在螢幕保護程式裡輪播。按確定可以預覽，或加入、取消輪播</string>
     <string name="pool_builtin_exclude">不參與輪播</string>
     <string name="pool_builtin_include">加入輪播</string>
     <!-- pool_delete_* : 螢幕保護圖庫長按刪圖的確認框(M5 spec §5);取消複用 dialog_cancel -->
     <string name="pool_delete_title">刪除這一項？</string>
     <string name="pool_delete_body">「%1$s」會從螢幕保護圖庫刪除，無法復原</string>
     <string name="pool_delete_ok">刪除</string>
-    <string name="wallpaper_delete_body">「%1$s」會從桌布中刪除，無法復原</string>
+    <string name="wallpaper_delete_body">「%1$s」會從資料庫刪除，桌布和螢幕保護程式都不再有它，無法復原</string>
     <string name="wallpaper_delete_body_current">「%1$s」是正在使用的桌布，刪除後換回內建桌布，無法復原</string>
 
     <!-- settings_* : UnitedU 設定頁(分組帶標題) -->
@@ -372,7 +372,7 @@
     <string name="toast_move_failed">無法儲存新位置，請稍後再試</string>
     <!-- settings shell:設定頁膠囊外殼(R69–R72,2026-09-23) -->
     <string name="shell_root_layout_desc">編輯桌面、應用程式名稱、卡片顯示偏好</string>
-    <string name="shell_root_general_desc">語言、預設桌面、上傳資料、時鐘</string>
+    <string name="shell_root_general_desc">語言、預設桌面、資料庫、時鐘</string>
     <string name="shell_root_appearance_desc">桌布、主題色</string>
     <string name="shell_root_screensaver_desc">圖庫、啟動時間、系統螢幕保護等</string>
     <string name="settings_card_saturation">卡片飽和度</string>

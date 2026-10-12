@@ -35,10 +35,15 @@ internal fun clampIndex(i: Int, size: Int): Int = if (size <= 0) 0 else i.coerce
 internal fun scanScreensaverLibrary(ctx: Context): List<File> {
     if (Paths.baseOrNull(ctx) == null) return emptyList()
     migrateOldScreensaver(ctx)
-    return Paths.screensaverLibrary(ctx).listFiles()
-        ?.filter { it.isFile && it.extension.lowercase() in ScreensaverMedia.ALL_EXTS }
-        ?.sortedBy { it.name }
-        ?: emptyList()
+    // R174:「我的」= 资料库全部图片(与换壁纸共用)+ 屏保视频;参不参与轮播另看 [UserMedia.rotationItems]
+    return UserMedia.poolItems(ctx)
+}
+
+/** 参与轮播的「我的」(R174):加入了轮播的图片 + 全部视频。外置存储没挂 → 空。**IO 线程。** */
+internal fun scanScreensaverRotation(ctx: Context): List<File> {
+    if (Paths.baseOrNull(ctx) == null) return emptyList()
+    migrateOldScreensaver(ctx)
+    return UserMedia.rotationItems(ctx)
 }
 
 /**
@@ -53,7 +58,7 @@ internal fun scanScreensaverPlaylist(ctx: Context): List<File> {
     val builtins = BuiltinImages.list(ctx, BuiltinKind.SCREENSAVERS)
     val settings = SettingsStore.read(ctx)
     val online = adoptedGalleryPlaylist(settings.galleryScreensavers) { GalleryAndroid.storeOnIo(ctx).resolve(it)?.takeIf { local -> BuiltinKind.SCREENSAVERS in local.item.usages }?.file }
-    return screensaverPlaylist(builtins.map { it.file }, { builtinIdOf(it.name) }, settings.excludedBuiltinScreensavers, online + scanScreensaverLibrary(ctx))
+    return screensaverPlaylist(builtins.map { it.file }, { builtinIdOf(it.name) }, settings.excludedBuiltinScreensavers, online + scanScreensaverRotation(ctx))
 }
 
 /**

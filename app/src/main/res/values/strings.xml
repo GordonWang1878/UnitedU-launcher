@@ -35,13 +35,13 @@
     <string name="toast_uninstall_failed">打不开系统卸载页</string>
     <string name="toast_remove_failed">没找到这张卡，可能刚被移出</string>
     <!-- R60(2026-09-23):原「导入图片」改名「手机传输」,从外观组挪到通用组;扫码页本身不变 -->
-    <string name="settings_phone_transfer">上传资料</string>
+    <string name="settings_phone_transfer">资料库</string>
     <string name="settings_phone_transfer_desc">用手机扫码，把照片和视频传到电视，或给电视装应用。</string>
     <!-- import_* : 电视端「从手机添加」页(R130 起:左边三步说明,右边二维码与网址) -->
-    <string name="import_title">上传资料</string>
-    <string name="import_title_wallpapers">上传壁纸</string>
+    <string name="import_title">资料库</string>
+    <string name="import_title_wallpapers">上传图片</string>
     <string name="import_title_cards">上传卡片图</string>
-    <string name="import_title_screensavers">上传屏保照片和视频</string>
+    <string name="import_title_screensavers">上传图片和视频</string>
     <string name="import_step_wifi">手机连上和电视相同的 Wi-Fi</string>
     <string name="import_step_scan">用手机相机扫描右边的二维码</string>
     <string name="import_step_pick">在打开的网页里选好文件，电视这边马上就能用</string>
@@ -59,24 +59,25 @@
     <string name="import_apk_started">请在电视上确认安装</string>
 
     <!-- web_* : 手机上传网页文案(服务端注入;JS 里 %d 由网页自己替换)。R130 起页面按「传到电视」重做 -->
-    <string name="web_title">上传资料</string>
+    <string name="web_title">资料库</string>
     <string name="web_connected">已连接电视</string>
     <string name="web_offline">和电视断开了</string>
-    <string name="web_offline_hint">在电视上重新打开「上传资料」，再刷新这一页</string>
-    <string name="web_tab_wallpapers">壁纸</string>
+    <string name="web_offline_hint">在电视上重新打开「资料库」，再刷新这一页</string>
     <string name="web_tab_cards">卡片图</string>
-    <string name="web_tab_screensavers">屏保</string>
-    <string name="web_tab_apk">装应用</string>
-    <string name="web_desc_wallpapers">电视桌面的背景图。建议横向 16:9、至少 1920×1080（4K 电视用 3840×2160 更清晰）；竖着的照片会被裁掉上下，只留中间一段。</string>
+    <string name="web_tab_apk">应用</string>
+    <string name="web_tab_images">图片</string>
+    <string name="web_tab_videos">视频</string>
+    <string name="web_desc_images">壁纸和屏保共用的图片，传一次两边都能用：在电视的「切换壁纸」里选用，或在「屏保图库」里加入轮播。建议横向 16:9、至少 1920×1080（4K 电视用 3840×2160 更清晰）；竖着的照片会被裁掉上下，只留中间一段。</string>
+    <string name="web_desc_videos">屏保轮播用的视频，传完自动加入轮播。静音播放，最长播 60 秒，每个不超过 500 MB。</string>
+    <string name="web_pick_videos">选择视频</string>
+    <string name="web_empty_videos">还没有视频</string>
+    <string name="web_rejected_type_video">格式不支持，视频只能用 MP4、MOV 或 WebM</string>
     <string name="web_desc_cards">给应用卡片换上的图，16:9 横图最合适。传完在电视上长按应用，选「换卡片图」就能用。</string>
-    <string name="web_desc_screensavers">屏保轮播用的照片和视频。照片建议横向 16:9、至少 1920×1080（4K 电视用 3840×2160 更清晰），竖图会被裁掉上下；视频静音播放，最长播 60 秒，每个不超过 500 MB。</string>
     <string name="web_desc_apk">把手机里的安卓安装包（.apk）装到电视上。发送后，电视会请你确认安装。</string>
     <string name="web_pick_photos">选择照片</string>
-    <string name="web_pick_media">选择照片或视频</string>
     <string name="web_pick_apk">选择安装包</string>
     <string name="web_lib_title">电视上已有</string>
     <string name="web_empty">还没有图片</string>
-    <string name="web_empty_screensavers">还没有照片或视频</string>
     <string name="web_empty_sub">传上来的会出现在这里，电视上也能马上选到。</string>
     <plurals name="web_uploading" formatted="false">
         <item quantity="one">正在发送 %d 个文件…</item>
@@ -100,7 +101,6 @@
     <string name="web_rejected_decode">这张图片打不开，可能已损坏</string>
     <string name="web_rejected_name">文件名不支持，改个名再试</string>
     <string name="web_rejected_write">电视没能存下这个文件</string>
-    <string name="web_rejected_type_media">格式不支持：照片用 JPG、PNG、WebP，视频用 MP4、MOV、WebM</string>
     <string name="web_rejected_video_size">视频太大了，每个不超过 500 MB</string>
     <string name="web_rejected_video_decode">电视播放不了这个视频</string>
     <string name="web_rejected_space">电视的存储空间不够了</string>
@@ -159,7 +159,7 @@
     <string name="picker_restore_original">恢复原图</string>
     <!-- 内置图名字表(assets/builtin/names.txt)取哪一列(R137);随这份 strings.xml 的语言走,不要翻译成别的值 -->
     <string name="builtin_names_lang">zh-CN</string>
-    <string name="picker_add_from_phone">上传资料</string>
+    <string name="picker_add_from_phone">资料库</string>
     <plurals name="picker_screensaver_pool_title">
         <item quantity="one">屏保图库 · %1$d 项</item>
         <item quantity="other">屏保图库 · %1$d 项</item>
@@ -169,14 +169,14 @@
     <!-- R115:选图页「内置 / 我的」两块的分组标题;内置屏保图关掉之后的角标与胶囊菜单(R117) -->
     <string name="picker_section_builtin">内置</string>
     <string name="picker_section_mine">我的</string>
-    <string name="pool_hint">带✓的会在屏保里轮播。长按内置图可以取消或加回，长按你上传的图可以删除；按确定预览</string>
+    <string name="pool_hint">带✓的会在屏保里轮播。按确定可以预览，或加入、取消轮播</string>
     <string name="pool_builtin_exclude">不参与轮播</string>
     <string name="pool_builtin_include">加入轮播</string>
     <!-- pool_delete_* : 屏保图库长按删图的确认框(M5 spec §5);取消复用 dialog_cancel -->
     <string name="pool_delete_title">删除这一项？</string>
     <string name="pool_delete_body">「%1$s」会从屏保图库删除，无法恢复</string>
     <string name="pool_delete_ok">删除</string>
-    <string name="wallpaper_delete_body">「%1$s」会从壁纸里删除，无法恢复</string>
+    <string name="wallpaper_delete_body">「%1$s」会从资料库删除，壁纸和屏保里都不再有它，无法恢复</string>
     <string name="wallpaper_delete_body_current">「%1$s」是正在用的壁纸，删除后换回内置壁纸，无法恢复</string>
 
     <!-- settings_* : UnitedU 设置页(分组带标题) -->
@@ -372,7 +372,7 @@
     <string name="toast_move_failed">没能保存新位置，请稍后再试</string>
     <!-- settings shell:设置页胶囊外壳(R69–R72,2026-09-23) -->
     <string name="shell_root_layout_desc">编辑桌面、应用名、卡片显示偏好</string>
-    <string name="shell_root_general_desc">语言、默认桌面、上传资料、时钟</string>
+    <string name="shell_root_general_desc">语言、默认桌面、资料库、时钟</string>
     <string name="shell_root_appearance_desc">壁纸、主题色</string>
     <string name="shell_root_screensaver_desc">屏保图库、启动时间、系统屏保等</string>
     <string name="settings_card_saturation">卡片饱和度</string>

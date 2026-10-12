@@ -303,6 +303,19 @@ class SettingsTest {
         assertEquals(s, parseSettings(s.toJson()))
     }
 
+    /** R174:参与轮播的「我的图片」与迁移记录:缺键 = 空、往返保真(含中文与引号)、恢复默认不清。 */
+    @Test fun screensaverPhotosRoundTripAndSurviveRestore() {
+        assertEquals(emptySet<String>(), parseSettings("""{"idleAfterMs": 180000}""").screensaverPhotos)
+        val s = Settings(screensaverPhotos = setOf("海边.jpg", "q\"uote.png"), migratedScreensaverPhotos = setOf("old.jpg"), excludedBuiltinScreensavers = setOf("01-a"))
+        val back = parseSettings(s.toJson())
+        assertEquals(s.screensaverPhotos, back.screensaverPhotos)
+        assertEquals(s.migratedScreensaverPhotos, back.migratedScreensaverPhotos)
+        assertEquals(setOf("01-a"), back.excludedBuiltinScreensavers)
+        val restored = restoredDefaults(s, 1L)
+        assertEquals(s.screensaverPhotos, restored.screensaverPhotos)
+        assertEquals(s.migratedScreensaverPhotos, restored.migratedScreensaverPhotos)
+    }
+
     @Test fun excludedBuiltinScreensaversDefaultsToEmptyWhenAbsent() {
         // 旧文件没有这个键 = 全部参与轮播
         assertEquals(emptySet<String>(), parseSettings("""{"idleAfterMs": 180000}""").excludedBuiltinScreensavers)

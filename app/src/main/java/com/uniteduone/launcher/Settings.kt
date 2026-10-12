@@ -54,6 +54,16 @@ data class Settings(
     val wallpaperFile: String = "",
     val galleryWallpaper: GalleryAdoption? = null,
     val galleryScreensavers: Map<String, GalleryAdoption> = emptyMap(),
+    /**
+     * 参与屏保轮播的「我的图片」(R174):library/wallpapers/ 里的文件名。资料库的图片壁纸与屏保共用一份,默认**不**参与轮播
+     * (2026-10-12 Gordon 定),在屏保图库里「加入轮播」才进这里。旧文件没有这个键 = 空。视频不在这里(照旧全部参与)。
+     */
+    val screensaverPhotos: Set<String> = emptySet(),
+    /**
+     * 已从 library/screensavers/ 复制进共用图片库的旧屏保照片文件名(R174 迁移只做一次,见 [UserMedia.migrateLegacyScreensaverPhotos])。
+     * 原文件留在原处给回退包(旧代码只认那个目录);新代码不再从那里读照片。
+     */
+    val migratedScreensaverPhotos: Set<String> = emptySet(),
     // (「壁纸自动切换」wallpaperRotateMs / wallpaperRotatedAt 2026-09-23 删掉,gtv spec R61;旧文件里的键按未知键忽略。)
     /** 模糊 0–50,步 5(R119;见 [WALLPAPER_BLUR_MAX] / [WALLPAPER_BLUR_STEP])。 */
     val wallpaperBlur: Int = 0,
@@ -243,6 +253,8 @@ fun parseSettings(json: String): Settings {
             wallpaperFile = sanitizeWallpaperFileName(extractString(json, "wallpaperFile")),
             galleryWallpaper = galleryWallpaper?.takeIf { extractString(json, "wallpaperFile") == "gallery:${it.id}" },
             galleryScreensavers = galleryScreensavers,
+            screensaverPhotos = extractStringArray(json, "screensaverPhotos")?.filter { it.isNotEmpty() }?.toSet() ?: d.screensaverPhotos,
+            migratedScreensaverPhotos = extractStringArray(json, "migratedScreensaverPhotos")?.filter { it.isNotEmpty() }?.toSet() ?: d.migratedScreensaverPhotos,
             // 旧文件里可能还有 "wallpaperThemed"(2026-09-16 删掉的开关)、"themedCards"(R58)、
             // "wallpaperRotateMs" / "wallpaperRotatedAt"(R61)、"showInputRow"(R92):这里不读它们,扁平 tokenizer 只认列出的键,
             // 未知键自然被忽略(SettingsTest 的 legacy*KeyIsIgnored 钉住这一点)。
@@ -294,6 +306,12 @@ fun Settings.toJson(): String {
         append("  \"wallpaperFile\": \"${esc(wallpaperFile)}\",\n")
         append("  \"galleryWallpaper\": ${galleryWallpaper?.let(::galleryAdoptionJson) ?: "null"},\n")
         append("  \"galleryScreensavers\": ${galleryScreensaversJson(galleryScreensavers)},\n")
+        append("  \"screensaverPhotos\": [")
+        append(screensaverPhotos.sorted().joinToString(", ") { "\"${esc(it)}\"" })
+        append("],\n")
+        append("  \"migratedScreensaverPhotos\": [")
+        append(migratedScreensaverPhotos.sorted().joinToString(", ") { "\"${esc(it)}\"" })
+        append("],\n")
         append("  \"wallpaperBlur\": $wallpaperBlur,\n")
         append("  \"wallpaperBrightness\": $wallpaperBrightness,\n")
         append("  \"cardSaturation\": $cardSaturation,\n")
@@ -319,6 +337,9 @@ fun restoredDefaults(current: Settings, nowMs: Long): Settings =
         onboardingDone = current.onboardingDone,
         excludedBuiltinScreensavers = current.excludedBuiltinScreensavers,
         galleryScreensavers = current.galleryScreensavers,
+        // R174:哪些图参与轮播同上,是资料库的取舍;迁移记录更不能清(清了会再复制一遍)
+        screensaverPhotos = current.screensaverPhotos,
+        migratedScreensaverPhotos = current.migratedScreensaverPhotos,
         updateChannel = current.updateChannel,
     )
 

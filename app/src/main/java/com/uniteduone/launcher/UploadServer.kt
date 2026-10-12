@@ -70,7 +70,7 @@ class UploadServer(
         }
     }
 
-    private fun libraryFor(type: String?): File? = when (type) {
+    private fun libraryFor(type: String?): File? = when (libraryDirType(type)) {
         "wallpapers" -> Paths.wallpaperLibrary(ctx)
         "cards" -> Paths.cardLibrary(ctx)
         "screensavers" -> Paths.screensaverLibrary(ctx)
@@ -161,7 +161,7 @@ class UploadServer(
 
     /** 屏保分类照片 + 视频(R100),壁纸 / 卡片图只有照片。 */
     private fun listMedia(type: String, dir: File): List<File> {
-        val exts = if (type == "screensavers") ScreensaverMedia.ALL_EXTS else UPLOAD_IMAGE_EXTS
+        val exts = when (type) { "screensavers" -> ScreensaverMedia.ALL_EXTS; "videos" -> ScreensaverMedia.VIDEO_EXTS; else -> UPLOAD_IMAGE_EXTS }
         return dir.listFiles()
             ?.filter { it.isFile && extensionOf(it.name) in exts }
             ?.sortedBy { it.name }
@@ -221,7 +221,7 @@ class UploadServer(
         if (video && !VideoThumbs.hasVideoTrack(tmp.absolutePath)) return "video_decode"
         if (!video && !Apps.isDecodableImage(tmp.absolutePath)) return "decode"
         val finalName = saveIntoLibrary(tmp, dir, name) ?: return "write"
-        main.post { onSaved(type, finalName) }
+        main.post { onSaved(libraryDirType(type) ?: type, finalName) }
         return SAVED + finalName
     }
 
@@ -486,20 +486,20 @@ internal val WEB_STRING_KEYS: Map<String, Int> = mapOf(
     "connected" to R.string.web_connected,
     "offline" to R.string.web_offline,
     "offline_hint" to R.string.web_offline_hint,
-    "tab_wallpapers" to R.string.web_tab_wallpapers,
     "tab_cards" to R.string.web_tab_cards,
-    "tab_screensavers" to R.string.web_tab_screensavers,
+    "tab_images" to R.string.web_tab_images,
+    "tab_videos" to R.string.web_tab_videos,
     "tab_apk" to R.string.web_tab_apk,
-    "desc_wallpapers" to R.string.web_desc_wallpapers,
     "desc_cards" to R.string.web_desc_cards,
-    "desc_screensavers" to R.string.web_desc_screensavers,
+    "desc_images" to R.string.web_desc_images,
+    "desc_videos" to R.string.web_desc_videos,
     "desc_apk" to R.string.web_desc_apk,
     "pick_photos" to R.string.web_pick_photos,
-    "pick_media" to R.string.web_pick_media,
+    "pick_videos" to R.string.web_pick_videos,
     "pick_apk" to R.string.web_pick_apk,
     "lib_title" to R.string.web_lib_title,
     "empty" to R.string.web_empty,
-    "empty_screensavers" to R.string.web_empty_screensavers,
+    "empty_videos" to R.string.web_empty_videos,
     "empty_sub" to R.string.web_empty_sub,
     "sent_sub" to R.string.web_sent_sub,
     "failed_title" to R.string.web_failed_title,
@@ -515,7 +515,7 @@ internal val WEB_STRING_KEYS: Map<String, Int> = mapOf(
     "rejected_decode" to R.string.web_rejected_decode,
     "rejected_name" to R.string.web_rejected_name,
     "rejected_write" to R.string.web_rejected_write,
-    "rejected_type_media" to R.string.web_rejected_type_media,
+    "rejected_type_video" to R.string.web_rejected_type_video,
     "rejected_video_size" to R.string.web_rejected_video_size,
     "rejected_video_decode" to R.string.web_rejected_video_decode,
     "rejected_space" to R.string.web_rejected_space,

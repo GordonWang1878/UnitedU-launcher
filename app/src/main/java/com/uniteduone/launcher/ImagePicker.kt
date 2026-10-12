@@ -414,6 +414,8 @@ private fun PickerGrid(
     excludedBuiltins: Set<String> = emptySet(),
     /** 会被屏保播放的格子画 ✓ 角标(R154);只有屏保图库传 true。 */
     rotationBadges: Boolean = false,
+    /** 「我的」里哪些参与轮播(R174:图片看 `screensaverPhotos`,视频恒参与);只在 [rotationBadges] 时用。 */
+    libraryInRotation: (File) -> Boolean = { true },
 ) {
     // 淡出中的残影(R108 的约定,R136 起选图页也淡入淡出):当作被盖住——定位效果与看门狗让路(守卫与 key 读的是
     // 同一个合并后的 covered,铁律 6);下面每一格再 canFocus = false、点击与焦点上报一律不接。
@@ -720,7 +722,7 @@ private fun PickerGrid(
                                 thumbHeight = thumbHeight,
                                 asCard = asCard,
                                 dimmed = item is PickerItem.Builtin && item.image.id in excludedBuiltins,
-                                inRotation = rotationBadges && (item is PickerItem.Library ||
+                                inRotation = rotationBadges && ((item is PickerItem.Library && libraryInRotation(item.file)) ||
                                     (item is PickerItem.Builtin && item.image.id !in excludedBuiltins) ||
                                     (item is PickerItem.Gallery && galleryState?.joined?.get(item.row.item.id)?.sha256 == item.row.item.original.blob.sha256)),
                                 cellModifier = Modifier
@@ -1127,6 +1129,12 @@ fun ScreensaverPoolViewer(
     onAddFromPhone: () -> Unit,
     landing: List<String>? = null,
     galleryActions: GalleryPickerActions? = null,
+    /** 参与轮播的「我的图片」文件名(settings `screensaverPhotos`,R174)。 */
+    photosInRotation: Set<String> = emptySet(),
+    /** 「我的图片」加入 / 移出轮播(R174);写完由调用方刷新 [photosInRotation]。 */
+    onTogglePhoto: (File) -> Unit = {},
+    /** 菜单里点「删除」:与长按同一条路,由调用方置 [deleteTarget]。 */
+    onRequestDelete: (File) -> Unit = {},
 ) {
     val ctx = LocalContext.current
     // IO 线程扫,走 safeScan(与播放器同一条「失败记日志、退回 null」的规则,内部调的还是
@@ -1148,6 +1156,10 @@ fun ScreensaverPoolViewer(
     // 全屏预览翻的是「内置 + 我的」连成的一串(不含「＋」);内置那几张是伪路径文件,ScreensaverSlot 经 decodeImagePath 读 assets
     val previewFiles = remember(builtins, files) { builtins.map { it.file } + files }
     var previewIndex by remember { mutableStateOf(-1) }
+    // R174:确定键先开菜单(同换壁纸页 R173):预览 / 加入·不参与轮播 /〔我的:删除〕/ 取消。内置图的长按菜单照旧走 [builtinMenu]。
+    var menuFile by remember { mutableStateOf<File?>(null) }
+    val ctxImages = remember { Paths.wallpaperLibrary(ctx).absolutePath }
+    fun isImage(f: File) = f.parentFile?.absolutePath == ctxImages && f.extension.lowercase() in ScreensaverMedia.PHOTO_EXTS
     val onlineSnapshot = if (galleryActions != null) GalleryAndroid.repository(ctx).state.collectAsState().value else null
     val total = builtins.size + files.size + (onlineSnapshot?.let { galleryRows(it, BuiltinKind.SCREENSAVERS, null).size } ?: 0)
 
@@ -1170,13 +1182,10 @@ fun ScreensaverPoolViewer(
                 thumbWidth = PICKER_PHOTO_WIDTH,
                 thumbHeight = PICKER_PHOTO_HEIGHT,
                 nonce = nonce,
-                onSelectFile = { file ->
-                    val idx = previewFiles.indexOf(file)
-                    if (idx >= 0) previewIndex = idx
-                },
+                onSelectFile = { file -> menuFile = file },
                 onRestoreOriginal = null,
                 onDismiss = onDismiss,
-                covered = previewIndex >= 0 || deleteTarget != null || builtinMenu != null || rescanning,
+                covered = previewIndex >= 0 || deleteTarget != null || builtinMenu != null || menuFile != null || rescanning,
                 onFocusedItem = onFocusedItem,
                 emptyHint = stringResource(R.string.picker_no_screensavers),
                 backHint = R.string.pool_hint,
@@ -1184,6 +1193,7 @@ fun ScreensaverPoolViewer(
                 landing = landing,
                 excludedBuiltins = excludedBuiltins,
                 rotationBadges = true,
+                libraryInRotation = { !isImage(it) || it.name in photosInRotation },
             )
         }
     }
@@ -1194,9 +1204,16 @@ fun ScreensaverPoolViewer(
     val galleryTitle = stringResource(R.string.picker_screensaver_title)
     val target = deleteTarget
     val menuTarget = builtinMenu
+    val pickMenu = menuFile
     val overlay: PoolOverlay? = when {
-        target != null -> PoolOverlay.Delete(target)
+        target != null -> PoolOverlay.Delete(target, image = isImage(target))
         menuTarget != null -> PoolOverlay.Menu(menuTarget, off = menuTarget.id in excludedBuiltins)
+        pickMenu != null -> PoolOverlay.ItemMenu(
+            pickMenu,
+            builtin = builtinImageOf(pickMenu),
+            image = isImage(pickMenu),
+            inRotation = builtinImageOf(pickMenu)?.let { it.id !in excludedBuiltins } ?: (!isImage(pickMenu) || pickMenu.name in photosInRotation),
+        )
         previewIndex in previewFiles.indices -> PoolOverlay.Preview(previewFiles, previewIndex)
         else -> null
     }
@@ -1211,7 +1228,8 @@ fun ScreensaverPoolViewer(
             // 删除确认页(spec §5)
             is PoolOverlay.Delete -> ConfirmDialog(
                 title = stringResource(R.string.pool_delete_title),
-                body = stringResource(R.string.pool_delete_body, ov.file.name),
+                // R174:图片与换壁纸共用一份,删了两边都没有
+                body = stringResource(if (ov.image) R.string.wallpaper_delete_body else R.string.pool_delete_body, ov.file.name),
                 okLabel = stringResource(R.string.pool_delete_ok),
                 cancelLabel = stringResource(R.string.dialog_cancel),
                 nonce = nonce,
@@ -1233,6 +1251,28 @@ fun ScreensaverPoolViewer(
                 title = builtinName(ov.image),
                 eyebrow = galleryTitle,
             )
+            is PoolOverlay.ItemMenu -> {
+                val f = ov.file
+                val idx = previewFiles.indexOf(f)
+                GearMenu(
+                    items = buildList {
+                        add(MenuItem(stringResource(R.string.gallery_preview), "") { menuFile = null; if (idx >= 0) previewIndex = idx })
+                        // 视频恒参与轮播(R174),没有这一颗
+                        if (ov.builtin != null || ov.image) add(MenuItem(
+                            stringResource(if (ov.inRotation) R.string.pool_builtin_exclude else R.string.pool_builtin_include), "",
+                        ) {
+                            menuFile = null
+                            ov.builtin?.let(onToggleBuiltin) ?: onTogglePhoto(f)
+                        })
+                        if (ov.builtin == null) add(MenuItem(stringResource(R.string.pool_delete_ok), "") { menuFile = null; onRequestDelete(f) })
+                        add(MenuItem(stringResource(R.string.dialog_cancel), "") { menuFile = null })
+                    },
+                    onDismiss = { menuFile = null },
+                    nonce = nonce,
+                    title = ov.builtin?.let { builtinName(it) } ?: f.nameWithoutExtension,
+                    eyebrow = galleryTitle,
+                )
+            }
         }
     }
 }
@@ -1244,8 +1284,12 @@ private sealed interface PoolOverlay {
     class Preview(val files: List<File>, val start: Int) : PoolOverlay {
         override val layer get() = "preview"
     }
-    class Delete(val file: File) : PoolOverlay {
-        override val layer get() = "delete:${file.name}"
+    class Delete(val file: File, val image: Boolean = false) : PoolOverlay {
+        override val layer get() = "delete:${file.path}"
+    }
+    /** R174:确定键打开的菜单;带着「参不参与轮播」,残影里的字不跟着写盘跳。 */
+    class ItemMenu(val file: File, val builtin: BuiltinImage?, val image: Boolean, val inRotation: Boolean) : PoolOverlay {
+        override val layer get() = "item:${file.path}"
     }
     class Menu(val image: BuiltinImage, val off: Boolean) : PoolOverlay {
         override val layer get() = "menu:${image.id}"

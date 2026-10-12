@@ -78,8 +78,8 @@ class CopyTest {
         val used = Regex("""\bS\.([a-z_]+)""").findAll(html).map { it.groupValues[1] }.toSet()
         assertTrue("网页用到了没注入的文案:${used - known}", known.containsAll(used))
         // 拼出来的 key:各分类的说明、各种拒收理由、APK 的各种结局
-        for (t in LIBRARY_TYPES) assertTrue("desc_$t", "desc_$t" in known)
-        for (r in listOf("type", "size", "video_size", "decode", "video_decode", "name", "write", "space", "type_media")) {
+        for (t in WEB_UPLOAD_TYPES) assertTrue("desc_$t", "desc_$t" in known)
+        for (r in listOf("type", "size", "video_size", "decode", "video_decode", "name", "write", "space", "type_video")) {
             assertTrue("rejected_$r", "rejected_$r" in known)
         }
         for (r in listOf("needs-permission", "invalid", "size", "background", "server", "write")) {

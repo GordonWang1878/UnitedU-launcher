@@ -176,13 +176,14 @@ const S = __STRINGS__;
 // 非 GET 一律带这个头:服务端只认带它的写请求(见 UploadServer.serve)。fetch + FormData 本来是
 // CORS 简单请求,手机上随便哪个网页都能往这台电视 POST;自定义头会把跨源请求顶成要预检,发不出来。
 const H = { "X-Requested-With": "UnitedU" };
-const TABS = [["wallpapers", S.tab_wallpapers], ["cards", S.tab_cards], ["screensavers", S.tab_screensavers], ["apk", S.tab_apk]];
-// 默认分页由电视注入(R63):从某个图片网格的「＋ 从手机添加」进来时是那个分类,总入口是 null。
+// R174(资料库):卡片图 / 图片(壁纸与屏保共用)/ 视频(屏保)/ 应用
+const TABS = [["cards", S.tab_cards], ["images", S.tab_images], ["videos", S.tab_videos], ["apk", S.tab_apk]];
+// 默认分页由电视注入(R63):从某个图片网格的「＋」进来时是那个分类,总入口是 null。
 const DEFAULT_TAB = __DEFAULT_TAB__;
-let type = DEFAULT_TAB || "wallpapers";
+let type = DEFAULT_TAB || "images";
 const $ = id => document.getElementById(id);
 const q = s => encodeURIComponent(s);
-// 屏保分页收视频(R103):扩展名表、500 MB 上限与服务端 ScreensaverMedia 一致;超限的在手机上就拦下,不白传
+// 视频分页(R103 / R174):扩展名表、500 MB 上限与服务端 ScreensaverMedia 一致;超限的在手机上就拦下,不白传
 const VIDEO_EXTS = ["mp4", "m4v", "mov", "webm"];
 const MAX_VIDEO = 500 * 1024 * 1024;
 // 照片单张 30 MB、APK 100 MB(= 服务端 MAX_UPLOAD_BYTES / MAX_APK_BYTES)。超限的在手机上就拦下:服务端对声明长度超限的请求
@@ -193,7 +194,7 @@ const MAX_APK = 100 * 1024 * 1024;
 const BATCH = 8;
 const isVideo = n => VIDEO_EXTS.includes((n.split(".").pop() || "").toLowerCase());
 const ACCEPT_IMG = "image/*";
-const ACCEPT_MEDIA = "image/*,video/mp4,video/quicktime,video/webm,.mp4,.m4v,.mov,.webm";
+const ACCEPT_VIDEO = "video/mp4,video/quicktime,video/webm,.mp4,.m4v,.mov,.webm";
 
 const ICON = {
   ok: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M8 12.3l2.7 2.7L16.2 9.5"/></svg>',
@@ -249,17 +250,17 @@ async function load(quiet) {
   $("imgpane").hidden = isApk; $("apkpane").hidden = !isApk;
   if (isApk) {
     // 这一页没有列表,但照样问一次电视,好让断连 / 恢复的状态跟着变
-    try { await fetch(`/api/list?type=wallpapers`, { cache: "no-store" }); }
+    try { await fetch(`/api/list?type=images`, { cache: "no-store" }); }
     catch (e) { if (online) setOnline(false); return; }
     if (!online) { setOnline(true); $("toast").classList.add("hide"); }
     return;
   }
-  const ss = type === "screensavers";
+  const vids = type === "videos";
   $("desc").textContent = S["desc_" + type];
-  $("pickLabel").textContent = ss ? S.pick_media : S.pick_photos;
-  $("pick").accept = ss ? ACCEPT_MEDIA : ACCEPT_IMG;
+  $("pickLabel").textContent = vids ? S.pick_videos : S.pick_photos;
+  $("pick").accept = vids ? ACCEPT_VIDEO : ACCEPT_IMG;
   $("libTitle").textContent = S.lib_title;
-  $("emptyTitle").textContent = ss ? S.empty_screensavers : S.empty;
+  $("emptyTitle").textContent = vids ? S.empty_videos : S.empty;
   $("emptySub").textContent = S.empty_sub;
   const want = type;
   let d;
@@ -331,7 +332,7 @@ $("sheetOk").onclick = async () => {
 };
 
 // ---------- 上传 ----------
-const reasonText = x => (x.reason === "type" && type === "screensavers" ? S.rejected_type_media : S["rejected_" + x.reason]) || S.error;
+const reasonText = x => (x.reason === "type" && type === "videos" ? S.rejected_type_video : S["rejected_" + x.reason]) || S.error;
 // 带进度的 POST;body 是 FormData(照片一批)或文件本身(屏保逐个、R103)。回调拿到的是解析好的 JSON 或 null。
 function post(url, body, raw, onProgress) {
   return new Promise(resolve => {
@@ -358,8 +359,8 @@ $("pick").onchange = async e => {
   const files = [...e.target.files]; e.target.value = ""; if (!files.length) return;
   const head = plural("uploading", files.length);
   const saved = [], rejected = [];
-  if (type === "screensavers") {
-    // 屏保分页:逐个文件原始字节上传(视频可达 500 MB,不拼成一个 multipart 大包)
+  if (type === "videos") {
+    // 视频分页:逐个文件原始字节上传(视频可达 500 MB,不拼成一个 multipart 大包)
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
       if (isVideo(f.name) && f.size > MAX_VIDEO) { rejected.push({ name: f.name, reason: "video_size" }); continue; }

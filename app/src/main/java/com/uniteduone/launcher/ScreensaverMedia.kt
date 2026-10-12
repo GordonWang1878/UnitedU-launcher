@@ -88,7 +88,7 @@ object ScreensaverMedia {
     fun uploadRejection(type: String, name: String?, size: Long, head: ByteArray?): String? {
         if (name == null) return "name"
         val ext = extensionOf(name)
-        val allowed = if (type == "screensavers") ALL_EXTS else PHOTO_EXTS
+        val allowed = when (type) { "screensavers" -> ALL_EXTS; "videos" -> VIDEO_EXTS; else -> PHOTO_EXTS }
         if (ext !in allowed) return "type"
         return if (ext in VIDEO_EXTS) {
             when {

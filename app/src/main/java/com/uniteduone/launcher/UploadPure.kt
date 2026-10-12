@@ -11,21 +11,42 @@ import java.io.File
  * 单独一个文件,好在纯 JVM 单测里直接断言;Android 侧在 UploadServer / ImportScreen / ApkInstaller。
  */
 
+/** 图库目录的分类(也是 R174 之前网页的分页);目录与旧分页名都还认(回退兼容、旧页面缓存)。 */
 val LIBRARY_TYPES = listOf("wallpapers", "cards", "screensavers")
+
+/**
+ * 资料库网页的分页(R174,2026-10-12 Gordon:「卡片图标、图片、视频、应用这四种」;应用分页是 `apk`,不走图库接口)。
+ * `images` 落 library/wallpapers/(壁纸与屏保共用的图片库,见 [UserMedia]),`videos` 落 library/screensavers/ 且只收视频。
+ */
+val WEB_UPLOAD_TYPES = listOf("cards", "images", "videos")
 val UPLOAD_IMAGE_EXTS = setOf("jpg", "jpeg", "png", "webp")
 const val MAX_UPLOAD_BYTES = 30L * 1024 * 1024
 const val MAX_APK_BYTES = 100L * 1024 * 1024
 const val UPLOAD_PORT_FIRST = 8090
 const val UPLOAD_PORT_LAST = 8099
 
-fun isValidType(type: String?): Boolean = type != null && type in LIBRARY_TYPES
+fun isValidType(type: String?): Boolean = type != null && (type in LIBRARY_TYPES || type in WEB_UPLOAD_TYPES)
+
+/** 上传 / 列表分类 → 图库目录分类(R174):图片 = 壁纸目录,视频 = 屏保目录;旧分类原样。不认识 → null。 */
+fun libraryDirType(type: String?): String? = when (type) {
+    "images" -> "wallpapers"
+    "videos" -> "screensavers"
+    in LIBRARY_TYPES -> type
+    else -> null
+}
 
 /**
  * 手机网页默认打开哪个分页(Ruling R63):注入 index.html 的 `__DEFAULT_TAB__` 占位,是一段 JS 字面量。
  * 从某个图片网格的「＋ 从手机添加」进来时是那个网格的分类;总入口「手机传输」不带分类 → `null`,
  * 网页按原来的默认(壁纸)打开。只认 [LIBRARY_TYPES],别的值一律当没带。
  */
-fun defaultTabJs(tab: String?): String = if (isValidType(tab)) jsonStr(tab!!) else "null"
+fun defaultTabJs(tab: String?): String = when (tab) {
+    // R174:换壁纸与屏保图库的「＋」都先开「图片」分页(屏保图库要传视频,手机上点一下「视频」)
+    "wallpapers", "screensavers", "images" -> jsonStr("images")
+    "cards" -> jsonStr("cards")
+    "videos" -> jsonStr("videos")
+    else -> "null"
+}
 
 /**
  * multipart 请求头缺 charset 时返回补上 `; charset=UTF-8` 的新值,否则 null(不用改)。

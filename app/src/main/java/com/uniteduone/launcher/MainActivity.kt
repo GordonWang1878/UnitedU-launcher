@@ -1258,6 +1258,9 @@ class MainActivity : ComponentActivity() {
                 onDismiss = { pickerTarget = null; focusNonce++ },
                 onAddFromPhone = { openImportFrom(VIEW_SCREENSAVER_POOL) },
                 landing = pickerLanding,
+                photosInRotation = remember(settingsRevision) { SettingsStore.read(this@MainActivity).screensaverPhotos },
+                onTogglePhoto = ::togglePhotoRotation,
+                onRequestDelete = { poolDeleteTarget = it },
             )
             // R63:从网格的「＋」打开时,扫码页**替换**那个网格(pickerTarget 换成 VIEW_IMPORT),关掉后 closeImport
             // 把 pickerTarget 换回去、网格重新挂载(重扫文件)并按 pickerLanding 落到新传的第一张。
@@ -1265,7 +1268,11 @@ class MainActivity : ComponentActivity() {
                 onExit = ::closeImport,
                 focusNonce = focusNonce,
                 category = importCategory,
-                onUploaded = { type, name -> if (type == importOrigin?.type) importUploads += name },
+                // R174:屏保图库的「＋」既收视频(screensavers)也收图片(图片库 = wallpapers 目录)
+                onUploaded = { type, name ->
+                    val origin = importOrigin?.type
+                    if (type == origin || (origin == "screensavers" && type == "wallpapers")) importUploads += name
+                },
             )
             // 其余取值都是包名 = 换这张卡的图。
             else -> IconPicker(
@@ -2139,9 +2146,10 @@ class MainActivity : ComponentActivity() {
         if (wallpaperDeleteTarget != file) return
         lifecycleScope.launch {
             val (gone, wasCurrent) = withContext(Dispatchers.IO) {
-                val current = SettingsStore.read(this@MainActivity).wallpaperFile == file.name
-                (file.delete() || !file.exists()) to current
+                val gone = file.delete() || !file.exists()
+                gone to (gone && forgetLibraryImage(file))
             }
+            if (gone) ScreensaverPlayer.rescan(this@MainActivity)
             if (!gone) {
                 android.util.Log.w("UnitedU", "壁纸删不掉: ${file.name}")
                 toast(getString(R.string.toast_pool_delete_failed, file.name))
@@ -2222,11 +2230,18 @@ class MainActivity : ComponentActivity() {
     private fun deletePoolImage(file: java.io.File) {
         if (poolDeleteTarget != file) return
         lifecycleScope.launch {
-            val gone = withContext(Dispatchers.IO) { file.delete() || !file.exists() }
+            val (gone, wasCurrent) = withContext(Dispatchers.IO) {
+                val gone = file.delete() || !file.exists()
+                gone to (gone && forgetLibraryImage(file))
+            }
             if (!gone) {
                 android.util.Log.w("UnitedU", "屏保图删不掉: ${file.name}")
                 toast(getString(R.string.toast_pool_delete_failed, file.name))
             }
+            // R174:图片与换壁纸共用,删的若是正在用的壁纸,首页当场换回内置;两边的网格都重读
+            if (wasCurrent) { settingsRevision++; wallpaperParams++ }
+            if (gone) settingsRevision++
+            wallpaperLibVersion++
             ScreensaverPlayer.rescan(this@MainActivity)
             galleryVersion++
             poolDeleteTarget = null
@@ -2245,7 +2260,8 @@ class MainActivity : ComponentActivity() {
      * 那一格变暗 / 复原)→ 收菜单 → `focusNonce++`(网格接回同一张)。写失败 toast,菜单照样收(集合没变,画面也不变)。
      */
     private fun toggleBuiltinScreensaver(image: BuiltinImage) {
-        if (poolBuiltinMenu != image) return
+        // 长按菜单(poolBuiltinMenu)或确定键菜单(R174,查看器自己的状态、poolBuiltinMenu 为 null)
+        if (poolBuiltinMenu != null && poolBuiltinMenu != image) return
         lifecycleScope.launch {
             val ok = withContext(Dispatchers.IO) {
                 SettingsStore.update(this@MainActivity) {
@@ -2260,6 +2276,33 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+
+    /** 「我的图片」加入 / 移出屏保轮播(R174):持锁改 `screensaverPhotos` → 重扫轮播 → 查看器重读(✓ 角标)→ 网格接回。 */
+    private fun togglePhotoRotation(file: java.io.File) {
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                SettingsStore.update(this@MainActivity) { it.copy(screensaverPhotos = togglePhoto(it.screensaverPhotos, file.name)) } != null
+            }
+            if (!ok) toast(getString(R.string.toast_storage_not_ready))
+            ScreensaverPlayer.rescan(this@MainActivity)
+            settingsRevision++
+            focusNonce++
+        }
+    }
+
+    /**
+     * 删一张「我的图片」后的善后(R174:图片库壁纸与屏保共用):从 `screensaverPhotos` 去掉它;它是正在用的壁纸 → 回落内置(同 R153)。
+     * IO 线程。@return 它是不是正在用的壁纸。
+     */
+    private fun forgetLibraryImage(file: java.io.File): Boolean {
+        if (!UserMedia.isLibraryImage(this, file)) return false
+        var wasCurrent = false
+        SettingsStore.update(this) {
+            wasCurrent = it.wallpaperFile == file.name
+            it.copy(screensaverPhotos = it.screensaverPhotos - file.name)
+        }
+        return wasCurrent
+    }
 
     /** Task 6 callback. Only original download + validated bytes can adopt; preview uses repository.original directly. */
     internal fun handleGalleryPick(item: GalleryItem, onProgress: (Long) -> Unit = {}, onResult: (Result<Unit>) -> Unit): () -> Unit {

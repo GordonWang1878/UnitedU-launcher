@@ -43,13 +43,13 @@
     <string name="toast_uninstall_failed">Could not open the system uninstall page</string>
     <string name="toast_remove_failed">Card not found — it may have just been removed</string>
     <!-- R60(2026-09-23):原「导入图片」改名「手机传输」,从外观组挪到通用组;扫码页本身不变 -->
-    <string name="settings_phone_transfer">Upload Files</string>
+    <string name="settings_phone_transfer">Library</string>
     <string name="settings_phone_transfer_desc">Scan a code with your phone to send photos and videos to the TV, or install apps.</string>
     <!-- import_* : TV-side Add from Phone page (R130: three steps on the left, QR code and address on the right) -->
-    <string name="import_title">Upload Files</string>
-    <string name="import_title_wallpapers">Upload Wallpapers</string>
+    <string name="import_title">Library</string>
+    <string name="import_title_wallpapers">Upload Photos</string>
     <string name="import_title_cards">Upload Card Art</string>
-    <string name="import_title_screensavers">Upload Screensaver Photos &amp; Videos</string>
+    <string name="import_title_screensavers">Upload Photos &amp; Videos</string>
     <string name="import_step_wifi">Connect your phone to the same Wi-Fi as this TV</string>
     <string name="import_step_scan">Scan the QR code with your phone\'s camera</string>
     <string name="import_step_pick">Pick files on the page that opens. They\'re ready on the TV right away.</string>
@@ -67,24 +67,25 @@
     <string name="import_apk_started">Confirm the install on your TV</string>
 
     <!-- web_* : phone upload page (injected by the server; %d replaced by the page's JS). R130: rebuilt as "Send to TV" -->
-    <string name="web_title">Upload Files</string>
+    <string name="web_title">Library</string>
     <string name="web_connected">Connected to TV</string>
     <string name="web_offline">Disconnected from TV</string>
-    <string name="web_offline_hint">Open Upload Files on the TV again, then reload this page</string>
-    <string name="web_tab_wallpapers">Wallpaper</string>
+    <string name="web_offline_hint">Open Library on the TV again, then reload this page</string>
     <string name="web_tab_cards">Card Art</string>
-    <string name="web_tab_screensavers">Screensaver</string>
     <string name="web_tab_apk">Apps</string>
-    <string name="web_desc_wallpapers">Backgrounds for your TV\'s home screen. Use landscape 16:9 photos, at least 1920×1080 (3840×2160 looks sharper on a 4K TV); portrait photos are cropped to a middle strip.</string>
+    <string name="web_tab_images">Photos</string>
+    <string name="web_tab_videos">Videos</string>
+    <string name="web_desc_images">Photos shared by wallpaper and screensaver. Send once, use both: choose it in Switch Wallpaper on the TV, or add it to the slideshow in the Screensaver Gallery. Use landscape 16:9, at least 1920×1080 (3840×2160 looks sharper on a 4K TV); portrait photos are cropped to a middle strip.</string>
+    <string name="web_desc_videos">Videos for the screensaver slideshow; they join the slideshow right away. They play muted, up to 60 seconds, 500 MB max each.</string>
+    <string name="web_pick_videos">Choose Videos</string>
+    <string name="web_empty_videos">No videos yet</string>
+    <string name="web_rejected_type_video">Unsupported format. Videos must be MP4, MOV or WebM.</string>
     <string name="web_desc_cards">Custom art for app cards; 16:9 images fit best. On the TV, hold OK on an app and choose Change Card Art.</string>
-    <string name="web_desc_screensavers">Photos and videos for the screensaver slideshow. Photos: landscape 16:9, at least 1920×1080 (3840×2160 looks sharper on a 4K TV); portrait photos are cropped to a middle strip. Videos play muted, up to 60 seconds, 500 MB max each.</string>
     <string name="web_desc_apk">Install an Android app (.apk) from this phone on your TV. The TV will ask you to confirm.</string>
     <string name="web_pick_photos">Choose Photos</string>
-    <string name="web_pick_media">Choose Photos or Videos</string>
     <string name="web_pick_apk">Choose an APK</string>
     <string name="web_lib_title">On your TV</string>
     <string name="web_empty">No photos yet</string>
-    <string name="web_empty_screensavers">No photos or videos yet</string>
     <string name="web_empty_sub">What you send shows up here, and on your TV right away.</string>
     <plurals name="web_uploading" formatted="false">
         <item quantity="one">Sending %d file…</item>
@@ -108,7 +109,6 @@
     <string name="web_rejected_decode">This image can\'t be opened. It may be damaged.</string>
     <string name="web_rejected_name">This file name isn\'t supported. Rename it and try again.</string>
     <string name="web_rejected_write">The TV couldn\'t save this file.</string>
-    <string name="web_rejected_type_media">Unsupported format. Photos: JPG, PNG, WebP. Videos: MP4, MOV, WebM.</string>
     <string name="web_rejected_video_size">Video too large. 500 MB max.</string>
     <string name="web_rejected_video_decode">The TV can\'t play this video.</string>
     <string name="web_rejected_space">Not enough space on the TV.</string>
@@ -167,7 +167,7 @@
     <string name="picker_restore_original">Restore Original</string>
     <!-- 内置图名字表(assets/builtin/names.txt)取哪一列(R137);随这份 strings.xml 的语言走,不要翻译成别的值 -->
     <string name="builtin_names_lang">en</string>
-    <string name="picker_add_from_phone">Upload Files</string>
+    <string name="picker_add_from_phone">Library</string>
     <plurals name="picker_screensaver_pool_title">
         <item quantity="one">Screensaver Gallery · %1$d item</item>
         <item quantity="other">Screensaver Gallery · %1$d items</item>
@@ -177,14 +177,14 @@
     <!-- R115: section titles of the "Built-in / Mine" blocks in the image pickers; off badge and capsule menu for built-in screensaver images (R117) -->
     <string name="picker_section_builtin">Built-in</string>
     <string name="picker_section_mine">Mine</string>
-    <string name="pool_hint">Items with ✓ play in the screensaver. Long-press a built-in to turn it off or on, or one you uploaded to delete it. OK to preview</string>
+    <string name="pool_hint">Items with ✓ play in the screensaver. Press OK to preview, or to add or remove from the slideshow</string>
     <string name="pool_builtin_exclude">Remove from Slideshow</string>
     <string name="pool_builtin_include">Add to Slideshow</string>
     <!-- pool_delete_* : long-press delete confirm in the screensaver gallery (M5 spec §5); cancel reuses dialog_cancel -->
     <string name="pool_delete_title">Delete this item?</string>
     <string name="pool_delete_body">\"%1$s\" will be removed from the gallery for good</string>
     <string name="pool_delete_ok">Delete</string>
-    <string name="wallpaper_delete_body">\"%1$s\" will be removed from your wallpapers for good</string>
+    <string name="wallpaper_delete_body">\"%1$s\" will be removed from your library for good, from both wallpaper and screensaver</string>
     <string name="wallpaper_delete_body_current">\"%1$s\" is your current wallpaper. It will be deleted for good and the built-in wallpaper comes back</string>
 
     <!-- settings_* : UnitedU settings page (grouped) -->
@@ -380,7 +380,7 @@
     <string name="toast_move_failed">Couldn\'t save the new position, try again</string>
     <!-- settings shell: capsule shell for all settings pages (R69–R72, 2026-09-23) -->
     <string name="shell_root_layout_desc">Edit home screen, app names, card display</string>
-    <string name="shell_root_general_desc">Language, default home, upload files, clock</string>
+    <string name="shell_root_general_desc">Language, default home, library, clock</string>
     <string name="shell_root_appearance_desc">Wallpaper, theme color</string>
     <string name="shell_root_screensaver_desc">Gallery, start time, system screensaver, screen off</string>
     <string name="settings_card_saturation">Card Saturation</string>

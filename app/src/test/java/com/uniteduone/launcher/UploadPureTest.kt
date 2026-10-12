@@ -139,9 +139,26 @@ class UploadPureTest {
     // ---- R63:手机网页默认分页 ----
 
     @Test fun defaultTabIsInjectedAsAJsStringForLibraryTypes() {
-        assertEquals("\"screensavers\"", defaultTabJs("screensavers"))
-        assertEquals("\"wallpapers\"", defaultTabJs("wallpapers"))
+        // R174:资料库的分页是 卡片图 / 图片 / 视频 / 应用;换壁纸与屏保图库的「＋」都先开「图片」
+        assertEquals("\"images\"", defaultTabJs("screensavers"))
+        assertEquals("\"images\"", defaultTabJs("wallpapers"))
         assertEquals("\"cards\"", defaultTabJs("cards"))
+        assertEquals("\"videos\"", defaultTabJs("videos"))
+    }
+
+    @Test fun webTypesMapOntoLibraryDirectories() {
+        assertEquals("wallpapers", libraryDirType("images"))
+        assertEquals("screensavers", libraryDirType("videos"))
+        assertEquals("cards", libraryDirType("cards"))
+        assertEquals("wallpapers", libraryDirType("wallpapers"))
+        assertNull(libraryDirType("apk"))
+        assertNull(libraryDirType(null))
+        assertTrue(isValidType("images") && isValidType("videos") && isValidType("screensavers"))
+    }
+
+    @Test fun togglePhotoAddsAndRemoves() {
+        assertEquals(setOf("a.jpg"), togglePhoto(emptySet(), "a.jpg"))
+        assertEquals(emptySet<String>(), togglePhoto(setOf("a.jpg"), "a.jpg"))
     }
 
     @Test fun defaultTabIsNullForTheGeneralEntryOrJunk() {
