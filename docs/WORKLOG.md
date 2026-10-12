@@ -2368,3 +2368,4 @@ I1/I2/M1/M2收口：在线缩略图按UI物理像素采样并保留真实bounds�
 
 - Gordon 在电视上(beta.8)发现:已下载的图,菜单里点「预览」会一闪「下载中」再进预览。根因:`GalleryPickerState.preview()` / `pick()` 在知道原图在不在本地之前就把进度层(`active = row`)推上来、同时收掉菜单;`repository.original()` 命中缓存立刻返回,进度层只活了几帧。
 - 修法:从菜单上对已下载的图点「预览 / 选用」时菜单留着,等原图取到直接换成预览 / 收菜单;只有真的要下载(缓存文件丢了 → 有进度回调)或失败时才推进度 / 失败页;取图途中菜单被返回 / 取消关掉,结果作废(关菜单同时 `cancel()`)。失败页上的「重试」照旧走进度页。单测 `downloadedPreviewAndPickNeverShowProgressLayer`;模拟器录屏逐帧确认菜单直接淡到预览,没有「下载中」帧(中间几帧黑是预览页解 4K 原图,原来就有)。
+- 已合 main 并发 1.2.0-beta.9(versionCode 25,回退包 26),main 推到 `265d5ec`。下一个 Beta 从 versionCode 27 起。
