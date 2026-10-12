@@ -2450,3 +2450,7 @@ Gordon 在 beta.9 上报三件事,模拟器 perfetto trace(给各解码点临时
 - 模拟器看不到:TV 系统设置的应用详情页不画图标,Google TV 桌面按 versionCode 缓存旧图标;以电视为准。
 - 已合 main 并发 1.2.0-beta.16(versionCode 39,回退包 40;R176 图标留白),main 推到 `4633bf8`。下一个 Beta 从 versionCode 41 起。
 - Gordon 电视实测 beta.16:方形图标不再拥挤,满意。R176 关闭。
+
+## 2026-10-12 · 发稳定版 1.2.0
+
+- beta.16 电视实测通过后，Gordon 拍板晋级：1.2.0（versionCode 41），内容与 beta.16 相同，只改了版本号。说明汇总了 beta.1–16 中用户看得见的改动（`dist/notes-1.2.0*.txt`）。R2 上的 `latest.json` 读回为 41，GitHub latest = v1.2.0。下一个 Beta 从 versionCode 43 起。
