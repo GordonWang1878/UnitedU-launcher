@@ -460,7 +460,6 @@
     <string name="gallery_network_failed">網路連線失敗，請檢查網路後重試。</string>
     <string name="gallery_storage_failed">儲存空間不足或寫入失敗，請清理空間後重試。</string>
     <string name="gallery_invalid_failed">圖片驗證失敗，請更新圖庫後重試。</string>
-    <string name="gallery_videos_unavailable">線上圖庫影片暫未推出</string>
     <string name="channel_title">更新通道</string>
     <string name="channel_stable">穩定版</string>
     <string name="channel_beta">Beta</string>

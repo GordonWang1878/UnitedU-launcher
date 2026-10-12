@@ -694,10 +694,12 @@ private fun PickerGrid(
                     is PickerLine.Title -> SectionTitle(
                         text = stringResource(
                             when (line.section) { PickerSection.BUILTIN -> R.string.picker_section_builtin; PickerSection.GALLERY -> R.string.picker_section_gallery; PickerSection.MINE -> R.string.picker_section_mine },
-                        ) + if (line.section != PickerSection.GALLERY) "" else listOfNotNull(
-                            when { gallerySnapshot?.refreshing == true -> stringResource(R.string.gallery_refreshing); gallerySnapshot?.error != null -> stringResource(R.string.gallery_refresh_failed_short); else -> null },
-                            if (rotationBadges) stringResource(R.string.gallery_videos_unavailable) else null,
-                        ).joinToString("") { " · $it" },
+                        ) + if (line.section != PickerSection.GALLERY) "" else when {
+                            // 2026-10-12 Gordon:不提「视频暂未推出」——不说用户也不知道有视频,图库就叫「在线图库」
+                            gallerySnapshot?.refreshing == true -> " · " + stringResource(R.string.gallery_refreshing)
+                            gallerySnapshot?.error != null -> " · " + stringResource(R.string.gallery_refresh_failed_short)
+                            else -> ""
+                        },
                         modifier = Modifier.onSizeChanged { lineHeights[k] = it.height },
                     )
                     is PickerLine.Cells -> Row(
