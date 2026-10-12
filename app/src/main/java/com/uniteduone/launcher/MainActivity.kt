@@ -183,7 +183,13 @@ class MainActivity : ComponentActivity() {
     private var pickerTargetState by mutableStateOf<String?>(null)
     private var pickerTarget: String?
         get() = pickerTargetState
-        set(value) { invalidateGallerySelection(); pickerTargetState = value }
+        set(value) { if (!detachedSelectionLive()) invalidateGallerySelection(); pickerTargetState = value }
+    /**
+     * 已下载的在线图「选用 / 加入轮播」是用户已经拍板的动作(2026-10-12 Gordon:点完立刻按返回,壁纸没换):
+     * 关选图页 / 换页不再作废它,只有下一次真正的选用([GallerySelection.begin] 换代)能顶掉它。见 [adoptGallery]。
+     */
+    private var detachedSelection: Long? = null
+    private fun detachedSelectionLive() = detachedSelection?.let { gallerySelection.isCurrent(it) } == true
     /**
      * 扫码页是从哪个图片网格的「＋ 从手机添加」打开的(Ruling R63):关掉扫码页回到它(`pickerTarget` 换回
      * [ImportOrigin.returnTo]),而不是一路关回设置页 / 首页。null = 设置页「手机传输」总入口,关掉就是关掉。
@@ -738,6 +744,11 @@ class MainActivity : ComponentActivity() {
             val pt = pickerTarget
             // **设置页外壳**(R69)。编辑页开着时外壳以残影语义留在组合里(R167;编辑页独占整屏,外壳不可聚焦、不画;退出编辑页后同一份组合变回活的)。
             val shellShown = shellStack.isNotEmpty() && !editing
+            // 打开设置就在后台把内置壁纸的缩略图解好(PickerThumbs):进「切换壁纸」第一帧就有图。只解一次(缓存命中即返回)。
+            val shellOpen = shellStack.isNotEmpty()
+            LaunchedEffect(shellOpen) {
+                if (shellOpen) { kotlinx.coroutines.delay(600); withContext(Dispatchers.IO) { PickerThumbs.prewarm(this@MainActivity, BuiltinKind.WALLPAPERS) } }
+            }
             val shellPreview = shellShown && pageHasPreview(shellStack.last().page)
             // **R108 淡入淡出**:底色、首页那一层(透明 / 缩进预览框)、外壳内容三样一起动,由 ShellMotion 的 a / v / z
             // 三个量驱动(见 SettingsFade.kt 的推导);逻辑状态(shellStack)照旧当场变,画面另外淡出。
@@ -1210,7 +1221,7 @@ class MainActivity : ComponentActivity() {
                     directory = Paths.wallpaperLibrary(this),
                     title = stringResource(R.string.picker_wallpaper_title),
                     nonce = focusNonce,
-                    galleryActions = GalleryPickerActions(::handleGalleryPick, ::cancelGallerySelection, ::removeGalleryScreensaver),
+                    galleryActions = GalleryPickerActions(::handleGalleryPick, ::cancelGallerySelection, ::removeGalleryScreensaver, ::adoptGallery),
                     onSelect = { file -> handlePick(file) },
                     onDismiss = { pickerTarget = null; focusNonce++ },
                     onAddFromPhone = { openImportFrom(PICK_WALLPAPER) },
@@ -1232,7 +1243,7 @@ class MainActivity : ComponentActivity() {
             // 排除集合在主线程读盘(同 homeSaved 的读法),settingsRevision 一变就重读——切换写完会 ++。
             VIEW_SCREENSAVER_POOL -> ScreensaverPoolViewer(
                 nonce = focusNonce,
-                    galleryActions = GalleryPickerActions(::handleGalleryPick, ::cancelGallerySelection, ::removeGalleryScreensaver),
+                    galleryActions = GalleryPickerActions(::handleGalleryPick, ::cancelGallerySelection, ::removeGalleryScreensaver, ::adoptGallery),
                 refresh = galleryVersion,
                 onFocusedItem = { poolFocused = it },
                 deleteTarget = poolDeleteTarget,
@@ -1262,7 +1273,7 @@ class MainActivity : ComponentActivity() {
                 directory = Paths.cardLibrary(this),
                 originalIcon = remember(target) { Apps.originalIcon(this, target) },
                 nonce = focusNonce,
-                    galleryActions = GalleryPickerActions(::handleGalleryPick, ::cancelGallerySelection, ::removeGalleryScreensaver),
+                    galleryActions = GalleryPickerActions(::handleGalleryPick, ::cancelGallerySelection, ::removeGalleryScreensaver, ::adoptGallery),
                 onSelect = { file -> handlePick(file) },
                 onRestoreOriginal = { restoreOriginalIcon(target) },
                 onDismiss = { pickerTarget = null; focusNonce++ },
@@ -2270,38 +2281,7 @@ class MainActivity : ComponentActivity() {
                         if (gallerySelection.isCurrent(token) && pickerTarget == target) onProgress(bytes)
                     }
                 }
-                withContext(Dispatchers.IO) {
-                    val adoption = GalleryAdoption(item.id, item.original.blob.sha256)
-                    val galleryStore = GalleryAndroid.store(this@MainActivity)
-                    val verified = galleryStore.resolve(adoption)
-                        ?: error("Gallery original is unavailable or corrupt")
-                    require(Apps.isDecodableImage(verified.file.absolutePath))
-                    var staged: java.io.File? = null
-                    try {
-                        if (expected == BuiltinKind.CARDS) {
-                            val dest = Paths.iconFor(this@MainActivity, target)
-                            staged = java.io.File.createTempFile("gallery-card-", ".part", dest.parentFile)
-                            check(writeFileAtomically(staged!!, verify = { Apps.isDecodableImage(it.absolutePath) }) { out ->
-                                verified.file.inputStream().use { it.copyTo(out) }
-                            }) { "Cannot stage card image" }
-                        }
-                        val committed = gallerySelection.commit(token) {
-                            // Revalidate while holding the process-wide adoption/delete gate.
-                            check(galleryStore.resolve(adoption) != null) { "Gallery download was removed before adoption" }
-                            when (expected) {
-                                BuiltinKind.WALLPAPERS -> check(SettingsStore.update(this@MainActivity) {
-                                    it.copy(wallpaperFile = "gallery:${item.id}", galleryWallpaper = adoption)
-                                } != null) { "Cannot save wallpaper adoption" }
-                                BuiltinKind.SCREENSAVERS -> check(SettingsStore.update(this@MainActivity) {
-                                    it.copy(galleryScreensavers = it.galleryScreensavers + (item.id to adoption))
-                                } != null) { "Cannot save screensaver adoption" }
-                                BuiltinKind.CARDS -> check(staged!!.renameTo(Paths.iconFor(this@MainActivity, target))) { "Cannot replace card image" }
-                            }
-                            true
-                        }
-                        check(committed == true) { "Gallery selection cancelled" }
-                    } finally { staged?.delete() }
-                }
+                commitGalleryAdoption(item, target, expected, token)
             }
             result.exceptionOrNull()?.let { if (it is kotlinx.coroutines.CancellationException) throw it }
             if (!gallerySelection.isCurrent(token) || pickerTarget != target) return@launch
@@ -2321,6 +2301,84 @@ class MainActivity : ComponentActivity() {
             if (gallerySelection.isCurrent(token)) gallerySelection.invalidate()
             ownedJob.cancel()
             if (gallerySelectionJob === ownedJob) gallerySelectionJob = null
+        }
+    }
+
+    /** 校验本地原图并在选用闸门里写盘(在线图「选用 / 加入轮播 / 换卡片图」共用)。IO;被顶掉或失败抛异常。 */
+    private suspend fun commitGalleryAdoption(item: GalleryItem, target: String, expected: BuiltinKind, token: Long) {
+        withContext(Dispatchers.IO) {
+            val adoption = GalleryAdoption(item.id, item.original.blob.sha256)
+            val galleryStore = GalleryAndroid.store(this@MainActivity)
+            val verified = galleryStore.resolve(adoption)
+                ?: error("Gallery original is unavailable or corrupt")
+            require(Apps.isDecodableImage(verified.file.absolutePath))
+            var staged: java.io.File? = null
+            try {
+                if (expected == BuiltinKind.CARDS) {
+                    val dest = Paths.iconFor(this@MainActivity, target)
+                    staged = java.io.File.createTempFile("gallery-card-", ".part", dest.parentFile)
+                    check(writeFileAtomically(staged!!, verify = { Apps.isDecodableImage(it.absolutePath) }) { out ->
+                        verified.file.inputStream().use { it.copyTo(out) }
+                    }) { "Cannot stage card image" }
+                }
+                val committed = gallerySelection.commit(token) {
+                    // Revalidate while holding the process-wide adoption/delete gate.
+                    check(galleryStore.resolve(adoption) != null) { "Gallery download was removed before adoption" }
+                    when (expected) {
+                        BuiltinKind.WALLPAPERS -> check(SettingsStore.update(this@MainActivity) {
+                            it.copy(wallpaperFile = "gallery:${item.id}", galleryWallpaper = adoption)
+                        } != null) { "Cannot save wallpaper adoption" }
+                        BuiltinKind.SCREENSAVERS -> check(SettingsStore.update(this@MainActivity) {
+                            it.copy(galleryScreensavers = it.galleryScreensavers + (item.id to adoption))
+                        } != null) { "Cannot save screensaver adoption" }
+                        BuiltinKind.CARDS -> check(staged!!.renameTo(Paths.iconFor(this@MainActivity, target))) { "Cannot replace card image" }
+                    }
+                    true
+                }
+                check(committed == true) { "Gallery selection cancelled" }
+            } finally { staged?.delete() }
+        }
+    }
+
+    /**
+     * 已下载的在线图从菜单上「选用 / 加入轮播」(2026-10-12):与内置图 [handlePick] 一样先关页(壁纸 / 卡片图)再在后台写盘,
+     * 关页、按返回都不作废它([detachedSelection]);写完刷新、提示。原图万一被清掉,[GalleryRepository.original] 会静默补下。
+     * 屏保图库不关页:结果回给页面([onResult]),页已关就改用提示条。
+     */
+    internal fun adoptGallery(item: GalleryItem, onResult: (Result<Unit>) -> Unit) {
+        val target = pickerTarget ?: return
+        val expected = when (target) {
+            PICK_WALLPAPER -> BuiltinKind.WALLPAPERS
+            VIEW_SCREENSAVER_POOL -> BuiltinKind.SCREENSAVERS
+            else -> BuiltinKind.CARDS
+        }
+        if (expected !in item.usages || (expected == BuiltinKind.CARDS && target !in item.packages)) {
+            onResult(Result.failure(IllegalArgumentException("Gallery resource does not match picker"))); return
+        }
+        if (expected != BuiltinKind.SCREENSAVERS) { pickerTarget = null; focusNonce++ } else invalidateGallerySelection()
+        val token = gallerySelection.begin()
+        detachedSelection = token
+        lifecycleScope.launch {
+            val result = runCatching {
+                GalleryAndroid.repository(this@MainActivity).original(item) { }
+                commitGalleryAdoption(item, target, expected, token)
+            }
+            if (detachedSelection == token) detachedSelection = null
+            result.exceptionOrNull()?.let { if (it is kotlinx.coroutines.CancellationException) throw it }
+            if (result.isSuccess) when (expected) {
+                BuiltinKind.WALLPAPERS -> settingsRevision++
+                BuiltinKind.CARDS -> revision++
+                BuiltinKind.SCREENSAVERS -> { ScreensaverPlayer.rescan(this@MainActivity); galleryVersion++ }
+            }
+            // 被更新的选用顶掉(不是失败):什么都不说
+            if (result.isFailure && !gallerySelection.isCurrent(token)) return@launch
+            if (expected == BuiltinKind.SCREENSAVERS && pickerTarget == target) { onResult(result); return@launch }
+            toast(getString(when {
+                result.isFailure -> R.string.gallery_failed
+                expected == BuiltinKind.WALLPAPERS -> R.string.toast_wallpaper_changed
+                expected == BuiltinKind.CARDS -> R.string.toast_card_image_changed
+                else -> R.string.toast_gallery_joined
+            }))
         }
     }
 

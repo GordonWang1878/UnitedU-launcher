@@ -44,6 +44,8 @@ data class GalleryPickerActions(
     val pick: (GalleryItem, (Long) -> Unit, (Result<Unit>) -> Unit) -> (() -> Unit),
     val cancel: () -> Unit,
     val removeScreensaver: (String, (Result<Unit>) -> Unit) -> Unit,
+    /** 已下载的图从菜单上选用:页面不等、关页不作废(MainActivity.adoptGallery)。null = 走 [pick]。 */
+    val adopt: ((GalleryItem, (Result<Unit>) -> Unit) -> Unit)? = null,
 )
 
 /** Page-owned state: refresh is keyed by mount, preview owns its own repository waiter. */
@@ -61,6 +63,8 @@ internal class GalleryPickerState(val repository: GalleryRepository, val actions
     private var generation = 0L
     private var cancelUse: (() -> Unit)? = null
     var joined by mutableStateOf<Map<String, GalleryAdoption>>(emptyMap())
+    /** 后台选用写完(屏保图库还开着)时 +1,让「已加入轮播」重读。 */
+    var joinedTick by mutableStateOf(0)
     var thumbnailGeneration by mutableStateOf(0L)
         private set
     var thumbnailFailures by mutableStateOf<Set<String>>(emptySet())
@@ -105,6 +109,13 @@ internal class GalleryPickerState(val repository: GalleryRepository, val actions
     private fun stillWanted(row: GalleryRow, quiet: Boolean) = !quiet || menu?.key == row.key || active?.key == row.key
     private fun fail(row: GalleryRow, error: Throwable) { menu = null; active = row; failed = true; failure = galleryFailure(error) }
     fun pick(row: GalleryRow) {
+        val adopt = actions.adopt
+        if (adopt != null && row.downloaded && menu?.key == row.key && active == null) {
+            // 已下载 = 用户拍板即生效:菜单当场收掉(壁纸 / 卡片图连页一起关),写盘在后台,不登记 cancelUse(关页的 cancel() 碰不到它)
+            cancel(); previewIntent = false; menu = null
+            adopt(row.item) { result -> if (result.isFailure) notice = R.string.gallery_failed else joinedTick++ }
+            return
+        }
         val quiet = begin(row, intent = false)
         val token = generation
         cancelUse = actions.pick(row.item, { if (generation == token) { progress = it; if (quiet && active == null && stillWanted(row, quiet)) { menu = null; active = row } } }) {
@@ -136,7 +147,8 @@ internal fun rememberGalleryPicker(kind: BuiltinKind, packageName: String?, acti
     val currentActions by rememberUpdatedState(actions)
     val state = remember { GalleryPickerState(repository, GalleryPickerActions(
         { item, progress, result -> currentActions.pick(item, progress, result) },
-        { currentActions.cancel() }, { id, result -> currentActions.removeScreensaver(id, result) }), scope) }
+        { currentActions.cancel() }, { id, result -> currentActions.removeScreensaver(id, result) },
+        if (actions.adopt == null) null else { item, result -> currentActions.adopt?.invoke(item, result) ?: Unit }), scope) }
     val ghost = LocalPageGhost.current
     LaunchedEffect(ghost) { if (ghost) state.cancel() }
     val snapshot by repository.state.collectAsState()
@@ -150,7 +162,7 @@ internal fun rememberGalleryPicker(kind: BuiltinKind, packageName: String?, acti
             } }
         } catch (e: CancellationException) { throw e } catch (_: Exception) {}
     }
-    LaunchedEffect(snapshot, state.menu, state.active) {
+    LaunchedEffect(snapshot, state.menu, state.active, state.joinedTick) {
         state.joined = withContext(Dispatchers.IO) { SettingsStore.read(ctx).galleryScreensavers }
     }
     DisposableEffect(state) { onDispose { state.cancel() } }

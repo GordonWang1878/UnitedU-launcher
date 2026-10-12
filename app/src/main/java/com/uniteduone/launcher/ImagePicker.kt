@@ -219,6 +219,37 @@ fun WallpaperPicker(
 /** 全屏预览里图解码好后的淡入(2026-10-12 Gordon 要「短一点的」;层间换层是 300 ms,与它同长)。 */
 private const val PREVIEW_FADE_IN_MS = 300
 
+/**
+ * 选图网格的照片缩略图(内置 / 我的)进程内缓存(2026-10-12 Gordon:「内置的反而要加载一下」)。在线图库的缩略图是服务端
+ * 生成的 640 px 小图、读得快;内置与我的每张都是 4K 原图,现解一张 200–400 ms。按路径 + 修改时间 + 大小认,换了文件自然失效;
+ * [prewarm] 在打开设置时先把内置壁纸解好,进选图页第一帧就有图。
+ */
+internal object PickerThumbs {
+    class Thumb(val bitmap: Bitmap, val sourceWidth: Int, val sourceHeight: Int)
+    private val cache = object : android.util.LruCache<String, Thumb>(16 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: Thumb) = value.bitmap.allocationByteCount
+    }
+    private fun key(file: File) = "${file.absolutePath}|${file.lastModified()}|${file.length()}"
+    fun peek(file: File): Thumb? = cache.get(key(file))
+    @androidx.annotation.WorkerThread
+    fun load(file: File): Thumb? {
+        val k = key(file)
+        cache.get(k)?.let { return it }
+        return runCatching {
+            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            decodeImagePath(file.absolutePath, opts)
+            val w = opts.outWidth; val h = opts.outHeight
+            if (w <= 0 || h <= 0) return@runCatching null
+            val sample = maxOf(1, minOf(w / 240, h / 135))
+            decodeImagePath(file.absolutePath, BitmapFactory.Options().apply { inSampleSize = sample })?.let { Thumb(it, w, h) }
+        }.getOrNull()?.also { cache.put(k, it) }
+    }
+    @androidx.annotation.WorkerThread
+    fun prewarm(ctx: android.content.Context, kind: BuiltinKind) {
+        BuiltinImages.list(ctx, kind).forEach { load(it.file) }
+    }
+}
+
 /** 换壁纸页的菜单 / 预览(2026-10-12):[builtin] 的没有「删除」。 */
 private class WallpaperMenu(val file: File, val builtin: Boolean)
 private sealed class WallpaperLayer {
@@ -855,12 +886,22 @@ private fun ThumbCard(
     val targetWidth = with(density) { thumbWidth.roundToPx() }.coerceAtLeast(1)
     val targetHeight = with(density) { thumbHeight.roundToPx() }.coerceAtLeast(1)
     val thumbnailGeneration = if (item is PickerItem.Gallery) galleryState?.thumbnailGeneration else null
-    val thumb by produceState<ThumbData?>(null, item, asCard, visible, thumbnailGeneration, targetWidth, targetHeight) {
+    // `visible` 只对在线图有用(没进过视野的不去拉缩略图),而且只认「进过一次」:它曾直接当 key,
+    // 页面一挂上(false → true)、一淡出成残影(true → false)就整格重解——内置 / 我的都是 4K 原图,
+    // 一轮 4 张同时解 200–400 ms,选用后关页那一卡就是它(2026-10-12 trace 实证)。
+    var seen by remember { mutableStateOf(visible) }
+    if (visible && !seen) SideEffect { seen = true }
+    val galleryKey = if (item is PickerItem.Gallery) seen else true
+    // 解过的内置 / 我的图(进程内缓存)第一帧就有,不先画一帧占位
+    val warm = remember(item, asCard) {
+        if (asCard || file == null || isVideo) null else PickerThumbs.peek(file)?.let { ThumbData(item, it.bitmap, null, null) }
+    }
+    val thumb by produceState<ThumbData?>(warm, item, asCard, galleryKey, thumbnailGeneration, targetWidth, targetHeight) {
         value = withContext(Dispatchers.IO) {
             var srcW = 0; var srcH = 0
             var videoMs: Long? = null
             val bmp = when {
-                item is PickerItem.Gallery -> if (visible) try {
+                item is PickerItem.Gallery -> if (seen) try {
                     val file = galleryState!!.repository.thumbnail(item.row.item)
                     decodeGalleryThumbnail(file, targetWidth, targetHeight).also {
                         srcW = it.sourceWidth; srcH = it.sourceHeight
@@ -870,16 +911,7 @@ private fun ThumbCard(
                 file == null -> null
                 // 视频(R104):首帧缩略图 + 时长,MediaMetadataRetriever,带缓存
                 isVideo -> VideoThumbs.load(file).also { videoMs = it.durationMs }.frame
-                else -> runCatching {
-                    val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                    decodeImagePath(file.absolutePath, opts)
-                    val w = opts.outWidth; val h = opts.outHeight
-                    if (w <= 0 || h <= 0) return@runCatching null
-                    srcW = w; srcH = h
-                    val sample = maxOf(1, minOf(w / 240, h / 135))
-                    val decOpts = BitmapFactory.Options().apply { inSampleSize = sample }
-                    decodeImagePath(file.absolutePath, decOpts)
-                }.getOrNull()
+                else -> PickerThumbs.load(file)?.also { srcW = it.sourceWidth; srcH = it.sourceHeight }?.bitmap
             }
             val backdrop = if (asCard && bmp != null) {
                 runCatching { Apps.cardBackdropFor(bmp, srcW, srcH) }.getOrNull()
@@ -887,7 +919,7 @@ private fun ThumbCard(
             ThumbData(item, bmp, backdrop, videoMs)
         }
         // Runs on the page scope after cancellable IO returns; obsolete/disposed effects cannot report.
-        if (item is PickerItem.Gallery && visible) galleryState?.thumbnailResult(item.row.key, value?.bitmap == null)
+        if (item is PickerItem.Gallery && seen) galleryState?.thumbnailResult(item.row.key, value?.bitmap == null)
     }
 
     val label = when (item) {

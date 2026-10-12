@@ -294,6 +294,7 @@
     <string name="toast_storage_not_ready">電視儲存空間暫時無法使用，請稍後再試</string>
     <string name="toast_open_failed">打不開：%1$s</string>
     <string name="toast_wallpaper_changed">桌布已更換</string>
+    <string name="toast_gallery_joined">已加入螢幕保護程式輪播</string>
     <string name="toast_invalid_image">這個檔案不是可用的圖片</string>
     <string name="toast_card_image_changed">卡片圖已更換</string>
     <string name="toast_icon_restored">已恢復原始圖示</string>

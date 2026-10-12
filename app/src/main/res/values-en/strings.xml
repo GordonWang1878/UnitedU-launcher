@@ -302,6 +302,7 @@
     <string name="toast_storage_not_ready">The TV\'s storage isn\'t ready. Try again in a moment.</string>
     <string name="toast_open_failed">Couldn\'t open: %1$s</string>
     <string name="toast_wallpaper_changed">Wallpaper changed</string>
+    <string name="toast_gallery_joined">Added to the screensaver rotation</string>
     <string name="toast_invalid_image">That file isn\'t a usable image</string>
     <string name="toast_card_image_changed">Card art changed</string>
     <string name="toast_icon_restored">Original icon restored</string>

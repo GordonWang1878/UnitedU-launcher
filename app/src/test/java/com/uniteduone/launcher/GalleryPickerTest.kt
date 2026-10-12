@@ -126,6 +126,37 @@ class GalleryPickerTest {
         assertNull(s2.preview); assertNull(s2.active)
     }
 
+    /** 2026-10-12 Gordon:点完「选用」立刻按返回,壁纸没换。已下载的图交给 adopt:菜单当场收、不出进度页,之后关页的 cancel() 碰不到它。 */
+    @Test fun downloadedPickIsHandedOffAndSurvivesPageCancel() = kotlinx.coroutines.runBlocking {
+        val row = GalleryRow("gallery:a", item("a"), true, false)
+        val repository = object : GalleryRepository {
+            override val state = kotlinx.coroutines.flow.MutableStateFlow(GallerySnapshot(null, emptyList(), false, null))
+            override suspend fun refresh() = Unit
+            override suspend fun original(item: GalleryItem, onProgress: (Long) -> Unit): GalleryLocal = error("unused")
+            override suspend fun thumbnail(item: GalleryItem): File = error("unused")
+            override suspend fun removeDownloaded(sha256: String, protected: Set<String>) = false
+            override suspend fun orphanedDownloads() = emptySet<String>()
+            override suspend fun cleanupOrphans(protected: Set<String>) = emptySet<String>()
+        }
+        val adopted = mutableListOf<String>()
+        var picks = 0
+        var cancels = 0
+        val state = GalleryPickerState(repository, GalleryPickerActions(
+            { _, _, _ -> picks++; { cancels++; Unit } }, {}, { _, _ -> }, { item, _ -> adopted += item.id }), this)
+        state.menu = row
+        state.pick(row)
+        assertEquals(listOf("a"), adopted); assertEquals(0, picks)
+        assertNull(state.menu); assertNull(state.active)
+        state.cancel()
+        assertEquals(0, cancels)
+        // 没下载的照旧走下载 + 进度页
+        val fresh = GalleryRow("gallery:b", item("b"), false, false)
+        state.menu = fresh; state.pick(fresh)
+        assertEquals(1, picks); assertEquals(fresh, state.active)
+        state.cancel()
+        assertEquals(1, cancels)
+    }
+
     @Test fun disposingOldPickerCancelsOnlyItsOwnSelectionWaiter() = kotlinx.coroutines.runBlocking {
         val repository = object : GalleryRepository {
             override val state = kotlinx.coroutines.flow.MutableStateFlow(GallerySnapshot(null, emptyList(), false, null))

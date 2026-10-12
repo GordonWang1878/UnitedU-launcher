@@ -294,6 +294,7 @@
     <string name="toast_storage_not_ready">电视存储暂时用不了，请稍后再试</string>
     <string name="toast_open_failed">打不开：%1$s</string>
     <string name="toast_wallpaper_changed">壁纸已更换</string>
+    <string name="toast_gallery_joined">已加入屏保轮播</string>
     <string name="toast_invalid_image">这个文件不是能用的图片</string>
     <string name="toast_card_image_changed">卡片图已更换</string>
     <string name="toast_icon_restored">已恢复原始图标</string>
