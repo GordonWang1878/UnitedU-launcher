@@ -2421,3 +2421,4 @@ Gordon 在 beta.9 上报三件事,模拟器 perfetto trace(给各解码点临时
 - 先上图库再删包:两张 HDR 处理过的成品(sha256 与 APK 里逐字节相同)拷进图库源 `images/`,`resources.json` 加 `wall-midnight-toy-room` / `wall-rainy-night-bus-stop`(order 11 / 12,壁纸 + 屏保双用途),生成 revision-4(新增 2、更新 0、下架 0),发布后线上 `index.json` 与本地一致(`603d92a6…`),两张原图从线上下载回来 sha256 核对通过;图库源本地提交 `173e35c`。再从 `assets/builtin/wallpapers/` 删掉两张与 `names.txt` 两行。备份:未处理原图在 `~/unitedu-assets-originals/2026-09-28/` 与 `2026-09-28-renamed/`,成品在图库源、`unitedu-gallery-builds/revision-4` 与 git 历史。
 - 之前选了这两张内置壁纸的用户:`builtin:02-…` / `builtin:03-…` 在新版里解析不到,按原规则回落内置第一张(夏日数码门);图在在线图库里可以重新选。回退包照旧带着这两张。
 - 已合 main 并发 1.2.0-beta.14(versionCode 35,回退包 36;桌面布局改名 + 内置壁纸缩减 + 更新后夺回桌面),main 推到 `7f93236`。下一个 Beta 从 versionCode 37 起。
+- Gordon 电视实测 beta.14:「桌面布局」改名、内置只剩两张都通过;更新完仍会先跳 HDMI 2,几秒后自动拉回(夺回生效),他评「勉强可以接受」。跳的那几秒是 CEC 已经切了信号源,应用层挡不住,只能事后夺回。
