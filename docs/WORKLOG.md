@@ -2441,3 +2441,4 @@ Gordon 在 beta.9 上报三件事,模拟器 perfetto trace(给各解码点临时
 - 内置壁纸:选过已退出内置的《午夜玩具房》《雨夜巴士站》的用户,冷启动时后台从在线图库下载同一张、把选中值换成 `gallery:<id>`(`RETIRED_BUILTIN_WALLPAPERS` / `retiredWallpaperGalleryId`,单测);下载期间用户自己换了壁纸就不动,离线失败下次冷启动再试;成功前仍回落夏日数码门。回退包不认 `gallery:` 的话回落它自己的第一张(只影响回退)。
 - 模拟器(`unitedu-tv`,接管开着,因为 Google 镜像上原厂桌面优先级高、HOME 抢不到):真 `adb install -r` 后 2 s 被 YouTube 盖住 → `reclaiming home (#1)`、回到桌面;2 s 时 `KEYCODE_SLEEP` → 不夺回;先按方向键再开 YouTube → 不夺回。壁纸:settings 写 `builtin:02-午夜玩具房` 冷启动 → 日志 `retired builtin wallpaper migrated`,读回 `gallery:wall-midnight-toy-room` + `galleryWallpaper` sha256。全量单测 + release 构建通过。
 - 未验证:屏保中更新的那条路(模拟器造屏保要整套设置,只靠单测与代码路径);电视实测随下一个 Beta。
+- 已合 main 并发 1.2.0-beta.15(versionCode 37,回退包 38;上面两项修复),main 推到 `46ad91f`。下一个 Beta 从 versionCode 39 起。电视实测待做:壁纸若曾选那两张,更新后应自动换回;更新后跳 HDMI 仍应几秒后自动回桌面。
