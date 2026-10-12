@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -384,13 +385,16 @@ private suspend fun decodeScreensaverPhoto(path: String, dstW: Int, dstH: Int): 
  * 屏保本体的推拉摇移见 [MotionSlideshow]。缩放在 `graphicsLayer` 块里读,不逐帧重组。
  */
 @Composable
-internal fun ScreensaverSlot(file: File?, intervalMs: Long) {
+internal fun ScreensaverSlot(file: File?, intervalMs: Long, fadeInMs: Int = 0) {
     file ?: return
     val (dstW, dstH) = rememberScreenDecodeSize()
     val bmp by produceState<Bitmap?>(null, file.absolutePath, dstW, dstH) {
         value = decodeScreensaverBitmap(file.absolutePath, dstW, dstH)
     }
     val b = bmp ?: return
+    // 全屏预览(2026-10-12 Gordon:预览是瞬间弹出来的):图解码好才画,从 0 淡入;屏保自己不传(换图有 Crossfade)。
+    val alpha = remember { Animatable(if (fadeInMs > 0) 0f else 1f) }
+    LaunchedEffect(b) { if (fadeInMs > 0) alpha.animateTo(1f, tween(fadeInMs, easing = FastOutSlowInEasing)) }
     val scale = remember { Animatable(1.0f) }
     LaunchedEffect(file.absolutePath) {
         scale.snapTo(1.0f)
@@ -409,6 +413,7 @@ internal fun ScreensaverSlot(file: File?, intervalMs: Long) {
         modifier = Modifier.fillMaxSize().graphicsLayer {
             scaleX = scale.value
             scaleY = scale.value
+            this.alpha = alpha.value
         },
     )
 }

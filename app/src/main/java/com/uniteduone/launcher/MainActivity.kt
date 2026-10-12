@@ -1221,6 +1221,7 @@ class MainActivity : ComponentActivity() {
                     isCurrent = { it.name == currentWallpaper },
                     onConfirmDelete = ::deleteWallpaperImage,
                     onCancelDelete = { wallpaperDeleteTarget = null; focusNonce++ },
+                    onRequestDelete = { wallpaperDeleteTarget = it },
                 )
             }
             // M5 spec §5:长按缩略图删图。长按识别在 dispatchKeyEvent(「图库光着」那一支),这里只接线:
@@ -1443,7 +1444,7 @@ class MainActivity : ComponentActivity() {
             // 全屏预览开着时网格失焦、poolFocused 已报 null,这一支不成立 = 预览里长按无效。
             // R117:聚焦的是内置图 → 胶囊菜单「不参与 / 加入轮播」(内置图删不掉,不弹删图框)。
             // R153「换壁纸页光着」:页开着、确认页没开、焦点在「我的」某一张上。满 LONG_PRESS_MS 弹删除确认页,整下吞掉
-            // (UP 落不到缩略图上,不会顺带选用它)。内置图删不掉:长按照旧 = 确定(选用),不进这一支。
+            // (UP 落不到缩略图上,不会顺带选用它)。内置图删不掉:长按照旧 = 确定(2026-10-12 起是打开预览 / 选用菜单),不进这一支。
             val wallpaperMine = (wallpaperFocused as? PoolFocus.Mine)?.file
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount > 0 && pickerTarget == PICK_WALLPAPER &&
                 wallpaperDeleteTarget == null && wallpaperMine != null && event.eventTime - event.downTime >= LONG_PRESS_MS

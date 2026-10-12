@@ -155,8 +155,14 @@ fun WallpaperPicker(
     isCurrent: (File) -> Boolean = { false },
     onConfirmDelete: (File) -> Unit = {},
     onCancelDelete: () -> Unit = {},
+    /** 菜单里点「删除」(「我的」才有):与长按同一条路,由 MainActivity 置 [deleteTarget]。 */
+    onRequestDelete: (File) -> Unit = {},
     galleryActions: GalleryPickerActions? = null,
 ) {
+    // 2026-10-12 Gordon:同一页上「内置 / 我的」点一下就选用、「在线图库」点一下是菜单,两种交互割裂 → 三块统一成菜单
+    // (预览 / 选用 /〔我的:删除〕/ 取消)。菜单与预览是本页自己的状态,开着时网格 covered 让路、关掉由网格按冻结的目标接回。
+    var menu by remember { mutableStateOf<WallpaperMenu?>(null) }
+    var preview by remember { mutableStateOf<WallpaperMenu?>(null) }
     // 从扫码页回来时本组合是新挂上的(扫码页替换了它),这里自然按盘上实况重读;删图后按 refresh 重读(R153)。
     val files = remember(directory, refresh) { listImages(directory) }
     val builtins = rememberBuiltins(BuiltinKind.WALLPAPERS)
@@ -174,19 +180,54 @@ fun WallpaperPicker(
             thumbWidth = PICKER_PHOTO_WIDTH,
             thumbHeight = PICKER_PHOTO_HEIGHT,
             nonce = nonce,
-            onSelectFile = onSelect,
+            onSelectFile = { f -> menu = WallpaperMenu(f, builtinImageOf(f) != null) },
             onRestoreOriginal = null,
             onDismiss = onDismiss,
             emptyHint = stringResource(R.string.picker_no_images),
             onAddFromPhone = onAddFromPhone,
             landing = landing,
-            covered = deleteTarget != null,
+            backHint = R.string.picker_wallpaper_hint,
+            covered = deleteTarget != null || menu != null || preview != null,
             onFocusedItem = onFocusedItem,
         )
     }
-    // R153:删图确认页(同屏保图库,OverlayStack 淡入淡出;残影画的是关掉前那一份)
+    // R153:删图确认页(同屏保图库,OverlayStack 淡入淡出;残影画的是关掉前那一份)。菜单、预览同一摞(换层交叉淡化)。
     val eyebrow = stringResource(R.string.menu_wallpaper)
-    OverlayStack(state = deleteTarget?.let { WallpaperDelete(it, isCurrent(it)) }, layerKey = { it.file.name }) { d ->
+    val previewLabel = stringResource(R.string.gallery_preview)
+    val useLabel = stringResource(R.string.gallery_use)
+    val deleteLabel = stringResource(R.string.pool_delete_ok)
+    val cancelLabel = stringResource(R.string.dialog_cancel)
+    val layer: Any? = deleteTarget?.let { WallpaperDelete(it, isCurrent(it)) } ?: preview?.let { WallpaperLayer.Preview(it) } ?: menu?.let { WallpaperLayer.Menu(it) }
+    OverlayStack(state = layer, layerKey = { when (it) { is WallpaperDelete -> "delete:${it.file.path}"; is WallpaperLayer.Preview -> "preview:${it.pick.file.path}"; is WallpaperLayer.Menu -> "menu:${it.pick.file.path}"; else -> "" } }) { l ->
+        when (l) {
+            is WallpaperLayer.Menu -> {
+                val f = l.pick.file
+                val name = builtinImageOf(f)?.let { builtinName(it) } ?: f.nameWithoutExtension
+                GearMenu(title = name, nonce = nonce, items = buildList {
+                    add(MenuItem(previewLabel, "") { preview = l.pick; menu = null })
+                    add(MenuItem(useLabel, "") { menu = null; onSelect(f) })
+                    if (!l.pick.builtin) add(MenuItem(deleteLabel, "") { menu = null; onRequestDelete(f) })
+                    add(MenuItem(cancelLabel, "") { menu = null })
+                }, onDismiss = { menu = null })
+            }
+            is WallpaperLayer.Preview -> ScreensaverPreview(listOf(l.pick.file), 0, nonce) { preview = null }
+            is WallpaperDelete -> WallpaperDeleteDialog(l, eyebrow, nonce, onConfirmDelete, onCancelDelete)
+        }
+    }
+}
+
+/** 全屏预览里图解码好后的淡入(2026-10-12 Gordon 要「短一点的」;层间换层是 300 ms,与它同长)。 */
+private const val PREVIEW_FADE_IN_MS = 300
+
+/** 换壁纸页的菜单 / 预览(2026-10-12):[builtin] 的没有「删除」。 */
+private class WallpaperMenu(val file: File, val builtin: Boolean)
+private sealed class WallpaperLayer {
+    class Menu(val pick: WallpaperMenu) : WallpaperLayer()
+    class Preview(val pick: WallpaperMenu) : WallpaperLayer()
+}
+
+@Composable
+private fun WallpaperDeleteDialog(d: WallpaperDelete, eyebrow: String, nonce: Int, onConfirmDelete: (File) -> Unit, onCancelDelete: () -> Unit) {
         ConfirmDialog(
             title = stringResource(R.string.pool_delete_title),
             body = stringResource(
@@ -200,7 +241,6 @@ fun WallpaperPicker(
             onOk = { onConfirmDelete(d.file) },
             onCancel = onCancelDelete,
         )
-    }
 }
 
 /** 换壁纸页上叠着的删图确认页(R153,给 [OverlayStack] 当状态;「是不是正在用」随状态带着,残影里不现查)。 */
@@ -1221,7 +1261,7 @@ internal fun ScreensaverPreview(
             val f = files.getOrNull(idx)
             // 视频(R104):循环静音播放;淡出去的那一个 active = false,当场截帧释放(同一时刻一个播放器,R102)
             if (f != null && ScreensaverMedia.isVideo(f.name)) PreviewVideo(f, active = idx == index)
-            else ScreensaverSlot(f, Theme.ScreensaverIntervalMs)
+            else ScreensaverSlot(f, Theme.ScreensaverIntervalMs, fadeInMs = PREVIEW_FADE_IN_MS)
         }
 
         var showInfo by remember { mutableStateOf(true) }
