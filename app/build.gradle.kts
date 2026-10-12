@@ -34,7 +34,7 @@ val rollbackUrls: String = providers.gradleProperty("unitedu.rollbackUrls").orNu
  * 1.0.0 = 3(2026-10-02 首次公开发布);1.0.0-beta 内部版是 2(spec §9)。
  * `-PversionCodeOverride=N` 只给模拟器上验证「发现新版本 → 下载 → 安装」时出一个更高版本号的包用,不进任何配置文件。每次对外发布 +1。
  */
-val appVersionCode: Int = providers.gradleProperty("versionCodeOverride").orNull?.toInt() ?: 23
+val appVersionCode: Int = providers.gradleProperty("versionCodeOverride").orNull?.toInt() ?: 25
 
 /**
  * `-PrequireReleaseKey=true`(`scripts/release.sh` 总是带上):找不到 release 密钥时**构建直接失败**,
@@ -56,7 +56,7 @@ android {
         minSdk = 28
         targetSdk = 35
         versionCode = appVersionCode
-        versionName = "1.2.0-beta.8"
+        versionName = "1.2.0-beta.9"
         buildConfigField("String", "GALLERY_BASE_URL",
             "\"" + galleryBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"") + "\"")
         // 进 Java 字符串字面量:反斜杠与引号先转义(地址里本不该有,防手误把整个构建弄坏)。
