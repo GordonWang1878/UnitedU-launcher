@@ -2454,3 +2454,11 @@ Gordon 在 beta.9 上报三件事,模拟器 perfetto trace(给各解码点临时
 ## 2026-10-12 · 发稳定版 1.2.0
 
 - beta.16 电视实测通过后，Gordon 拍板晋级：1.2.0（versionCode 41），内容与 beta.16 相同，只改了版本号。说明汇总了 beta.1–16 中用户看得见的改动（`dist/notes-1.2.0*.txt`）。R2 上的 `latest.json` 读回为 41，GitHub latest = v1.2.0。下一个 Beta 从 versionCode 43 起。
+
+## 2026-10-21 · CleanYourTV 研究与 Agent 安装讨论稿
+
+- 按 Gordon 要求整理 `docs/research/2026-10-21-cleanyourtv-and-unitedu.md`，供其他 agent 独立评审：产品形态、技术特点、与 UnitedU 对比、Agent 安装套件、HOME 限制分类、安全恢复、合作选项、最小验证与评审问题。
+- 研究快照 CYTV `687b5ee`；本机 Python 共 58 项（57 通过、1 跳过），Android 单测 / Lint / release 构建通过，APK 403,051 字节；没有安装到电视 / 模拟器，没有实跑系统精简或恢复。设备档案为上游报告，不等于我方复验。
+- 讨论倾向：保留同一个正式 UnitedU APK，在外围增加可选 Agent 安装 / 诊断套件；技术上互补、需求上部分竞争。AI 不提升 ADB 权限，不能承诺所有设备成为默认 HOME。此项未定案、没有实施，也不新增 UI 裁定。
+- 纠正此前讨论：UnitedU 是标准 APK，浏览器 / U 盘 / 文件传输等可首装；README 双语的“首次必须 adb”表述不正确。文档中列为后续双语修订项；同时记录 setupwraith 的 Wi-Fi / Cast 风险说明待补，本轮未直接修改用户文档。
+- 文档分流检查：只增加研究稿并同步本日志；未改变产品行为、模块、设置清单、发布或真机规则，因此未改设计 spec / REVIEW-GUIDE / README。
