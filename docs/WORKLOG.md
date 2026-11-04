@@ -2462,3 +2462,25 @@ Gordon 在 beta.9 上报三件事,模拟器 perfetto trace(给各解码点临时
 - 讨论倾向：保留同一个正式 UnitedU APK，在外围增加可选 Agent 安装 / 诊断套件；技术上互补、需求上部分竞争。AI 不提升 ADB 权限，不能承诺所有设备成为默认 HOME。此项未定案、没有实施，也不新增 UI 裁定。
 - 纠正此前讨论：UnitedU 是标准 APK，浏览器 / U 盘 / 文件传输等可首装；README 双语的“首次必须 adb”表述不正确。文档中列为后续双语修订项；同时记录 setupwraith 的 Wi-Fi / Cast 风险说明待补，本轮未直接修改用户文档。
 - 文档分流检查：只增加研究稿并同步本日志；未改变产品行为、模块、设置清单、发布或真机规则，因此未改设计 spec / REVIEW-GUIDE / README。
+- 第二评审(Claude,研究稿 §16):对国行主目标增量小(上游机型库以海外为主,国行拦路点多不是 `pm disable-user` 能解);Agent 安装主要惠及海外 Google TV 档;该档先决问题是主页键接管在真 Google TV 上是否成立。**Gordon 当时选「先不动」= 暂不开工(不是产品方向,后被 Claude 误当作辩论前提,见下);暂不发招募 Google TV 实测的 issue。** README 首装说法的修订也随之搁置,等有 issue 再排。
+- 同日应 Gordon 要求,Pi(gpt-6-astra)与 Claude 就两份意见辩论(记录 `docs/research/2026-10-21-cytv-debate.md`,Claude 主持、Pi 原文照贴):两轮达成一致、双方签字。共同方案:不启动 Agent 套件 / 设备库 / debloat / 上游 PR;同一个正式 APK;有配合者时先在 compat issue 里验证现有主页键接管;文档维护候选三项(首装不必须 adb、停用 launcherx/setupwraith 的 Wi-Fi/Cast 风险、CYTV 小米 MiTV-AETP0 报告的「无障碍重启被移除」限定提示)待获准再改。过程坑:`pi -p` 不带 `</dev/null` 会一直等 stdin(第一次因此干挂 3 小时 40 分)。
+- 复盘:辩论结论偏向不作为,主因是 Claude 写进规则的「先不动 / 维护期」框架与单向举证负担,不是新事实;见辩论记录末节。
+
+- 第二场续接：按 Gordon「让 Pi 继续」恢复原 Pi 会话 `01a15e3f-874c-7354-8c93-71ada2fb7cf0`。发现第二场第 2 轮已生成但未转录，已原文补入辩论记录；再次调用 Pi（仅只读工具）获得「第二场续接确认」，原文归档。Pi 仍不签字：E4-b 反对默认强制双渠道可达，提出单一官方渠道可达时明示并确认；E6 要求无法可靠处理用户主动关闭时不发布自动写回。待 Claude 回应具体条款与十项小改；未启动实施或对外发布。
+
+## 2026-10-22 · CleanYourTV 第二场辩论收口（Codex / Pi）
+
+- Gordon 明确指定 Codex 接替 Claude，与原 Pi 会话继续。Codex 核对本地发布脚本、分发配置及 HOME 心跳记录，接受单渠道明示确认和自动恢复发布闸门，并形成完整替代方案 `docs/research/2026-10-22-cytv-codex-pi-proposal.md`。
+- Pi 第 3 轮只读审核后明确签署当前全文，E4-b/E6 消解；发言原文完整归档 `docs/research/2026-10-21-cytv-debate.md`。两项非阻断建议保留作后续细化；签署后仅更新状态/签名，正文逐字保持。
+- 共识：双语文档、只读诊断、确认式安装指引、CI、小型证据索引并配真机试点，复现后择优修复；提案预算最多 14 人日，不含设备/模型费及等待，尚未批准实施。未改代码或用户文档，未连设备、对外招募或发布。验证：转录原文一致，方案正文未变，git diff --check 通过。
+
+## 2026-10-27 · Aerial TV 能力对比与接管研究
+
+- 应 Gordon 要求对比 Aerial TV 与 UnitedU，并评估加入接管方案。固定上游 `f57e46b1b0459b1ced68025538bb85abab955636`（1.62/76），只读研究及结论见 `docs/research/2026-10-27-aerial-tv-unitedu.md`；未安装、运行上游脚本或连接设备。
+- Aerial 是完整电视桌面，其 standard/无 HOME 的 guard 变体、TCL 多屏互动、厂商 appop、通知监听/同步复活与海信属性提供具体假设；上游多机型反馈不等于 UnitedU 实测。UnitedU 已有 HOME 截键/窗口兜底，不能将基本机制说成新增。
+- 自动恢复可能覆盖用户系统设置中的主动关闭，需保留原方案 E6 闸门；上游 restore 有回 default 等行为，不可称精确全量恢复。建议增补设备诊断、具体机型复现、按风险择优研究，原 14 人日估算不能自动覆盖全部新增机制；未修改已签署方案、代码或发布规则。
+
+## 2026-10-28 · Aerial TV 交 Pi 独立研究的入口
+
+- 按 Gordon 要求准备 `docs/research/2026-10-28-aerial-pi-brief.md`，链接已有 Aerial 比较、CleanYourTV 研究、原共识方案与辩论记录，列能力对比、接管机制、设备证据、恢复权限、方案取舍和许可等独立研究问题。
+- 入口明确 Codex 初稿可被推翻、Aerial 上游固定提交、研究与实施/真机授权的边界；既有研究文档仍未提交，新 Worktree 不会自动带上它们。
