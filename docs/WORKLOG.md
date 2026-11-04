@@ -2484,3 +2484,13 @@ Gordon 在 beta.9 上报三件事,模拟器 perfetto trace(给各解码点临时
 
 - 按 Gordon 要求准备 `docs/research/2026-10-28-aerial-pi-brief.md`，链接已有 Aerial 比较、CleanYourTV 研究、原共识方案与辩论记录，列能力对比、接管机制、设备证据、恢复权限、方案取舍和许可等独立研究问题。
 - 入口明确 Codex 初稿可被推翻、Aerial 上游固定提交、研究与实施/真机授权的边界；既有研究文档仍未提交，新 Worktree 不会自动带上它们。
+
+## 2026-10-28 · Aerial TV 独立研究（Pi，隔离 Worktree）
+
+- 背景：Gordon 看到 Aerial TV 近期受关注，要一份独立对比（不预设 Codex 的 `2026-10-27-aerial-tv-unitedu.md` 与已签署的 `2026-10-22-cytv-codex-pi-proposal.md` 是对的）。报告 `docs/research/2026-10-28-aerial-tv-unitedu-pi-review.md`（399 行），既有研究与方案原文未改。
+- 基线：Aerial `f57e46b`（1.62 / 76）；另读了 HEAD `022add6`（基线后 19 个功能提交、版本号未升）。项目 7 天、6,662 star、252 open issue、55 个 release，作者自维护真机只有小米 MFTR0（Android 14）与 TCL MT5879（Android 11）。
+- 三条主要判断：① Aerial 的可复用价值在**机型判据与证据闭环**（`docs/devices/` 24 篇、`report.sh`、`selftest.sh`、`devices.json`），不在它的权限模型；② "守护复活"（通知监听 / 同步适配器）与 `WRITE_SECURE_SETTINGS` 是**同一件事**——`am force-stop` 会把无障碍服务移出启用表，只有该权限能写回，故两者不能当并列候选；③ Aerial **覆盖**用户的主动关闭（`MainActivity` 每次启动、同步适配器在守护未运行时都无条件 `ensureEnabled`），不能当 E6 的用户控制先例。
+- 建议纳入（P0，零权限）：原厂桌面建模（负优先级 / 播放器包 / 厂商 category / trampoline / 无 filter 的固件桌面 / 只认 Activity）、HOME 解析一律带 `CATEGORY_DEFAULT`、按键过滤按条件开关（手柄 / 息屏关过滤，#774 会整机重启）、`UnitedUDream` 收到 `ACTION_SCREEN_OFF` 自退（TCL 待机不唤醒 #371）。P1 另计、需 Gordon 拍板：复活链 + 写回权限、`GET_USAGE_STATS`、TCL 多屏互动安装路径、guard 变体。
+- 与 Codex 初稿的修正：复活链与写回权限不可拆、Aerial 的用户控制问题是"主动覆盖"而非"判据缺失"、遗漏 #774 与"原厂桌面建模"、Android 12+ 小米干脆不过滤按键的取舍、预算 14 人日对 P0 仍成立（约 11–12），P1 是另一个 8–15 人日项目。
+- 验证边界：只读源码 + GitHub API + 一次隔离 AVD（`unitedu-tv`，AOSP TV 14）只读对比——`queryIntentActivities(MAIN+HOME)` 里确实有 `FallbackHome`（priority -1000），现行 `stockHomes` 会收进去；带不带 `DEFAULT` 在该镜像上无差异，只在极米那类固件成立（不能当通用修复宣称）。未编译/未安装 Aerial、未运行其脚本、未连真机。
+- **研究结论不等于 Gordon 已批准实施**；单 APK 决策建议不动，例外条件（TCL/OPPO 类拒装声明 HOME 的 APK）只写设计不发版。
