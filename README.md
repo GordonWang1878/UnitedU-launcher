@@ -39,6 +39,8 @@ The app's interface is available in English, Simplified Chinese and Traditional 
 
 **Whether UnitedU works mostly depends on what the TV maker allows: installing third-party APKs, and handing the HOME button to a third-party home screen. The only Android-version limit is that it won't install below Android 9.** The table below is the result of research in October 2026; except for the Sony A95L, nothing has been tested on a real TV. Full reasoning and sources (in Chinese): [`docs/research/2026-10-02-tv-compatibility.md`](docs/research/2026-10-02-tv-compatibility.md).
 
+Results measured on real TVs (our own tests and user reports) are kept separately in [`docs/compatibility-reports.md`](docs/compatibility-reports.md).
+
 | Status | Brand / system | Notes |
 |---|---|---|
 | ✅ Works as the home screen (tested) | Sony A95L, Chinese market (Android 14) | All features |
