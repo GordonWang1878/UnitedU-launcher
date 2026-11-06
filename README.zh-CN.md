@@ -11,11 +11,11 @@
   <img src="docs/screenshots/readme/home-storm-en.jpg" width="49%" alt="UnitedU 首页,内置壁纸「风暴舰队」">
 </p>
 
-面向**国行无 GMS、允许更换桌面的 Android TV**(Android 9 及以上;目前实机验证的是索尼国行,其他品牌能不能用见下面「适用范围」)的开源桌面替代品。外观照着 Google TV 做,内容只有你自己放上去的应用。全程不联网,例外只有三种:你自己按「检查更新」的那一刻;打开「资料库」页时(电视在局域网里临时开一个上传服务);以及你自己加了频道行时,下载那个频道的海报图。不上架 Play 商店或国内应用市场,只以 GitHub Release 的 APK 形式分发,需要自己下载安装。
+面向**国行无 GMS、允许更换桌面的 Android TV**(Android 9 及以上;目前实机验证的是索尼国行,其他品牌能不能用见下面「适用范围」)的开源桌面替代品。外观照着 Google TV 做,内容只有你自己放上去的应用。全程不联网,例外只有四种:你自己按「检查更新」的那一刻;打开「资料库」页时(电视在局域网里临时开一个上传服务);你自己加了频道行时,下载那个频道的海报图;以及你打开选图页的「在线图库」或从里面下载图片时(见文末「官方图库」)。不上架 Play 商店或国内应用市场,只以 GitHub Release 的 APK 形式分发,需要自己下载安装。
 
 海外的 Google TV / Android TV 用户如果嫌原厂桌面推荐和广告太多,也可以用它换一个干净的桌面(定位类似 Projectivy Launcher):这类电视的 HOME 键默认回 Google 桌面,要配合下面的「主页键接管」。
 
-包名 `com.uniteduone.launcher`,最低支持 Android 9(API 28)。**最新版 1.0.2(2026-10-03)**,GitHub Release `v1.0.2`,同步发在国内直连可达的 `dl.uniteduone.com`(Cloudflare R2);APK 版本号 1.0.2 / versionCode 5。许可证见文末。
+包名 `com.uniteduone.launcher`,最低支持 Android 9(API 28)。**最新版 1.2.0(2026-10-12)**,GitHub Release `v1.2.0`,同步发在国内直连可达的 `dl.uniteduone.com`(Cloudflare R2);APK 版本号 1.2.0 / versionCode 41。许可证见文末。
 
 ## 功能一览
 
@@ -72,7 +72,7 @@ UnitedU 不在任何应用商店,需要自己把 APK 装到电视上,两种办�
 
    `-r` 是为了覆盖安装同包名的旧版本,首次安装也可以照写不影响。adb 装包不经过「未知来源」这一关,电视上不会弹任何确认。
 
-2. **手机传 APK,不用电脑**:如果电视上已经在跑 UnitedU(哪怕是别人帮你装的旧版本),打开「设置 → 通用 → 资料库」,手机连上电视所在的 Wi-Fi,浏览器扫码或输入屏幕上的地址,切到「应用」页签选文件上传(不超过 100 MB),电视上会弹出系统安装器(传的恰是 UnitedU 自己的新版时,走和「关于 → 检查更新」同一条会话安装,不会把已经打开的「主页键接管」关掉,见下「检查更新」)。这条路更适合装其他应用或以后手动更新,**装第一份 UnitedU 本身还是得靠 adb**。
+2. **手机传 APK,不用电脑**:如果电视上已经在跑 UnitedU(哪怕是别人帮你装的旧版本),打开「设置 → 通用 → 资料库」,手机连上电视所在的 Wi-Fi,浏览器扫码或输入屏幕上的地址,切到「应用」页签选文件上传(不超过 100 MB),电视上会弹出系统安装器(传的恰是 UnitedU 自己的新版时,走和「关于 → 检查更新」同一条会话安装,不会把已经打开的「主页键接管」关掉,见下「检查更新」)。这条路更适合装其他应用或以后手动更新。装第一份 UnitedU:用 adb(第 1 种);或者电视自带能打开 APK 的文件管理器时,用 U 盘拷过去装。Android 13 起,这样装的 UnitedU 要先用 adb 解锁才能打开「主页键接管」(见下「主页键接管」),所以这类电视首装仍推荐 adb。
 
 「允许安装未知应用」只和第 2 种方式(以及以后在「关于」里装更新)有关:第一次由 UnitedU 把 APK 交给系统安装器时,电视会提示先去系统的「安装未知应用」设置里给 UnitedU 打开开关,打开后回来再在手机上重新上传一次即可。这个开关只需打开一次(每次安装时系统安装器自己的确认页照常会出现)。
 
@@ -98,7 +98,7 @@ adb shell cmd package set-home-activity com.uniteduone.launcher/.MainActivity
 - **效果**:按 HOME(长按同样)直接回到 UnitedU,原厂桌面不用卸载、一帧都不画(截得到主页键时;截不到的机型会先闪一下原厂桌面再拉回);屏保播放时按 HOME 仍是系统原来的做法(只退出屏保)。开着接管时,长按 HOME 也只是回到 UnitedU,Google TV 原来长按 HOME 弹出的面板不会再出现。服务只响应 HOME 键和前台应用的名字,不读屏幕内容;关掉开关即完全还原。
 - **局限**:开机时服务起来之前,原厂桌面会露面一两秒;开机后约 30–60 秒服务连上时,会把 UnitedU 拉到前面一次——电视若设成「开机进上次信号源」(比如直接进 HDMI),这一下会盖住 HDMI 画面;屏幕关着(待机)时按 HOME 只会唤醒电视。
 - **Android 13 起**:用文件管理器 / 浏览器装的 UnitedU,电视会拦住这个服务的开关,而且设置里没有解锁入口;这时「主页键接管」旁边写「这台电视不允许」。用电脑执行 `adb shell appops set com.uniteduone.launcher ACCESS_RESTRICTED_SETTINGS allow` 再去打开,或者先卸载、再用 adb 重新安装(会清掉桌面布局)。全新的 `adb install` 不受限,但 `adb install -r` 覆盖装**不会**清掉已有的锁(模拟器上验证过),所以要先卸载。
-- **另一条路**(会用 adb 的话更彻底):直接停用原厂桌面:`adb shell pm disable-user --user 0 <原厂桌面包名>`。停用之后,电视上还剩不止一个桌面时,下次按 HOME 由系统弹出选择框;UnitedU 是仅剩的桌面时,HOME 直接解析到 UnitedU(Android TV 模拟器上停用 `com.google.android.tvlauncher` 后就是这样)。Google TV 要停 `com.google.android.apps.tv.launcherx`,还要连带停 `com.google.android.tungsten.setupwraith`(它会把原厂桌面再启用),代价是 YouTube 键之类的原厂功能失效。这一条来自其他项目的说明,Google TV 上我们没有实测,自担风险。
+- **另一条路**(会用 adb 的话更彻底):直接停用原厂桌面:`adb shell pm disable-user --user 0 <原厂桌面包名>`。停用之后,电视上还剩不止一个桌面时,下次按 HOME 由系统弹出选择框;UnitedU 是仅剩的桌面时,HOME 直接解析到 UnitedU(Android TV 模拟器上停用 `com.google.android.tvlauncher` 后就是这样)。Google TV 要停 `com.google.android.apps.tv.launcherx`,还要连带停 `com.google.android.tungsten.setupwraith`(它会把原厂桌面再启用),代价是 YouTube 键之类的原厂功能失效。⚠️ **停用 `setupwraith`(开机向导)会删掉开机向导里保存的 Wi-Fi**,停用后要在电视设置里重新连 Wi-Fi(或改用网线);在 Chromecast with Google TV 上还可能失去手机投屏。这一条来自其他项目的说明([CleanYourTV README](https://github.com/Gathin23/cleanyourtv)),Google TV 上我们没有实测,自担风险。
 
 ## 首次引导
 
