@@ -1,0 +1,51 @@
+# JVM 单元测试(第一波,2026-11)。只跑仓库现有单测,不碰签名密钥、不用任何 secret。
+# 规矩:不重试、不加 continue-on-error,全绿才算通过。模拟器 e2e 仍在维护者本机跑。
+name: unit-tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unit-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  jvm-unit-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # 与 scripts/env.sh、docs/WORKLOG.md 一致:JDK 17(Temurin)+ Gradle 8.14.5
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.5"
+
+      # gradle.properties 里关掉了 SDK 自动下载,所以先确认 runner 自带 platform 35 和 build-tools 35.0.0
+      - name: Check Android SDK components
+        run: |
+          test -d "$ANDROID_HOME/platforms/android-35"
+          test -d "$ANDROID_HOME/build-tools/35.0.0"
+
+      # 与 README「构建」一节同一条命令
+      - name: Run JVM unit tests
+        run: gradle --no-daemon testReleaseUnitTest
+
+      # 只在失败时上传，给 01 排查用；02 不读产物
+      - name: Upload test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          path: app/build/reports/tests/
+          retention-days: 7
