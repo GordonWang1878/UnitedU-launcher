@@ -34,6 +34,8 @@
 
 **能不能用,主要看电视厂商放不放:能不能装第三方 APK、HOME 键能不能交给第三方桌面;Android 版本只划一条线——Android 9 以下装不上。**下表是 2026-10 的调研结论,除索尼 A95L 外都没有实机验证,完整依据与来源见 [`docs/research/2026-10-02-tv-compatibility.md`](docs/research/2026-10-02-tv-compatibility.md)。
 
+真电视上的实机结果（自测和用户报告）单独记在 [`docs/compatibility-reports.md`](docs/compatibility-reports.md)。
+
 | 情况 | 品牌 / 系统 | 说明 |
 |---|---|---|
 | ✅ 可以当桌面(已实机验证) | 索尼国行 A95L(Android 14) | 全部功能 |
