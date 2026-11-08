@@ -72,6 +72,63 @@ class HomeKeyPolicyTest {
         assertEquals(stock, stockHomes(all, "com.uniteduone.launcher"))
     }
 
+    /** D-07: stockHomesFrom 去掉自己；targetActivity 双名；负 priority 仍收；空白 targetActivity 忽略。 */
+    @Test fun stockHomesFromExcludesSelfIncludesTargetKeepsNegativePriority() {
+        val self = "com.uniteduone.launcher"
+        val candidates = listOf(
+            HomeCandidate(
+                pkg = launcherx.first,
+                cls = "com.google.android.apps.tv.launcherx.home.HomeActivityAlias",
+                priority = 2,
+                targetActivity = launcherx.second,
+            ),
+            HomeCandidate(
+                pkg = self,
+                cls = "com.uniteduone.launcher.MainActivity",
+                priority = 0,
+                targetActivity = null,
+            ),
+            HomeCandidate(
+                pkg = "com.android.tv.settings",
+                cls = "com.android.tv.settings.system.FallbackHome",
+                priority = -1000,
+                targetActivity = null,
+            ),
+            HomeCandidate(
+                pkg = tvlauncher.first,
+                cls = tvlauncher.second,
+                priority = 0,
+                targetActivity = "   ",
+            ),
+            HomeCandidate(
+                pkg = "com.example.emptytarget",
+                cls = "com.example.emptytarget.Home",
+                priority = 1,
+                targetActivity = "",
+            ),
+        )
+        val got = stockHomesFrom(candidates, self)
+        assertFalse("自己不该出现", got.any { it.first == self })
+        assertTrue("别名类名应收", launcherx.first to "com.google.android.apps.tv.launcherx.home.HomeActivityAlias" in got)
+        assertTrue("targetActivity 真实类名应收", launcherx in got)
+        assertTrue("负 priority FallbackHome 仍收(本步不过滤 priority)", "com.android.tv.settings" to "com.android.tv.settings.system.FallbackHome" in got)
+        assertEquals(
+            "空白 / 空串 targetActivity 只收 cls，不额外加一条",
+            setOf(tvlauncher, "com.example.emptytarget" to "com.example.emptytarget.Home"),
+            got.filter { it.first == tvlauncher.first || it.first == "com.example.emptytarget" }.toSet(),
+        )
+        assertEquals(
+            setOf(
+                launcherx.first to "com.google.android.apps.tv.launcherx.home.HomeActivityAlias",
+                launcherx,
+                "com.android.tv.settings" to "com.android.tv.settings.system.FallbackHome",
+                tvlauncher,
+                "com.example.emptytarget" to "com.example.emptytarget.Home",
+            ),
+            got,
+        )
+    }
+
     /** 只认别的桌面的 HOME Activity 本身;同一个包的别的窗口(弹窗、其它 Activity)不算;自己不算;1 s 内不重复拉。 */
     @Test fun windowChangedOnlyForStockHomeActivity() {
         assertTrue(onWindowChanged(true, launcherx.first, launcherx.second, stock, lastLaunchAt = 0, now = 10_000))
