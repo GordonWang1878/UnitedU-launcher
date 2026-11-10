@@ -144,7 +144,7 @@
     <string name="home_settings_unknown">Unknown</string>
     <!-- R162 Home-button takeover: service name and description on the system Accessibility page -->
     <string name="homekey_service_label">UnitedU Home Button</string>
-    <string name="homekey_service_desc">Does one thing: on TVs where UnitedU is not the default home app, the Home button returns to UnitedU. It only acts on the Home button and the name of the app in front; it never reads screen content.</string>
+    <string name="homekey_service_desc">On TVs where UnitedU is not the default home app, the Home button returns to UnitedU. Holding Volume repeats only while the TV keeps sending key-repeat events. It only acts on Home, Volume, and the name of the app in front; it never reads screen content.</string>
     <!-- R162 Home-button takeover: the capsule, status text and side note on the default-home page and onboarding step 3 -->
     <string name="homekey_capsule">Home Button Takeover</string>
     <string name="homekey_state_on">On</string>
@@ -156,6 +156,17 @@
     <string name="homekey_note_not_running">The TV shows it as on, but the service is not running (common after an update or reboot). Turn it off and on again under “Accessibility” in Native TV Settings, or restart the TV.</string>
     <string name="homekey_note_restricted">UnitedU was installed with a file manager or browser; since Android 13 this TV will not let its accessibility service be turned on. On a computer run: adb shell appops set com.uniteduone.launcher ACCESS_RESTRICTED_SETTINGS allow, then turn on “UnitedU Home Button” under “Accessibility” in Native TV Settings — or uninstall UnitedU, then reinstall it with adb (clears your Home layout).</string>
     <string name="toast_homekey_restricted">Not allowed on this TV. Go back, unlock it from a computer as described on the left, then try again</string>
+    <string name="homekey_manual_title">Turn it on manually</string>
+    <string name="homekey_manual_body">This TV\'s Accessibility shortcut opens a blank page. Turn the service on yourself:\n1. Press Settings on the remote, or open Settings from the stock home screen.\n2. Open Device Preferences. Some TVs call it System or General.\n3. Open Accessibility.\n4. Find “UnitedU Home Button” in the service list and turn it on.\n5. If the TV asks permission, allow it. Then press Back to return to UnitedU.</string>
+    <string name="homekey_manual_body_restricted">This TV\'s Accessibility shortcut opens a blank page. UnitedU was installed from a file manager or browser, so Android 13 and later also needs an unlock first:\n1. On a computer run: adb shell appops set com.uniteduone.launcher ACCESS_RESTRICTED_SETTINGS allow\n2. Press Settings on the remote, or open Settings from the stock home screen.\n3. Open Device Preferences (some TVs call it System or General), then Accessibility.\n4. Find “UnitedU Home Button” and turn it on. Allow it if asked.\n5. Press Back to return to UnitedU.</string>
+    <string name="homekey_manual_ok">OK</string>
+    <string name="volume_log_capsule">Volume key log</string>
+    <string name="volume_log_title">Volume key log</string>
+    <string name="volume_log_note">The log stays on this TV. UnitedU does not upload it. Share sends it only to an app you pick; if nothing can receive it, the text stays on this screen.</string>
+    <string name="volume_log_empty">No entries yet. After you hold a volume key, each press and release is listed here.</string>
+    <string name="volume_log_share">Share</string>
+    <string name="volume_log_close">Close</string>
+    <string name="volume_log_share_failed">No app can receive this log. It remains only on this TV.</string>
     <string name="toast_self_update_failed">Update was not installed (%1$d). You can retry under “About”</string>
 
     <!-- picker_* : wallpaper / card-image / screensaver pickers -->

@@ -92,10 +92,12 @@ fun Onboarding(
     onOpenHomeKey: () -> Unit,
     onFinish: () -> Unit,
     onBack: () -> Unit,
+    /** 手动步骤盖在引导上时让路(issue #1)。焦点与返回键都交给那一层。 */
+    covered: Boolean = false,
 ) {
     // 比 MainActivity 的常开回调后注册,本页在时由它接管返回键。整页淡出中(引导已结束)不收。
     val ghost = LocalPageGhost.current
-    androidx.activity.compose.BackHandler(enabled = !ghost) { onBack() }
+    androidx.activity.compose.BackHandler(enabled = !ghost && !covered) { onBack() }
 
     Box(
         modifier = Modifier
@@ -114,8 +116,8 @@ fun Onboarding(
         ) { s ->
             val eyebrow = "${stringResource(R.string.app_name)} · $s / $ONBOARDING_STEPS"
             when (s) {
-                1 -> LanguageStep(eyebrow = eyebrow, language = language, nonce = nonce, onLanguage = onLanguage)
-                2 -> FillStep(eyebrow = eyebrow, revision = revision, nonce = nonce, onFill = onFill, onSkipFill = onSkipFill)
+                1 -> LanguageStep(eyebrow = eyebrow, language = language, nonce = nonce, onLanguage = onLanguage, covered = covered)
+                2 -> FillStep(eyebrow = eyebrow, revision = revision, nonce = nonce, onFill = onFill, onSkipFill = onSkipFill, covered = covered)
                 else -> HomeStep(
                     eyebrow = eyebrow,
                     revision = revision,
@@ -123,6 +125,7 @@ fun Onboarding(
                     onOpenHomeSettings = onOpenHomeSettings,
                     onOpenHomeKey = onOpenHomeKey,
                     onFinish = onFinish,
+                    covered = covered,
                 )
             }
         }
@@ -131,7 +134,7 @@ fun Onboarding(
 
 /** 第 1 步:一句欢迎 + 四颗语言胶囊(顺序 = [VALID_LANGUAGES]);当前语言带 ✓,按下即用这种语言进第 2 步。 */
 @Composable
-private fun LanguageStep(eyebrow: String, language: String, nonce: Int, onLanguage: (String) -> Unit) {
+private fun LanguageStep(eyebrow: String, language: String, nonce: Int, onLanguage: (String) -> Unit, covered: Boolean) {
     val selected = languageIndex(language)
     // 初始焦点落在「已选」的那一颗上:确定键 = 保持当前语言进下一步,不会误改语言。
     var target by remember { mutableStateOf<String?>(onbLanguageId(selected)) }
@@ -149,13 +152,13 @@ private fun LanguageStep(eyebrow: String, language: String, nonce: Int, onLangua
                 ShellBody(stringResource(R.string.onb_step1_body))
             }
         },
-        right = { CapsuleColumn(items, target, { target = it }, nonce, covered = false) },
+        right = { CapsuleColumn(items, target, { target = it }, nonce, covered = covered) },
     )
 }
 
 /** 第 2 步:左边说明 + 计划列表(不可聚焦),右边「放到桌面」「跳过」(一个都没找到时只有「继续」)。 */
 @Composable
-private fun FillStep(eyebrow: String, revision: Int, nonce: Int, onFill: () -> Unit, onSkipFill: () -> Unit) {
+private fun FillStep(eyebrow: String, revision: Int, nonce: Int, onFill: () -> Unit, onSkipFill: () -> Unit, covered: Boolean) {
     val ctx = LocalContext.current
     // IO 线程算(枚举应用 + 读标签);null = 还在读。revision 变了(装卸应用)重算,新结果到达前旧列表原样留着。
     val plan by produceState<List<PlanRow>?>(null, revision) {
@@ -188,7 +191,7 @@ private fun FillStep(eyebrow: String, revision: Int, nonce: Int, onFill: () -> U
                 }
             }
         },
-        right = { CapsuleColumn(items, target, { target = it }, nonce, covered = false) },
+        right = { CapsuleColumn(items, target, { target = it }, nonce, covered = covered) },
     )
 }
 
@@ -228,7 +231,7 @@ private fun PlanPanel(plan: List<PlanRow>?) {
 
 /** 第 3 步:左边当前默认桌面 + 说明(不可聚焦),右边「去系统设置更改」「主页键接管」(条件,R162)「完成」。 */
 @Composable
-private fun HomeStep(eyebrow: String, revision: Int, nonce: Int, onOpenHomeSettings: () -> Unit, onOpenHomeKey: () -> Unit, onFinish: () -> Unit) {
+private fun HomeStep(eyebrow: String, revision: Int, nonce: Int, onOpenHomeSettings: () -> Unit, onOpenHomeKey: () -> Unit, onFinish: () -> Unit, covered: Boolean) {
     val ctx = LocalContext.current
     val home = rememberCurrentHome(revision, nonce)
     val status = remember(nonce) { HomeKeyState.status(ctx) }
@@ -257,7 +260,7 @@ private fun HomeStep(eyebrow: String, revision: Int, nonce: Int, onOpenHomeSetti
                 }
             }
         },
-        right = { CapsuleColumn(items, target, { target = it }, nonce, covered = false) },
+        right = { CapsuleColumn(items, target, { target = it }, nonce, covered = covered) },
     )
 }
 

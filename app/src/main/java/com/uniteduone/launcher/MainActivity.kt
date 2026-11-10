@@ -321,6 +321,15 @@ class MainActivity : ComponentActivity() {
      * 从恢复默认确认层回来时关于页是全新的组合,靠它落回「恢复默认」。与输入源页的 [inputsFocus] 同一写法。
      */
     private var aboutFocus by mutableStateOf<String?>(null)
+    /**
+     * 盖在设置 / 关于 / 引导之上的说明层(issue #1):无障碍入口只有框架空桩时的手动步骤,或本机音量按键记录。
+     * 不进外壳栈。HOME 与返回都先收它。
+     */
+    private var deviceHelp by mutableStateOf<DeviceHelp?>(null)
+    /** 音量记录层打开时已经读好的全文。空 = 还没有记录。 */
+    private var volumeLogText by mutableStateOf("")
+    /** 手动步骤要不要带上「先用电脑解锁」那几步。打开那一刻读,不在组合里现查。 */
+    private var homeKeyManualRestricted by mutableStateOf(false)
     /** 关于页此刻画不画(R128:恢复默认确认层在外壳栈顶时让开)。浮层、covered、返回键兜底都按它判。 */
     private val aboutShown: Boolean get() = aboutPageShown(about, shellStack)
     /**
@@ -385,7 +394,7 @@ class MainActivity : ComponentActivity() {
      * 读的全是 `mutableStateOf` 字段,在 `setContent` 里读它照样是响应式的。
      */
     private val overlayOpen: Boolean
-        get() = shellStack.isNotEmpty() || pickerTarget != null || about || onboarding || inputsPage || appsPage
+        get() = shellStack.isNotEmpty() || pickerTarget != null || about || onboarding || inputsPage || appsPage || deviceHelp != null
 
     /**
      * 装了新应用或卸载了应用后,桌面和「添加应用」列表都要能跟上。
@@ -1039,7 +1048,7 @@ class MainActivity : ComponentActivity() {
                             onWritten = { settingsRevision++ },
                             focusNonce = focusNonce,
                             // 关于页从「恢复默认」进确认层时让开(aboutShown 为假),外壳这时不能再当自己被盖着。
-                            covered = pt != null || aboutShown || onboarding,
+                            covered = pt != null || aboutShown || onboarding || deviceHelp != null,
                             galleryVersion = galleryVersion,
                             revision = revision,
                         )
@@ -1156,6 +1165,8 @@ class MainActivity : ComponentActivity() {
                     onRestoreDefaults = { if (live) pushShell(ShellPages.RESTORE) },
                     channel = homeSaved.updateChannel,
                     onChannel = { if (live) shellStack = shellPush(shellStack, ShellPages.CHANNEL, channelCapsuleId(homeSaved.updateChannel)) },
+                    onExportVolumeLog = { if (live) showVolumeLog() },
+                    covered = deviceHelp != null,
                 )
             }
             // 首次引导(T10,spec §8)。画在最上层,而且**放在 editing 的 if/else 之外**:引导开着时
@@ -1184,7 +1195,41 @@ class MainActivity : ComponentActivity() {
                     onOpenHomeKey = { openHomeKeySettings(beforeJump = ::endOnboarding) },
                     onFinish = ::endOnboarding,
                     onBack = ::stepBackInOnboarding,
+                    covered = deviceHelp != null,
                 )
+            }
+            // 无障碍手动步骤 / 音量记录(issue #1)。画在引导之上、提示条之下;底下各层 covered 让路。
+            when (deviceHelp) {
+                DeviceHelp.HOME_KEY -> GearMenu(
+                    items = listOf(MenuItem(stringResource(R.string.homekey_manual_ok), "") { dismissDeviceHelp() }),
+                    onDismiss = ::dismissDeviceHelp,
+                    nonce = focusNonce,
+                    title = stringResource(R.string.homekey_manual_title),
+                    eyebrow = stringResource(R.string.homekey_capsule),
+                    body = stringResource(
+                        if (homeKeyManualRestricted) R.string.homekey_manual_body_restricted else R.string.homekey_manual_body,
+                    ),
+                )
+                DeviceHelp.VOLUME_LOG -> {
+                    val tail = volumeLogTail(volumeLogText)
+                    val body = buildString {
+                        append(stringResource(R.string.volume_log_note))
+                        append("\n\n")
+                        append(if (tail.isBlank()) stringResource(R.string.volume_log_empty) else tail)
+                    }
+                    GearMenu(
+                        items = listOf(
+                            MenuItem(stringResource(R.string.volume_log_share), "") { shareVolumeLog() },
+                            MenuItem(stringResource(R.string.volume_log_close), "") { dismissDeviceHelp() },
+                        ),
+                        onDismiss = ::dismissDeviceHelp,
+                        nonce = focusNonce,
+                        title = stringResource(R.string.volume_log_title),
+                        eyebrow = stringResource(R.string.menu_about),
+                        body = body,
+                    )
+                }
+                null -> Unit
             }
             // 应用内提示条(R139):画在所有浮层之上,不可聚焦、不收按键。
             ToastHost(toastMessage) { id -> if (toastMessage?.id == id) toastMessage = null }
@@ -1372,6 +1417,7 @@ class MainActivity : ComponentActivity() {
         ) {
             // 首次引导期间 MENU 键无效(spec §8):不出声、不关引导、不在它底下叠出齿轮菜单。
             // 排在最前:下面每一支都会改某个浮层的状态,引导开着时它们一个都不该发生。
+            if (deviceHelp != null) { dismissDeviceHelp(); return true }
             if (onboarding) return true
             // 选择器开着(叠在首页 / 设置页上,或替换了编辑页)时 MENU 什么都不做:排在 editing /
             // settings 之前,否则会把底下那页收掉、选择器留在首页上(终审 C1)。关掉选择器之后
@@ -1683,6 +1729,7 @@ class MainActivity : ComponentActivity() {
         // HOME = 移动态取消(M4b spec §0-9)。通常 onPause 已经先取消过,这里是同一件事的第二道。
         cancelMove()
         leaveEdit()
+        dismissDeviceHelp()
         leaveSettings()
         closeCardMenu()
         closeAbout()
@@ -2809,9 +2856,95 @@ class MainActivity : ComponentActivity() {
      * 从系统页回来还停在那一步、左侧说明还在屏幕上(代价:进程若在系统页里被杀,引导下次重新判出来,从第 1 步再来)。
      */
     private fun openHomeKeySettings(beforeJump: () -> Unit = {}) {
-        if (HomeKeyState.status(this) == HomeKeyStatus.RESTRICTED) toast(getString(R.string.toast_homekey_restricted), system = true)
-        else beforeJump()
-        openSystemPage(ACCESSIBILITY_SETTINGS_PAGES, R.string.toast_system_settings_unavailable)
+        val restricted = HomeKeyState.status(this) == HomeKeyStatus.RESTRICTED
+        when (val shortcut = resolveSettingsShortcut(ACCESSIBILITY_SETTINGS_PAGES, ::settingsCandidates)) {
+            SettingsShortcut.ShowManualSteps -> {
+                if (restricted) toast(getString(R.string.toast_homekey_restricted), system = true)
+                showHomeKeyManual(restricted)
+            }
+            is SettingsShortcut.Open -> {
+                // 真要离开本应用才结束引导。打不开时改在屏幕上写步骤,引导留在第 3 步。
+                if (restricted) toast(getString(R.string.toast_homekey_restricted), system = true) else beforeJump()
+                openAccessibilityTargets(shortcut.targets)
+            }
+        }
+    }
+
+    /** 这一页能解析到的 Activity,默认匹配放最前。桩与未导出由 [resolveSettingsShortcut] 丢掉。 */
+    private fun settingsCandidates(page: SystemPage): List<ResolvedActivity> {
+        val intent = Intent().addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (page.action != null) intent.action = page.action
+        if (page.pkg != null && page.cls != null) intent.component = ComponentName(page.pkg, page.cls)
+        val pm = packageManager
+        val queried = runCatching { pm.queryIntentActivities(intent, 0) }.getOrDefault(emptyList()).map {
+            ResolvedActivity(it.activityInfo.packageName, it.activityInfo.name, it.activityInfo.exported)
+        }
+        val preferred = runCatching {
+            pm.resolveActivity(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo
+        }.getOrNull()?.let { ResolvedActivity(it.packageName, it.name, it.exported) } ?: return queried
+        return listOf(preferred) + queried.filter { it.packageName != preferred.packageName || it.className != preferred.className }
+    }
+
+    /**
+     * 按 [resolveSettingsShortcut] 给出的真实页面逐个试。显式指定组件,避免再落回框架空桩。
+     * 打不开或在 [SYSTEM_PAGE_BOUNCE_MS] 内弹回就换下一个;全部失败改显示手动步骤。
+     */
+    private fun openAccessibilityTargets(targets: List<SettingsTarget>, from: Int = 0) {
+        if (from >= targets.size) {
+            showHomeKeyManual(HomeKeyState.status(this) == HomeKeyStatus.RESTRICTED)
+            return
+        }
+        val target = targets[from]
+        val intent = Intent().addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).apply {
+            if (target.page.action != null) action = target.page.action
+            component = ComponentName(target.activity.packageName, target.activity.className)
+        }
+        if (runCatching { startActivity(intent) }.isFailure) {
+            openAccessibilityTargets(targets, from + 1)
+            return
+        }
+        val jump = ++systemPageJump
+        val launchedAt = android.os.SystemClock.uptimeMillis()
+        window.decorView.postDelayed({
+            if (jump == systemPageJump &&
+                lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) &&
+                lastResumeAt - launchedAt < SYSTEM_PAGE_BOUNCE_MS
+            ) {
+                android.util.Log.i("UnitedU", "无障碍设置页没打开(弹回):${target.activity.className},试下一个")
+                openAccessibilityTargets(targets, from + 1)
+            }
+        }, SYSTEM_PAGE_BOUNCE_MS)
+    }
+
+    private fun showHomeKeyManual(restricted: Boolean) {
+        homeKeyManualRestricted = restricted
+        deviceHelp = DeviceHelp.HOME_KEY
+        focusNonce++
+    }
+
+    private fun showVolumeLog() {
+        val records = runCatching { volumeKeyLogStore(this).read() }.getOrDefault(emptyList())
+        volumeLogText = if (records.isEmpty()) "" else formatVolumeKeyLog(records)
+        deviceHelp = DeviceHelp.VOLUME_LOG
+        focusNonce++
+    }
+
+    private fun dismissDeviceHelp() {
+        if (deviceHelp == null) return
+        deviceHelp = null
+        focusNonce++
+    }
+
+    /** 用户自己把记录交给别的应用。失败只提示;应用不上传。 */
+    private fun shareVolumeLog() {
+        val text = volumeLogText.ifBlank { getString(R.string.volume_log_empty) }
+        val send = Intent(Intent.ACTION_SEND)
+            .setType("text/plain")
+            .putExtra(Intent.EXTRA_TEXT, text)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val chooser = Intent.createChooser(send, getString(R.string.volume_log_title))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (runCatching { startActivity(chooser) }.isFailure) toast(getString(R.string.volume_log_share_failed))
     }
 
     override fun onDestroy() {
@@ -2848,6 +2981,7 @@ class MainActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 when {
+                    deviceHelp != null -> dismissDeviceHelp()
                     // 移动态的返回键正常在 dispatchKeyEvent 里就被截走(DOWN 取消、UP 吞掉),到不了这里;
                     // 这一支只为「返回键绕过 dispatchKeyEvent」的路(预测式返回)兜底,同样是取消。
                     moving != null -> cancelMove()
@@ -2885,6 +3019,9 @@ class MainActivity : ComponentActivity() {
         })
     }
 }
+
+/** 盖在设置 / 引导上的说明层(issue #1)。 */
+private enum class DeviceHelp { HOME_KEY, VOLUME_LOG }
 
 /** 选择器那一层正画着什么(R136,给 `PickerStack` 当状态):目标 + 扫码页的分类。 */
 private data class PickerShown(val target: String, val importCategory: String?)

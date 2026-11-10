@@ -136,7 +136,7 @@
     <string name="home_settings_unknown">未知</string>
     <!-- R162 主畫面鍵接管:系統「無障礙」頁裡的服務名與說明 -->
     <string name="homekey_service_label">UnitedU 主畫面鍵接管</string>
-    <string name="homekey_service_desc">只做一件事：在 UnitedU 不是預設桌面的電視上，按主畫面鍵回到 UnitedU。只回應主畫面鍵和前景應用程式的名稱，不讀取螢幕內容。</string>
+    <string name="homekey_service_desc">在 UnitedU 不是預設桌面的電視上，按主畫面鍵回到 UnitedU；按住音量鍵時按電視送來的連發調節音量。只回應主畫面鍵、音量鍵和前景應用程式的名稱，不讀取螢幕內容。</string>
     <!-- R162 主畫面鍵接管:設定「預設桌面」頁與引導第 3 步的膠囊、狀態小字與左側說明 -->
     <string name="homekey_capsule">主畫面鍵接管</string>
     <string name="homekey_state_on">已開啟</string>
@@ -148,6 +148,17 @@
     <string name="homekey_note_not_running">電視顯示已開啟，但服務沒在執行（更新或重新啟動後常見）。到原生電視設定的「無障礙」裡關掉再開啟，或重新啟動電視。</string>
     <string name="homekey_note_restricted">UnitedU 是用檔案管理員或瀏覽器安裝的，Android 13 起這台電視不允許開啟它的無障礙服務。用電腦執行：adb shell appops set com.uniteduone.launcher ACCESS_RESTRICTED_SETTINGS allow，再到原生電視設定的「無障礙」裡開啟「UnitedU 主畫面鍵接管」；或先解除安裝、再用 adb 重新安裝（會清掉桌面版面）。</string>
     <string name="toast_homekey_restricted">這台電視不允許開啟。返回後按左側說明用電腦解鎖，再試一次</string>
+    <string name="homekey_manual_title">請手動開啟</string>
+    <string name="homekey_manual_body">這台電視的「無障礙」入口打不開（系統給了一個空白頁面）。請用遙控器按下面的步驟手動開啟：\n1. 按遙控器上的「設定」鍵，或從原廠桌面進入「設定」。\n2. 開啟「裝置偏好設定」。有的電視叫「系統」或「一般」。\n3. 開啟「無障礙」。\n4. 在服務清單裡找到「UnitedU 主畫面鍵接管」，並把它開啟。\n5. 若電視詢問是否允許，選擇允許。然後按返回回到 UnitedU。</string>
+    <string name="homekey_manual_body_restricted">這台電視的「無障礙」入口打不開。UnitedU 是用檔案管理員或瀏覽器安裝的，Android 13 起還要先解鎖。請按下面的步驟：\n1. 用電腦執行：adb shell appops set com.uniteduone.launcher ACCESS_RESTRICTED_SETTINGS allow\n2. 按遙控器上的「設定」鍵，或從原廠桌面進入「設定」。\n3. 開啟「裝置偏好設定」（有的電視叫「系統」或「一般」），再開啟「無障礙」。\n4. 找到「UnitedU 主畫面鍵接管」並開啟。若詢問是否允許，選擇允許。\n5. 按返回回到 UnitedU。</string>
+    <string name="homekey_manual_ok">知道了</string>
+    <string name="volume_log_capsule">音量按鍵記錄</string>
+    <string name="volume_log_title">音量按鍵記錄</string>
+    <string name="volume_log_note">記錄只存在這台電視上，UnitedU 不會上傳。按「分享」由你自己選擇交給哪個應用程式；沒有可分享的應用程式時，文字留在這個畫面上。</string>
+    <string name="volume_log_empty">還沒有記錄。按住音量鍵之後，這裡會留下每次按下和放開的時間。</string>
+    <string name="volume_log_share">分享</string>
+    <string name="volume_log_close">關閉</string>
+    <string name="volume_log_share_failed">沒有可以接收這段記錄的應用程式。記錄仍只在這台電視上。</string>
     <string name="toast_self_update_failed">更新沒有裝上（%1$d）。可以在「關於」裡重試</string>
 
     <!-- picker_* : 桌布/卡片圖/螢幕保護圖庫選擇器 -->

@@ -428,11 +428,15 @@ fun AboutScreen(
     /** R166:第二颗「更新通道」——推外壳的通道页(关于页随之让开)。[channel] = 当前已保存的通道,画在胶囊右端。 */
     channel: UpdateChannel = UpdateChannel.STABLE,
     onChannel: () -> Unit = {},
+    /** issue #1:导出本机音量按键记录。盖在本页上时 [covered] 让焦点让路。 */
+    onExportVolumeLog: () -> Unit = {},
+    covered: Boolean = false,
 ) {
     val highlight = LocalThemeColors.current.highlight
 
     // 淡出中的残影(R108)不收返回键;胶囊列自己读 LocalPageGhost 让路、不可聚焦。
-    androidx.activity.compose.BackHandler(enabled = !LocalPageGhost.current) { onBack() }
+    val ghost = LocalPageGhost.current
+    androidx.activity.compose.BackHandler(enabled = !ghost && !covered) { onBack() }
 
     // 按 ABOUT_CAPSULES 的顺序画(R128 的单测按同一张表数胶囊)。
     val items = ABOUT_CAPSULES.map { id ->
@@ -446,6 +450,8 @@ fun AboutScreen(
                 ),
                 onClick = onChannel,
             )
+        } else if (id == ABOUT_VOLUME_LOG) {
+            Capsule(id, stringResource(R.string.volume_log_capsule), onClick = onExportVolumeLog)
         } else if (id == ABOUT_RESTORE) {
             // R128(Gordon 2026-09-29):「恢复默认」从「通用」组挪来(Google TV 也把重置放在 系统 → 关于)。右端 › = 进确认层。
             Capsule(
@@ -559,7 +565,7 @@ fun AboutScreen(
                 }
             },
             right = {
-                CapsuleColumn(items, target = target ?: ShellPages.ABOUT, onTarget = onTarget, nonce = nonce, covered = false)
+                CapsuleColumn(items, target = target ?: ShellPages.ABOUT, onTarget = onTarget, nonce = nonce, covered = covered)
             },
         )
     }

@@ -75,8 +75,13 @@ const val ABOUT_RESTORE = "restoreDefaults"
 /** R166:关于页的第二颗「更新通道 稳定版 ›」,按下去推外壳的通道页([ShellPages.CHANNEL])。 */
 const val ABOUT_CHANNEL = "updateChannel"
 
-/** 关于页的胶囊,自上而下:检查更新(id 沿用 [ShellPages.ABOUT])、更新通道、恢复默认(界面按这张表画)。 */
-val ABOUT_CAPSULES: List<String> = listOf(ShellPages.ABOUT, ABOUT_CHANNEL, ABOUT_RESTORE)
+/**
+ * 关于页末颗「音量按键记录」(issue #1):只读本机环形日志,分享由用户自己发起,应用不上传。
+ */
+const val ABOUT_VOLUME_LOG = "volumeKeyLog"
+
+/** 关于页的胶囊,自上而下:检查更新(id 沿用 [ShellPages.ABOUT])、更新通道、恢复默认、音量按键记录(界面按这张表画)。 */
+val ABOUT_CAPSULES: List<String> = listOf(ShellPages.ABOUT, ABOUT_CHANNEL, ABOUT_RESTORE, ABOUT_VOLUME_LOG)
 
 /** 通道页的两颗胶囊 id(R166)。 */
 const val CHANNEL_STABLE = "channel:stable"
