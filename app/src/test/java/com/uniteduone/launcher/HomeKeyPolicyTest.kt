@@ -111,7 +111,7 @@ class HomeKeyPolicyTest {
         assertFalse("自己不该出现", got.any { it.first == self })
         assertTrue("别名类名应收", launcherx.first to "com.google.android.apps.tv.launcherx.home.HomeActivityAlias" in got)
         assertTrue("targetActivity 真实类名应收", launcherx in got)
-        assertTrue("负 priority FallbackHome 仍收(本步不过滤 priority)", "com.android.tv.settings" to "com.android.tv.settings.system.FallbackHome" in got)
+        assertFalse("FallbackHome 按 D-07 规则排除", "com.android.tv.settings" to "com.android.tv.settings.system.FallbackHome" in got)
         assertEquals(
             "空白 / 空串 targetActivity 只收 cls，不额外加一条",
             setOf(tvlauncher, "com.example.emptytarget" to "com.example.emptytarget.Home"),
