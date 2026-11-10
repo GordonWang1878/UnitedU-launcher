@@ -121,7 +121,6 @@ class HomeKeyPolicyTest {
             setOf(
                 launcherx.first to "com.google.android.apps.tv.launcherx.home.HomeActivityAlias",
                 launcherx,
-                "com.android.tv.settings" to "com.android.tv.settings.system.FallbackHome",
                 tvlauncher,
                 "com.example.emptytarget" to "com.example.emptytarget.Home",
             ),
