@@ -1,6 +1,9 @@
 package com.uniteduone.launcher
 
 import java.io.File
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /**
  * 音量键按下 / 松开的本机记录(issue #1)。
@@ -13,14 +16,26 @@ const val VOLUME_KEY_LOG_CAPACITY = 48
 const val VOLUME_KEY_LOG_FILE = "volume-key.log"
 
 data class VolumeKeyRecord(
+    /** 单调时钟(uptime),和连发状态机用的是同一条轴。 */
     val timeMs: Long,
     val keyCode: Int,
     val action: String,
     val steps: Int,
     val autoStop: Boolean,
+    /** 墙上时钟,`System.currentTimeMillis()`。0 = 旧记录里没有。 */
+    val wallTimeMs: Long = 0L,
 ) {
-    fun formatLine(): String = "$timeMs $keyCode $action $steps $autoStop"
+    /** `uptime wallTimeMs isoLocal key action steps autoStop`。iso 是本地时区,给人和导出看。 */
+    fun formatLine(zone: ZoneId = ZoneId.systemDefault()): String =
+        "$timeMs $wallTimeMs ${formatVolumeWallTime(wallTimeMs, zone)} $keyCode $action $steps $autoStop"
 }
+
+private val VOLUME_WALL_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS")
+
+/** 墙上时钟的本地时间。没有墙上时钟时是 `-`,解析时忽略这一段,以 [VolumeKeyRecord.wallTimeMs] 为准。 */
+fun formatVolumeWallTime(wallTimeMs: Long, zone: ZoneId = ZoneId.systemDefault()): String =
+    if (wallTimeMs <= 0L) "-"
+    else VOLUME_WALL_TIME.format(Instant.ofEpochMilli(wallTimeMs).atZone(zone))
 
 fun volumeKeyLogFile(dir: File): File = File(dir, VOLUME_KEY_LOG_FILE)
 
@@ -33,18 +48,24 @@ fun parseVolumeKeyLog(text: String): List<VolumeKeyRecord> = text.lineSequence()
     val line = raw.trim()
     if (line.isEmpty() || line.startsWith("#")) return@mapNotNull null
     val parts = line.split(' ')
-    if (parts.size != 5) return@mapNotNull null
-    val time = parts[0].toLongOrNull() ?: return@mapNotNull null
-    val key = parts[1].toIntOrNull() ?: return@mapNotNull null
-    val action = parts[2]
+    // 旧的 5 段:uptime key action steps autoStop。新的 7 段在中间加上 wallTimeMs 和本地时间。
+    val fields = when (parts.size) {
+        5 -> parts
+        7 -> listOf(parts[0], parts[3], parts[4], parts[5], parts[6])
+        else -> return@mapNotNull null
+    }
+    val time = fields[0].toLongOrNull() ?: return@mapNotNull null
+    val key = fields[1].toIntOrNull() ?: return@mapNotNull null
+    val action = fields[2]
     if (action != VOLUME_LOG_DOWN && action != VOLUME_LOG_UP && action != VOLUME_LOG_AUTOSTOP) return@mapNotNull null
-    val steps = parts[3].toIntOrNull() ?: return@mapNotNull null
-    val autoStop = when (parts[4]) {
+    val steps = fields[3].toIntOrNull() ?: return@mapNotNull null
+    val autoStop = when (fields[4]) {
         "true" -> true
         "false" -> false
         else -> return@mapNotNull null
     }
-    VolumeKeyRecord(time, key, action, steps, autoStop)
+    val wall = if (parts.size == 7) parts[1].toLongOrNull() ?: return@mapNotNull null else 0L
+    VolumeKeyRecord(time, key, action, steps, autoStop, wall)
 }.toList()
 
 /** 屏幕上放不下整份时,只留最后 [maxLines] 条非注释行。分享仍用全文。 */

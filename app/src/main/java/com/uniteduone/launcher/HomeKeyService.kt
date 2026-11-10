@@ -27,8 +27,8 @@ import androidx.core.content.ContextCompat
  * 跑在独立进程 `:homekey`(清单 `android:process`):开着时电视上每一下按键都先经过它,不能和首页的绘制抢主线程;
  * 系统把被绑定的无障碍服务常驻,独立进程才不会把整个桌面(壁纸位图)钉在内存里。**这个进程不碰桌面的状态文件**(`LockedFile` 是进程内锁),
  * 只写自己的心跳文件([HomeKeyState])和音量键的本机环形日志([VolumeKeyLogStore],不上传)。
- * 音量加 / 减在 [onKeyEvent] 里吃掉,连发交给 [VolumeRepeatController]:只在系统还送来重复按下时才继续走,没有松开也没有心跳就停在第一步。
- * 静音键不吃,主页键的判定一字不改。
+ * 音量加 / 减的第一下按下和松开**不吃**(返回 false),系统按原来的方式走那一格,含厂商音量条和 CEC。
+ * 只有系统连发的重复按下才交给 [VolumeRepeatController] 加点并吃掉。静音键不吃,主页键的判定一字不改。
  * 拉起用 `MAIN + HOME` + 显式组件:任务是 `type=home`,从应用按返回直接落回我们(普通 intent 是 `type=standard`,会先闪原厂桌面——Projectivy #605)。
  */
 class HomeKeyService : AccessibilityService() {
@@ -116,19 +116,23 @@ class HomeKeyService : AccessibilityService() {
     }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
-        // 音量加 / 减整键吃掉。系统因为 flagRequestFilterKeyEvents 不再替它们连发;静音与其它键仍按原来的路放行。
+        // 短按(第一下按下、松开)不吃,系统照旧走一格。重复按下才由我们加点并吃掉。静音仍放行。
         if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP || event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-            if (::volumeRepeat.isInitialized) {
-                when (event.action) {
-                    KeyEvent.ACTION_DOWN -> if (event.repeatCount > 0) {
-                        volumeRepeat.onHeartbeat(event.keyCode)
-                    } else {
-                        volumeRepeat.onKeyDown(event.keyCode, event.downTime)
-                    }
-                    KeyEvent.ACTION_UP -> volumeRepeat.onKeyUp(event.keyCode)
+            if (!::volumeRepeat.isInitialized) return false
+            return when (event.action) {
+                KeyEvent.ACTION_DOWN -> if (event.repeatCount > 0) {
+                    volumeRepeat.onHeartbeat(event.keyCode, event.downTime)
+                    true
+                } else {
+                    volumeRepeat.onKeyDown(event.keyCode, event.downTime)
+                    consumeVolumeDown(volumeRepeat.openedNewPress)
                 }
+                KeyEvent.ACTION_UP -> {
+                    volumeRepeat.onKeyUp(event.keyCode)
+                    false
+                }
+                else -> false
             }
-            return true
         }
         if (event.keyCode != KeyEvent.KEYCODE_HOME) return false
         // 松开:跟着它的按下走(吃了就吃、放行了就放行),不按此刻的状态重判。
