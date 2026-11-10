@@ -80,16 +80,29 @@ data class HomeCandidate(
 fun stockHomes(all: List<Pair<String, String>>, self: String): Set<Pair<String, String>> =
     all.filter { it.first != self }.toSet()
 
+/** `com.android.settings.FallbackHome` → `FallbackHome`；没有包名时整串就是类名。 */
+private fun simpleClassName(className: String): String = className.substringAfterLast('.')
+
+/**
+ * AOSP 的兜底桌面，不是电视上的原厂桌面。
+ * 认 [className] 的简单类名，不看优先级；空串 / 空白不是类名。
+ */
+private fun isFallbackHome(className: String?): Boolean =
+    !className.isNullOrBlank() && simpleClassName(className) == "FallbackHome"
+
 /**
  * 从 [HomeCandidate] 列表算出别的桌面 (包名, 类名) 集合。
  * - 丢掉 `pkg == self`
+ * - 丢掉简单类名是 `FallbackHome` 的候选：`cls` 或 [HomeCandidate.targetActivity] 任一命中，整条排除
+ *   （`com.android.tv.settings.system.FallbackHome`、`com.android.settings.FallbackHome` 都算）
  * - 每个剩余候选收 `(pkg, cls)`；当 [HomeCandidate.targetActivity] 非空且非空白时，再收 `(pkg, targetActivity)`
  *   （与 `HomeKeyService.refresh` 里 alias / 真实类名双名同构）
- * - **本步不按 [HomeCandidate.priority] 过滤**（负优先级也保留；更富模型只先落接口）
+ * - **不按 [HomeCandidate.priority] 过滤**（负优先级的真实桌面，如 VIDAA，仍保留）
  */
 fun stockHomesFrom(candidates: List<HomeCandidate>, self: String): Set<Pair<String, String>> =
     candidates
         .filter { it.pkg != self }
+        .filter { !isFallbackHome(it.cls) && !isFallbackHome(it.targetActivity) }
         .flatMap { c ->
             val names = mutableListOf(c.pkg to c.cls)
             val target = c.targetActivity?.takeIf { it.isNotBlank() }
