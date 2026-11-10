@@ -16,7 +16,7 @@ package com.uniteduone.launcher
  * - 已经收到过心跳之后,超过 [VOLUME_REPEAT_HEARTBEAT_TIMEOUT_MS] 没有新的,[onTimerTick] 立刻停。计时器本身不再加点;
  * - 既没有心跳也没有松开:静默窗口到点停掉,我们一步都没走(系统那一格已经走过);
  * - 心跳对得上这次按下时,**不用** [VOLUME_REPEAT_HARD_CAP_MS] 截断,一直走到松开、心跳超时或到顶。
- *   3 秒只兜「心跳对不上任何还有效的按下」:不把它们开成新的一次按下,记满 3 秒就丢掉。
+ *   对不上任何还有效按下的心跳不走开新的一次,也不走步。
  *
  * 时钟与调度器都从外面注进来,单测用 [ManualVolumeClock] / [ManualVolumeScheduler],不等真实时间。
  * 生产时钟用 `SystemClock.uptimeMillis()`:与 `Handler.postDelayed` 同一条时间轴。
@@ -59,8 +59,7 @@ const val VOLUME_REPEAT_HEARTBEAT_TIMEOUT_MS = 180L
 
 /**
  * 不用于正常按住。心跳一直对得上这次按下时,一直走到松开、心跳超时或到顶,没有 3 秒截断。
- * 只兜异常:心跳的 downTime 对不上任何还有效的按下时,不把它开成新的一次按下、也不走步;
- * 这种对不上的心跳最多记 [VOLUME_REPEAT_HARD_CAP_MS],过了就丢掉这段,免得跟后面真正的新按下粘在一起。
+ * 对不上任何还有效按下的心跳不走开新的一次、也不走步。这个常数留着,是那条异常路径的上限文档,不给正常按住计时。
  */
 const val VOLUME_REPEAT_HARD_CAP_MS = 3_000L
 
@@ -101,8 +100,10 @@ class ManualVolumeClock(var now: Long = 0L) : VolumeClock {
 }
 
 /**
- * 测试用调度器:不跑线程。[advanceTo] 先把 [clock] 拨到目标时刻,再按到期顺序执行回调。
- * 回调里新登记的、已经到期的任务会在同一次 [advanceTo] 里接着跑。
+ * 测试用调度器:不跑线程。
+ * [advanceTo] 按 due 从早到晚执行所有 `due <= timeMs` 的任务:执行前把 [clock] 拨到 `max(当前, due)`,
+ * 所以回调里读到的是任务自己的到期时刻,不是这次前进的终点。回调里新登记的、due 仍不超过 [timeMs] 的任务,
+ * 在同一次 [advanceTo] 里按到期顺序接着跑。全部跑完才把时钟拨到 [timeMs]。时间不能倒退。
  */
 class ManualVolumeScheduler(private val clock: ManualVolumeClock) : VolumeScheduler {
     private class Task(val due: Long, val run: () -> Unit) : VolumeTask
@@ -121,12 +122,13 @@ class ManualVolumeScheduler(private val clock: ManualVolumeClock) : VolumeSchedu
 
     fun advanceTo(timeMs: Long) {
         require(timeMs >= clock.now) { "time goes backwards: $timeMs < ${clock.now}" }
-        clock.now = timeMs
         while (true) {
-            val next = queue.filter { it.due <= clock.now }.minByOrNull { it.due } ?: return
+            val next = queue.filter { it.due <= timeMs }.minByOrNull { it.due } ?: break
             queue.remove(next)
+            clock.now = maxOf(clock.now, next.due)
             next.run()
         }
+        clock.now = timeMs
     }
 }
 
@@ -162,10 +164,12 @@ class VolumeRepeatController(
 ) {
     private var hold: VolumeHold? = null
     private var heartbeatTask: VolumeTask? = null
-    /** 最近一次已经结束(松开或自动停)的按下的 downTime。迟到的同一 downTime 不能再开新的一次。 */
-    private var closedDownTime = 0L
-    /** 对不上任何有效按下的心跳是从何时开始的。满 [VOLUME_REPEAT_HARD_CAP_MS] 就丢掉,仍然不走步。 */
-    private var orphanSince: Long? = null
+    /**
+     * 最近结束(松开或自动停)的按下的 downTime,最多 [CLOSED_DOWN_LIMIT] 个,旧的挤掉。
+     * 其中任何一个再以 DOWN 或心跳回来,都当成迟到的那一次:吃掉,不开新的一次,不走步。
+     * downTime 本身就是这一下的身份(与键无关),和原来只记最后一次的比法相同。
+     */
+    private val closedDownTimes = ArrayDeque<Long>()
 
     /**
      * 最近一次 [onKeyDown] 有没有打开一次新的按下。
@@ -178,7 +182,7 @@ class VolumeRepeatController(
     var stepsTaken: Int = 0
         private set
 
-    /** 上一回结束是不是因为心跳超时、3 秒上限或 [stop],而不是收到了松开。 */
+    /** 上一回结束是不是因为心跳超时或 [stop],而不是收到了松开。 */
     var lastAutoStop: Boolean = false
         private set
 
@@ -187,7 +191,7 @@ class VolumeRepeatController(
     /**
      * 音量加 / 减的第一下按下(`repeatCount == 0`)。只记按下,**不调用** [VolumeStepper]:
      * 这一格由系统走(短按必须和没接管时一样)。
-     * [downTimeMs] > 0 且与当前这一下、或刚刚结束的那一下相同:不再开新的一次,也不走步。
+     * [downTimeMs] > 0 且与当前这一下、或最近 [CLOSED_DOWN_LIMIT] 次已结束的按下相同:不再开新的一次,也不走步。
      * 反方向,或另一个 downTime:先停掉当前方向,再记下新的一次(仍然不走步)。
      * 静音和其它键返回 false。
      */
@@ -197,7 +201,6 @@ class VolumeRepeatController(
         if (isClosedDown(downTimeMs) || isSameOpenDown(keyCode, downTimeMs)) return true
         if (hold != null) finish(autoStop = false)
         val now = clock.nowMs()
-        orphanSince = null
         hold = VolumeHold(
             keyCode = keyCode,
             direction = direction,
@@ -219,8 +222,8 @@ class VolumeRepeatController(
 
     /**
      * 系统连发的按下(`repeatCount > 0`),只证明键还按着。
-     * [downTimeMs] 与已经结束的那次相同,或对不上当前这次:不走开新的一次,也不走步。
-     * 没有进行中的按下、或不是当前这一侧:记入异常窗口([VOLUME_REPEAT_HARD_CAP_MS]),不走步。
+     * [downTimeMs] 属于最近 [CLOSED_DOWN_LIMIT] 次已结束的按下,或对不上当前这次:不走开新的一次,也不走步。
+     * 没有进行中的按下、或不是当前这一侧:不走步。
      * 未满初始延迟、或距上次加点不足一格:只刷新心跳,不走步。
      * 对得上的心跳不受 3 秒截断。
      */
@@ -228,11 +231,7 @@ class VolumeRepeatController(
         if (volumeDirection(keyCode) == null) return false
         if (isClosedDown(downTimeMs)) return true
         val current = hold
-        if (current == null || current.keyCode != keyCode || mismatchedDown(current, downTimeMs)) {
-            noteOrphan(clock.nowMs())
-            return false
-        }
-        orphanSince = null
+        if (current == null || current.keyCode != keyCode || mismatchedDown(current, downTimeMs)) return false
         val now = clock.nowMs()
         current.lastBeat = now
         current.seenHeartbeat = true
@@ -273,7 +272,13 @@ class VolumeRepeatController(
     }
 
     private fun isClosedDown(downTimeMs: Long): Boolean =
-        downTimeMs > 0L && downTimeMs == closedDownTime && (hold == null || hold?.downTimeMs != downTimeMs)
+        downTimeMs > 0L && downTimeMs in closedDownTimes && (hold == null || hold?.downTimeMs != downTimeMs)
+
+    private fun rememberClosed(downTimeMs: Long) {
+        if (downTimeMs <= 0L) return
+        if (closedDownTimes.size == CLOSED_DOWN_LIMIT) closedDownTimes.removeFirst()
+        closedDownTimes.addLast(downTimeMs)
+    }
 
     private fun isSameOpenDown(keyCode: Int, downTimeMs: Long): Boolean {
         val current = hold ?: return false
@@ -282,13 +287,6 @@ class VolumeRepeatController(
 
     private fun mismatchedDown(current: VolumeHold, downTimeMs: Long): Boolean =
         downTimeMs > 0L && current.downTimeMs > 0L && downTimeMs != current.downTimeMs
-
-    /** 对不上的心跳不走步。记满 [VOLUME_REPEAT_HARD_CAP_MS] 就丢掉这段,避免被当成一次新的按下。 */
-    private fun noteOrphan(now: Long) {
-        val start = orphanSince
-        if (start == null) orphanSince = now
-        else if (now - start >= VOLUME_REPEAT_HARD_CAP_MS) orphanSince = null
-    }
 
     private fun silenceDeadline(current: VolumeHold): Long =
         if (current.seenHeartbeat) current.lastBeat + VOLUME_REPEAT_HEARTBEAT_TIMEOUT_MS
@@ -305,7 +303,7 @@ class VolumeRepeatController(
         cancelTimers()
         stepsTaken = current.steps
         lastAutoStop = autoStop
-        if (current.downTimeMs > 0L) closedDownTime = current.downTimeMs
+        rememberClosed(current.downTimeMs)
         emit(
             current.keyCode,
             if (autoStop) VOLUME_LOG_AUTOSTOP else VOLUME_LOG_UP,
@@ -340,5 +338,10 @@ class VolumeRepeatController(
     private fun cancelTimers() {
         heartbeatTask?.let { scheduler.cancel(it) }
         heartbeatTask = null
+    }
+
+    private companion object {
+        /** 已经结束的按下里,还认得出的 downTime 个数。再老的一次可以被当成新按下。 */
+        const val CLOSED_DOWN_LIMIT = 8
     }
 }
