@@ -73,7 +73,7 @@ data class HomeCandidate(
     val pkg: String,
     val cls: String,
     val priority: Int,
-    val targetActivity: String?,
+    val targetActivity: String? = null,
 )
 
 /** 别的桌面的 (包名, HOME Activity 类名):`queryIntentActivities(MAIN + HOME)` 的结果去掉自己。 */
