@@ -89,7 +89,7 @@ class SettingsPageLimitTest {
 
     /**
      * R128 之后的具体数:第一层 6、通用 5(+ 条件行 6)、布局 6、外观 5、屏保 6、待机 2、关于 2、恢复默认 2、
-     * 默认桌面 2(R162 起:第二颗「主页键接管」是条件行,按全部出现算)。
+     * 默认桌面 2(R162 起:第二颗「主页键接管」是条件行,按全部出现算)。关于页 4(含音量按键记录)。
      */
     @Test fun capsuleCountsAfterR128() {
         val plain = settingsGroups(Settings(), {}, noActions, 3, system = normal)
@@ -101,7 +101,7 @@ class SettingsPageLimitTest {
         assertEquals(5, n(ShellPages.group(GroupId.APPEARANCE)))
         assertEquals(6, n(ShellPages.group(GroupId.SCREENSAVER)))
         assertEquals(2, n(ShellPages.sub(STANDBY_ROW)))
-        assertEquals(3, n(ShellPages.ABOUT))
+        assertEquals(4, n(ShellPages.ABOUT))
         assertEquals(2, n(ShellPages.CHANNEL))
         assertEquals(2, n(ShellPages.RESTORE))
         assertEquals(2, n(ShellPages.HOME))

@@ -271,7 +271,10 @@ internal val SCREEN_OFF_SETTINGS_PAGES = listOf(
     SystemPage(action = "android.settings.SETTINGS"), // Settings.ACTION_SETTINGS
 )
 
-/** R162:「主页键接管」胶囊 → 系统无障碍设置(TvSettings 的无障碍页列出我们的服务);没有这一页的固件退到系统设置首页。 */
+/**
+ * R162:「主页键接管」胶囊 → 系统无障碍设置(TvSettings 的无障碍页列出我们的服务);没有这一页的固件退到系统设置首页。
+ * 解析时跳过 `com.google.android.tv.frameworkpackagestubs` 的空桩(见 [resolveSettingsShortcut]);两页都不是真页面时,改在屏幕上写手动步骤。
+ */
 internal val ACCESSIBILITY_SETTINGS_PAGES = listOf(
     SystemPage(action = "android.settings.ACCESSIBILITY_SETTINGS"), // Settings.ACTION_ACCESSIBILITY_SETTINGS
     SystemPage(action = "android.settings.SETTINGS"),

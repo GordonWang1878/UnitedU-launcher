@@ -133,7 +133,7 @@ class ShellModelTest {
     // ---- R128:关于页两颗胶囊;恢复默认确认层从关于页进 ----
 
     @Test fun aboutPageCapsules() {
-        assertEquals(listOf(ShellPages.ABOUT, ABOUT_CHANNEL, ABOUT_RESTORE), ABOUT_CAPSULES)
+        assertEquals(listOf(ShellPages.ABOUT, ABOUT_CHANNEL, ABOUT_RESTORE, ABOUT_VOLUME_LOG), ABOUT_CAPSULES)
         assertEquals("restoreDefaults", ABOUT_RESTORE)
         assertEquals(ABOUT_CAPSULES, pageCapsuleIds(ShellPages.ABOUT, groups()))
         assertEquals(listOf(SHELL_CANCEL, SHELL_CONFIRM), pageCapsuleIds(ShellPages.RESTORE, groups()))

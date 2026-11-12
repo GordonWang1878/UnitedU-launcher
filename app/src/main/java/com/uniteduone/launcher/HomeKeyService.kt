@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -24,8 +25,10 @@ import androidx.core.content.ContextCompat
  * - 盯窗口:[onAccessibilityEvent] 看到别的桌面的 HOME Activity 到了前台就拉回来——开机、系统别的路径回桌面时的兜底,会先闪一下原厂桌面;
  *   拉起后 1 s 去抖内丢掉的原厂桌面窗口事件,在去抖结束后补查一次([recheck]),不然它之后不再发事件、用户就停在原厂桌面上。
  * 跑在独立进程 `:homekey`(清单 `android:process`):开着时电视上每一下按键都先经过它,不能和首页的绘制抢主线程;
- * 系统把被绑定的无障碍服务常驻,独立进程才不会把整个桌面(壁纸位图)钉在内存里。**这个进程不碰任何状态文件**(`LockedFile` 是进程内锁),
- * 只写自己的心跳文件([HomeKeyState])。
+ * 系统把被绑定的无障碍服务常驻,独立进程才不会把整个桌面(壁纸位图)钉在内存里。**这个进程不碰桌面的状态文件**(`LockedFile` 是进程内锁),
+ * 只写自己的心跳文件([HomeKeyState])和音量键的本机环形日志([VolumeKeyLogStore],不上传)。
+ * 音量加 / 减的第一下按下和松开**不吃**(返回 false),系统按原来的方式走那一格,含厂商音量条和 CEC。
+ * 只有系统连发的重复按下才交给 [VolumeRepeatController] 加点并吃掉。静音键不吃,主页键的判定一字不改。
  * 拉起用 `MAIN + HOME` + 显式组件:任务是 `type=home`,从应用按返回直接落回我们(普通 intent 是 `type=standard`,会先闪原厂桌面——Projectivy #605)。
  */
 class HomeKeyService : AccessibilityService() {
@@ -40,6 +43,7 @@ class HomeKeyService : AccessibilityService() {
     // 补查时再按它重判一遍 [onWindowChanged]:去抖期间我们自己的 MainActivity 窗口已经落地的话,lastWindow 早被它换掉,补查什么都不做。
     private var lastWindow: Pair<String, String>? = null
     private val handler = Handler(Looper.getMainLooper())
+    private lateinit var volumeRepeat: VolumeRepeatController
     private val recheck = Runnable {
         val w = lastWindow ?: return@Runnable
         if (onWindowChanged(active, w.first, w.second, stockHomes, lastLaunchAt, SystemClock.elapsedRealtime())) launch("recheck:${w.first}")
@@ -53,6 +57,17 @@ class HomeKeyService : AccessibilityService() {
             dreaming = intent.action == Intent.ACTION_DREAMING_STARTED
             Log.i(TAG, "homekey dreaming=$dreaming")
         }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        // uptimeMillis 与 Handler.postDelayed 同一条轴。音量日志写在本进程的私有目录,桌面进程读同一份。
+        volumeRepeat = VolumeRepeatController(
+            clock = VolumeClock { SystemClock.uptimeMillis() },
+            scheduler = HandlerVolumeScheduler(handler),
+            stepper = AudioVolumeStepper(getSystemService(AudioManager::class.java)),
+            onRecord = { record -> runCatching { volumeKeyLogStore(this).append(record) } },
+        )
     }
 
     override fun onServiceConnected() {
@@ -82,6 +97,7 @@ class HomeKeyService : AccessibilityService() {
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
+        if (::volumeRepeat.isInitialized) volumeRepeat.stop()
         handler.removeCallbacksAndMessages(null)
         lastWindow = null
         runCatching { unregisterReceiver(dreamReceiver) }
@@ -90,9 +106,34 @@ class HomeKeyService : AccessibilityService() {
         return super.onUnbind(intent)
     }
 
-    override fun onInterrupt() {}
+    override fun onDestroy() {
+        if (::volumeRepeat.isInitialized) volumeRepeat.stop()
+        super.onDestroy()
+    }
+
+    override fun onInterrupt() {
+        if (::volumeRepeat.isInitialized) volumeRepeat.stop()
+    }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
+        // 短按(第一下按下、松开)不吃,系统照旧走一格。重复按下才由我们加点并吃掉。静音仍放行。
+        if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP || event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            if (!::volumeRepeat.isInitialized) return false
+            return when (event.action) {
+                KeyEvent.ACTION_DOWN -> if (event.repeatCount > 0) {
+                    volumeRepeat.onHeartbeat(event.keyCode, event.downTime)
+                    true
+                } else {
+                    volumeRepeat.onKeyDown(event.keyCode, event.downTime)
+                    consumeVolumeDown(volumeRepeat.openedNewPress)
+                }
+                KeyEvent.ACTION_UP -> {
+                    volumeRepeat.onKeyUp(event.keyCode)
+                    false
+                }
+                else -> false
+            }
+        }
         if (event.keyCode != KeyEvent.KEYCODE_HOME) return false
         // 松开:跟着它的按下走(吃了就吃、放行了就放行),不按此刻的状态重判。
         if (event.action != KeyEvent.ACTION_DOWN) return presses.onUp()

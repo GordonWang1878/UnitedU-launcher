@@ -136,7 +136,7 @@
     <string name="home_settings_unknown">未知</string>
     <!-- R162 主页键接管:系统「无障碍」页里的服务名与说明 -->
     <string name="homekey_service_label">UnitedU 主页键接管</string>
-    <string name="homekey_service_desc">只做一件事：在 UnitedU 不是默认桌面的电视上，按主页键回到 UnitedU。只响应主页键和前台应用的名字，不读取屏幕内容。</string>
+    <string name="homekey_service_desc">在 UnitedU 不是默认桌面的电视上，按主页键回到 UnitedU；按住音量键时按电视送来的连发调节音量。只响应主页键、音量键和前台应用的名字，不读取屏幕内容。</string>
     <!-- R162 主页键接管:设置「默认桌面」页与引导第 3 步的胶囊、状态小字与左侧说明 -->
     <string name="homekey_capsule">主页键接管</string>
     <string name="homekey_state_on">已开启</string>
@@ -148,6 +148,17 @@
     <string name="homekey_note_not_running">电视显示已开启，但服务没在运行（更新或重启后常见）。到原生电视设置的「无障碍」里关掉再打开，或重启电视。</string>
     <string name="homekey_note_restricted">UnitedU 是用文件管理器或浏览器安装的，Android 13 起这台电视不允许打开它的无障碍服务。用电脑执行：adb shell appops set com.uniteduone.launcher ACCESS_RESTRICTED_SETTINGS allow，再到原生电视设置的「无障碍」里打开「UnitedU 主页键接管」；或先卸载、再用 adb 重新安装（会清掉桌面布局）。</string>
     <string name="toast_homekey_restricted">这台电视不允许打开。返回后按左侧说明用电脑解锁，再试一次</string>
+    <string name="homekey_manual_title">请手动开启</string>
+    <string name="homekey_manual_body">这台电视的「无障碍」入口打不开（系统给了一个空页面）。请用遥控器按下面的步骤手动开启：\n1. 按遥控器上的「设置」键，或从原厂桌面进入「设置」。\n2. 打开「设备偏好设置」。有的电视叫「系统」或「通用」。\n3. 打开「无障碍」。\n4. 在服务列表里找到「UnitedU 主页键接管」，并把它打开。\n5. 若电视询问是否允许，选择允许。然后按返回回到 UnitedU。</string>
+    <string name="homekey_manual_body_restricted">这台电视的「无障碍」入口打不开。UnitedU 是用文件管理器或浏览器安装的，Android 13 起还要先解锁。请按下面的步骤：\n1. 用电脑执行：adb shell appops set com.uniteduone.launcher ACCESS_RESTRICTED_SETTINGS allow\n2. 按遥控器上的「设置」键，或从原厂桌面进入「设置」。\n3. 打开「设备偏好设置」（有的电视叫「系统」或「通用」），再打开「无障碍」。\n4. 找到「UnitedU 主页键接管」并打开。若询问是否允许，选择允许。\n5. 按返回回到 UnitedU。</string>
+    <string name="homekey_manual_ok">知道了</string>
+    <string name="volume_log_capsule">音量按键记录</string>
+    <string name="volume_log_title">音量按键记录</string>
+    <string name="volume_log_note">记录只存在这台电视上，UnitedU 不会上传。按「分享」由你自己选择交给哪个应用；没有可分享的应用时，文字留在这个画面上。</string>
+    <string name="volume_log_empty">还没有记录。按住音量键之后，这里会留下每次按下和松开的时间。</string>
+    <string name="volume_log_share">分享</string>
+    <string name="volume_log_close">关闭</string>
+    <string name="volume_log_share_failed">没有可以接收这段记录的应用。记录仍只在这台电视上。</string>
     <string name="toast_self_update_failed">更新没有装上（%1$d）。可以在「关于」里重试</string>
 
     <!-- picker_* : 壁纸/卡片图/屏保图库选择器 -->
