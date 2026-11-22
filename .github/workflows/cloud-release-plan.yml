@@ -1,0 +1,77 @@
+# 手动、只读的发布计划。不签名、不建 tag、不发布、不部署。
+# 输入经环境变量交给计划程序，不写进 shell 命令。
+name: cloud-release-plan
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "稳定版 X.Y.Z 或 Beta X.Y.Z-beta.N，须与提交里的 versionName 一致"
+        required: true
+        type: string
+      commit_sha:
+        description: "要计划的完整 40 位小写提交 SHA，须等于本次检出的提交"
+        required: true
+        type: string
+      notes:
+        description: "非空发布说明。只当数据校验，不会当作命令执行"
+        required: true
+        type: string
+      update_urls:
+        description: "unitedu.updateUrls 的完整值，须与仓库 gradle.properties 逐字一致"
+        required: true
+        type: string
+      beta_urls:
+        description: "unitedu.betaUrls 的完整值，须与仓库 gradle.properties 逐字一致"
+        required: true
+        type: string
+      rollback_urls:
+        description: "unitedu.rollbackUrls 的完整值，须与仓库 gradle.properties 逐字一致"
+        required: true
+        type: string
+      version_code:
+        description: "提交里的 versionCode，十进制且不带前导零"
+        required: true
+        type: string
+      channel_state_json:
+        description: "离线频道状态 JSON。留空则计划失败，不会把已发布历史当成空的"
+        required: false
+        default: ""
+        type: string
+      mode:
+        description: "只接受 dry-run。execute 会失败，本工作流不能发布"
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - execute
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: offline plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out selected commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Run offline release plan
+        env:
+          UNITEDU_PLAN_VERSION: ${{ inputs.version }}
+          UNITEDU_PLAN_SHA: ${{ inputs.commit_sha }}
+          UNITEDU_PLAN_NOTES: ${{ inputs.notes }}
+          UNITEDU_PLAN_UPDATE_URLS: ${{ inputs.update_urls }}
+          UNITEDU_PLAN_BETA_URLS: ${{ inputs.beta_urls }}
+          UNITEDU_PLAN_ROLLBACK_URLS: ${{ inputs.rollback_urls }}
+          UNITEDU_PLAN_VERSION_CODE: ${{ inputs.version_code }}
+          UNITEDU_PLAN_CHANNEL_STATE_JSON: ${{ inputs.channel_state_json }}
+          UNITEDU_PLAN_MODE: ${{ inputs.mode }}
+          UNITEDU_PLAN_GITHUB_SHA: ${{ github.sha }}
+        run: python3 scripts/cloud_release_plan.py

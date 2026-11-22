@@ -2494,3 +2494,9 @@ Gordon 在 beta.9 上报三件事,模拟器 perfetto trace(给各解码点临时
 - 与 Codex 初稿的修正：复活链与写回权限不可拆、Aerial 的用户控制问题是"主动覆盖"而非"判据缺失"、遗漏 #774 与"原厂桌面建模"、Android 12+ 小米干脆不过滤按键的取舍、预算 14 人日对 P0 仍成立（约 11–12），P1 是另一个 8–15 人日项目。
 - 验证边界：只读源码 + GitHub API + 一次隔离 AVD（`unitedu-tv`，AOSP TV 14）只读对比——`queryIntentActivities(MAIN+HOME)` 里确实有 `FallbackHome`（priority -1000），现行 `stockHomes` 会收进去；带不带 `DEFAULT` 在该镜像上无差异，只在极米那类固件成立（不能当通用修复宣称）。未编译/未安装 Aerial、未运行其脚本、未连真机。
 - **研究结论不等于 Gordon 已批准实施**；单 APK 决策建议不动，例外条件（TCL/OPPO 类拒装声明 HOME 的 APK）只写设计不发版。
+
+## 2026-11-22 · 云端发布第一阶段（只做离线计划）
+
+- 新增 `scripts/cloud_release_plan.py` 与手动工作流 `.github/workflows/cloud-release-plan.yml`。计划核对版本、完整提交 SHA、非空说明和三项通道地址；成功只表示 dry-run。发布能力固定为 absent，不构建、不签名、不建 tag、不上传。
+- `scripts/env.sh` 在 macOS 上仍写入 `~/Library` 工具链。其它系统不覆盖已有的 `JAVA_HOME`、`ANDROID_HOME` 和 `PATH`。
+- 未改 `versionName` / `versionCode`，未改 `scripts/release.sh`，未派发工作流，未读取签名材料或线上清单。设计与未确认的参数见 `docs/design/cloud-release-foundation.md`。自测是 `python3 -m unittest scripts/tests/test_cloud_release_plan.py`，不是独立验收，也没有在 macOS 上 source `scripts/env.sh`。

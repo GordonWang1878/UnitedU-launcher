@@ -8,7 +8,7 @@
 source scripts/env.sh && gradle --no-daemon assembleRelease
 ```
 
-工具链在 `~/Library/{Java,Gradle,Android}`,刻意不进全局 PATH。装法与版本见 `docs/WORKLOG.md`。
+工具链在 `~/Library/{Java,Gradle,Android}`,刻意不进全局 PATH。装法与版本见 `docs/WORKLOG.md`。macOS 上 `scripts/env.sh` 仍写入这些路径。其它系统不覆盖已经设好的 `JAVA_HOME`、`ANDROID_HOME` 和 `PATH`，缺了就失败，不猜测工具链位置。
 
 ## 模拟器(开发验证)
 
