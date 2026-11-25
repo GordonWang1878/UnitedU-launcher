@@ -64,9 +64,52 @@ class HomeKeyPresses {
     fun onUp(): Boolean = downConsumed.also { downConsumed = false }
 }
 
+/**
+ * 原厂 / 其它桌面候选的更富模型(D-07 接口先行)。
+ * [priority] 来自 ResolveInfo，本步**不**按正负过滤(见 [stockHomesFrom])；
+ * [targetActivity] 是 activity-alias 指向的真实类名(窗口事件里常带这个，query 里常报别名)。
+ */
+data class HomeCandidate(
+    val pkg: String,
+    val cls: String,
+    val priority: Int,
+    val targetActivity: String? = null,
+)
+
 /** 别的桌面的 (包名, HOME Activity 类名):`queryIntentActivities(MAIN + HOME)` 的结果去掉自己。 */
 fun stockHomes(all: List<Pair<String, String>>, self: String): Set<Pair<String, String>> =
     all.filter { it.first != self }.toSet()
+
+/** `com.android.settings.FallbackHome` → `FallbackHome`；没有包名时整串就是类名。 */
+private fun simpleClassName(className: String): String = className.substringAfterLast('.')
+
+/**
+ * AOSP 的兜底桌面，不是电视上的原厂桌面。
+ * 认 [className] 的简单类名，不看优先级；空串 / 空白不是类名。
+ */
+private fun isFallbackHome(className: String?): Boolean =
+    !className.isNullOrBlank() && simpleClassName(className) == "FallbackHome"
+
+/**
+ * 从 [HomeCandidate] 列表算出别的桌面 (包名, 类名) 集合。
+ * - 丢掉 `pkg == self`
+ * - 丢掉简单类名是 `FallbackHome` 的候选：`cls` 或 [HomeCandidate.targetActivity] 任一命中，整条排除
+ *   （`com.android.tv.settings.system.FallbackHome`、`com.android.settings.FallbackHome` 都算）
+ * - 每个剩余候选收 `(pkg, cls)`；当 [HomeCandidate.targetActivity] 非空且非空白时，再收 `(pkg, targetActivity)`
+ *   （与 `HomeKeyService.refresh` 里 alias / 真实类名双名同构）
+ * - **不按 [HomeCandidate.priority] 过滤**（负优先级的真实桌面，如 VIDAA，仍保留）
+ */
+fun stockHomesFrom(candidates: List<HomeCandidate>, self: String): Set<Pair<String, String>> =
+    candidates
+        .filter { it.pkg != self }
+        .filter { !isFallbackHome(it.cls) && !isFallbackHome(it.targetActivity) }
+        .flatMap { c ->
+            val names = mutableListOf(c.pkg to c.cls)
+            val target = c.targetActivity?.takeIf { it.isNotBlank() }
+            if (target != null) names += c.pkg to target
+            names
+        }
+        .toSet()
 
 /** 连续两次拉起之间的最短间隔:一次换桌面会发两三个窗口事件,别拉两次。 */
 const val HOME_RELAUNCH_DEBOUNCE_MS = 1_000L
